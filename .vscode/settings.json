@@ -1,0 +1,44 @@
+{
+  // Editor defaults aligned with .editorconfig and .prettierrc.
+  "editor.rulers": [100],
+  "editor.wordWrap": "off",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  // Run ESLint as a code action on save for TypeScript files.
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["typescript", "javascript"],
+
+  // Per-language formatters: Prettier handles TS/JSON; the in-tree formatter
+  // owns Data7 Basic and the project XML.
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "files.trimTrailingWhitespace": false
+  },
+  "[d7basic]": {
+    "editor.formatOnSave": true,
+    "editor.tabSize": 3
+  },
+  "[data7project]": {
+    "editor.tabSize": 2
+  },
+
+  // Explorer / debug niceties.
+  "explorer.compactFolders": false,
+  "debug.toolBarLocation": "commandCenter"
+}

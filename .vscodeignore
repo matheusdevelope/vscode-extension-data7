@@ -1,0 +1,41 @@
+# Files excluded from the .vsix package.
+# Everything in `src/` is compiled to `out/`; the .ts files don't need to ship.
+
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+.gitattributes
+.cursor/**
+.github/**
+
+# Build/dev artefacts
+node_modules/**
+tsconfig.json
+**/tsconfig.json
+**/*.map
+**/*.ts
+!out/**/*.d.ts
+
+# Linter and formatter configs (developer tooling, not runtime).
+.editorconfig
+.prettierrc
+.prettierrc.*
+.prettierignore
+eslint.config.*
+.eslintrc.*
+.eslintignore
+
+# Documentation that lives in the repo but doesn't need to ship in the package.
+docs/**
+project_context.md
+CONTRIBUTING.md
+CHANGELOG.md
+scripts/**
+
+# External documentation snapshots that should never be packaged.
+Documentacao Classes Form Delphi/**
+
+# Test artefacts
+**/*.test.js
+out/test/**
