@@ -1,109 +1,109 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "TCanvas",
-    "kind": "class",
-    "type": "TCanvas",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TCanvas",
+    kind: "class",
+    type: "TCanvas",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Drawing",
-    "inheritsFrom": "TObject",
-    "description": "Representa a área de desenho de um componente gráfico."
+    fileUri: "system://library",
+    containerName: "Drawing",
+    inheritsFrom: "TObject",
+    description: "Representa a área de desenho de um componente gráfico.",
   },
   {
-    "name": "Pen",
-    "kind": "property",
-    "type": "TPen",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Pen",
+    kind: "property",
+    type: "TPen",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TCanvas",
-    "description": "Obtém ou define as configurações da caneta de contorno."
+    fileUri: "system://library",
+    containerName: "TCanvas",
+    description: "Obtém ou define as configurações da caneta de contorno.",
   },
   {
-    "name": "MoveTo",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "MoveTo",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pX",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pX",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pY",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pY",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TCanvas",
-    "description": "Move a posição atual da caneta para as coordenadas informadas."
+    fileUri: "system://library",
+    containerName: "TCanvas",
+    description: "Move a posição atual da caneta para as coordenadas informadas.",
   },
   {
-    "name": "Rectangle",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Rectangle",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pX1",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pX1",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pY1",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pY1",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pX2",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pX2",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pY2",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pY2",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TCanvas",
-    "description": "Desenha um retângulo no canvas utilizando a caneta ativa."
-  }
+    fileUri: "system://library",
+    containerName: "TCanvas",
+    description: "Desenha um retângulo no canvas utilizando a caneta ativa.",
+  },
 ];

@@ -1,85 +1,85 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Left",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Left",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TMargins",
-    "description": "Margem esquerda."
+    fileUri: "system://library",
+    containerName: "TMargins",
+    description: "Margem esquerda.",
   },
   {
-    "name": "Top",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Top",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TMargins",
-    "description": "Margem superior."
+    fileUri: "system://library",
+    containerName: "TMargins",
+    description: "Margem superior.",
   },
   {
-    "name": "Right",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Right",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TMargins",
-    "description": "Margem direita."
+    fileUri: "system://library",
+    containerName: "TMargins",
+    description: "Margem direita.",
   },
   {
-    "name": "Bottom",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Bottom",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TMargins",
-    "description": "Margem inferior."
+    fileUri: "system://library",
+    containerName: "TMargins",
+    description: "Margem inferior.",
   },
   {
-    "name": "TMargins",
-    "kind": "class",
-    "type": "TMargins",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TMargins",
+    kind: "class",
+    type: "TMargins",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Forms",
-    "inheritsFrom": "TObject",
-    "description": "Classe do Delphi que gerencia as margens de posicionamento de um controle."
-  }
+    fileUri: "system://library",
+    containerName: "Forms",
+    inheritsFrom: "TObject",
+    description: "Classe do Delphi que gerencia as margens de posicionamento de um controle.",
+  },
 ];

@@ -1,0 +1,86 @@
+import type { SystemSymbolInfo } from "../types";
+
+const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
+
+export const symbols: SystemSymbolInfo[] = [
+  {
+    name: "TGridDrawState",
+    kind: "class",
+    type: "TGridDrawState",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description:
+      "Conjunto (set) de flags que descrevem o estado de desenho de uma célula do Grid no momento do evento OnDrawCell. Várias flags podem estar ativas simultaneamente.",
+  },
+
+  // ───────── Constantes ─────────
+  {
+    name: "gdSelected",
+    kind: "variable",
+    type: "TGridDrawState",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Célula está selecionada (0).",
+  },
+  {
+    name: "gdFocused",
+    kind: "variable",
+    type: "TGridDrawState",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Célula está com o foco (1).",
+  },
+  {
+    name: "gdFixed",
+    kind: "variable",
+    type: "TGridDrawState",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Célula está em uma coluna/linha fixa (cabeçalho) (2).",
+  },
+  {
+    name: "gdRowSelected",
+    kind: "variable",
+    type: "TGridDrawState",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Toda a linha desta célula está selecionada (3).",
+  },
+  {
+    name: "gdHotTrack",
+    kind: "variable",
+    type: "TGridDrawState",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Mouse está hover sobre a célula (hot-track) (4).",
+  },
+  {
+    name: "gdPressed",
+    kind: "variable",
+    type: "TGridDrawState",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Célula está pressionada (botão de mouse down) (5).",
+  },
+];

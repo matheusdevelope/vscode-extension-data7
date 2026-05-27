@@ -1,68 +1,69 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "MessageBox",
-    "kind": "class",
-    "type": "MessageBox",
-    "isShared": true,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "MessageBox",
+    kind: "class",
+    type: "MessageBox",
+    isShared: true,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Forms",
-    "description": "Classe de exibição de mensagens."
+    fileUri: "system://library",
+    containerName: "Forms",
+    description: "Classe de exibição de mensagens.",
   },
   {
-    "name": "Show",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": true,
-    "isPrivate": false,
-    "parameters": [
+    name: "Show",
+    kind: "method",
+    type: "Integer",
+    isShared: true,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pMessage",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pMessage",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "MessageBox",
-    "description": "Exibe uma caixa de diálogo informativa com a mensagem informada."
+    fileUri: "system://library",
+    containerName: "MessageBox",
+    description: "Exibe uma caixa de diálogo informativa com a mensagem informada.",
   },
   {
-    "name": "Confirmation",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": true,
-    "isPrivate": false,
-    "parameters": [
+    name: "Confirmation",
+    kind: "method",
+    type: "Boolean",
+    isShared: true,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pMessage",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pMessage",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "MessageBox",
-    "description": "Exibe uma caixa de confirmação (Sim/Não). Retorna True se o usuário escolheu Sim."
-  }
+    fileUri: "system://library",
+    containerName: "MessageBox",
+    description:
+      "Exibe uma caixa de confirmação (Sim/Não). Retorna True se o usuário escolheu Sim.",
+  },
 ];

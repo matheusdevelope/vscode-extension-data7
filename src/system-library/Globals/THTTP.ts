@@ -1,234 +1,234 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Accept",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Accept",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Define no cabeçalho HTTP qual o tipo de resposta esperado."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Define no cabeçalho HTTP qual o tipo de resposta esperado.",
   },
   {
-    "name": "Body",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Body",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Utilizado para enviar dados ao servidor."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Utilizado para enviar dados ao servidor.",
   },
   {
-    "name": "ContentType",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ContentType",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Diz para o servidor qual o tipo de conteúdo sendo enviado."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Diz para o servidor qual o tipo de conteúdo sendo enviado.",
   },
   {
-    "name": "Password",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Password",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Define a senha do usuário para autenticação."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Define a senha do usuário para autenticação.",
   },
   {
-    "name": "ResponseCode",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ResponseCode",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Obtém o código da resposta HTTP do servidor."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Obtém o código da resposta HTTP do servidor.",
   },
   {
-    "name": "ResponseText",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ResponseText",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Obtém o texto da resposta HTTP do servidor."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Obtém o texto da resposta HTTP do servidor.",
   },
   {
-    "name": "SslVersion",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "SslVersion",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Define a versão do SSL ou TLS utilizada para a conexão."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Define a versão do SSL ou TLS utilizada para a conexão.",
   },
   {
-    "name": "Get",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Get",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pURL",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pURL",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Solicita a representação de um recurso específico."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Solicita a representação de um recurso específico.",
   },
   {
-    "name": "Post",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Post",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pURL",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pURL",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Envia dados para um URI específico."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Envia dados para um URI específico.",
   },
   {
-    "name": "Put",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Put",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pURL",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pURL",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Coloca um arquivo ou recurso em um URI específico."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Coloca um arquivo ou recurso em um URI específico.",
   },
   {
-    "name": "AddCustomHeader",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddCustomHeader",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pHeaderName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pHeaderName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "THTTP",
-    "description": "Adiciona um header customizado à requisição HTTP."
+    fileUri: "system://library",
+    containerName: "THTTP",
+    description: "Adiciona um header customizado à requisição HTTP.",
   },
   {
-    "name": "THTTP",
-    "kind": "class",
-    "type": "THTTP",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "THTTP",
+    kind: "class",
+    type: "THTTP",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Classe para realizar requisições HTTP (GET, POST, PUT)."
-  }
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Classe para realizar requisições HTTP (GET, POST, PUT).",
+  },
 ];

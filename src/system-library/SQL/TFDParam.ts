@@ -1,101 +1,101 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "TFDParam",
-    "kind": "class",
-    "type": "TFDParam",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TFDParam",
+    kind: "class",
+    type: "TFDParam",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "SQL",
-    "inheritsFrom": "TObject",
-    "description": "Representa um parâmetro em uma consulta SQL."
+    fileUri: "system://library",
+    containerName: "SQL",
+    inheritsFrom: "TObject",
+    description: "Representa um parâmetro em uma consulta SQL.",
   },
   {
-    "name": "AsInteger",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsInteger",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TFDParam",
-    "description": "Obtém ou define o valor do parâmetro como Integer."
+    fileUri: "system://library",
+    containerName: "TFDParam",
+    description: "Obtém ou define o valor do parâmetro como Integer.",
   },
   {
-    "name": "AsString",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsString",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TFDParam",
-    "description": "Obtém ou define o valor do parâmetro como String."
+    fileUri: "system://library",
+    containerName: "TFDParam",
+    description: "Obtém ou define o valor do parâmetro como String.",
   },
   {
-    "name": "AsFloat",
-    "kind": "property",
-    "type": "Double",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsFloat",
+    kind: "property",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TFDParam",
-    "description": "Obtém ou define o valor do parâmetro como Double/Float."
+    fileUri: "system://library",
+    containerName: "TFDParam",
+    description: "Obtém ou define o valor do parâmetro como Double/Float.",
   },
   {
-    "name": "AsBoolean",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsBoolean",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TFDParam",
-    "description": "Obtém ou define o valor do parâmetro como Boolean."
+    fileUri: "system://library",
+    containerName: "TFDParam",
+    description: "Obtém ou define o valor do parâmetro como Boolean.",
   },
   {
-    "name": "AsDateTime",
-    "kind": "property",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsDateTime",
+    kind: "property",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TFDParam",
-    "description": "Obtém ou define o valor do parâmetro como TDateTime."
-  }
+    fileUri: "system://library",
+    containerName: "TFDParam",
+    description: "Obtém ou define o valor do parâmetro como TDateTime.",
+  },
 ];
