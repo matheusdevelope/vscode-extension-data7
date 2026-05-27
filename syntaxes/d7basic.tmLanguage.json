@@ -43,6 +43,36 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.interpolated.d7basic",
+          "begin": "\\$\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.d7basic",
+              "match": "\"\"|\\{\\{|\\}\\}"
+            },
+            {
+              "name": "meta.embedded.expression.d7basic",
+              "begin": "\\{",
+              "end": "\\}",
+              "patterns": [
+                {
+                  "include": "#keywords"
+                },
+                {
+                  "include": "#types"
+                },
+                {
+                  "include": "#constants"
+                },
+                {
+                  "include": "#identifiers"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.d7basic",
           "begin": "\"",
           "end": "\"",
@@ -59,7 +89,7 @@
       "patterns": [
         {
           "name": "keyword.control.d7basic",
-          "match": "(?i)\\b(Imports|Namespace|Class|Sub|Function|Property|Get|Set|Shared|Inherits|Overridable|Overrides|As|Public|Private|Dim|New|If|Then|Else|ElseIf|End|Return|Select|Case|Try|Catch|Throw|For|To|Next|While|Loop|Do|Exit|With|MyBase|Me)\\b"
+          "match": "(?i)\\b(Imports|Namespace|Class|Sub|Function|Property|Get|Set|Shared|Inherits|Overridable|Overrides|As|Public|Private|Dim|New|If|Then|Else|ElseIf|End|Return|Select|Case|Try|Catch|Throw|For|Each|In|To|Step|Next|While|Until|Loop|Do|Exit|With|MyBase|Me)\\b"
         },
         {
           "name": "keyword.operator.logical.d7basic",

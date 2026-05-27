@@ -100,4 +100,4 @@ Relatório padrão do Data7 (TfrmFormulario derivado). Permite exibir/imprimir/e
 
 _1 classes/tipos, 0 delegates, 10 funções, ~34 membros próprios em classes, 0 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T17:44:11.154Z pela extensão Data7 Dev Studio._
+_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.207Z pela extensão Data7 Dev Studio._

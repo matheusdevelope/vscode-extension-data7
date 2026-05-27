@@ -66,16 +66,16 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 Veja `Settings` → busca por `data7.`:
 
-| Chave                                           | Tipo     | Default                                         | Descrição                                                         |
-| ----------------------------------------------- | -------- | ----------------------------------------------- | ----------------------------------------------------------------- |
-| `data7.executorPath`                            | string   | —                                               | Caminho do `Executor.exe` ou `D7MG.exe`                           |
-| `data7.sharedModulesPath`                       | string   | —                                               | Pasta global de módulos compartilhados                            |
-| `data7.userCode` / `companyCode` / `branchCode` | int      | `1`                                             | Códigos passados ao Executor (`-U` / `-E` / `-F`)                 |
-| `data7.databaseConnectionId`                    | string   | —                                               | UUID da conexão de banco (`-C`); se vazio, lê do `data7.json`     |
-| `data7.enableAutoSync`                          | bool     | `true`                                          | Sincronização automática `.bas` ↔ `.7Proj`                        |
-| `data7.exclude`                                 | string[] | `["**/node_modules/**", "**/data7_modules/**"]` | Globs ignorados pelo indexador e pelo linter                      |
-| `data7.diagnosticSeverity`                      | object   | `{}`                                            | Sobrescreve a severidade por código (`{"unused-import": "info"}`) |
-| `data7.autoFormatOnSave`                        | bool     | `false`                                         | Formata arquivos `.bas` automaticamente ao salvar                 |
+| Chave                                           | Tipo     | Default                                             | Descrição                                                                                                                                                                  |
+| ----------------------------------------------- | -------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data7.executorPath`                            | string   | —                                                   | Caminho do `Executor.exe` ou `D7MG.exe`                                                                                                                                    |
+| `data7.sharedModulesPath`                       | string   | —                                                   | Pasta global de módulos compartilhados                                                                                                                                     |
+| `data7.userCode` / `companyCode` / `branchCode` | int      | `1`                                                 | Códigos passados ao Executor (`-U` / `-E` / `-F`)                                                                                                                          |
+| `data7.databaseConnectionId`                    | string   | —                                                   | UUID da conexão de banco (`-C`); se vazio, lê do `data7.json`                                                                                                              |
+| `data7.enableAutoSync`                          | bool     | `true`                                              | Sincronização automática `.bas` ↔ `.7Proj`                                                                                                                                 |
+| `data7.exclude`                                 | string[] | `["**/node_modules/**", "**/.git/**", "**/out/**"]` | Globs ignorados pelo indexador e pelo linter. `data7_modules/**` é tratado separadamente: indexado para resolução de tipos, mas o linter não emite diagnósticos sobre eles |
+| `data7.diagnosticSeverity`                      | object   | `{}`                                                | Sobrescreve a severidade por código (`{"unused-import": "info"}`)                                                                                                          |
+| `data7.autoFormatOnSave`                        | bool     | `false`                                             | Formata arquivos `.bas` automaticamente ao salvar                                                                                                                          |
 
 ## Suprimir diagnósticos com comentários
 

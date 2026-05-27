@@ -322,14 +322,13 @@
           "type": "array",
           "default": [
             "**/node_modules/**",
-            "**/data7_modules/**",
             "**/.git/**",
             "**/out/**"
           ],
           "items": {
             "type": "string"
           },
-          "description": "Globs ignorados pelo indexador de símbolos e pelo linter (formato `glob` do VS Code)."
+          "description": "Globs ignorados pelo indexador de símbolos e pelo linter (formato `glob` do VS Code). `data7_modules/**` é tratado separadamente: os arquivos lá são indexados para tipos/autocomplete, mas o linter não emite diagnósticos sobre eles."
         },
         "data7.diagnosticSeverity": {
           "type": "object",
@@ -344,7 +343,7 @@
               "off"
             ]
           },
-          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member."
+          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported."
         },
         "data7.autoFormatOnSave": {
           "type": "boolean",
@@ -373,7 +372,10 @@
     "test:watch": "tsc -watch -p ./ & node --test --watch out/test/**/*.test.js",
     "test:coverage": "npm run compile && node --test --experimental-test-coverage out/test/**/*.test.js",
     "audit:system-library": "npm run compile && node scripts/audit-system-library.js",
-    "docs:system-library": "npm run compile && node scripts/generate-system-library-docs.js"
+    "docs:system-library": "npm run compile && node scripts/generate-system-library-docs.js",
+    "docs:examples": "node scripts/generate-examples-index.js",
+    "docs:examples:check": "node scripts/generate-examples-index.js --check",
+    "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node scripts/audit-system-library.js && node scripts/generate-examples-index.js --check"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

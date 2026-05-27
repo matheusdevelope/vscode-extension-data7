@@ -41,3 +41,9 @@ The repository is organized by **VS Code capability** (Pattern B, mirroring `mic
 - Language grammars and configuration: `syntaxes/` and `language-configuration.json` at the repository root. Their paths are referenced from `package.json#contributes`.
 - Built JavaScript output: `out/` (generated).
 - Project context and design notes: `project_context.md` at the repository root is the single conceptual source of truth — update it instead of forking new documentation files (see `coding_standards.mdc` for the documentation policy).
+- `docs/exemple/` — canonical Data7 Basic examples, versioned to double as human reference and as test fixtures. Layout is feature-oriented:
+  - `docs/exemple/sugar/<sugar-name>/` — one file per scenario of a sugar transpiled by `src/project/transpiler.ts` (e.g. `for-each/01-stringlist-explicit-type.bas`). Pair with `_expected/<scenario>.bas` when the file documents the native expansion.
+  - `docs/exemple/diagnostics/<code>/` — one file per `DiagnosticCode` (`missing-import/`, `not-enumerable/`, …). Each folder contains the trigger `.bas` plus optional `after-quickfix.bas` when a Code Action exists.
+  - `docs/exemple/builder/<scenario>/` — full mini-projects (`data7.json` + `src/Principal.bas`) demonstrating build/decompile flows.
+  - Every `.bas` opens with a header comment block of `' @example`, `' @demonstrates`, `' @diagnostics`, and optionally `' @transpiled-to`, `' @requires`. The exact contract lives in `docs/exemple/README.md`.
+  - Examples are excluded from the published `.vsix` via `.vscodeignore` (the folder ships only with the repository, not the marketplace package).

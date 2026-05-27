@@ -3721,4 +3721,4 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 
 _168 classes/tipos, 129 delegates, 1 funções, ~1147 membros próprios em classes, 235 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T17:44:11.181Z pela extensão Data7 Dev Studio._
+_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.232Z pela extensão Data7 Dev Studio._

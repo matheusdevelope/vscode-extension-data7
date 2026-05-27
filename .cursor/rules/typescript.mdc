@@ -6,7 +6,9 @@ alwaysApply: true
 
 # TypeScript Standards
 
-- This is a stack-specific rule file for TypeScript language features and compiler-driven safety. The project compiles with `tsc -p ./` using `strict: true`; do not weaken `tsconfig.json` to silence individual errors.
+- This is a stack-specific rule file for TypeScript language features and compiler-driven safety. The project compiles with `tsc -p ./` using `strict: true` AND `noUncheckedIndexedAccess: true`; do not weaken `tsconfig.json` to silence individual errors.
+- Array and object index access (`arr[i]`, `record[key]`) is typed `T | undefined` everywhere. Handle the undefined case with `?? default`, an early `if (x === undefined) continue;`, or destructuring + an explicit `assert.ok(x)` in tests. Reserve non-null assertions (`!`) for cases where the surrounding code obviously guarantees presence (e.g. immediately after `assert.equal(arr.length, N)`).
+- Regex capture groups (`match[1]`, `match[2]`, …) are also `string | undefined` under this regime. Guard with `if (match?.[1])` or `const g = match?.[1]; if (!g) return;` before using the group.
 - Prefer strong, explicit typing. Narrow types make providers, the linter, and the indexer easier to read, review, and refactor safely.
 - Never introduce `any` when `unknown`, generics, unions, or narrowing solve the problem. When interacting with `fast-xml-parser` output or other untyped JSON-like values, type the result as `unknown` and narrow it before use.
 - Add explicit return types to exported functions, public class methods, and provider methods (`provideCompletionItems`, `provideHover`, …). This protects the public surface from accidental shape changes.

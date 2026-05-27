@@ -16,6 +16,7 @@ alwaysApply: true
 - When comments are necessary, write them in English. User-facing messages and error strings shown in the VS Code UI may remain in Portuguese to match the existing extension UX.
 - Do not leave commented-out code, empty catch blocks, `TODO` without an owner or removal condition, or unused exports behind.
 - Never generate standalone documentation files (`README.md`, `CHANGELOG.md`, separate design docs) unless the user explicitly requests them. The `project_context.md` at the repository root is the canonical conceptual document; update it instead of forking a new file.
+- **Sanctioned exception:** canonical Data7 Basic examples under `docs/exemple/` and the curated `docs/exemple/README.md` index are not "standalone docs" — they are versioned reference inputs that double as test fixtures. Conventions for that folder (header tags, naming, where each kind of example lives) are owned by `project_structure.mdc`.
 - Handle failures explicitly: surface user-relevant errors to the user and detailed context to logs. Do not swallow exceptions. The concrete VS Code surfaces (`showErrorMessage`, `OutputChannel`) are described in `vscode_extension.mdc`.
 - Avoid premature abstractions. Duplicate once if needed, then extract when the pattern is real (the second or third occurrence). When a shared helper already exists for a concern, reuse it instead of re-implementing it.
 - Optimize for readability first: names, types, module boundaries, and control flow should help a reviewer understand the code quickly.

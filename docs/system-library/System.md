@@ -139,4 +139,4 @@ Alias para Double que armazena data e hora.
 
 _13 classes/tipos, 0 delegates, 44 funções, ~28 membros próprios em classes, 0 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T17:44:11.196Z pela extensão Data7 Dev Studio._
+_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.247Z pela extensão Data7 Dev Studio._

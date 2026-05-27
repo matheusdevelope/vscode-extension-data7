@@ -333,4 +333,27 @@ export default tseslint.config(
       ],
     },
   },
+
+  // governance.mdc: `docs/exemple/` is documentation-grade fixture data.
+  // Production source must never `import` from it — only tests may read it
+  // via `loadExample(...)` (filesystem read, not module import).
+  {
+    name: "data7/docs-exemple-isolation",
+    files: ["src/**/*.ts"],
+    ignores: ["src/test/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/docs/**", "**/exemple/**"],
+              message:
+                "Production sources must not import from docs/exemple/. Tests use loadExample() in src/test/_helpers/fixtures.ts (governance.mdc).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

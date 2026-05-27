@@ -26,7 +26,9 @@ alwaysApply: true
 ## Test structure
 
 - Use `describe` / `test` blocks with AAA naming (`should emit missing-import when namespace is not imported`).
-- Co-locate fixtures (sample `.bas` snippets, `.7proj` XML) inside `src/test/fixtures/` and load them through a small helper, instead of inlining long strings in every test.
+- Fixtures are split by audience:
+  - `src/test/_fixtures/` — internal-only fixtures: malformed input, edge cases, oversized projects. Loaded via `loadFixture("...")`. Never exported as documentation.
+  - `docs/exemple/` — canonical, human-readable examples that double as fixtures (see `project_structure.mdc`). Loaded via `loadExample("sugar/for-each/01-...bas")`. Use these when the same scenario is also valuable as language documentation.
 - Reset all shared state between tests (`beforeEach`): clear the indexer, dispose mock diagnostic collections, remove temp directories. No test may depend on execution order.
 
 ## Coverage expectations
@@ -35,3 +37,4 @@ alwaysApply: true
 - Every new code action must have a test that asserts the resulting edit text and target range.
 - Every new entry in `src/system-library/types.ts` (`SystemContainer` union) and every new container folder must be covered by an autocomplete or hover test that proves the container is reachable.
 - Every intentional compatibility branch (legacy `.7proj` shapes, deprecated import syntax) must have a regression test so the exception stays localized.
+- Every new diagnostic code in `src/diagnostics/diagnostic-codes.ts`, every new sugar transpiled by `src/project/transpiler.ts`, and every new Code Action in `src/providers/code-actions.ts` must ship with at least one canonical example under `docs/exemple/<feature>/`. The trigger example is loaded by the corresponding unit test through `loadExample(...)` so the example and the test stay in lockstep — drift between them shows up as a test failure, not as silent stale documentation.

@@ -39,10 +39,12 @@ Enforced statically via `no-restricted-imports` blocks in `eslint.config.mjs`. E
 - Only `src/extension.ts` (or a helper invoked from it) may call `vscode.commands.registerCommand` and `vscode.languages.register*Provider`. Other modules must not register commands or providers.
 - Only `src/services/repository-service.ts` may write to the private modules repository folder.
 - Only the shared `fast-xml-parser`-backed helpers in `src/utils/xml-helpers.ts` may parse or serialize `.7proj` XML.
+- `docs/exemple/` is documentation-grade fixture data. Production sources (`src/**/*.ts` outside `src/test/`) must NOT `import` from it. Tests consume examples via `loadExample(...)` (filesystem read inside `src/test/_helpers/fixtures.ts`), never as ES modules. Enforced by the `docs-exemple-isolation` block in `eslint.config.mjs`.
 
 ## Task-completion verification
 
-- Before concluding a long or multi-file task, run `npm run compile` (which invokes `tsc -p ./`), `npm run lint`, `npm run format:check`, and the relevant test files via `node --test`, and resolve every error or warning caused by the current work.
+- Before concluding a long or multi-file task, run `npm run verify` — it orchestrates `compile + lint + format:check + test + audit-system-library + generate-examples-index --check` and is the canonical "is this PR-ready?" gate.
+- During iterative work prefer the individual scripts (`npm run compile`, `npm run lint`, `npm run format:check`, the relevant `node --test out/test/...` invocations) for faster feedback.
 - For changes that touch the builder, decompiler, linter, indexer, providers, or `src/system-library/types.ts`, run the full test suite with `npm run test`.
 - For changes to shared types (`SystemContainer`, parser output shapes, diagnostic codes, configuration helpers), prefer `npm run compile` over piecemeal type checks so the whole project's type assumptions are validated together.
 - If compile, lint, format check, or tests cannot be run, or if remaining failures are outside the current scope, state that explicitly in the final handoff.
@@ -56,11 +58,11 @@ Enforced statically via `no-restricted-imports` blocks in `eslint.config.mjs`. E
 
 The repository uses a small, explicit set of dev-only tools. Each one has a single owner file and a single purpose; reuse them instead of forking parallel configurations.
 
-- **TypeScript** (`tsconfig.json`): the source of truth for type checking. Compile via `npm run compile`. Do not weaken `strict`.
+- **TypeScript** (`tsconfig.json`): the source of truth for type checking. Compile via `npm run compile`. Strictness flags `strict: true` and `noUncheckedIndexedAccess: true` are both enabled; do not weaken either. Detailed call-site patterns for handling the latter live in `typescript.mdc`.
 - **ESLint** with flat config (`eslint.config.mjs`): owns code-quality and architectural-boundary rules.
   - Preset stack: `@eslint/js` recommended + `typescript-eslint` `strictTypeChecked` + `stylisticTypeChecked` + `eslint-config-prettier` (last, to disable formatting rules).
   - Type-aware via `parserOptions.projectService: true`.
-  - Architectural fences from `# Architectural enforcement` above are enforced via `no-restricted-imports`, one block per folder layer (`infra-isolation`, `analysis-isolation`, `diagnostics-isolation`, `project-isolation`, `services-isolation`, `providers-isolation`, `system-library-isolation`, plus the `document-link-provider-exception` override). When a folder is added or a fence is changed in `governance.mdc`, both must be updated together.
+  - Architectural fences from `# Architectural enforcement` above are enforced via `no-restricted-imports`, one block per folder layer (`infra-isolation`, `analysis-isolation`, `diagnostics-isolation`, `project-isolation`, `services-isolation`, `providers-isolation`, `system-library-isolation`, `docs-exemple-isolation`, plus the `document-link-provider-exception` and `providers-registration-exception` overrides). When a folder is added or a fence is changed in `governance.mdc`, both must be updated together.
   - Run via `npm run lint` (or `npm run lint:fix`).
 - **Prettier** (`.prettierrc` + `.prettierignore`): owns formatting. Configuration is fixed (`printWidth: 100`, `endOfLine: "lf"`, `singleQuote: false`). Run via `npm run format:check` (CI) or `npm run format` (local).
 - **EditorConfig** (`.editorconfig`): owns indent/charset/EOL defaults that are tool-agnostic. Must agree with `.prettierrc` (`printWidth` = `max_line_length`, `tabWidth` = `indent_size`, `endOfLine` = `end_of_line`).

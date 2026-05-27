@@ -26,6 +26,47 @@ A extensão provê recursos avançados de:
 - **`.bas`**: Arquivos de script contendo a codificação em Data7 Basic. Podem declarar namespaces, classes, estruturas, métodos, variáveis locais e atributos globais.
 - **`.7proj`**: Arquivo XML de projeto estruturado que contém metadados, formulários e todos os scripts `.bas` agregados do projeto do ERP.
 
+### 2.7. Açúcares sintáticos transpilados
+
+A linguagem nativa do ERP é limitada (`For` clássico apenas, sem string interpolation, sem condicional inline). A extensão adiciona **açúcares opcionais expandidos pelo `Builder` antes da serialização do `.7proj`**. O `.bas` em `src/` permanece com o açúcar; só o XML final recebe a forma nativa.
+
+A arquitetura distingue dois tipos de transformação em `src/project/transpiler.ts`:
+
+- **`InlineTransform`**: rewriters intra-linha (token-level) que rodam ANTES do registry. Use para açúcares que aparecem em qualquer coluna (ex.: string interpolation).
+- **`SugarRule`**: rules linha-por-linha que produzem expansões multi-linha. Use para açúcares "header" como `For Each ... In ... Next`.
+
+Açúcares atualmente suportados:
+
+#### `For Each <var>[ As <Tipo>] In <expr> ... Next` (enumerable)
+
+- Para qualificar como iterável, o tipo de `<expr>` deve expor `Count As Integer` + um acessor inteiro (precedência `Items` > `Item` > `Strings` > `Objects`).
+- A expansão emite `For __idxN = 0 To <src>.Count - 1` + um `Dim` sintético do elemento, materializando `__srcN` se `<expr>` for complexa.
+- Detector pure em `src/analysis/enumerable-detector.ts`, consumido pelo transpilador E pelo linter.
+
+#### `For Each <var>[ As Integer] In <start>..<end>` (range)
+
+- Açúcar para `For <var> = <start> To <end>`. Resolução puramente sintática (não consulta tipos).
+- Registry-ordered ANTES do generic For Each para evitar que `0..N` seja interpretado como tipo enumerável.
+- O `As Integer` explícito é aceito para documentação, mas o `For` nativo não tem binding tipado.
+
+#### `$"Hello {name}, idade {age}"` (string interpolation)
+
+- Expandido para `"Hello " & (name) & ", idade " & (age)` usando `&` (operador Basic canônico).
+- Chaves escapadas via `{{` / `}}`. Strings regulares `"..."` e comentários `'...` são preservados verbatim.
+- Diagnóstico `invalid-interpolation` (warning) quando malformado: `unterminated-string`, `unterminated-brace`, ou `empty-expression`.
+- Parser puro em `src/utils/interpolation.ts` — única fonte de verdade compartilhada por `transpiler.ts` (build) e `diagnostics.ts` (linter live).
+
+#### `cond ? a : b` (ternary em RHS de assignment)
+
+- Expandido para o bloco multi-linha `If cond Then / target = a / Else / target = b / End If` — o Data7 não tem função condicional inline (`IIf`/`Choose`/`Switch` ausentes na System Library), então a forma idiomática nativa é o bloco. Confirmado nos exemplos oficiais de `docs/Documentação Data7/Global/TJSONObject/TJSONObject.Has.html`.
+- **Apenas no RHS de assignment** é suportado: `Dim x [As T] = c ? a : b`, `x = c ? a : b`, `obj.prop = c ? a : b`. Qualquer outro contexto (`Print c ? a : b`, `Return c ? a : b`, dentro de chamada de método) emite `ternary-context-unsupported` (warning) e a linha permanece intacta — esses casos requerem refator manual porque a expansão multi-linha mudaria a estrutura visível do código.
+- O `Dim`, quando presente, é emitido **separadamente** do bloco `If/Then/Else` para que ambas as branches consigam atribuir ao mesmo target. Comentários inline trailing são reatachados ao `If` header.
+- Parser puro em `src/utils/ternary.ts` (`findTopLevelTernary`) — respeita strings `"..."`, interpoladas `$"..."`, comentários `'...` e profundidade de parênteses; encontra a `?`/`:` outermost correta mesmo em ternários aninhados.
+
+#### Invariante de round-trip
+
+Como o passo de transpilação é destrutivo, `build → decompile → build` continua válido **apenas para fontes nativas**. Arquivos sugarados, ao serem build → decompilados, retornam em forma nativa expandida — comportamento intencional documentado em `data7_domain.mdc`.
+
 ### 2.2. Módulos e Namespaces
 
 - Um arquivo `.bas` é agrupado sob uma declaração `Namespace nome_do_namespace`.
@@ -70,7 +111,7 @@ A extensão segue estritamente o paradigma de **Orientação a Objetos (OOP)** e
 
 - **Single Responsibility (SRP)**: Cada classe tem uma responsabilidade focada e bem definida (ex: `DiagnosticsLinter` para validação, `SymbolParser` para análise de sintaxe de símbolos, `CodeFormatter` para formatação de código).
 - **DRY**: Funções utilitárias redundantes de comentários, caminhos ou conversões foram consolidadas como métodos estáticos ou de instância em classes auxiliares especializadas (ex: `DependencyScanner.stripComments`).
-- **TypeScript Strict Safety**: Utilização de tipos estritos, uniões e interfaces para validação de fluxos e prevenção de erros em tempo de compilação.
+- **TypeScript Strict Safety**: Utilização de tipos estritos, uniões e interfaces para validação de fluxos e prevenção de erros em tempo de compilação. O `tsconfig.json` ativa tanto `strict: true` quanto `noUncheckedIndexedAccess: true` — todo acesso indexado (`arr[i]`, `record[k]`, capture group `match[N]`) é tipado `T | undefined` e exige guarda (`??` default, early-return, ou destructuring + `assert.ok` em testes). Convenções detalhadas vivem em `typescript.mdc`.
 
 ---
 
@@ -104,6 +145,10 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `private-member-access` — um acesso `obj.X` referencia um membro `Private` declarado fora da classe atual.
 - `event-signature-mismatch` — um handler atribuído a `obj.OnXxx` tem aridade incompatível com a do delegate declarado pela propriedade (ex.: `TNotifyEvent` espera 1 parâmetro).
 - `unsupported-member` — o membro acessado em `obj.X` ou `Me.X` está declarado na System Library, mas marcado com `isUnsupported=true` porque o compilador Data7 não traduz aquele membro do autocomplete original (TMS/DevExpress). Emite _Warning_ (não _Error_) para que o usuário possa avaliar a substituição sem bloquear o build local.
+- `not-enumerable` — o operando à direita de `In` em `For Each <var>[ As <Tipo>] In <expr>` resolve para um tipo que não expõe a propriedade `Count` mais um acessor inteiro. O `Builder` deixaria a linha intacta no `.7proj` (gerando erro em runtime do executor), por isso emitimos _Warning_ no editor com o payload `NotEnumerablePayload` (`{ code, typeName }`).
+- `unknown-suppression-code` — uma diretiva `' data7:disable-line <code>` ou `disable-next-line <code>` referencia um código que não existe em `DiagnosticCodes` (typo ou código removido). Emite _Warning_ com payload `UnknownSuppressionCodePayload` (`{ code, suppressedCode }`) — a diretiva permanece no arquivo, mas o usuário descobre que está silenciando nada.
+- `invalid-interpolation` — uma string interpolada `$"..."` está malformada (`unterminated-string` / `unterminated-brace` / `empty-expression`). O parser para na primeira falha, preserva o resto da linha, e emite _Warning_ com payload `InvalidInterpolationPayload` (`{ code, reason }`). O Builder seguirá a mesma análise via `src/utils/interpolation.ts` — diagnóstico no editor e falha no build são sempre coerentes.
+- `ternary-context-unsupported` — um ternário `cond ? a : b` foi usado fora do RHS de um assignment (em `Print`, `Return`, argumento de chamada, etc.). O transpilador só consegue expandir o ternário para o bloco multi-linha `If/Then/Else/End If` quando o target da atribuição é claro; outros contextos exigiriam restruturação do código circundante. Emite _Warning_ com payload `TernaryContextUnsupportedPayload` (`{ code, context }`).
 
 Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 
@@ -112,11 +157,16 @@ Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 - `module-not-declared` / `module-not-found` → "Instalar módulo X…" (dispara `data7.installModule`)
 - `unknown-member` → até 3 ações "Você quis dizer Y?" que substituem o nome no lugar.
 - `unsupported-member` → sem Quick Fix (substituição depende de contexto), apenas o warning visível no diagnostic.
+- `not-enumerable` → sem Quick Fix (a substituição depende da forma de iteração que o usuário pretende — converter para `For i = 0 To ... - 1` ou mudar o tipo do operando). Apenas o warning é exibido.
+- `unknown-suppression-code` → sem Quick Fix (o usuário pode ter digitado errado ou copiado de um release antigo). Apenas o warning é exibido.
+- `invalid-interpolation` → sem Quick Fix (depende de qual chave/escape o usuário esqueceu). Apenas o warning é exibido.
+- `ternary-context-unsupported` → sem Quick Fix (a refatoração depende da semântica do código circundante — converter para `If/Then/Else` separado, materializar em variável, etc.). Apenas o warning é exibido.
 
 ### 4.2. Compilação (`Builder`)
 
 - Executa a concatenação e validação do projeto `.bas` empacotando-o no arquivo XML final `.7proj`.
 - Remove comentários excedentes, realiza escape de caracteres especiais XML (`&`, `<`, `>`, etc.) e gera GUIDs exclusivos de projeto.
+- Antes do strip/minify, aplica `SugarTranspiler.transpile` em cada `.bas` (Principal, módulos de `src/` e dependências em `data7_modules/`), expandindo a sintaxe `For Each ... In ... Next` em `For __idx = 0 To <src>.Count - 1` + um `Dim` sintético do elemento. Tipos inválidos (sem `Count`+indexador) ficam intactos no XML final e geram um `logger.warn` rastreável no OutputChannel `Data7`. O round-trip Builder ↔ Decompiler permanece idempotente para fontes nativas; para fontes sugaradas o `Decompiler` devolve a forma expandida.
 
 ### 4.3. Descompilação (`Decompiler`)
 
@@ -240,12 +290,14 @@ Suíte de testes automatizados unitários e de integração da extensão (**771 
 
 - `audit-system-library.js` — auditoria que falha com exit code ≠ 0 quando encontra: descrições stub, eventos `OnXxx: Variant`, `inheritsFrom` órfão, ou tipos desconhecidos.
 - `generate-system-library-docs.js` — wrapper CLI sobre `DocsGenerator` para regerar `docs/system-library/` no repositório (usado pelo CI).
+- `generate-examples-index.js` — regera o índice de `docs/exemple/README.md` a partir dos headers `@example`/`@demonstrates`/`@diagnostics` de cada `.bas`. Modo `--check` falha com exit code 1 quando o README está fora de sincronia (usado pelo CI). Acessível via `npm run docs:examples` (escrita) e `npm run docs:examples:check` (CI).
 
 ### 5.12. Documentação versionada (`docs/`)
 
 - `docs/system-library/` — `README.md` + 1 `.md` por namespace, gerados automaticamente. Cada arquivo carrega o mesmo `Snapshot <hash>` no rodapé para detecção de drift.
 - `docs/levantamentos/` — CSVs brutos do autocomplete original do Data7 (TMS/DevExpress/VCL) usados como entrada para popular a System Library. Cada arquivo (ex.: `grid.txt`) lista `Categoria,Nome,Tipo,Suportado` e é a fonte de verdade quando precisamos repopular a definição de uma classe. Mantidos versionados para que mudanças no compilador apareçam como diffs revisáveis.
 - `docs/Documentação Data7/` — pasta com a documentação HTML original do ERP organizada por namespace/classe (`Collections/StringList`, `Data7/Report`, `Global/THttp`, `Net/TFTP`, `SQL/Command`, `XML/IXMLNode`, …). Algumas subpastas trazem também um `instrução.txt` (CSV canônico de autocomplete + Suportado, descrito em § 2.5) que serve de fonte para popular a System Library e é verificado em CI por `instrucao-coverage.test.ts`.
+- `docs/exemple/` — exemplos canônicos `.bas` (e mini-projetos) usados como referência humana **e** como fixtures de teste. Layout por feature: `sugar/<sugar-name>/` (For Each, etc.), `diagnostics/<código>/` (1 pasta por `DiagnosticCode`), `builder/<cenário>/`. Cada `.bas` abre com um header padronizado (`' @example`, `' @demonstrates`, `' @diagnostics`, e opcionalmente `' @transpiled-to`, `' @requires`) cujo contrato vive em `docs/exemple/README.md`. Carregados pelos testes via `loadExample("sugar/for-each/01-...bas")` para evitar drift entre documentação e cobertura.
 
 ### 5.13. Hygiene e CI (raiz)
 
@@ -255,10 +307,20 @@ Suíte de testes automatizados unitários e de integração da extensão (**771 
 - `.vscodeignore` — exclui `src/`, `.cursor/`, `docs/`, `scripts/`, `node_modules/`, mapas TS, etc. do pacote `.vsix`.
 - `.github/workflows/ci.yml` — pipeline GitHub Actions: install → compile → test → audit → generate docs em todos os PRs e push para `main`/`master`.
 
-Para rodar todo o suite de testes localmente no repositório, execute:
+Para rodar todo o pipeline (compile + lint + format + test + audit + verificação de exemplos) localmente, basta:
 
 ```bash
-npm run test           # compile + node --test
+npm run verify
+```
+
+Para iterar mais rápido durante o desenvolvimento, use os scripts individuais:
+
+```bash
+npm run compile        # tsc -p ./
+npm run lint           # ESLint (inclui fences arquiteturais)
+npm run format:check   # Prettier --check
+npm run test           # compile + node --test out/test/**/*.test.js
 node scripts/audit-system-library.js
-node scripts/generate-system-library-docs.js
+node scripts/generate-system-library-docs.js   # regera docs/system-library/
+node scripts/generate-examples-index.js        # regera docs/exemple/README.md
 ```
