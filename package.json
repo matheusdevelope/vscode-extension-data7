@@ -4,28 +4,40 @@
   "description": "Ferramentas para desenvolvimento, sincronização e execução de projetos Data7 (.7Proj) no VS Code.",
   "version": "0.1.0",
   "publisher": "matheusdevelope",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matheusdevelope/vscode-extension-data7.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matheusdevelope/vscode-extension-data7/issues"
+  },
+  "keywords": [
+    "data7",
+    "erp",
+    "data7basic",
+    "delphi",
+    "language-server",
+    "intellisense",
+    "linter"
+  ],
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.80.0",
+    "node": ">=22.13.0"
   },
   "categories": [
     "Programming Languages",
+    "Linters",
+    "Formatters",
     "Other"
   ],
+  "galleryBanner": {
+    "color": "#0a2540",
+    "theme": "dark"
+  },
   "activationEvents": [
-    "onLanguage:d7basic",
-    "onLanguage:data7project",
     "workspaceContains:**/*.7proj",
-    "workspaceContains:**/*.7Proj",
-    "onCommand:data7.openProject",
-    "onCommand:data7.newProject",
-    "onCommand:data7.openDevStudio",
-    "onCommand:data7.build",
-    "onCommand:data7.runProject",
-    "onCommand:data7.installModule",
-    "onCommand:data7.updateDependencies",
-    "onCommand:data7.importModuleToRepository",
-    "onCommand:data7.bulkImportToRepository",
-    "onCommand:data7.exploreRepository"
+    "workspaceContains:**/*.7Proj"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -108,6 +120,32 @@
       {
         "command": "data7.exploreRepository",
         "title": "Data7: Explorar Repositório de Módulos"
+      },
+      {
+        "command": "data7.decompose",
+        "title": "Data7: Decompor Projeto (.7Proj → .bas)"
+      },
+      {
+        "command": "data7.openParentFolder",
+        "title": "Data7: Voltar para a Pasta de Repositório"
+      },
+      {
+        "command": "data7.generateSystemLibraryDocs",
+        "title": "Data7: Gerar Documentação da System Library",
+        "category": "Data7",
+        "icon": "$(book)"
+      },
+      {
+        "command": "data7.injectSystemLibraryDocs",
+        "title": "Data7: Sincronizar Documentação no AGENTS.md",
+        "category": "Data7",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "data7.showOutput",
+        "title": "Data7: Mostrar Saída",
+        "category": "Data7",
+        "icon": "$(output)"
       }
     ],
     "menus": {
@@ -138,6 +176,108 @@
         "command": "data7.runProject",
         "key": "f5",
         "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.build",
+        "key": "ctrl+shift+b",
+        "when": "editorLangId == d7basic"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "data7.gettingStarted",
+        "title": "Primeiros passos com Data7 Dev Studio",
+        "description": "Configure seu ambiente Data7 e descubra os principais recursos da extensão em 5 passos rápidos.",
+        "steps": [
+          {
+            "id": "configure-executor",
+            "title": "1. Configurar o executor Data7",
+            "description": "Aponte a extensão para o `Executor.exe` (ou `D7MG.exe`) do seu ambiente Data7. Sem ele, F5 não consegue rodar projetos.\n[Abrir Settings](command:workbench.action.openSettings?%22data7.executorPath%22)",
+            "media": {
+              "markdown": "media/walkthrough-step1.md"
+            },
+            "completionEvents": [
+              "onSettingChanged:data7.executorPath"
+            ]
+          },
+          {
+            "id": "open-project",
+            "title": "2. Abrir um projeto .7Proj",
+            "description": "Abra um `.7Proj` existente — a extensão oferece decompor a árvore para edição confortável no VS Code.\n[Abrir projeto…](command:data7.openProject)",
+            "completionEvents": [
+              "onCommand:data7.openProject"
+            ]
+          },
+          {
+            "id": "build-run",
+            "title": "3. Compilar e executar",
+            "description": "Use `Ctrl+Shift+B` para compilar e `F5` para rodar no Executor.\n[Compilar agora](command:data7.build)\n[Rodar agora](command:data7.runProject)",
+            "completionEvents": [
+              "onCommand:data7.build"
+            ]
+          },
+          {
+            "id": "intellisense",
+            "title": "4. Use o IntelliSense",
+            "description": "Hover, Go to Definition (F12), Find All References (Shift+F12), Rename (F2) e quick fixes para erros de import já estão ativos para arquivos `.bas`. Comece digitando `Imports ` para ver a lista de namespaces disponíveis.",
+            "completionEvents": [
+              "onLanguage:d7basic"
+            ]
+          },
+          {
+            "id": "sync-agents-md",
+            "title": "5. Sincronizar contexto para IA",
+            "description": "Se você usa Cursor / Copilot Chat, sincronize a documentação da System Library no `AGENTS.md` — agentes leem automaticamente.\n[Sincronizar AGENTS.md](command:data7.injectSystemLibraryDocs)",
+            "completionEvents": [
+              "onCommand:data7.injectSystemLibraryDocs"
+            ]
+          }
+        ]
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "d7basic",
+        "scopes": {
+          "class": [
+            "entity.name.type.class.d7basic"
+          ],
+          "namespace": [
+            "entity.name.namespace.d7basic"
+          ],
+          "method": [
+            "entity.name.function.method.d7basic"
+          ],
+          "property": [
+            "variable.other.property.d7basic"
+          ],
+          "variable": [
+            "variable.other.d7basic"
+          ],
+          "event": [
+            "entity.name.function.event.d7basic"
+          ]
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "data7-build",
+        "owner": "data7",
+        "source": "Data7 Builder",
+        "applyTo": "allDocuments",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(?:(?:ERROR|WARNING|ERRO|AVISO)[:\\s])?\\s*([^:\\n]+\\.(?:bas|7Proj)):(\\d+)(?::(\\d+))?:\\s*(error|warning|erro|aviso)?:?\\s*(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
       }
     ],
     "configuration": {
@@ -177,22 +317,75 @@
           "type": "boolean",
           "default": true,
           "description": "Habilitar sincronização automática bidirecional entre os arquivos da IDE e o arquivo .7Proj."
+        },
+        "data7.exclude": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/data7_modules/**",
+            "**/.git/**",
+            "**/out/**"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Globs ignorados pelo indexador de símbolos e pelo linter (formato `glob` do VS Code)."
+        },
+        "data7.diagnosticSeverity": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info",
+              "hint",
+              "off"
+            ]
+          },
+          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member."
+        },
+        "data7.autoFormatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "deprecationMessage": "Deprecado em favor de `editor.formatOnSave` (suporte nativo do VS Code). Defina `\"editor.formatOnSave\": true` em `[d7basic]` para o mesmo efeito.",
+          "markdownDescription": "**Deprecado.** Use `#editor.formatOnSave#` no escopo `[d7basic]`. Quando habilitado, formata automaticamente o arquivo `.bas` ao salvar."
         }
       }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Em workspaces não confiáveis, recursos que executam o Executor Data7, escrevem no repositório privado ou modificam o projeto ficam desabilitados; o IntelliSense de leitura continua funcionando."
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "npm run compile && node --test out/test/**/*.test.js"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \".\"",
+    "format:check": "prettier --check \".\"",
+    "test": "npm run compile && node --test out/test/**/*.test.js",
+    "test:watch": "tsc -watch -p ./ & node --test --watch out/test/**/*.test.js",
+    "test:coverage": "npm run compile && node --test --experimental-test-coverage out/test/**/*.test.js",
+    "audit:system-library": "npm run compile && node scripts/audit-system-library.js",
+    "docs:system-library": "npm run compile && node scripts/generate-system-library-docs.js"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^22.0.0",
     "@types/vscode": "^1.80.0",
-    "typescript": "^5.0.0"
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.3.3",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.60.0"
   },
   "dependencies": {
-    "fast-xml-parser": "^4.3.0"
+    "fast-xml-parser": "^5.8.0"
   }
 }
