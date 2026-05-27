@@ -28,14 +28,14 @@ export class DocsService {
   // ===========================================================================
 
   public static async generateDocs(): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) {
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!firstFolder) {
       vscode.window.showWarningMessage(
         "Abra uma pasta de workspace para gerar a documentação da System Library.",
       );
       return;
     }
-    const workspaceDir = folders[0].uri.fsPath;
+    const workspaceDir = firstFolder.uri.fsPath;
 
     const selected = await this.pickNamespaces();
     if (!selected || selected.length === 0) return;
@@ -51,14 +51,14 @@ export class DocsService {
   // ===========================================================================
 
   public static async injectIntoAgentsMd(): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) {
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!firstFolder) {
       vscode.window.showWarningMessage(
         "Abra uma pasta de workspace para injetar a documentação no AGENTS.md.",
       );
       return;
     }
-    const workspaceDir = folders[0].uri.fsPath;
+    const workspaceDir = firstFolder.uri.fsPath;
     const agentsPath = path.join(workspaceDir, "AGENTS.md");
 
     const selected = await this.pickNamespaces();
@@ -162,8 +162,8 @@ export class DocsService {
       openLabel: "Salvar documentação aqui",
       title: "Data7 — Pasta destino da documentação da System Library",
     });
-    if (!choice || choice.length === 0) return undefined;
-    return choice[0].fsPath;
+    const firstChoice = choice?.[0];
+    return firstChoice?.fsPath;
   }
 
   private static async writeDocs(outDir: string, namespaces: string[]): Promise<void> {

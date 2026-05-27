@@ -4,7 +4,14 @@ import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-m
 import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
 import { DependencyScanner } from "../analysis/dependency-scanner";
+import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { TypeResolver } from "../analysis/type-resolver";
+import { detectEnumerable } from "../analysis/enumerable-detector";
+import { isExcluded } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { logger } from "../infra/logger";
+import { readProjectConfig, writeProjectConfig } from "./project-config";
+import { SugarTranspiler, type TranspileContext, type SugarDiagnostic } from "./transpiler";
 
 /**
  * Packages a workspace tree (`src/Principal.bas`, modules under `src/**`, optional
@@ -44,7 +51,9 @@ export class Builder {
         let inString = false;
         let i = 0;
         while (i < trimmed.length) {
-          const char = trimmed[i];
+          // `i < trimmed.length` guarantees `trimmed[i]` is defined; the
+          // explicit fallback satisfies `noUncheckedIndexedAccess`.
+          const char = trimmed[i] ?? "";
           if (char === '"') {
             inString = !inString;
             compressed += char;
@@ -54,7 +63,7 @@ export class Builder {
             i++;
           } else if (/\s/.test(char)) {
             compressed += " ";
-            while (i < trimmed.length && /\s/.test(trimmed[i])) {
+            while (i < trimmed.length && /\s/.test(trimmed[i] ?? "")) {
               i++;
             }
           } else {
@@ -88,17 +97,96 @@ export class Builder {
     return results;
   }
 
+  /**
+   * Builds a {@link TranspileContext} backed by a detached indexer scoped to
+   * THIS build. Using a detached indexer (instead of the extension singleton)
+   * guarantees that build-time pre-indexing does not leak into the live
+   * `WorkspaceSymbolIndexer.getInstance()` consumed by providers, and that
+   * the build sees a deterministic snapshot built only from files actually
+   * on disk under `srcDir` + `data7ModulesDir`.
+   */
+  private static buildTranspileContext(srcDir: string, data7ModulesDir: string): TranspileContext {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    this.preIndexDirectory(indexer, srcDir);
+    if (fs.existsSync(data7ModulesDir)) {
+      this.preIndexDirectory(indexer, data7ModulesDir);
+    }
+    return {
+      detectEnumerable: (typeName, preferredElementType) =>
+        detectEnumerable(
+          typeName,
+          (t) => TypeResolver.getAllMembersForType(t, indexer),
+          preferredElementType,
+        ),
+    };
+  }
+
+  private static preIndexDirectory(indexer: WorkspaceSymbolIndexer, dir: string): void {
+    if (!fs.existsSync(dir)) return;
+    // Respect the user's `data7.exclude` patterns just like the live workspace
+    // indexer does — otherwise files the user explicitly excluded (legacy
+    // backups, generated stubs) would still inform the type resolver during
+    // build and surface stale members.
+    if (isExcluded(dir)) return;
+    const list = fs.readdirSync(dir);
+    for (const entry of list) {
+      const full = path.join(dir, entry);
+      if (isExcluded(full)) continue;
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        this.preIndexDirectory(indexer, full);
+        continue;
+      }
+      const ext = path.extname(entry).toLowerCase();
+      if (ext !== ".bas" && ext !== ".d7b") continue;
+      try {
+        const content = fs.readFileSync(full, "utf-8");
+        // File URIs use the `file://` scheme so `SymbolParser.parseBasFile`
+        // (which calls `vscode.Uri.parse(...).fsPath`) is happy.
+        const uri = `file:///${full.replace(/\\/g, "/")}`;
+        indexer.updateFileContent(uri, content);
+      } catch (err: unknown) {
+        logger.warn(
+          `Falha ao pré-indexar ${full} para o transpilador: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Reports `not-enumerable` diagnostics produced by {@link SugarTranspiler}
+   * into the shared OutputChannel. The Builder stays pure (no `vscode.window`
+   * UI here) — the editor-visible warning is owned by the linter rule in
+   * `src/diagnostics/diagnostics.ts`.
+   */
+  private static reportSugarDiagnostics(
+    fileLabel: string,
+    diagnostics: readonly SugarDiagnostic[],
+  ): void {
+    if (diagnostics.length === 0) return;
+    for (const d of diagnostics) {
+      logger.warn(
+        `Transpiler [${fileLabel}:${(d.line + 1).toString()}]: o tipo "${d.typeName}" ` +
+          `não expõe o par Count + indexador esperado pelo "For Each".`,
+      );
+    }
+  }
+
   public static buildProject(
     workspaceDir: string,
     outputFilePath: string,
     _sharedModulesDir?: string,
   ): string {
     const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
-    if (!fs.existsSync(configPath)) {
+    const projectConfig = readProjectConfig(configPath);
+    if (!projectConfig) {
       throw new Error("Configuração do projeto (data7.json) não encontrada no workspace.");
     }
-
-    const metadata = JSON.parse(fs.readFileSync(configPath, "utf-8")) as ProjectMetadata;
+    // The Builder needs the FULL ProjectMetadata shape (incl. virtualFolders +
+    // modulesMetadata) which the narrowed snapshot does not own. Re-cast the
+    // raw record for those fields — `narrow()` already validated the root
+    // shape and basic fields above, so this cast is safe.
+    const metadata = projectConfig.raw as unknown as ProjectMetadata;
     const srcDir = path.join(workspaceDir, "src");
     const data7ModulesDir = path.join(workspaceDir, "data7_modules");
 
@@ -110,10 +198,15 @@ export class Builder {
     if (!fs.existsSync(mainCodePath)) {
       throw new Error("Código principal src/Principal.bas não encontrado.");
     }
-    const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
+
     const minify = !!metadata.opcoes.minify;
     const stripComments = !!metadata.opcoes.stripComments;
-    const mainCode = this.optimizeCode(mainCodeRaw, minify, stripComments);
+    const transpileCtx = this.buildTranspileContext(srcDir, data7ModulesDir);
+
+    const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
+    const mainTranspiled = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
+    this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics);
+    const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
 
     const getFilesRecursive = (dir: string, ext: string): string[] => {
       let results: string[] = [];
@@ -184,8 +277,9 @@ export class Builder {
       virtualFolders.push(rootFolder);
     } else {
       const idx = virtualFolders.findIndex((f) => f.id === rootFolderId);
-      if (idx !== -1) {
-        virtualFolders[idx].nome = `Unidades (${totalModulesCount})`;
+      const found = idx !== -1 ? virtualFolders[idx] : undefined;
+      if (found) {
+        found.nome = `Unidades (${totalModulesCount})`;
       } else {
         rootFolder.nome = `Unidades (${totalModulesCount})`;
         virtualFolders.push(rootFolder);
@@ -244,13 +338,13 @@ export class Builder {
       const relFileDir = path.relative(srcDir, path.dirname(filePath));
       const folderId = relFileDir ? (foldersByPath.get(relFileDir) ?? rootFolderId) : rootFolderId;
       const rawCode = fs.readFileSync(filePath, "utf-8");
-      const code = this.optimizeCode(rawCode, minify, stripComments);
+      const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
+      this.reportSugarDiagnostics(`${filename}.bas`, transpiled.diagnostics);
+      const code = this.optimizeCode(transpiled.code, minify, stripComments);
 
-      // The record is typed as `Record<string, ModuleMetadata>`, so without
-      // `noUncheckedIndexedAccess` TS treats the lookup as defined. At
-      // runtime the entry may be missing, so we cast to `| undefined` to
-      // make the fallback observable to the linter.
-      const meta = (metadata.modulesMetadata[filename] as ModuleMetadata | undefined) ?? {
+      // With `noUncheckedIndexedAccess`, the record lookup is already typed
+      // `ModuleMetadata | undefined`; the `??` fallback applies naturally.
+      const meta = metadata.modulesMetadata[filename] ?? {
         nome: filename,
         aberto: true,
         ordemAbertura: 0,
@@ -302,7 +396,9 @@ export class Builder {
             }
           }
 
-          const code = this.optimizeCode(rawCode, minify, stripComments);
+          const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
+          this.reportSugarDiagnostics(`data7_modules/${filename}.bas`, transpiled.diagnostics);
+          const code = this.optimizeCode(transpiled.code, minify, stripComments);
           modulesToCompile.push({
             name: filename,
             code,
@@ -338,7 +434,7 @@ export class Builder {
 
     metadata.virtualFolders = orderedFolders;
     metadata.modulesMetadata = newModulesMetadata;
-    fs.writeFileSync(configPath, JSON.stringify(metadata, null, 2), "utf-8");
+    writeProjectConfig(configPath, metadata);
 
     return outputFilePath;
   }

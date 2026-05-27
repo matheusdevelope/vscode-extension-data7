@@ -3,31 +3,45 @@ import * as path from "path";
 import * as fs from "fs";
 import type { SharedModuleInfo } from "../analysis/dependency-scanner";
 import { DependencyScanner, IMPORTS_REGEX } from "../analysis/dependency-scanner";
+import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { Builder } from "../project/builder";
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
 import { DiagnosticService } from "./diagnostic-service";
 import { logger } from "../infra/logger";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { readProjectConfig } from "../project/project-config";
 
 interface ProjectMetadataJson {
   dependencies?: Record<string, string>;
   [key: string]: unknown;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function readProjectMeta(configJsonPath: string): ProjectMetadataJson | undefined {
-  if (!fs.existsSync(configJsonPath)) return undefined;
   try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(configJsonPath, "utf-8"));
-    return isRecord(parsed) ? parsed : undefined;
+    const cfg = readProjectConfig(configJsonPath);
+    // The narrowed `cfg.raw` is `Record<string, unknown>` which is
+    // structurally assignable to `ProjectMetadataJson` (latter is the same
+    // shape plus a typed `dependencies?` field). The mutation done by
+    // callers (`projectMeta.dependencies ??= {}`) is safe because `raw`
+    // owns the live object that will be serialised back to disk.
+    return cfg?.raw;
   } catch (err) {
     logger.error(`Erro ao ler ${configJsonPath}.`, err);
     return undefined;
   }
+}
+
+/**
+ * Outcome of a {@link DependencyService.detectAndSyncProjectDependencies}
+ * pass. Callers use `missing` to decide whether to prompt the user to
+ * import the missing module(s) into the repository.
+ */
+export interface DependencyDetectionResult {
+  /** Module names that were copied/refreshed into `data7_modules/`. */
+  synced: string[];
+  /** Modules referenced by the project but not found in workspace or repo. */
+  missing: string[];
 }
 
 export class DependencyService {
@@ -35,22 +49,34 @@ export class DependencyService {
    * Detects modules referenced by the project and syncs the corresponding
    * `.bas` files into `data7_modules/`. Updates `data7.json#dependencies` when
    * new modules are discovered or stale ones removed.
+   *
+   * Returns both the synced modules and the still-missing ones. By default a
+   * warning toast is shown when `missing` is non-empty — pass
+   * `{ silent: true }` when the caller plans to surface its own UI (e.g.
+   * `openProject` offers to import them).
    */
-  public static detectAndSyncProjectDependencies(workspaceDir: string): Promise<string[]> {
-    return Promise.resolve(this.detectAndSyncProjectDependenciesSync(workspaceDir));
+  public static detectAndSyncProjectDependencies(
+    workspaceDir: string,
+    opts: { silent?: boolean } = {},
+  ): Promise<DependencyDetectionResult> {
+    return Promise.resolve(this.detectAndSyncProjectDependenciesSync(workspaceDir, opts));
   }
 
-  private static detectAndSyncProjectDependenciesSync(workspaceDir: string): string[] {
+  private static detectAndSyncProjectDependenciesSync(
+    workspaceDir: string,
+    opts: { silent?: boolean } = {},
+  ): DependencyDetectionResult {
+    const empty: DependencyDetectionResult = { synced: [], missing: [] };
     const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
     const projectMeta = readProjectMeta(configJsonPath);
-    if (!projectMeta) return [];
+    if (!projectMeta) return empty;
     projectMeta.dependencies ??= {};
 
     const srcDir = path.join(workspaceDir, "src");
-    if (!fs.existsSync(srcDir)) return [];
+    if (!fs.existsSync(srcDir)) return empty;
 
     const repoBasPath = RepositoryService.getRepoBasPath();
-    if (!repoBasPath || !fs.existsSync(repoBasPath)) return [];
+    if (!repoBasPath || !fs.existsSync(repoBasPath)) return empty;
 
     const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
 
@@ -62,8 +88,9 @@ export class DependencyService {
       try {
         const content = fs.readFileSync(file, "utf-8");
         const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-        if (nsMatch) {
-          localModules.add(nsMatch[1].toLowerCase());
+        const ns = nsMatch?.[1];
+        if (ns) {
+          localModules.add(ns.toLowerCase());
         }
       } catch (err) {
         logger.warn(`Falha ao ler ${file}: ${err instanceof Error ? err.message : String(err)}`);
@@ -120,9 +147,9 @@ export class DependencyService {
           const cleanLine = DependencyScanner.stripComments(lineText);
           if (!cleanLine.trim()) continue;
           const match = cleanLine.match(importsRegex);
-          if (match) processReferencedModuleName(match[1], true);
+          if (match?.[1]) processReferencedModuleName(match[1], true);
           const dMatch = directCallRegex.exec(cleanLine);
-          if (dMatch) processReferencedModuleName(dMatch[1], false);
+          if (dMatch?.[1]) processReferencedModuleName(dMatch[1], false);
         }
       } catch (err) {
         logger.error(`Erro ao escanear ${currentFilePath} para dependências.`, err);
@@ -167,13 +194,79 @@ export class DependencyService {
       projectMeta.dependencies,
     );
 
-    if (missingModules.size > 0) {
+    const missing = Array.from(missingModules);
+    if (missing.length > 0 && !opts.silent) {
       vscode.window.showWarningMessage(
-        `Os seguintes módulos referenciados não foram encontrados no repositório nem no projeto local: ${Array.from(missingModules).join(", ")}`,
+        `Os seguintes módulos referenciados não foram encontrados no repositório nem no projeto local: ${missing.join(", ")}`,
       );
     }
 
-    return synced;
+    return { synced, missing };
+  }
+
+  /**
+   * Refreshes the active project after an out-of-band change to its
+   * dependency surface (typically a module import into the private
+   * repository, an `installModule` call, or an `updateDependencies` run).
+   *
+   * The sequence is:
+   *
+   *   1. Re-scan and copy resolved shared modules into `data7_modules/`.
+   *      `detectAndSyncProjectDependencies` also rewrites
+   *      `data7.json#dependencies` when new modules become resolvable.
+   *   2. Re-build the `.7Proj` so the executor sees the new files. The build
+   *      can legitimately fail mid-setup (missing Principal.bas, malformed
+   *      `data7.json`); failures are logged but do NOT abort the refresh.
+   *   3. Re-index ONLY `data7_modules/` instead of the whole workspace —
+   *      the project's own `src/` is already kept in sync by the live
+   *      `.bas` file watcher (`extension.ts#registerWorkspaceListeners`),
+   *      so a full `indexWorkspace` would do redundant work on every
+   *      import.
+   *   4. Refresh diagnostics on every visible editor so missing-import /
+   *      unused-import warnings disappear immediately.
+   *
+   * Safe to call when no project is active — returns early.
+   *
+   * @param opts.silent  Suppress the foreground progress indicator. Used by
+   *                     synchronous workflows that already own a withProgress
+   *                     scope (e.g. inside `installModule`).
+   */
+  public static async refreshActiveProject(opts: { silent?: boolean } = {}): Promise<void> {
+    const project = ProjectService.getActiveProject();
+    if (!project) return;
+
+    const work = async (): Promise<void> => {
+      await this.detectAndSyncProjectDependencies(project.workspaceDir);
+      try {
+        Builder.buildProject(project.workspaceDir, project.projectFilePath);
+      } catch (err: unknown) {
+        logger.warn(
+          `Falha ao recompilar projeto após importação: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
+      if (fs.existsSync(data7ModulesDir)) {
+        await WorkspaceSymbolIndexer.getInstance().indexDirectory(data7ModulesDir);
+      }
+      DiagnosticService.refreshAllActive();
+    };
+
+    try {
+      if (opts.silent) {
+        await work();
+      } else {
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: "Atualizando contexto do projeto Data7…",
+            cancellable: false,
+          },
+          () => work(),
+        );
+      }
+    } catch (err: unknown) {
+      logger.error("Falha ao atualizar contexto do projeto após importação.", err);
+    }
   }
 
   /** Manual install of a shared module from the repository into the active project. */
@@ -216,20 +309,18 @@ export class DependencyService {
     });
     if (!selected) return;
 
-    const versionString = selected.description.split(" ")[0].replace(/^v/, "");
+    const versionString = (selected.description.split(" ")[0] ?? "").replace(/^v/, "");
     projectDeps[selected.label.toLowerCase()] = versionString;
     fs.writeFileSync(configJsonPath, JSON.stringify(projectMeta, null, 2), "utf-8");
 
     try {
-      const srcDir = path.join(project.workspaceDir, "src");
-      const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
-      DependencyScanner.syncDependencies(srcDir, data7ModulesDir, repoBasPath, projectDeps);
-      Builder.buildProject(project.workspaceDir, project.projectFilePath);
-
+      // Delegate sync + build + reindex + diagnostics refresh to the shared
+      // helper so this entry point cannot drift away from the canonical
+      // post-mutation pipeline (see `refreshActiveProject`).
+      await this.refreshActiveProject();
       vscode.window.showInformationMessage(
         `Módulo "${selected.label}" v${versionString} instalado e compilado com sucesso!`,
       );
-      DiagnosticService.refreshAllActive();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Falha na instalação/build do módulo.", err);
@@ -267,41 +358,42 @@ export class DependencyService {
         title: "Atualizando dependências do projeto...",
         cancellable: true,
       },
-      (_progress, token) =>
-        Promise.resolve().then(() => {
-          try {
-            if (token.isCancellationRequested) return;
-            const srcDir = path.join(project.workspaceDir, "src");
-            const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
-            const synced = DependencyScanner.syncDependencies(
-              srcDir,
-              data7ModulesDir,
-              repoBasPath,
-              deps,
+      async (_progress, token) => {
+        if (token.isCancellationRequested) return;
+        try {
+          const sharedModulesBefore = DependencyScanner.scanSharedModules(repoBasPath);
+
+          // refreshActiveProject runs the full sync + build + reindex +
+          // diagnostics pipeline. We pass `silent: true` to avoid stacking
+          // a second progress UI on top of this one.
+          await this.refreshActiveProject({ silent: true });
+          // Token state can change during the awaited work above.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          if (token.isCancellationRequested) return;
+
+          // Re-read the (possibly mutated) project metadata to report what
+          // was actually synced. `refreshActiveProject` is the source of
+          // truth for the `data7_modules/` content.
+          const refreshedMeta = readProjectMeta(configJsonPath) ?? { dependencies: {} };
+          const refreshedDeps = refreshedMeta.dependencies ?? {};
+          const updatedList = Object.keys(refreshedDeps).map((name) => {
+            const info = sharedModulesBefore.get(name.toLowerCase());
+            return `${info?.moduleName ?? name} (v${info?.version ?? refreshedDeps[name] ?? "1.0.0.0"})`;
+          });
+
+          if (updatedList.length > 0) {
+            vscode.window.showInformationMessage(
+              `Dependências atualizadas com sucesso: ${updatedList.join(", ")}`,
             );
-
-            const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
-            const updatedList = synced.map((name) => {
-              const info = sharedModules.get(name.toLowerCase());
-              return `${info?.moduleName ?? name} (v${info?.version ?? "1.0.0.0"})`;
-            });
-
-            Builder.buildProject(project.workspaceDir, project.projectFilePath);
-
-            if (updatedList.length > 0) {
-              vscode.window.showInformationMessage(
-                `Dependências atualizadas com sucesso: ${updatedList.join(", ")}`,
-              );
-            } else {
-              vscode.window.showInformationMessage("Todas as dependências já estão atualizadas.");
-            }
-            DiagnosticService.refreshAllActive();
-          } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err);
-            logger.error("Falha ao atualizar dependências.", err);
-            vscode.window.showErrorMessage(`Falha ao atualizar dependências: ${message}`);
+          } else {
+            vscode.window.showInformationMessage("Todas as dependências já estão atualizadas.");
           }
-        }),
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.error("Falha ao atualizar dependências.", err);
+          vscode.window.showErrorMessage(`Falha ao atualizar dependências: ${message}`);
+        }
+      },
     );
   }
 }

@@ -18,12 +18,16 @@ export interface Data7Configuration {
   readonly autoFormatOnSave: boolean;
 }
 
-const DEFAULT_EXCLUDE: readonly string[] = [
-  "**/node_modules/**",
-  "**/data7_modules/**",
-  "**/.git/**",
-  "**/out/**",
-];
+/**
+ * Default `data7.exclude` patterns. `data7_modules/**` is intentionally NOT
+ * here: those files are local copies of shared dependencies that the indexer,
+ * autocomplete, hover and go-to-definition MUST see — otherwise every type
+ * declared inside a dependency would surface as `unknown-member` or
+ * `unused-import` in the consuming project. Diagnostics on `data7_modules/`
+ * are silenced separately via {@link isReadOnlyModuleFile} so the user does
+ * not see lint warnings on generated content.
+ */
+const DEFAULT_EXCLUDE: readonly string[] = ["**/node_modules/**", "**/.git/**", "**/out/**"];
 
 /**
  * Reads the `data7.*` configuration with sane defaults that mirror
@@ -58,10 +62,9 @@ export function resolveDiagnosticSeverity(
   overrides: Readonly<Record<string, DiagnosticSeverityOverride>> = readConfiguration()
     .diagnosticSeverity,
 ): vscode.DiagnosticSeverity | undefined {
-  // `Record<string, X>` types lookups as `X` rather than `X | undefined`
-  // because we don't enable `noUncheckedIndexedAccess` globally. Cast back
-  // to the realistic runtime type so the fallthrough branch is reachable.
-  const ov = overrides[code] as DiagnosticSeverityOverride | undefined;
+  // With `noUncheckedIndexedAccess`, the lookup is already `T | undefined` —
+  // no cast needed. The runtime fallthrough path is reachable via the guard.
+  const ov = overrides[code];
   if (!ov) return defaultSeverity;
   switch (ov) {
     case "error":
@@ -119,7 +122,9 @@ export function __resetGlobCacheForTests(): void {
 function globToRegex(glob: string): RegExp {
   let regex = "^";
   for (let i = 0; i < glob.length; i++) {
-    const c = glob[i];
+    // `i < glob.length` guarantees `glob[i]` is defined; the `?? ""` keeps
+    // the runtime semantics identical while satisfying the checker.
+    const c = glob[i] ?? "";
     if (c === "*") {
       if (glob[i + 1] === "*") {
         regex += ".*";
@@ -143,6 +148,34 @@ function globToRegex(glob: string): RegExp {
  */
 export function getRawConfiguration(): vscode.WorkspaceConfiguration {
   return vscode.workspace.getConfiguration(SECTION);
+}
+
+/**
+ * `true` when `filePath` lives inside a `data7_modules/` folder. These files
+ * are generated copies of shared dependencies — the indexer reads them for
+ * type resolution, but diagnostics and other "user code"-only behaviour must
+ * skip them.
+ */
+export function isReadOnlyModuleFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/").toLowerCase();
+  return /(^|\/)data7_modules\//.test(normalized);
+}
+
+/**
+ * Returns the first `data7.exclude` glob that, if applied to the indexer,
+ * would block `data7_modules/` from being indexed. Used by the activation
+ * layer to surface a one-shot migration warning to users whose existing
+ * `settings.json` still carries the legacy `**\/data7_modules/**` pattern
+ * inherited from the pre-fix default (the extension now indexes that folder
+ * by design — see {@link DEFAULT_EXCLUDE}).
+ *
+ * Returns `undefined` when no offending pattern is present.
+ */
+export function findLegacyDataModulesExcludePattern(
+  patterns: readonly string[] = readConfiguration().exclude,
+): string | undefined {
+  const probe = "/workspace/data7_modules/mod_x.bas";
+  return patterns.find((pattern) => cachedGlobToRegex(pattern).test(probe));
 }
 
 /**

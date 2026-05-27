@@ -9,9 +9,10 @@ import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostics/diagnostic-codes";
 import { debounceKeyed } from "../utils/debounce";
-import { isExcluded } from "../infra/configuration";
+import { isExcluded, isReadOnlyModuleFile } from "../infra/configuration";
 import { logger } from "../infra/logger";
 import { DIAGNOSTIC_SOURCE, LANGUAGE_IDS, PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { readProjectConfig } from "../project/project-config";
 
 /**
  * Runs validation diagnostics against `.bas` documents. Refresh is debounced
@@ -43,7 +44,14 @@ export class DiagnosticService {
 
     const handleDocument = (doc: vscode.TextDocument): void => {
       if (doc.languageId !== LANGUAGE_IDS.d7basic && !doc.fileName.endsWith(".bas")) return;
-      WorkspaceSymbolIndexer.getInstance().updateFileContent(doc.uri.toString(), doc.getText());
+      // Only feed the workspace indexer with documents that actually belong
+      // to the open workspace. Files opened from outside (e.g. inspecting a
+      // module in the private repository via "Explore Repository") would
+      // otherwise pollute the index with a second copy of the same namespace
+      // and randomly win over `data7_modules/` on go-to-definition / hover.
+      if (vscode.workspace.getWorkspaceFolder(doc.uri)) {
+        WorkspaceSymbolIndexer.getInstance().updateFileContent(doc.uri.toString(), doc.getText());
+      }
       this.refreshDebounced(doc);
     };
 
@@ -68,6 +76,19 @@ export class DiagnosticService {
     const cfgWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(DIAGNOSTIC_SOURCE)) {
         this.workspaceCache.clear();
+        // `data7.exclude` directly drives what the symbol indexer skips; a
+        // change to it (adding/removing globs) leaves the in-memory cache
+        // inconsistent with what would now be visible. Trigger a workspace
+        // re-index so the indexer's view matches the new settings.
+        if (e.affectsConfiguration(`${DIAGNOSTIC_SOURCE}.exclude`)) {
+          WorkspaceSymbolIndexer.getInstance()
+            .indexWorkspace(vscode.workspace.workspaceFolders)
+            .catch((err) => {
+              logger.warn(
+                `Falha ao reindexar workspace após mudança em data7.exclude: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            });
+        }
       }
     });
     const jsonWatcher = vscode.workspace.createFileSystemWatcher(`**/${PROJECT_CONFIG_FILENAME}`);
@@ -110,7 +131,10 @@ export class DiagnosticService {
     }
 
     // Honour `data7.exclude` — clear any prior diagnostics for the file and bail.
-    if (isExcluded(document.fileName)) {
+    // `data7_modules/` is no longer in the default exclude (its files must
+    // be indexed for type resolution) but we still treat them as read-only
+    // and emit no diagnostics on them.
+    if (isExcluded(document.fileName) || isReadOnlyModuleFile(document.fileName)) {
       this._collection?.delete(document.uri);
       return;
     }
@@ -135,12 +159,12 @@ export class DiagnosticService {
       if (!cleanLine.trim()) return;
 
       const match = cleanLine.match(importsRegex);
-      if (match) {
-        const modName = match[1];
+      const importedName = match?.[1];
+      if (importedName) {
         this.validateModuleReference(
-          modName,
+          importedName,
           lineIndex,
-          cleanLine.indexOf(modName),
+          cleanLine.indexOf(importedName),
           diagnostics,
           wsCache,
           true,
@@ -148,13 +172,13 @@ export class DiagnosticService {
       }
 
       const dMatch = directCallRegex.exec(cleanLine);
-      if (dMatch) {
-        const modName = dMatch[1];
-        if (!DependencyScanner.isIgnoredNamespace(modName.toLowerCase())) {
+      const calledName = dMatch?.[1];
+      if (calledName) {
+        if (!DependencyScanner.isIgnoredNamespace(calledName.toLowerCase())) {
           this.validateModuleReference(
-            modName,
+            calledName,
             lineIndex,
-            cleanLine.indexOf(modName),
+            cleanLine.indexOf(calledName),
             diagnostics,
             wsCache,
             false,
@@ -194,17 +218,21 @@ export class DiagnosticService {
         resolvedKey = "mod_" + resolvedKey;
       } else {
         if (isExplicit || lowerModName.startsWith("mod_")) {
+          // Distinguish the three scenarios so the message tells the user
+          // exactly which action recovers the project state.
+          const declared = Object.keys(wsCache.dependencies).some(
+            (k) => k.toLowerCase() === lowerModName,
+          );
+          const message = declared
+            ? `Módulo "${modName}" está declarado em data7.json mas não está presente no repositório de módulos da extensão. Importe-o novamente ou ajuste data7.json.`
+            : `Módulo "${modName}" não foi encontrado. Implemente-o localmente ou adicione-o ao repositório global de módulos.`;
           const range = new vscode.Range(
             lineIndex,
             charIndex,
             lineIndex,
             charIndex + modName.length,
           );
-          const diag = new vscode.Diagnostic(
-            range,
-            `Módulo "${modName}" não foi encontrado. Implemente-o localmente ou adicione-o ao repositório global de módulos.`,
-            vscode.DiagnosticSeverity.Error,
-          );
+          const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
           diag.code = DiagnosticCodes.ModuleNotFound;
           setDiagnosticPayload(diag, {
             code: DiagnosticCodes.ModuleNotFound,
@@ -248,20 +276,13 @@ export class DiagnosticService {
 
     let dependencies: Record<string, string> = {};
     const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
-    if (fs.existsSync(configJsonPath)) {
-      try {
-        const parsed: unknown = JSON.parse(fs.readFileSync(configJsonPath, "utf-8"));
-        if (parsed && typeof parsed === "object" && "dependencies" in parsed) {
-          const deps = (parsed as { dependencies?: unknown }).dependencies;
-          if (deps && typeof deps === "object") {
-            dependencies = deps as Record<string, string>;
-          }
-        }
-      } catch (err) {
-        logger.warn(
-          `Falha ao ler data7.json em ${workspaceDir}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+    try {
+      const cfg = readProjectConfig(configJsonPath);
+      if (cfg) dependencies = { ...cfg.dependencies };
+    } catch (err) {
+      logger.warn(
+        `Falha ao ler data7.json em ${workspaceDir}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     const repoBasPath = RepositoryService.getRepoBasPath();
@@ -276,7 +297,7 @@ export class DiagnosticService {
         try {
           const content = fs.readFileSync(file, "utf-8");
           const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-          if (nsMatch) localModules.add(nsMatch[1].toLowerCase());
+          if (nsMatch?.[1]) localModules.add(nsMatch[1].toLowerCase());
         } catch {
           // Skip files we cannot read; the indexer will report them separately.
         }

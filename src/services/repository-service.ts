@@ -87,8 +87,9 @@ export class RepositoryService {
         canSelectMany: false,
         title: "Selecione a pasta que contém os Módulos Compartilhados (.bas ou .7Proj)",
       });
-      if (selected && selected.length > 0) {
-        sharedModulesPath = selected[0].fsPath;
+      const firstSelected = selected?.[0];
+      if (firstSelected) {
+        sharedModulesPath = firstSelected.fsPath;
         await cfg.update("sharedModulesPath", sharedModulesPath, vscode.ConfigurationTarget.Global);
       } else {
         return undefined;
@@ -117,9 +118,10 @@ export class RepositoryService {
       title: "Selecione o arquivo de origem (.bas ou .7Proj) para importar",
     });
 
-    if (!selectedFiles || selectedFiles.length === 0) return;
+    const firstSelected = selectedFiles?.[0];
+    if (!firstSelected) return;
 
-    const sourceFile = selectedFiles[0].fsPath;
+    const sourceFile = firstSelected.fsPath;
     const ext = path.extname(sourceFile).toLowerCase();
 
     try {
@@ -153,7 +155,7 @@ export class RepositoryService {
 
     const filename = path.basename(sourceFile, ".bas");
     const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-    const modName = nsMatch ? nsMatch[1] : filename;
+    const modName = nsMatch?.[1] ?? filename;
     this.writeModuleFile(modName, content);
 
     vscode.window.showInformationMessage(
@@ -230,8 +232,9 @@ export class RepositoryService {
       title: "Selecione a pasta de origem para escanear e importar módulos",
     });
 
-    if (!selectedFolders || selectedFolders.length === 0) return;
-    const sourceDir = selectedFolders[0].fsPath;
+    const firstFolder = selectedFolders?.[0];
+    if (!firstFolder) return;
+    const sourceDir = firstFolder.fsPath;
 
     await vscode.window.withProgress(
       {
@@ -274,7 +277,7 @@ export class RepositoryService {
                 ) {
                   const filename = path.basename(filePath, ".bas");
                   const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-                  const modName = nsMatch ? nsMatch[1] : filename;
+                  const modName = nsMatch?.[1] ?? filename;
                   detectedList.push({ modName, sourcePath: filePath, code: content, type: "bas" });
                 }
               } catch (err) {

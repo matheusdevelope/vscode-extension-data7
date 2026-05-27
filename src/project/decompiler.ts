@@ -79,7 +79,7 @@ export class Decompiler {
     const foldersMap: Record<string, { path: string; name: string }> = {};
     const getFolderPath = (folderId: string): string => {
       if (!folderId) return "";
-      const cached = foldersMap[folderId] as { path: string; name: string } | undefined;
+      const cached = foldersMap[folderId];
       if (cached) return cached.path;
       const folder = metadata.virtualFolders.find((f) => f.id === folderId);
       if (!folder) return "";

@@ -26,6 +26,7 @@ function pickFirstRecord(
 import { logger } from "../infra/logger";
 import { readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { readProjectConfig, isRecord } from "../project/project-config";
 
 export interface DbConnection {
   id: string;
@@ -67,9 +68,9 @@ export class ProjectService {
       if (paths) return paths;
     }
 
-    const folders = vscode.workspace.workspaceFolders;
-    if (folders && folders.length > 0) {
-      const workspaceDir = folders[0].uri.fsPath;
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (firstFolder) {
+      const workspaceDir = firstFolder.uri.fsPath;
       const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
       if (fs.existsSync(configPath)) {
         return this.resolveProjectPaths(workspaceDir, configPath);
@@ -85,10 +86,11 @@ export class ProjectService {
       if (projFile) {
         return { workspaceDir, projectFilePath: path.join(workspaceDir, projFile) };
       }
-      const meta: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      const projName =
-        (isRecord(meta) && typeof meta.nome === "string" && meta.nome) ||
-        path.basename(workspaceDir);
+      const cfg = readProjectConfig(configPath);
+      // `cfg.nome` is always a string in the narrowed snapshot — empty when
+      // the JSON is missing `nome`. Treat empty as "absent" by checking
+      // truthiness explicitly so the workspace-directory fallback kicks in.
+      const projName = cfg && cfg.nome.length > 0 ? cfg.nome : path.basename(workspaceDir);
       return { workspaceDir, projectFilePath: path.join(workspaceDir, `${projName}.7Proj`) };
     } catch {
       const projName = path.basename(workspaceDir);
@@ -111,8 +113,9 @@ export class ProjectService {
         filters: { Executáveis: ["exe"] },
         title: "Selecione o arquivo do Executor do Data7 (Executor.exe)",
       });
-      if (selected && selected.length > 0) {
-        executorPath = selected[0].fsPath;
+      const firstSelected = selected?.[0];
+      if (firstSelected) {
+        executorPath = firstSelected.fsPath;
         await config.update("executorPath", executorPath, vscode.ConfigurationTarget.Global);
       } else {
         return undefined;
@@ -227,8 +230,8 @@ export class ProjectService {
 
     let projectMeta: Record<string, unknown>;
     try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(configJsonPath, "utf-8"));
-      projectMeta = isRecord(parsed) ? parsed : {};
+      const cfg = readProjectConfig(configJsonPath);
+      projectMeta = cfg ? { ...cfg.raw } : {};
     } catch (err: unknown) {
       logger.error("Erro ao ler data7.json.", err);
       return;
@@ -300,8 +303,9 @@ export class ProjectService {
       canSelectMany: false,
       title: "Selecione a pasta mãe onde a pasta do projeto será criada",
     });
-    if (!parentFolderSelection || parentFolderSelection.length === 0) return;
-    const parentDir = parentFolderSelection[0].fsPath;
+    const parentFolder = parentFolderSelection?.[0];
+    if (!parentFolder) return;
+    const parentDir = parentFolder.fsPath;
     const projectDir = path.join(parentDir, projectName);
 
     if (fs.existsSync(projectDir)) {
@@ -425,8 +429,9 @@ export class ProjectService {
         filters: { "Data7 Project": ["7Proj"] },
         title: "Selecione o arquivo .7Proj do projeto para abrir",
       });
-      if (selected && selected.length > 0) {
-        targetFile = selected[0].fsPath;
+      const firstSelected = selected?.[0];
+      if (firstSelected) {
+        targetFile = firstSelected.fsPath;
       }
     }
     if (!targetFile) return;
@@ -445,8 +450,9 @@ export class ProjectService {
     let workspaceDir = projectDir;
     let finalProjFile = targetFile;
 
-    if (destFolderSelection && destFolderSelection.length > 0) {
-      const selectedDestDir = destFolderSelection[0].fsPath;
+    const firstDest = destFolderSelection?.[0];
+    if (firstDest) {
+      const selectedDestDir = firstDest.fsPath;
       workspaceDir = path.join(selectedDestDir, projectName);
       if (!fs.existsSync(workspaceDir)) {
         fs.mkdirSync(workspaceDir, { recursive: true });
@@ -489,9 +495,40 @@ export class ProjectService {
           await this.protectProjectFolder(workspaceDir);
 
           let syncedCount = 0;
+          let missingModules: string[] = [];
           if (repoBasPath && fs.existsSync(repoBasPath)) {
-            const synced = await DependencyService.detectAndSyncProjectDependencies(workspaceDir);
-            syncedCount = synced.length;
+            // `silent: true` because we want to surface the missing list
+            // through a tailored prompt below instead of the generic
+            // warning toast emitted by `detectAndSyncProjectDependencies`.
+            const result = await DependencyService.detectAndSyncProjectDependencies(workspaceDir, {
+              silent: true,
+            });
+            syncedCount = result.synced.length;
+            missingModules = result.missing;
+          }
+
+          if (missingModules.length > 0) {
+            const action = await vscode.window.showWarningMessage(
+              `Projeto '${projectName}' abriu, mas referencia módulos ausentes do repositório: ${missingModules.join(", ")}.`,
+              "Importar módulos…",
+              "Continuar sem importar",
+            );
+            if (action === "Importar módulos…") {
+              await RepositoryService.bulkImportToRepository();
+              // After import, re-detect dependencies on the just-opened
+              // workspace so the freshly added modules are immediately
+              // copied into `data7_modules/`. Stays silent — we already
+              // owned this scope's progress UI.
+              const retry = await DependencyService.detectAndSyncProjectDependencies(workspaceDir, {
+                silent: true,
+              });
+              syncedCount = retry.synced.length;
+              if (retry.missing.length > 0) {
+                vscode.window.showWarningMessage(
+                  `Ainda faltam módulos no repositório: ${retry.missing.join(", ")}.`,
+                );
+              }
+            }
           }
 
           vscode.window.showInformationMessage(
@@ -518,8 +555,4 @@ function ensureWorkspaceTrusted(reason: string): boolean {
     return false;
   }
   return true;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -12,6 +12,7 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { logger } from "../infra/logger";
 import { readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { readProjectConfig } from "../project/project-config";
 import { debounce } from "../utils/debounce";
 
 /**
@@ -70,22 +71,15 @@ export class SyncWatcher {
 
         Decompiler.decompileProject(projectFilePath, hiddenFolderDir, knownSharedModules);
 
-        let dependencies: Record<string, unknown> = {};
+        let dependencies: Record<string, string> = {};
         const configJsonPath = path.join(hiddenFolderDir, PROJECT_CONFIG_FILENAME);
-        if (fs.existsSync(configJsonPath)) {
-          try {
-            const parsed: unknown = JSON.parse(fs.readFileSync(configJsonPath, "utf-8"));
-            if (parsed && typeof parsed === "object" && "dependencies" in parsed) {
-              const deps = (parsed as { dependencies?: unknown }).dependencies;
-              if (deps && typeof deps === "object") {
-                dependencies = deps as Record<string, unknown>;
-              }
-            }
-          } catch (err) {
-            logger.warn(
-              `Falha ao ler data7.json após decompose: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
+        try {
+          const cfg = readProjectConfig(configJsonPath);
+          if (cfg) dependencies = { ...cfg.dependencies };
+        } catch (err) {
+          logger.warn(
+            `Falha ao ler data7.json após decompose: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
 
         if (repoBasPath && fs.existsSync(repoBasPath)) {
@@ -93,7 +87,7 @@ export class SyncWatcher {
             path.join(hiddenFolderDir, "src"),
             path.join(hiddenFolderDir, "data7_modules"),
             repoBasPath,
-            dependencies as Record<string, string>,
+            dependencies,
           );
         }
 

@@ -9,10 +9,7 @@ import { RepositoryService } from "./repository-service";
 import { logger } from "../infra/logger";
 import { readConfiguration, getRawConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { readProjectConfig } from "../project/project-config";
 
 function ensureWorkspaceTrusted(reason: string): boolean {
   if (!vscode.workspace.isTrusted) {
@@ -91,24 +88,16 @@ export class BuildService {
     let dbIdFromProject = "";
     let dependencies: Record<string, string> = {};
     const configJsonPath = path.join(project.workspaceDir, PROJECT_CONFIG_FILENAME);
-    if (fs.existsSync(configJsonPath)) {
-      try {
-        const parsed: unknown = JSON.parse(fs.readFileSync(configJsonPath, "utf-8"));
-        if (isRecord(parsed)) {
-          const opcoes = isRecord(parsed.opcoes) ? parsed.opcoes : {};
-          dbIdFromProject =
-            typeof opcoes.identificacaoBancoDados === "string"
-              ? opcoes.identificacaoBancoDados
-              : "";
-          if (isRecord(parsed.dependencies)) {
-            dependencies = parsed.dependencies as Record<string, string>;
-          }
-        }
-      } catch (err) {
-        logger.warn(
-          `Falha ao ler data7.json antes da execução: ${err instanceof Error ? err.message : String(err)}`,
-        );
+    try {
+      const cfg = readProjectConfig(configJsonPath);
+      if (cfg) {
+        dbIdFromProject = cfg.databaseConnectionId;
+        dependencies = { ...cfg.dependencies };
       }
+    } catch (err) {
+      logger.warn(
+        `Falha ao ler data7.json antes da execução: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     let { databaseConnectionId: connectionId } = readConfiguration();
@@ -295,18 +284,15 @@ export class BuildService {
 
   private static readDependencies(workspaceDir: string): Record<string, string> {
     const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
-    if (!fs.existsSync(configJsonPath)) return {};
     try {
-      const parsed: unknown = JSON.parse(fs.readFileSync(configJsonPath, "utf-8"));
-      if (isRecord(parsed) && isRecord(parsed.dependencies)) {
-        return parsed.dependencies as Record<string, string>;
-      }
+      const cfg = readProjectConfig(configJsonPath);
+      return cfg ? { ...cfg.dependencies } : {};
     } catch (err) {
       logger.warn(
         `Falha ao ler dependências em ${workspaceDir}: ${err instanceof Error ? err.message : String(err)}`,
       );
+      return {};
     }
-    return {};
   }
 
   /**

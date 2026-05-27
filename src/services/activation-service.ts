@@ -3,7 +3,13 @@ import * as path from "path";
 import * as vscode from "vscode";
 
 import { logger } from "../infra/logger";
-import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { CONFIG_NAMESPACE, PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { readProjectConfig } from "../project/project-config";
+import {
+  findLegacyDataModulesExcludePattern,
+  getRawConfiguration,
+  readConfiguration,
+} from "../infra/configuration";
 import { BuildService } from "./build-service";
 import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
@@ -29,11 +35,14 @@ export class ActivationService {
    */
   public static initializeWorkspace(context: vscode.ExtensionContext): void {
     const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) return;
+    const firstFolder = folders?.[0];
+    if (!firstFolder) return;
 
-    const workspaceDir = folders[0].uri.fsPath;
+    const workspaceDir = firstFolder.uri.fsPath;
     const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
     if (!fs.existsSync(configPath)) return;
+
+    void this.warnIfLegacyExcludeBlocksDataModules();
 
     DependencyService.detectAndSyncProjectDependencies(workspaceDir).catch((err) => {
       logger.error("Erro na detecção de dependências na inicialização.", err);
@@ -66,9 +75,9 @@ export class ActivationService {
   public static async handleProjectDocumentOpen(doc: vscode.TextDocument): Promise<void> {
     if (path.extname(doc.fileName).toLowerCase() !== ".7proj") return;
 
-    const folders = vscode.workspace.workspaceFolders;
-    if (folders && folders.length > 0) {
-      const workspaceDir = folders[0].uri.fsPath;
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (firstFolder) {
+      const workspaceDir = firstFolder.uri.fsPath;
       if (workspaceDir.toLowerCase() === path.dirname(doc.fileName).toLowerCase()) {
         const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
         if (fs.existsSync(configPath)) return;
@@ -97,23 +106,24 @@ export class ActivationService {
    * a Data7 project (no `data7.json`) and prompts the user to open one.
    */
   public static async detectAndPromptProjFiles(): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) return;
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!firstFolder) return;
 
-    const workspaceDir = folders[0].uri.fsPath;
+    const workspaceDir = firstFolder.uri.fsPath;
     const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
     if (fs.existsSync(configPath)) return;
 
     try {
       const files = fs.readdirSync(workspaceDir);
       const projFiles = files.filter((f) => f.toLowerCase().endsWith(".7proj"));
-      if (projFiles.length === 0) return;
+      const firstProj = projFiles[0];
+      if (!firstProj) return;
 
       const message = `Projetos Data7 (.7Proj) detectados nesta pasta. Deseja abrir um projeto com a extensão?`;
       const choice = await vscode.window.showInformationMessage(message, "Sim", "Não");
       if (choice !== "Sim") return;
 
-      let selectedProj = projFiles[0];
+      let selectedProj = firstProj;
       if (projFiles.length > 1) {
         const pick = await vscode.window.showQuickPick(projFiles, {
           placeHolder: "Selecione o projeto Data7 para abrir:",
@@ -145,15 +155,9 @@ export class ActivationService {
       );
     }
     try {
-      const meta: unknown = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      if (
-        meta &&
-        typeof meta === "object" &&
-        "nome" in meta &&
-        typeof (meta as { nome?: unknown }).nome === "string"
-      ) {
-        const projName = (meta as { nome: string }).nome;
-        return path.join(workspaceDir, `${projName}.7Proj`);
+      const cfg = readProjectConfig(configPath);
+      if (cfg?.nome) {
+        return path.join(workspaceDir, `${cfg.nome}.7Proj`);
       }
     } catch {
       // Fall through to default naming convention.
@@ -161,11 +165,68 @@ export class ActivationService {
     return path.join(workspaceDir, `${path.basename(workspaceDir)}.7Proj`);
   }
 
+  /**
+   * Detects a stale `data7.exclude` entry that still blocks `data7_modules/`
+   * from being indexed (the default used to ship that glob; the new default
+   * indexes it). Offers a one-click fix that strips the offending pattern.
+   *
+   * Silent when the user dismisses the prompt — we only nag once per session
+   * via the activation entry point.
+   */
+  private static async warnIfLegacyExcludeBlocksDataModules(): Promise<void> {
+    const { exclude } = readConfiguration();
+    const offending = findLegacyDataModulesExcludePattern(exclude);
+    if (!offending) return;
+
+    const choice = await vscode.window.showWarningMessage(
+      `Sua configuração "data7.exclude" contém "${offending}", que impede o indexador de ler "data7_modules/". Isso quebra autocompletar e diagnósticos para tipos de módulos compartilhados.`,
+      "Remover padrão",
+      "Manter mesmo assim",
+    );
+    if (choice !== "Remover padrão") return;
+
+    const cfg = getRawConfiguration();
+    const inspection = cfg.inspect<string[]>("exclude");
+    const stripFrom = (value: readonly string[] | undefined): string[] | undefined => {
+      if (!value) return undefined;
+      const filtered = value.filter((p) => p !== offending);
+      return filtered.length === value.length ? undefined : filtered;
+    };
+
+    // Update at each scope where the pattern is present so we do not silently
+    // promote a workspace-only setting to the global level.
+    const updates: { value: string[] | undefined; target: vscode.ConfigurationTarget }[] = [
+      {
+        value: stripFrom(inspection?.workspaceFolderValue),
+        target: vscode.ConfigurationTarget.WorkspaceFolder,
+      },
+      {
+        value: stripFrom(inspection?.workspaceValue),
+        target: vscode.ConfigurationTarget.Workspace,
+      },
+      { value: stripFrom(inspection?.globalValue), target: vscode.ConfigurationTarget.Global },
+    ];
+
+    for (const update of updates) {
+      if (update.value === undefined) continue;
+      try {
+        await cfg.update("exclude", update.value, update.target);
+      } catch (err: unknown) {
+        logger.warn(
+          `Falha ao atualizar data7.exclude (${String(update.target)}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    vscode.window.showInformationMessage(
+      `Padrão "${offending}" removido de "${CONFIG_NAMESPACE}.exclude". Os símbolos em "data7_modules/" voltarão a aparecer no autocomplete.`,
+    );
+  }
+
   /** Navigates the parent folder of the current workspace (useful from status-bar). */
   public static async openParentFolder(): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) return;
-    const workspaceDir = folders[0].uri.fsPath;
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!firstFolder) return;
+    const workspaceDir = firstFolder.uri.fsPath;
     const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
     if (!fs.existsSync(configPath)) return;
     const parentDir = path.dirname(workspaceDir);
@@ -234,12 +295,12 @@ export class ActivationService {
    * the workspace.
    */
   private static refreshProjectStatus(item: vscode.StatusBarItem): void {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) {
+    const firstFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!firstFolder) {
       item.hide();
       return;
     }
-    const workspaceDir = folders[0].uri.fsPath;
+    const workspaceDir = firstFolder.uri.fsPath;
     const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
     if (!fs.existsSync(configPath)) {
       item.hide();

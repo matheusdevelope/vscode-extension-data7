@@ -57,6 +57,37 @@ describe("Builder", () => {
         assert.equal(result, destXml, "must return the output path");
       });
     });
+
+    test("transpiles `For Each` sugar over StringList into the classic For form", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        // Overwrite Principal.bas with a body that uses the sugar over a
+        // System Library type (Collections.StringList exposes `Count` and
+        // `Strings(i)` so the transpiler can resolve it without any
+        // workspace-defined class).
+        const principal = `Imports Collections
+
+Namespace mod_principal
+   Class TPrincipalClass
+      Public Sub Main()
+         Dim list As StringList
+         For Each item As String In list
+            ' iterate strings
+         Next
+      End Sub
+   End Class
+End Namespace
+`;
+        fs.writeFileSync(path.join(tmp, "src", "Principal.bas"), principal, "utf-8");
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /For __idx0 = 0 To list\.Count - 1/);
+        assert.match(xml, /Dim item As String = list\.Strings\(__idx0\)/);
+        assert.doesNotMatch(xml, /For\s+Each/i);
+      });
+    });
   });
 });
 
