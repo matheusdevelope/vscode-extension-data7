@@ -383,7 +383,7 @@ const mockVsCode = {
         if (key === "sharedModulesPath") return "";
         if (key === "enableAutoSync") return true;
         if (key === "autoFormatOnSave") return false;
-        if (key === "exclude") return ["**/node_modules/**", "**/data7_modules/**"];
+        if (key === "exclude") return ["**/node_modules/**"];
         if (key === "diagnosticSeverity") return {};
         return undefined;
       },
@@ -399,6 +399,7 @@ const mockVsCode = {
     onWillSaveTextDocument: () => ({ dispose: () => undefined }),
     openTextDocument: async (_path: string): Promise<unknown> => ({}),
     asRelativePath: (p: string): string => p,
+    getWorkspaceFolder: (_uri: unknown): unknown => undefined,
   },
   window: {
     createOutputChannel: () => ({

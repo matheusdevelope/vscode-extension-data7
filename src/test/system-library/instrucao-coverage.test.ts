@@ -108,12 +108,12 @@ function parseInstrucao(filePath: string): InstrucaoRow[] {
     const cols = parseCsvLine(raw);
     if (cols.length < 4) continue;
     const category = cols[0];
-    if (!["Property", "Sub", "Function", "Type", "Const"].includes(category)) continue;
+    if (!category || !["Property", "Sub", "Function", "Type", "Const"].includes(category)) continue;
     const name = cols[1];
     if (!name) continue;
     // Coluna "Suportado" é sempre a última (pode ser índice 3 ou 4 quando há
     // a coluna `Valor` extra para Const).
-    const supportedCol = cols[cols.length - 1].toLowerCase();
+    const supportedCol = (cols[cols.length - 1] ?? "").toLowerCase();
     const supported = supportedCol === "sim";
     rows.push({ category, name, supported, raw });
   }
@@ -259,13 +259,17 @@ function aggregateRows(rows: readonly InstrucaoRow[]) {
       byName.set(key, { category: row.category, rows: [row] });
     }
   }
-  return [...byName.values()].map((entry) => ({
-    category: entry.category,
-    name: entry.rows[0].name,
-    supportedAggregate: entry.rows.some((r) => r.supported),
-    allUnsupported: entry.rows.every((r) => !r.supported),
-    rawSample: entry.rows[0].raw,
-  }));
+  return [...byName.values()].map((entry) => {
+    // `entry.rows` is always non-empty (added via `byName.set/push`).
+    const first = entry.rows[0]!;
+    return {
+      category: entry.category,
+      name: first.name,
+      supportedAggregate: entry.rows.some((r) => r.supported),
+      allUnsupported: entry.rows.every((r) => !r.supported),
+      rawSample: first.raw,
+    };
+  });
 }
 
 describe("System Library — cobertura das planilhas de instrução", () => {

@@ -1,0 +1,23 @@
+{
+  "Id": "{TEST-GUID-1234}",
+  "Nome": "RoundTripMinimal",
+  "Descricao": "Mini-projeto canônico para builder + decompiler round-trip",
+  "version": "1.0.0",
+  "language": "d7basic",
+  "targetPlatform": "Win32",
+  "opcoes": {
+    "autor": "Data7",
+    "versao": "1.0.0",
+    "informacoes": "",
+    "codEmpresa": 1,
+    "codFilial": 1,
+    "nomeUsuario": "Administrador",
+    "preScript": "",
+    "identificacaoBancoDados": "",
+    "minify": false,
+    "stripComments": false
+  },
+  "virtualFolders": [],
+  "modulesMetadata": {},
+  "dependencies": {}
+}

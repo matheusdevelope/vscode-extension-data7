@@ -128,7 +128,7 @@ describe("TJSONObject — overloads e isUnsupported", () => {
     assert.ok(create);
     assert.ok(create.overloads, "Create deve ter overloads");
     assert.equal(create.overloads.length, 1);
-    assert.equal(create.overloads[0].length, 0);
+    assert.equal(create.overloads[0]!.length, 0);
   });
 
   test("PutDate é marcado como isUnsupported", () => {
@@ -177,7 +177,7 @@ describe("SQL aliases (FireDAC delegates)", () => {
   test("TFDDataSetEvent existe como classe", () => {
     const matches = lookupSystemByName("TFDDataSetEvent");
     assert.ok(matches.length > 0);
-    assert.equal(matches[0].kind, "class");
+    assert.equal(matches[0]!.kind, "class");
   });
 
   test("TDataSetNotifyEvent existe como classe", () => {
