@@ -1,6 +1,7 @@
-import * as vscode from 'vscode';
-import { WorkspaceSymbolIndexer, SymbolInfo } from './symbol-indexer';
-import { TypeResolver } from './completion-provider';
+import * as vscode from "vscode";
+import type { SymbolInfo } from "../analysis/symbol-indexer";
+import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { TypeResolver } from "../analysis/type-resolver";
 
 export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -8,8 +9,9 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   public provideDefinition(
     document: vscode.TextDocument,
     position: vscode.Position,
-    token: vscode.CancellationToken
+    token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Definition | vscode.LocationLink[]> {
+    if (token.isCancellationRequested) return undefined;
     const range = document.getWordRangeAtPosition(position);
     if (!range) return undefined;
 
@@ -20,43 +22,44 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
     let targetSymbol: SymbolInfo | undefined;
 
     // Case A: Cursor is on a member call (e.g., `obj.Member` or `me.Member`)
-    if (textBeforeCursor.endsWith('.')) {
-      const dotIndex = lineText.lastIndexOf('.', range.start.character);
+    if (textBeforeCursor.endsWith(".")) {
+      const dotIndex = lineText.lastIndexOf(".", range.start.character);
       if (dotIndex !== -1) {
         const prefix = lineText.substring(0, dotIndex).trim();
-        const lastWordMatch = prefix.match(/([a-zA-Z0-9_]+)$/);
-        
+        const lastWordMatch = /([a-zA-Z0-9_]+)$/.exec(prefix);
+
         if (lastWordMatch) {
           const triggerWord = lastWordMatch[1];
           const triggerLower = triggerWord.toLowerCase();
 
-          if (triggerLower === 'me' || triggerLower === 'mybase') {
+          if (triggerLower === "me" || triggerLower === "mybase") {
             // Find current class context
             const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
             if (fileSyms) {
-              const currentClass = fileSyms.symbols.find(s => 
-                s.kind === 'class' && 
-                position.line >= s.range.startLine && 
-                (s.range.endLine === undefined || position.line <= s.range.endLine)
+              const currentClass = fileSyms.symbols.find(
+                (s) =>
+                  s.kind === "class" &&
+                  position.line >= s.range.startLine &&
+                  position.line <= s.range.endLine,
               );
               if (currentClass) {
-                // Look for member in current class or parent classes
-                targetSymbol = this.indexer.findClassMember(currentClass.name, word);
+                // Resolve in current class + ancestors (workspace AND system library).
+                targetSymbol = TypeResolver.findMember(currentClass.name, word, this.indexer);
               }
             }
           } else {
             // Resolve variable type or namespace
-            let typeName = TypeResolver.getVariableType(triggerWord, document, position, this.indexer);
-            if (!typeName) {
-              // Try to treat triggerWord as class or namespace itself
-              const staticSymbol = this.indexer.findSymbolByName(triggerWord, document.uri.toString());
-              if (staticSymbol) {
-                typeName = staticSymbol.name;
-              }
-            }
+            let typeName = TypeResolver.getVariableType(
+              triggerWord,
+              document,
+              position,
+              this.indexer,
+            );
+            // Try to treat triggerWord as class or namespace itself.
+            typeName ??= this.indexer.findSymbolByName(triggerWord, document.uri.toString())?.name;
 
             if (typeName) {
-              targetSymbol = this.indexer.findClassMember(typeName, word);
+              targetSymbol = TypeResolver.findMember(typeName, word, this.indexer);
             }
           }
         }
@@ -64,17 +67,15 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
     }
 
     // Case B: Global/Standalone Reference (e.g. Type, ClassName, namespace, helper function)
-    if (!targetSymbol) {
-      targetSymbol = this.indexer.findSymbolByName(word, document.uri.toString());
-    }
+    targetSymbol ??= this.indexer.findSymbolByName(word, document.uri.toString());
 
-    if (targetSymbol && targetSymbol.fileUri && !targetSymbol.fileUri.startsWith('system://')) {
+    if (targetSymbol?.fileUri && !targetSymbol.fileUri.startsWith("system://")) {
       const targetUri = vscode.Uri.parse(targetSymbol.fileUri);
       const targetRange = new vscode.Range(
         targetSymbol.range.startLine,
         targetSymbol.range.startChar,
         targetSymbol.range.startLine,
-        targetSymbol.range.endChar || 100
+        targetSymbol.range.endChar || 100,
       );
       return new vscode.Location(targetUri, targetRange);
     }
