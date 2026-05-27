@@ -1,559 +1,561 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "TDateTime",
-    "kind": "class",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TDateTime",
+    kind: "class",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "description": "Tipo Delphi/Data7 representando data e hora."
+    fileUri: "system://library",
+    description: "Tipo Delphi/Data7 representando data e hora.",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Converte o valor de data e hora para string formatada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Converte o valor de data e hora para string formatada.",
   },
   {
-    "name": "Year",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Year",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o ano correspondente da data."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o ano correspondente da data.",
   },
   {
-    "name": "Month",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Month",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o mês correspondente da data."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o mês correspondente da data.",
   },
   {
-    "name": "Day",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Day",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o dia do mês correspondente da data."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o dia do mês correspondente da data.",
   },
   {
-    "name": "Hour",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Hour",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna a hora correspondente."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna a hora correspondente.",
   },
   {
-    "name": "Minute",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Minute",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o minuto correspondente."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o minuto correspondente.",
   },
   {
-    "name": "Second",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Second",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o segundo correspondente."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o segundo correspondente.",
   },
   {
-    "name": "TDateTime",
-    "kind": "class",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TDateTime",
+    kind: "class",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "description": "Representa um valor de data e hora do Delphi."
+    fileUri: "system://library",
+    description: "Representa um valor de data e hora do Delphi.",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pFormat",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": true,
-        "defaultValue": "\"\""
-      }
+        name: "pFormat",
+        type: "String",
+        isByRef: false,
+        isOptional: true,
+        defaultValue: '""',
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Formata a data/hora em formato string baseado no padrão informado (ex: \"dd/mm/yyyy hh:nn:ss\")."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description:
+      'Formata a data/hora em formato string baseado no padrão informado (ex: "dd/mm/yyyy hh:nn:ss").',
   },
   {
-    "name": "IsDateTime",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "IsDateTime",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna True se o valor contiver data e hora válidas."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna True se o valor contiver data e hora válidas.",
   },
   {
-    "name": "IsDate",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "IsDate",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna True se o valor contiver somente data válida."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna True se o valor contiver somente data válida.",
   },
   {
-    "name": "IsTime",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "IsTime",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna True se o valor contiver somente hora válida."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna True se o valor contiver somente hora válida.",
   },
   {
-    "name": "EncodeTime",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "EncodeTime",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pHour",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pHour",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pMin",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pMin",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pSec",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pSec",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pMSec",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pMSec",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Codifica horas, minutos, segundos e milissegundos em um objeto TDateTime."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Codifica horas, minutos, segundos e milissegundos em um objeto TDateTime.",
   },
   {
-    "name": "TDateTime",
-    "kind": "class",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TDateTime",
+    kind: "class",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Representa uma data e hora no ecossistema Delphi/Data7."
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Representa uma data e hora no ecossistema Delphi/Data7.",
   },
   {
-    "name": "Year",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Year",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o ano correspondente."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o ano correspondente.",
   },
   {
-    "name": "Month",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Month",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o mês correspondente."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o mês correspondente.",
   },
   {
-    "name": "Day",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Day",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna o dia do mês."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna o dia do mês.",
   },
   {
-    "name": "Hour",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Hour",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna a hora correspondente."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna a hora correspondente.",
   },
   {
-    "name": "Minute",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Minute",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna os minutos correspondentes."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna os minutos correspondentes.",
   },
   {
-    "name": "Second",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Second",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna os segundos correspondentes."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna os segundos correspondentes.",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pFormat",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": true
-      }
+        name: "pFormat",
+        type: "String",
+        isByRef: false,
+        isOptional: true,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Converte a data/hora para String utilizando um formato opcional (ex: \"dd/mm/yyyy hh:nn:ss\")."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description:
+      'Converte a data/hora para String utilizando um formato opcional (ex: "dd/mm/yyyy hh:nn:ss").',
   },
   {
-    "name": "AddDays",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddDays",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pDays",
-        "type": "Double",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pDays",
+        type: "Double",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Adiciona ou subtrai dias da data especificada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Adiciona ou subtrai dias da data especificada.",
   },
   {
-    "name": "AddMonths",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddMonths",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pMonths",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pMonths",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Adiciona ou subtrai meses da data especificada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Adiciona ou subtrai meses da data especificada.",
   },
   {
-    "name": "AddYears",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddYears",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pYears",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pYears",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Adiciona ou subtrai anos da data especificada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Adiciona ou subtrai anos da data especificada.",
   },
   {
-    "name": "AddHours",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddHours",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pHours",
-        "type": "Double",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pHours",
+        type: "Double",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Adiciona ou subtrai horas da data especificada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Adiciona ou subtrai horas da data especificada.",
   },
   {
-    "name": "AddMinutes",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddMinutes",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pMinutes",
-        "type": "Double",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pMinutes",
+        type: "Double",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Adiciona ou subtrai minutos da data especificada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Adiciona ou subtrai minutos da data especificada.",
   },
   {
-    "name": "AddSeconds",
-    "kind": "method",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddSeconds",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSeconds",
-        "type": "Double",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSeconds",
+        type: "Double",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Adiciona ou subtrai segundos da data especificada."
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Adiciona ou subtrai segundos da data especificada.",
   },
   {
-    "name": "Date",
-    "kind": "method",
-    "type": "Date",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Date",
+    kind: "method",
+    type: "Date",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TDateTime",
-    "description": "Retorna apenas a porção de data."
-  }
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna apenas a porção de data.",
+  },
 ];

@@ -1,0 +1,179 @@
+
+Esse é o autocomplete completo do namespace Data7.report, com base nele, atualize a definição completa do namespace.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Além dessa definição do autocomplete, analise a pasta Documentação Data7/Data7/Report, nela vão ter os arquivos
+XML das documentações de Data7.report (Ela herda diretamente de TForm > TfrmFormulario) que terá tudo que existe na documentação
+das classes bases e que exista nessa definição de autocomoplete abaixo:
+
+Cruze os dados com as classes que o Data7.Report herda, para não adicionar props que já existem nas classes base
+
+Categoria,Nome,Tipo / Assinatura,Suportado
+Property,Name,UnicodeString,Sim
+Property,Tag,Integer,Sim
+Property,AlignWithMargins,Boolean,Sim
+Property,Left,Integer,Sim
+Property,Top,Integer,Sim
+Property,Width,Integer,Sim
+Property,Height,Integer,Sim
+Property,Cursor,Integer,Sim
+Property,Hint,UnicodeString,Sim
+Property,HelpType,THelpType,Sim
+Property,HelpKeyword,UnicodeString,Sim
+Property,HelpContext,Integer,Sim
+Property,Margins,TMargins,Sim
+Property,CustomHint,(vazio),Não
+Property,ParentCustomHint,Boolean,Sim
+Property,OnAlignInsertBefore,TAlignInsertBeforeEvent,Sim
+Property,OnAlignPosition,TMethod,Sim
+Property,HorzScrollBar,(vazio),Não
+Property,VertScrollBar,(vazio),Não
+Property,Action,(vazio),Não
+Property,ActiveControl,TWinControl,Sim
+Property,Align,TAlign,Sim
+Property,AlphaBlend,Boolean,Sim
+Property,AlphaBlendValue,Integer,Sim
+Property,Anchors,TAnchors,Sim
+Property,AutoScroll,Boolean,Sim
+Property,AutoSize,Boolean,Sim
+Property,BiDiMode,TBiDiMode,Sim
+Property,BorderIcons,TBorderIcons,Sim
+Property,BorderStyle,TFormBorderStyle,Sim
+Property,BorderWidth,Integer,Sim
+Property,Caption,UnicodeString,Sim
+Property,ClientHeight,Integer,Sim
+Property,ClientWidth,Integer,Sim
+Property,Color,Integer,Sim
+Property,CustomTitleBar,(vazio),Não
+Property,TransparentColor,Boolean,Sim
+Property,TransparentColorValue,Integer,Sim
+Property,Constraints,(vazio),Não
+Property,Ctl3D,Boolean,Sim
+Property,UseDockManager,Boolean,Sim
+Property,DefaultMonitor,TDefaultMonitor,Sim
+Property,DockSite,Boolean,Sim
+Property,DoubleBuffered,Boolean,Sim
+Property,DoubleBufferedMode,TDoubleBufferedMode,Sim
+Property,DragKind,TDragKind,Sim
+Property,DragMode,TDragMode,Sim
+Property,Enabled,Boolean,Sim
+Property,ParentFont,Boolean,Sim
+Property,Font,TFont,Sim
+Property,FormStyle,TFormStyle,Sim
+Property,VisualManager,IFormVisualManager,Sim
+Property,GlassFrame,(vazio),Não
+Property,HelpFile,UnicodeString,Sim
+Property,Icon,(vazio),Não
+Property,KeyPreview,Boolean,Sim
+Property,Padding,(vazio),Não
+Property,Menu,(vazio),Não
+Property,ObjectMenuItem,(vazio),Não
+Property,ParentBiDiMode,Boolean,Sim
+Property,PopupMenu,(vazio),Não
+Property,PopupMode,TPopupMode,Sim
+Property,PopupParent,TCustomForm,Sim
+Property,Position,TPosition,Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Property,Position,TPosition,Sim
+Property,PrintScale,TPrintScale,Sim
+Property,RoundedCorners,TRoundedCornerType,Sim
+Property,Scaled,Boolean,Sim
+Property,ScreenSnap,Boolean,Sim
+Property,ShowHint,Boolean,Sim
+Property,SnapBuffer,Integer,Sim
+Property,Touch,(vazio),Não
+Property,TipMode,TTipMode,Sim
+Property,Visible,Boolean,Sim
+Property,WindowState,TWindowState,Sim
+Property,WindowMenu,(vazio),Não
+Property,StyleElements,TStyleElements,Sim
+Property,StyleName,UnicodeString,Sim
+Property,ShowInTaskBar,Boolean,Sim
+Property,OnActivate,TNotifyEvent,Sim
+Property,OnAfterMonitorDpiChanged,TMonitorDpiChangedEvent,Sim
+Property,OnBeforeMonitorDpiChanged,TMonitorDpiChangedEvent,Sim
+Property,OnCanResize,TCanResizeEvent,Sim
+Property,OnClick,TNotifyEvent,Sim
+Property,OnClose,TCloseEvent,Sim
+Property,OnCloseQuery,TCloseQueryEvent,Sim
+Property,OnConstrainedResize,TConstrainedResizeEvent,Sim
+Property,OnContextPopup,TContextPopupEvent,Sim
+Property,OnCreate,TNotifyEvent,Sim
+Property,OnDblClick,TNotifyEvent,Sim
+Property,OnDestroy,TNotifyEvent,Sim
+Property,OnDeactivate,TNotifyEvent,Sim
+Property,OnDockDrop,TMethod,Sim
+Property,OnDockOver,TMethod,Sim
+Property,OnDragDrop,TDragDropEvent,Sim
+Property,OnDragOver,TMethod,Sim
+Property,OnEndDock,TEndDragEvent,Sim
+Property,OnGesture,TMethod,Sim
+Property,OnGetSiteInfo,TGetSiteInfoEvent,Sim
+Property,OnHide,TNotifyEvent,Sim
+Property,OnHelp,TMethod,Sim
+Property,OnKeyDown,TKeyEvent,Sim
+Property,OnKeyPress,TKeyPressEvent,Sim
+Property,OnKeyUp,TKeyEvent,Sim
+Property,OnMouseActivate,TMethod,Sim
+Property,OnMouseDown,TMethod,Sim
+Property,OnMouseEnter,TNotifyEvent,Sim
+Property,OnMouseLeave,TNotifyEvent,Sim
+Property,OnMouseMove,TMouseMoveEvent,Sim
+Property,OnMouseUp,TMethod,Sim
+Property,OnMouseWheel,TMouseWheelEvent,Sim
+Property,OnMouseWheelDown,TMouseWheelUpDownEvent,Sim
+Property,OnMouseWheelUp,TMouseWheelUpDownEvent,Sim
+Property,OnPaint,TNotifyEvent,Sim
+Property,OnResize,TNotifyEvent,Sim
+Property,OnShortCut,TMethod,Sim
+Property,OnShow,TNotifyEvent,Sim
+Property,OnStartDock,TMethod,Sim
+Property,OnUnDock,TUnDockEvent,Sim
+Property,ID,Integer,Sim
+Property,Title,UnicodeString,Sim
+Property,ConfirmacaoImpressaoStringGrid,(vazio),Não
+Property,CodRelatorio,Integer,Sim
+Property,Titulo,UnicodeString,Sim
+Property,OnShowFormEnvioWhatsappEvent,(vazio),Não
+Property,ItemNotaFiscal,UnicodeString,Sim
+Property,ItemNotaFiscalEletronica,UnicodeString,Sim
+Property,ItemNotaFiscalEletronicaContingencia,UnicodeString,Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Property,Owner,TComponent,Sim
+Property,VCLComObject,Pointer,Sim
+Property,Observers,(vazio),Não
+Sub,New,(AOwner As TComponent),Sim
+Function,Show,() As Boolean,Sim
+Sub,Print,(),Sim
+Sub,AddParam,"(Const pName As UnicodeString, Const pValue As Variant)",Sim
+Sub,ExportToPdf,"(Const LayoutIndex As Integer, Const FilePath As UnicodeString)",Sim
+Property,ID,Int64,Sim
+Property,Caption,(vazio),Não
+Property,Color,(vazio),Não
+Property,OnGesture,(vazio),Não
+Function,_GetParent,() As TWinControl,Sim
+Sub,_SetParent,(Value As TWinControl),Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,Create,(),Sim
+Sub,Destroy,(),Sim
+Sub,Free,(),Sim
+Function,ClassName,() As ShortString,Sim
+Function,ClassType,() As TClass,Sim
+Function,ClassParent,() As TClass,Sim
+Function,InstanceSize,() As Integer,Sim
+Function,SafeCallException,"(ExceptObject As TObject, ExceptAddr As Pointer) As HRESULT",Sim
+Sub,AfterConstruction,(),Sim
+Sub,BeforeDestruction,(),Sim
+Sub,Dispatch,(ByRef Message As PVOID),Sim
+Sub,DefaultHandler,(ByRef Message As PVOID),Sim
+Function,NewInstance,() As TObject,Sim
+Sub,FreeInstance,(),Sim
+Function,ToString,() As UnicodeString,Sim
+Function,Equals,(Obj As TObject) As Boolean,Sim
+Function,GetHashCode,() As Integer,Sim
+Function,FieldAddress,(Name As ShortString) As Pointer,Sim
+Function,InheritsFrom,(AClass As TClass) As Boolean,Sim
+Function,MethodAddress,(Name As ShortString) As Pointer,Sim
+Function,MethodName,(Address As Pointer) As ShortString,Sim

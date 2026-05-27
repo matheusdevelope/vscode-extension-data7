@@ -1,0 +1,900 @@
+
+<!-- saved from url=(0055)http://bc.se7esistemas.com.br/article.php?id=208&oid=43 -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style>
+    .wordbreak {
+        /* These are technically the same, but use both */
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+
+        -ms-word-break: break-all;
+        /* This is the dangerous one in WebKit, as it breaks things wherever */
+        word-break: break-all;
+        /* Instead use this non-standard one: */
+        word-break: break-word;
+
+        /* Adds a hyphen where the word breaks, if supported (No Blink) */
+        -ms-hyphens: auto;
+        -moz-hyphens: auto;
+        -webkit-hyphens: auto;
+        hyphens: auto;
+    }
+</style>
+
+
+
+
+<title>11 - Strings</title>
+<meta http-equiv="X-UA-Compatible" content="IE=9; IE=8; IE=EDGE">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+
+<meta name="description" content="11 - Strings">
+<link rel="shortcut icon" href="http://bc.se7esistemas.com.br/images/favicon.png" type="image/png"><meta name="robots" content="index, follow">
+<meta name="generator" content="Base de Conhecimento da Se7e Sistemas">
+<!-- Powered by 'Base de Conhecimento da Se7e Sistemas' (http://www.se7esistemas.com.br) -->
+<!-- Please do not remove this line from the code to keep the license valid -->
+<link href="./11 - Strings_files/bootstrap.min.css" rel="stylesheet" type="text/css">
+<link href="./11 - Strings_files/phpkb.css" rel="stylesheet" type="text/css">
+<link href="./11 - Strings_files/fixed-tabs.css" rel="stylesheet" type="text/css">
+
+			<!-- Syntax Highlighter Scripts - STARTS -->
+			<script type="text/javascript" src="./11 - Strings_files/shCore.js.baixados"></script>
+			<script type="text/javascript" src="./11 - Strings_files/shBrushVb.js.baixados"></script>
+			<link type="text/css" rel="stylesheet" href="./11 - Strings_files/shCoreDefault.css">
+			<!-- LOAD THEME -->
+			<link type="text/css" rel="stylesheet" href="./11 - Strings_files/shThemeDefault.css">
+			<!-- Syntax Highlighter Scripts - ENDS --></head>
+
+	<body class="layout-fluid">	<div class="container">	
+		<div class="row">
+	<div class="header col-md-12 col-sm-12 col-xs-12" style="height: 55px;">
+		<div class="row fixed" style="background: #006B98; height: 55px;">
+		
+			<nav class="navbar navbar-default pull-left"> <!-- navbar starting-->
+				<!-- Brand and toggle get grouped for better mobile display -->
+				<div class="navbar-header">
+					<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+						<span class="icon-bar"></span>
+						<span class="icon-bar"></span>
+						<span class="icon-bar"></span>
+					</button>
+				</div>
+				<!-- Collect the nav links, forms, and other content for toggling -->
+				<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+					<ul class="nav navbar-nav">
+						<li><a href="http://bc.se7esistemas.com.br/index.php" title="KB Home">Inicio</a></li><li><a href="http://bc.se7esistemas.com.br/search.php" title="Advanced Search">Pesquisa Avançada</a></li><li><a href="http://bc.se7esistemas.com.br/news.php" title="News">Notícias e Avisos</a></li><li><a href="http://bc.se7esistemas.com.br/glossary.php" title="Glossary">Glossário</a></li><li><a href="http://bc.se7esistemas.com.br/contact.php" title="Ask a Question">Perguntas</a></li><li><a href="http://bc.se7esistemas.com.br/my-favorites.php" title="My Favorites">Meus Favoritos</a></li><li><a href="http://bc.se7esistemas.com.br/my-profile.php" title="My Profile">Meu Perfil</a></li><li><a href="http://bc.se7esistemas.com.br/admin/index.php" target="_blank" title="View Admin Dashboard">Administrativo</a></li>					</ul>
+				</div><!-- navbar-collapse -->
+			</nav>
+		</div><!-- End Fixed Row -->
+		
+
+		<!--
+		<div class="row">
+			<div class="logo_part col-md-12 col-sm-12 col-xs-12">
+				<div class="kbtitle pull-left">Base de Conhecimento</div>
+				<div class="logo pull-right"><img src="http://bc.se7esistemas.com.br/images/phpkb-logo.png" class="img-responsive" alt="Logo"/></div>
+			</div>
+		</div>
+		-->
+
+	</div> <!-- End Header -->
+</div><!-- End Row -->
+<div class="clearfix"></div>
+
+		<div class="row">
+			<div class="content-area col-md-12 col-sm-12 col-xs-12">
+			<div class="breadcrumb"><a href="http://bc.se7esistemas.com.br/index.php" title="">Inicio</a> » 
+							   <a href="http://bc.se7esistemas.com.br/category.php" title="">Grupos de Categorias</a>
+							   » <a href="http://bc.se7esistemas.com.br/category.php?id=43" title="">Referências da Linguagem</a></div>				
+				<div class="categories_tree col-md-3">
+					
+				<div class="phpkb-tree"><div class="treeNode"><a href="http://bc.se7esistemas.com.br/category.php" class="nodeHeading">Todas as Categorias</a></div>
+								<div id="dd0" class="clip" style="display:block;">
+									<div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(182,&#39;tdvlv1_182&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg182" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon182" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=182">Agente (2)</a>
+										<input type="hidden" name="nstate182" id="nstate182" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_182" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(180,&#39;tdvlv1_180&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg180" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon180" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=180">Atualização Sistema (12)</a>
+										<input type="hidden" name="nstate180" id="nstate180" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_180" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(2,&#39;tdvlv1_2&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg2" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon2" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=2">Compra (12)</a>
+										<input type="hidden" name="nstate2" id="nstate2" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_2" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(29,&#39;tdvlv1_29&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg29" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon29" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=29">Configurador (11)</a>
+										<input type="hidden" name="nstate29" id="nstate29" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_29" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(184,&#39;tdvlv1_184&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg184" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon184" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=184">Data7 2020.1 (13)</a>
+										<input type="hidden" name="nstate184" id="nstate184" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_184" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(177,&#39;tdvlv1_177&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg177" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon177" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=177">DataChef (37)</a>
+										<input type="hidden" name="nstate177" id="nstate177" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_177" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(42,&#39;tdvlv1_42&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg42" src="./11 - Strings_files/nolines_minus.gif" alt="Collapse"></a></div>
+										<div class="col"><img id="ticon42" src="./11 - Strings_files/folderopen-lock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=42">Developer Studio (344)</a>
+										<input type="hidden" name="nstate42" id="nstate42" value="yes">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_42" class="clip" style=""><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(272,&#39;tdvlv2_272&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg272" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon272" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=272">Funções Avulso (2)</a>
+										<input type="hidden" name="nstate272" id="nstate272" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_272" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(45,&#39;tdvlv2_45&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg45" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon45" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=45">Namespaces (309)</a>
+										<input type="hidden" name="nstate45" id="nstate45" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_45" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(43,&#39;tdvlv2_43&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg43" src="./11 - Strings_files/nolines_minus.gif" alt="Collapse"></a></div>
+										<div class="col"><img id="ticon43" src="./11 - Strings_files/folderopen-lock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=43">Referências da Linguagem (33)</a>
+										<input type="hidden" name="nstate43" id="nstate43" value="yes">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_43" class="clip" style=""><div class="treeNode">
+									<div style="padding-left:36px">
+										<div class="col"><a href="javascript: expand_collapse(152,&#39;tdvlv3_152&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg152" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon152" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=152">Conversão de Tipos (18)</a>
+										<input type="hidden" name="nstate152" id="nstate152" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv3_152" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=198&amp;oid=43">1 - Estrutura do Programa</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=207&amp;oid=43">10 - Repetições (Loops)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak nodeSel articleNode" href="http://bc.se7esistemas.com.br/article.php?id=208&amp;oid=43">11 - Strings</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=209&amp;oid=43">12 - Data e Hora</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=210&amp;oid=43">13 - Funções (Function)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=211&amp;oid=43">14 - Procedimento (Sub)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=212&amp;oid=43">15 - Classes e Objetos</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=199&amp;oid=43">2 - Sintaxe Básica</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=200&amp;oid=43">3 - Tipos de Dados</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=201&amp;oid=43">4 - Variáveis</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=202&amp;oid=43">5 - Constantes</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=203&amp;oid=43">6 - Modificadores</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=204&amp;oid=43">7 - Declarações</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=205&amp;oid=43">8 - Operadores</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./11 - Strings_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=206&amp;oid=43">9 - Estruturas de Decisão</a></div>
+									</div>
+								</div></div></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(6,&#39;tdvlv1_6&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg6" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon6" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=6">Documentos Fiscais (65)</a>
+										<input type="hidden" name="nstate6" id="nstate6" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_6" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(35,&#39;tdvlv1_35&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg35" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon35" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=35">Estoque (3)</a>
+										<input type="hidden" name="nstate35" id="nstate35" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_35" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(10,&#39;tdvlv1_10&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg10" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon10" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=10">Financeiro (31)</a>
+										<input type="hidden" name="nstate10" id="nstate10" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_10" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./11 - Strings_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon11" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=11">Folha Lite (0)</a></div>
+								</div>
+							</div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(4,&#39;tdvlv1_4&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg4" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon4" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=4">Frente de Loja (15)</a>
+										<input type="hidden" name="nstate4" id="nstate4" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_4" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(26,&#39;tdvlv1_26&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg26" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon26" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=26">Gerenciador de Banco de Dados (19)</a>
+										<input type="hidden" name="nstate26" id="nstate26" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_26" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(275,&#39;tdvlv1_275&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg275" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon275" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=275">GIT (1)</a>
+										<input type="hidden" name="nstate275" id="nstate275" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_275" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(276,&#39;tdvlv1_276&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg276" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon276" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=276">IDashBoard (1)</a>
+										<input type="hidden" name="nstate276" id="nstate276" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_276" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(14,&#39;tdvlv1_14&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg14" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon14" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=14">Impostos (7)</a>
+										<input type="hidden" name="nstate14" id="nstate14" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_14" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(279,&#39;tdvlv1_279&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg279" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon279" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=279">Integrações (5)</a>
+										<input type="hidden" name="nstate279" id="nstate279" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_279" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(34,&#39;tdvlv1_34&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg34" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon34" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=34">Mobile - Android (19)</a>
+										<input type="hidden" name="nstate34" id="nstate34" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_34" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(16,&#39;tdvlv1_16&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg16" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon16" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=16">Outros (46)</a>
+										<input type="hidden" name="nstate16" id="nstate16" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_16" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(39,&#39;tdvlv1_39&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg39" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon39" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=39">Parâmetros (16)</a>
+										<input type="hidden" name="nstate39" id="nstate39" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_39" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./11 - Strings_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon21" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=21">PDV (Frente de Caixa) (0)</a></div>
+								</div>
+							</div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(148,&#39;tdvlv1_148&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg148" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon148" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=148">PostgreSQL (63)</a>
+										<input type="hidden" name="nstate148" id="nstate148" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_148" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(185,&#39;tdvlv1_185&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg185" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon185" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=185">Regras de Bloqueio (61)</a>
+										<input type="hidden" name="nstate185" id="nstate185" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_185" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(25,&#39;tdvlv1_25&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg25" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon25" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=25">Relatório (15)</a>
+										<input type="hidden" name="nstate25" id="nstate25" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_25" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(3,&#39;tdvlv1_3&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg3" src="./11 - Strings_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon3" src="./11 - Strings_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=3">Venda (35)</a>
+										<input type="hidden" name="nstate3" id="nstate3" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_3" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./11 - Strings_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon281" src="./11 - Strings_files/folder.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=281">Teste (0)</a></div>
+								</div>
+							</div>
+								</div>
+							</div><div class="recentview"><div class="recentview-title">Visualizado Recentemente</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=209">12 - Data e Hora</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=208">11 - Strings</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=207">10 - Repetições (Loops)</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=198">1 - Estrutura do Programa</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=354">Values</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=362">Strings</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=348">Sorted</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=367">OwnsObjects</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=355">Names</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=353">NameValueSeparator</a>
+									</div></div></div><!-- End Left Menu -->
+								
+				<div class="right-content col-md-9 col-sm-12 col-xs-12">
+						<div class="phpkb-search">
+					<form class="search-wrapper clearfix" name="frmsearch" method="post" action="http://bc.se7esistemas.com.br/search.php" onsubmit="return check_form();">
+						<input type="text" id="search_field" name="keywords" placeholder="Pesquisar..." required=""><input type="hidden" name="search_att" value="yes">
+						<button type="submit" name="submit_search" value="Search">Pesquisar</button>
+					</form>
+				</div>
+				<div class="clearfix"></div>					<div class="article-area">
+					<div id="articleContent">
+													<div class="favorite-fixed"><div class="icon" id="output_fav">
+									<a href="javascript:;" title="Adicionar aos favoritos" onclick="getScriptPage(&#39;output_fav&#39;,&#39;AddFav&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;208&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;);">
+								 	<img src="./11 - Strings_files/icon-favorite.png" alt="Icon Favorite"></a>
+								 </div></div>
+													<div class="article-title">
+														<h1><span itemprop="name">11 - Strings</span></h1>
+													</div>
+													<div class="article-info">Nº do Artigo: 208 | Avaliação: Não avaliado | Última atualização: Tue, Dec 28, 2021 at 5:51 PM</div>
+													
+													<div class="article-content">
+														<span itemprop="articleBody"><div id="ARTICLECONTENT"><article><h2>Trabalhando com String</h2>
+<p>Você pode trabalhar com string usando um dos seguintes métodos:</p>
+<ul class="list">
+<li>
+<p>Atribuindo um literal de string a uma variável String</p>
+<div><div id="highlighter_772859" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">primeiroNome </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"Se7e"</code></div><div class="line number2 index1 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">ultimoNome </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"Sistemas"</code></div></div></td></tr></tbody></table></div></div>
+</li>
+</ul>
+<ul class="list">
+<li>
+<p>Usando um construtor de classe StringList(derivado da classe TStrings, veremos mais a frente)</p>
+<div><div id="highlighter_470270" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">nomeCompleto </code><code class="vb keyword">As</code> <code class="vb keyword">New</code> <code class="vb plain">Collections.StringList</code></div></div></td></tr></tbody></table></div></div>
+</li>
+</ul>
+<ul class="list">
+<li>
+<p>Usando o operador de concatenação de string (+)</p>
+<div><div id="highlighter_54218" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">nomeCompleto </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"Se7e"</code> <code class="vb plain">+ </code><code class="vb string">" Sistemas"</code></div></div></td></tr></tbody></table></div></div>
+</li>
+</ul>
+<ul class="list">
+<li>
+<p>Recuperando uma propriedade ou chamando um método que retorna uma string</p>
+<div><div id="highlighter_486512" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">nomeCompleto </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"Se7e"</code> <code class="vb plain">+ </code><code class="vb string">" Sistemas"</code></div><div class="line number2 index1 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">segundoNome </code><code class="vb keyword">As</code> <code class="vb keyword">String</code></div><div class="line number3 index2 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">indexSegundoNome </code><code class="vb keyword">As</code> <code class="vb keyword">Integer</code></div><div class="line number4 index3 alt1">&nbsp;</div><div class="line number5 index4 alt2"><code class="vb plain">indexSegundoNome = nomeCompleto.IndexOf(</code><code class="vb string">" "</code><code class="vb plain">, +1)</code></div><div class="line number6 index5 alt1"><code class="vb plain">segundoNome = nomeCompleto.Copy(indexSegundoNome, nomeCompleto.Length)</code></div><div class="line number7 index6 alt2">&nbsp;</div><div class="line number8 index7 alt1"><code class="vb plain">Print segundoNome</code></div><div class="line number9 index8 alt2">&nbsp;</div><div class="line number10 index9 alt1"><code class="vb comments">'Resultado: Sistemas</code></div></div></td></tr></tbody></table></div></div>
+</li>
+</ul>
+<ul class="list">
+<li>
+<p>Chamando um método de formatação para converter um valor ou objeto em sua representação de string</p>
+<div><div id="highlighter_882195" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb plain">Print DateUtils.ToStringFormat(</code><code class="vb string">"dddddd "</code><code class="vb plain">, DateTime)</code></div><div class="line number2 index1 alt1">&nbsp;</div><div class="line number3 index2 alt2"><code class="vb comments">'Resultado: sexta-feira, 26 de abril de 2019</code></div></div></td></tr></tbody></table></div></div>
+<p>&nbsp;</p>
+</li>
+</ul>
+<h2>Métodos de String</h2>
+<p>O&nbsp;tipo String possui vários métodos que ajudam você a trabalhar com os objetos de string. A tabela a seguir fornece alguns dos métodos mais usados ​.</p>
+<table class="table table-bordered" style="height: 1244px; width: 1223px;" border="1">
+<tbody>
+<tr style="height: 24px;"><th style="width: 1221px; height: 24px;"><span style="font-size: 14pt;">Nome / Descrição</span></th></tr>
+<tr style="height: 10px;">
+<td style="width: 1221px; height: 10px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function InStr(strA As String, strB As String) As Integer</span></strong></p>
+<p>&nbsp;Compara dois objetos de string especificados e retorna um inteiro que indica sua posição relativa na ordem de classificação.</p>
+</td>
+</tr>
+<tr style="height: 10px;">
+<td style="width: 1221px; height: 10px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Replace(valorAntigo As UnicodeString, valorNovo As UnicodeString) As UnicodeString</span></strong></p>
+<p>&nbsp;Substitui todas as ocorrências de um caractere UnicodeString especificado no objeto de cadeia atual pelo caractere UnicodeString especificado e retorna a nova cadeia.</p>
+</td>
+</tr>
+<tr style="height: 10px;">
+<td style="width: 1221px; height: 10px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Length()</span></strong></p>
+<p>&nbsp;Obtém o número de caracteres no objeto String atual.</p>
+</td>
+</tr>
+<tr style="height: 10px;">
+<td style="width: 1221px; height: 10px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Append(Const Valor As AnsiString) As AnsiString</span></strong></p>
+<p>&nbsp;Adiciona o valor informado no parâmetro à string atual e retorna o novo valor.</p>
+</td>
+</tr>
+<tr style="height: 10px;">
+<td style="width: 1221px; height: 10px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function AppendLine(Const Valor As AnsiString) As AnsiString</span></strong></p>
+<p>&nbsp;Adiciona uma quebra de linha na string atual e retorna o novo valor.</p>
+</td>
+</tr>
+<tr style="height: 10px;">
+<td style="width: 1221px; height: 10px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Copy(posicaoInicial As Integer, quantidadePosicoes As Integer) As UnicodeString</span></strong></p>
+<p>&nbsp;Copia apenas as strings especificadas na posição informada nos parâmetros.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Delete(posicaoInicial As Integer, quantidadePosicoes As Integer) As UnicodeString</span></strong></p>
+<p>&nbsp;Remove caracteres conforme a posição informada nos parâmetros.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Insert(Valor As UnicodeString, posicaoInicial As Integer) As UnicodeString</span></strong></p>
+<p>&nbsp;Insere um valor na string de acordo com o valor e a posição informada nos parâmetros.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Trim() As UnicodeString</span></strong></p>
+<p>&nbsp;Remove todos os caracteres de espaço em branco iniciais e finais do objeto String atual.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function TrimLeft() As UnicodeString</span></strong></p>
+<p>&nbsp;Remove todos os caracteres de espaço em branco à esquerda do objeto String atual.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function TrimRight() As UnicodeString</span></strong></p>
+<p>&nbsp;Remove todos os caracteres de espaço em branco à direita do objeto String atual.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Contains(Const Valor As UnicodeString) As Boolean</span></strong></p>
+<p>&nbsp;Retorna True se o valor de string especificado no parâmetro existe dentro dessa string.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Pos(Const Valor As UnicodeString) As Integer</span></strong></p>
+<p>&nbsp;Retorna a posição do index se o valor de string especificado no parâmetro existe dentro dessa string.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function IndexOf(Const Valor As UnicodeString, Const posicaoInicial As Integer) As Integer</span></strong></p>
+<p>&nbsp;Retorna o índice baseado em zero da primeira ocorrência do caractere Unicode especificado nessa sequência, iniciando a pesquisa na posição de caractere especificada.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Quoted(Const Valor As WideChar) As UnicodeString</span></strong></p>
+<p>&nbsp;Coloca o valor informado no parâmetro entre aspas duplas.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Dequoted(Const Valor As WideChar) As UnicodeString</span></strong></p>
+<p>&nbsp;Remove aspas duplas do valor informado no parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function ToUpper() As UnicodeString</span></strong></p>
+<p>&nbsp;Retorna uma cópia dessa string convertida em maiúscula.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function ToLower() As UnicodeString</span></strong></p>
+<p>&nbsp;Retorna uma cópia desta string convertida para minúsculas.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function IsNumeric() As Boolean</span></strong></p>
+<p>&nbsp;Caso a string contenha apenas números, será retornado o valor True.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Match(Const Valor As UnicodeString) As Boolean</span></strong></p>
+<p>&nbsp;Retorna o valor True caso encontre na string um valor idêntico ao informado no parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function EndsWith(Const Valor As UnicodeString) As Boolean</span></strong></p>
+<p>&nbsp;Verifica se o final do objeto string corresponde ao parâmetro especificado.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function StartsWith(Const Valor As UnicodeString) As Boolean</span></strong></p>
+<p>&nbsp;Verifica se o início do objeto string corresponde ao parâmetro especificado.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Reverse() As Boolean</span></strong></p>
+<p>&nbsp;Inverte a ordem dos caracteres da string.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Left(Const tamanho As Integer) As UnicodeString</span></strong></p>
+<p>&nbsp;Faz um cópia da string, iniciando na posição 0 da esquerda para a direita, até a quantidade de posições informada no parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function Right(Const tamanho As Integer) As UnicodeString</span></strong></p>
+<p>&nbsp;Faz um cópia da string, iniciando na última posição da direita para a esquerda, até a quantidade de posições informada no parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function LastChar() As WideChar</span></strong></p>
+<p>&nbsp;Retorna o último caractere da string.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function LastDelimiter(Cons Delimitador As UnicodeString) As Integer</span></strong></p>
+<p>&nbsp;Retorna a posição do último delimitador informado como parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function LastDelimiter(Cons Delimitador As UnicodeString) As Integer</span></strong></p>
+<p>&nbsp;Retorna a posição do último delimitador informado como parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function FindDelimiter(Cons Delimitador As UnicodeString, posicaoInicial As Integer) As Integer</span></strong></p>
+<p>&nbsp;Retorna a posição do primeiro delimitador a partir da posição informada no parâmetro.</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 1221px; height: 24px;">
+<p><strong>&nbsp;<span style="color: #1472a1;">Function StringOfChar(Cons Valor As WideChar, Const quantidadePosicoes As Integer) As UnicodeString</span></strong></p>
+<p>&nbsp;Faz um cópia da string repetindo o valor informado no parâmetro pela quantidade de posições informadas no parâmetro.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1221px;">
+<p><span style="color: #005a82;"><strong>&nbsp;Funcões de conversão:</strong></span></p>
+<p>texto.ToString()<br>texto.ToUTF8()<br>texto.ToAnsi()<br>texto.ToBase64()<br>texto.ToDate()<br>texto.ToTime()<br>texto.ToDateTime()<br>texto.ToCurrency()<br>texto.ToExtended()<br>texto.ToDouble()<br>texto.ToCardinal()<br>texto.ToShortInt()<br>texto.ToSmallInt()<br>texto.ToSingle()<br>texto.ToWord()<br>texto.ToInt32()<br>texto.ToInt64()<br>texto.ToBoolean()<br>texto.ToByteBool()<br>texto.ToLongBool()<br>texto.ToWordBool()<br>texto.FromBase64("")<br>texto.FromAnsi("")<br>texto.FromUTF8("")<br>texto.ISOToBoolean()<br>texto.ISOToDate()<br>texto.ISOToTime()<br>texto.ISOToDateTime()<br>texto.ISOToCurrency()<br>texto.ISOToExtended()<br>texto.ISOToDouble()</p>
+</td>
+</tr>
+</tbody>
+</table>
+<div><div id="highlighter_608332" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div><div class="line number31 index30 alt2">31</div><div class="line number32 index31 alt1">32</div><div class="line number33 index32 alt2">33</div><div class="line number34 index33 alt1">34</div><div class="line number35 index34 alt2">35</div><div class="line number36 index35 alt1">36</div><div class="line number37 index36 alt2">37</div><div class="line number38 index37 alt1">38</div><div class="line number39 index38 alt2">39</div><div class="line number40 index39 alt1">40</div><div class="line number41 index40 alt2">41</div><div class="line number42 index41 alt1">42</div><div class="line number43 index42 alt2">43</div><div class="line number44 index43 alt1">44</div><div class="line number45 index44 alt2">45</div><div class="line number46 index45 alt1">46</div><div class="line number47 index46 alt2">47</div><div class="line number48 index47 alt1">48</div><div class="line number49 index48 alt2">49</div><div class="line number50 index49 alt1">50</div><div class="line number51 index50 alt2">51</div><div class="line number52 index51 alt1">52</div><div class="line number53 index52 alt2">53</div><div class="line number54 index53 alt1">54</div><div class="line number55 index54 alt2">55</div><div class="line number56 index55 alt1">56</div><div class="line number57 index56 alt2">57</div><div class="line number58 index57 alt1">58</div><div class="line number59 index58 alt2">59</div><div class="line number60 index59 alt1">60</div><div class="line number61 index60 alt2">61</div><div class="line number62 index61 alt1">62</div><div class="line number63 index62 alt2">63</div><div class="line number64 index63 alt1">64</div><div class="line number65 index64 alt2">65</div><div class="line number66 index65 alt1">66</div><div class="line number67 index66 alt2">67</div><div class="line number68 index67 alt1">68</div><div class="line number69 index68 alt2">69</div><div class="line number70 index69 alt1">70</div><div class="line number71 index70 alt2">71</div><div class="line number72 index71 alt1">72</div><div class="line number73 index72 alt2">73</div><div class="line number74 index73 alt1">74</div><div class="line number75 index74 alt2">75</div><div class="line number76 index75 alt1">76</div><div class="line number77 index76 alt2">77</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb comments">'Atribuindo valor diretamente a variável</code></div><div class="line number2 index1 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">primeiroNome </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"Se7e"</code></div><div class="line number3 index2 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">segundoNome </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"Sistemas"</code></div><div class="line number4 index3 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">nomeCompleto </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= primeiroNome + </code><code class="vb string">" "</code> <code class="vb plain">+ segundoNome</code></div><div class="line number5 index4 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">resultado </code><code class="vb keyword">As</code> <code class="vb keyword">String</code></div><div class="line number6 index5 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">nomeAplicacao </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Developer Studio&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "</code></div><div class="line number7 index6 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">textoContenha </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"O Developer Studio é uma incrível ferramenta que auxilia na criação de soluções customizadas..."</code></div><div class="line number8 index7 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">textoSemAspas </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">""</code><code class="vb string">"Vida inteligente na madrugada."</code><code class="vb string">""</code></div><div class="line number9 index8 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">textoAlpha </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"abc"</code></div><div class="line number10 index9 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">textoAlphaNumerico </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"12345"</code></div><div class="line number11 index10 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">textoComLimitador </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"codigo;nome;endereco;telefone"</code></div><div class="line number12 index11 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">Data </code><code class="vb keyword">As</code> <code class="vb keyword">String</code> <code class="vb plain">= </code><code class="vb string">"20/04/2019"</code></div><div class="line number13 index12 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">texto </code><code class="vb keyword">As</code> <code class="vb keyword">String</code></div><div class="line number14 index13 alt1">&nbsp;</div><div class="line number15 index14 alt2"><code class="vb comments">'Funções de conversao</code></div><div class="line number16 index15 alt1"><code class="vb plain">texto.ToString()</code></div><div class="line number17 index16 alt2"><code class="vb plain">texto.ToUTF8()</code></div><div class="line number18 index17 alt1"><code class="vb plain">texto.ToAnsi()</code></div><div class="line number19 index18 alt2"><code class="vb plain">texto.ToBase64()</code></div><div class="line number20 index19 alt1"><code class="vb plain">texto.ToDate()</code></div><div class="line number21 index20 alt2"><code class="vb plain">texto.ToTime()</code></div><div class="line number22 index21 alt1"><code class="vb plain">texto.ToDateTime()</code></div><div class="line number23 index22 alt2"><code class="vb plain">texto.ToCurrency()</code></div><div class="line number24 index23 alt1"><code class="vb plain">texto.ToExtended()</code></div><div class="line number25 index24 alt2"><code class="vb plain">texto.ToDouble()</code></div><div class="line number26 index25 alt1"><code class="vb plain">texto.ToCardinal()</code></div><div class="line number27 index26 alt2"><code class="vb plain">texto.ToShortInt()</code></div><div class="line number28 index27 alt1"><code class="vb plain">texto.ToSmallInt()</code></div><div class="line number29 index28 alt2"><code class="vb plain">texto.ToSingle()</code></div><div class="line number30 index29 alt1"><code class="vb plain">texto.ToWord()</code></div><div class="line number31 index30 alt2"><code class="vb plain">texto.ToInt32()</code></div><div class="line number32 index31 alt1"><code class="vb plain">texto.ToInt64()</code></div><div class="line number33 index32 alt2"><code class="vb plain">texto.ToBoolean()</code></div><div class="line number34 index33 alt1"><code class="vb plain">texto.ToByteBool()</code></div><div class="line number35 index34 alt2"><code class="vb plain">texto.ToLongBool()</code></div><div class="line number36 index35 alt1"><code class="vb plain">texto.ToWordBool()</code></div><div class="line number37 index36 alt2"><code class="vb plain">texto.FromBase64(</code><code class="vb string">""</code><code class="vb plain">)</code></div><div class="line number38 index37 alt1"><code class="vb plain">texto.FromAnsi(</code><code class="vb string">""</code><code class="vb plain">)</code></div><div class="line number39 index38 alt2"><code class="vb plain">texto.FromUTF8(</code><code class="vb string">""</code><code class="vb plain">)</code></div><div class="line number40 index39 alt1"><code class="vb plain">texto.ISOToBoolean()</code></div><div class="line number41 index40 alt2"><code class="vb plain">texto.ISOToDate()</code></div><div class="line number42 index41 alt1"><code class="vb plain">texto.ISOToTime()</code></div><div class="line number43 index42 alt2"><code class="vb plain">texto.ISOToDateTime()</code></div><div class="line number44 index43 alt1"><code class="vb plain">texto.ISOToCurrency()</code></div><div class="line number45 index44 alt2"><code class="vb plain">texto.ISOToExtended()</code></div><div class="line number46 index45 alt1"><code class="vb plain">texto.ISOToDouble()</code></div><div class="line number47 index46 alt2">&nbsp;</div><div class="line number48 index47 alt1"><code class="vb plain">Print InStr(primeiroNome, segundoNome)</code></div><div class="line number49 index48 alt2"><code class="vb plain">Print </code><code class="vb string">"Replace: "</code> <code class="vb plain">+ nomeCompleto.Replace(segundoNome, </code><code class="vb string">"Matriz"</code><code class="vb plain">)</code></div><div class="line number50 index49 alt1"><code class="vb plain">Print </code><code class="vb string">"Equals: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(primeiroNome.Equals(segundoNome))</code></div><div class="line number51 index50 alt2"><code class="vb plain">Print </code><code class="vb string">"Length: "</code> <code class="vb plain">+ primeiroNome.Length().ToString()</code></div><div class="line number52 index51 alt1"><code class="vb plain">Print </code><code class="vb string">"Append: "</code> <code class="vb plain">+ primeiroNome.Append(</code><code class="vb string">" Sistemas"</code><code class="vb plain">)</code></div><div class="line number53 index52 alt2"><code class="vb plain">Print </code><code class="vb string">"AppendLine: "</code> <code class="vb plain">+ primeiroNome.AppendLine(</code><code class="vb string">" + quebra de linha"</code><code class="vb plain">)</code></div><div class="line number54 index53 alt1"><code class="vb plain">Print </code><code class="vb string">"Copy: "</code> <code class="vb plain">+ primeiroNome.Copy(3,1)</code></div><div class="line number55 index54 alt2"><code class="vb plain">Print </code><code class="vb string">"Delete: "</code> <code class="vb plain">+ segundoNome.Delete(4,4)</code></div><div class="line number56 index55 alt1"><code class="vb plain">Print </code><code class="vb string">"Insert: "</code> <code class="vb plain">+ primeiroNome.Insert(</code><code class="vb string">" Matriz"</code><code class="vb plain">, primeiroNome.Length + 1)</code></div><div class="line number57 index56 alt2"><code class="vb plain">Print </code><code class="vb string">"Trim: "</code> <code class="vb plain">+ nomeAplicacao.Trim()</code></div><div class="line number58 index57 alt1"><code class="vb plain">Print </code><code class="vb string">"TrimLeft: "</code> <code class="vb plain">+ nomeAplicacao.TrimLeft()</code></div><div class="line number59 index58 alt2"><code class="vb plain">Print </code><code class="vb string">"TrimRight: "</code> <code class="vb plain">+ nomeAplicacao.TrimRight()</code></div><div class="line number60 index59 alt1"><code class="vb plain">Print </code><code class="vb string">"Contains: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(textoContenha.Contains(</code><code class="vb string">"soluções"</code><code class="vb plain">))</code></div><div class="line number61 index60 alt2"><code class="vb plain">Print </code><code class="vb string">"Pos: "</code> <code class="vb plain">+ textoContenha.Pos(</code><code class="vb string">"uma"</code><code class="vb plain">).ToString()</code></div><div class="line number62 index61 alt1"><code class="vb plain">Print </code><code class="vb string">"IndexOf: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(segundoNome.IndexOf(</code><code class="vb string">"s"</code><code class="vb plain">,5))</code></div><div class="line number63 index62 alt2"><code class="vb plain">Print </code><code class="vb string">"Quoted: "</code> <code class="vb plain">+ nomeCompleto.Quoted()</code></div><div class="line number64 index63 alt1"><code class="vb plain">Print </code><code class="vb string">"Dequoted: "</code> <code class="vb plain">+ textoSemAspas.Dequoted()</code></div><div class="line number65 index64 alt2"><code class="vb plain">Print </code><code class="vb string">"ToUpper: "</code> <code class="vb plain">+ nomeCompleto.ToUpper()</code></div><div class="line number66 index65 alt1"><code class="vb plain">Print </code><code class="vb string">"ToLower: "</code> <code class="vb plain">+ textoSemAspas.ToLower()</code></div><div class="line number67 index66 alt2"><code class="vb plain">Print </code><code class="vb string">"IsNumeric: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(nomeCompleto.IsNumeric())</code></div><div class="line number68 index67 alt1"><code class="vb plain">Print </code><code class="vb string">"Match: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(primeiroNome.Match(</code><code class="vb string">"Se7e"</code><code class="vb plain">))</code></div><div class="line number69 index68 alt2"><code class="vb plain">Print </code><code class="vb string">"EndsWith: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(textoAlpha.EndsWith(</code><code class="vb string">"c"</code><code class="vb plain">))</code></div><div class="line number70 index69 alt1"><code class="vb plain">Print </code><code class="vb string">"StartsWith: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(textoAlpha.StartsWith(</code><code class="vb string">"a"</code><code class="vb plain">))</code></div><div class="line number71 index70 alt2"><code class="vb plain">Print </code><code class="vb string">"Reverse: "</code> <code class="vb plain">+ primeiroNome.Reverse()</code></div><div class="line number72 index71 alt1"><code class="vb plain">Print </code><code class="vb string">"Left: "</code> <code class="vb plain">+ segundoNome.Left(3)</code></div><div class="line number73 index72 alt2"><code class="vb plain">Print </code><code class="vb string">"Right: "</code> <code class="vb plain">+ segundoNome.Right(3)</code></div><div class="line number74 index73 alt1"><code class="vb plain">Print </code><code class="vb string">"Lastchar: "</code> <code class="vb plain">+ segundoNome.Lastchar()</code></div><div class="line number75 index74 alt2"><code class="vb plain">Print </code><code class="vb string">"LastDelimiter: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(textoComLimitador.LastDelimiter(</code><code class="vb string">";"</code><code class="vb plain">))</code></div><div class="line number76 index75 alt1"><code class="vb plain">Print </code><code class="vb string">"FindDelimiter: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(textoComLimitador.FindDelimiter(</code><code class="vb string">";"</code><code class="vb plain">, 10))</code></div><div class="line number77 index76 alt2"><code class="vb plain">Print </code><code class="vb string">"StringOfChar: "</code> <code class="vb plain">+ textoComLimitador.StringOfChar(</code><code class="vb string">":"</code><code class="vb plain">, textoComLimitador.Length)</code></div></div></td></tr></tbody></table></div></div>
+<pre class="theme:vs2012 lang:vb decode:true" title="Exemplos">Resultado:</pre>
+<div><div id="highlighter_874380" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb plain">Replace: Se7e Matriz</code></div><div class="line number2 index1 alt1"><code class="vb plain">Equals: </code><code class="vb keyword">False</code></div><div class="line number3 index2 alt2"><code class="vb plain">Length: 4</code></div><div class="line number4 index3 alt1"><code class="vb plain">Append: Se7e Sistemas</code></div><div class="line number5 index4 alt2"><code class="vb plain">AppendLine: Se7e + quebra de linha</code></div><div class="line number6 index5 alt1">&nbsp;</div><div class="line number7 index6 alt2"><code class="vb plain">Copy: 7</code></div><div class="line number8 index7 alt1"><code class="vb plain">Delete: Siss</code></div><div class="line number9 index8 alt2"><code class="vb plain">Insert: Se7e Matriz</code></div><div class="line number10 index9 alt1"><code class="vb plain">Trim: Developer Studio</code></div><div class="line number11 index10 alt2"><code class="vb plain">TrimLeft: Developer Studio&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </code></div><div class="line number12 index11 alt1"><code class="vb plain">TrimRight:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Developer Studio</code></div><div class="line number13 index12 alt2"><code class="vb plain">Contains: </code><code class="vb keyword">True</code></div><div class="line number14 index13 alt1"><code class="vb plain">Pos: 22</code></div><div class="line number15 index14 alt2"><code class="vb plain">IndexOf: 8</code></div><div class="line number16 index15 alt1"><code class="vb plain">Quoted: </code><code class="vb string">"Se7e Sistemas"</code></div><div class="line number17 index16 alt2"><code class="vb plain">Dequoted: Vida inteligente na madrugada.</code></div><div class="line number18 index17 alt1"><code class="vb plain">ToUpper: SE7E SISTEMAS</code></div><div class="line number19 index18 alt2"><code class="vb plain">ToLower: </code><code class="vb string">"vida inteligente na madrugada."</code></div><div class="line number20 index19 alt1"><code class="vb plain">IsNumeric: </code><code class="vb keyword">False</code></div><div class="line number21 index20 alt2"><code class="vb plain">Match: </code><code class="vb keyword">True</code></div><div class="line number22 index21 alt1"><code class="vb plain">EndsWith: </code><code class="vb keyword">True</code></div><div class="line number23 index22 alt2"><code class="vb plain">StartsWith: </code><code class="vb keyword">True</code></div><div class="line number24 index23 alt1"><code class="vb plain">Reverse: e7eS</code></div><div class="line number25 index24 alt2"><code class="vb plain">Left: Sis</code></div><div class="line number26 index25 alt1"><code class="vb plain">Right: mas</code></div><div class="line number27 index26 alt2"><code class="vb plain">Lastchar: s</code></div><div class="line number28 index27 alt1"><code class="vb plain">LastDelimiter: 21</code></div><div class="line number29 index28 alt2"><code class="vb plain">FindDelimiter: 12</code></div><div class="line number30 index29 alt1"><code class="vb plain">StringOfChar: :::::::::::::::::::::::::::::</code></div></div></td></tr></tbody></table></div></div></article></div></span>
+													</div><div class="clearfix"></div>
+													<div class="breadcrumb mt15">
+														Autor: <a href="mailto:giovani.prado@se7esistemas.com.br"><span itemprop="author">Giovani Garbulha do Prado Júnior</span></a> - Thu, May 9, 2019 at 2:02 PM. Visualizado 447 vezes.
+														<br>Arquivado em: <span itemprop="articleSection"><a href="http://bc.se7esistemas.com.br/category.php?id=43" title="Group Categories » Referências da Linguagem">Referências da Linguagem</a></span>
+													</div>
+												</div>
+								<div class="categories">
+									<div class="section-options">
+										<div id="output_ratings" class="rating-box pull-left">	<div itemprop="aggregateRating" itemscope="" itemtype="http://schema.org/AggregateRating" style="display: none;">
+						<span itemprop="ratingValue">0</span> (<span itemprop="reviewCount">0</span>) 
+					</div>
+					<div class="rating">
+						<div class="rating-title">Avaliação do artigo <span>(Nenhum Voto)</span></div>
+						<div class="rating_bar" title="0 de 5" align="left"><div style="width:0%" title="0 de 5"></div></div>
+						Avalie este artigo<br>
+							<form id="rating_form" action="http://bc.se7esistemas.com.br/article.php?id=208&amp;oid=43#" method="post" style="margin:0">
+							<select name="rating" id="ratings" style="width:110px;">
+								<option value="">Selecione um</option>
+								<option value="5">5 - Excelente</option>
+								<option value="4">4 - Acima da média</option>
+								<option value="3">3 - Média</option>
+								<option value="2">2 - Abaixo da média</option>
+								<option value="1">1 - Inútil</option>
+							</select>
+							<input type="button" onclick="getScriptPage(&#39;output_ratings&#39;,&#39;AddRatings&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;208&#39;,&#39;ratings&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;);" name="ratebtn" value="Avaliar">
+							</form>
+					</div></div><div class="\&quot;clearfix\&quot;"></div>
+										<ul class="article-options pull-left"><li><a href="http://bc.se7esistemas.com.br/subscribe.php?id=208"><img src="./11 - Strings_files/icon-user.png" alt="Icon Subscriber"> Inscrever-se para o artigo</a></li><li><a href="http://bc.se7esistemas.com.br/print.php?id=208" target="_blank"><img src="./11 - Strings_files/icon-printer.png" alt="Icon Printer"> Imprimir artigo</a></li></ul><ul class="article-options pull-left"><li><a href="http://bc.se7esistemas.com.br/export.php?type=PDF&amp;id=208"><img src="./11 - Strings_files/icon-pdf.png" alt="Icon PDF"> Exportar para PDF</a></li><li><a href="http://bc.se7esistemas.com.br/export.php?type=DOC&amp;id=208"><img src="./11 - Strings_files/icon-word.png" alt="Icon MS-Word"> Exportar para o MS Word</a></li>	</ul>
+									</div><!-- Section Options -->
+									<div class="clearfix"></div>
+								</div><!-- End Categories --><div class="article-tabs"><a name="attachments"></a><div class="category-articles">
+								<div class="section-title">Anexos </div>
+							</div>
+							<div class="articles-list">
+								Não há anexos para este artigo.
+							</div><div class="category-articles">
+									<div class="section-title">Comentarios </div>
+								 </div>
+								 <div class="articles-list">
+								 	<div class="section-content">Não há comentários para este artigo. Seja o primeiro a postar um comentário.</div>
+								 	<div id="output_div"><div class="panel panel-default panel-comments mt15">
+							<div class="panel-body">
+								<form name="frmpstcmt" action="http://bc.se7esistemas.com.br/article.php?id=208&amp;oid=43" method="post">
+									<div class="row">
+										<div class="col-sm-12 col-xs-12">
+											<div class="form-group"><input type="hidden" name="name" id="name" value="" class="form-control">
+												<input type="hidden" name="email" id="email" value="" class="form-control">
+												
+												<div class="mb15">
+													<textarea name="comment" id="comment" class="form-control" placeholder="comentarios" rows="5"></textarea> 
+												</div>
+												
+											</div>
+										</div>
+									</div>
+								</form>
+							</div>
+							<div class="panel-footer panel-comments-footer">
+								<button class="btn btn-glossary btn-info" type="button" name="postcmt" id="postcmt" value="Enviar Comentario" onclick="return getScriptPage(&#39;output_div&#39;,&#39;AddComments&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;name&#39;,&#39;email&#39;,&#39;comment&#39;,&#39;208&#39;,&#39;&#39;);">Enviar Comentario</button>
+							</div>
+						</div></div>
+								 </div><div class="section-content"><div class="category-articles"><div class="section-title">Artigos relacionados <a href="http://bc.se7esistemas.com.br/rss.php?id=208&amp;mode=related" target="_blank" title="RSS"><img src="./11 - Strings_files/rss.png" style="vertical-align:middle; float:right;" alt="RSS Feed" border="0"></a></div></div><div class="articles-list"><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=201">4 - Variáveis</a>
+										<div class="grey-text">visualizado 118 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=210">13 - Funções (Function)</a>
+										<div class="grey-text">visualizado 114 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=200">3 - Tipos de Dados</a>
+										<div class="grey-text">visualizado 190 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=212">15 - Classes e Objetos</a>
+										<div class="grey-text">visualizado 269 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=207">10 - Repetições (Loops)</a>
+										<div class="grey-text">visualizado 129 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=211">14 - Procedimento (Sub)</a>
+										<div class="grey-text">visualizado 77 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=206">9 - Estruturas de Decisão</a>
+										<div class="grey-text">visualizado 114 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=204">7 - Declarações</a>
+										<div class="grey-text">visualizado 117 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=202">5 - Constantes</a>
+										<div class="grey-text">visualizado 81 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=199">2 - Sintaxe Básica</a>
+										<div class="grey-text">visualizado 180 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=198">1 - Estrutura do Programa</a>
+										<div class="grey-text">visualizado 213 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=209">12 - Data e Hora</a>
+										<div class="grey-text">visualizado 482 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=203">6 - Modificadores</a>
+										<div class="grey-text">visualizado 112 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=205">8 - Operadores</a>
+										<div class="grey-text">visualizado 95 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div></div></div>		           </div><!-- End Article Area -->
+		           <div id="recentviewed"></div>				</div><!-- End Right Content -->
+				<!-- ------------------------- -->
+								<!-- ------------------------- -->
+						</div><!-- End Content Area -->
+		</div><!-- End Row -->
+		<div class="clearfix"></div>	
+        						
+			<div class="Subscribe col-md-12 col-sm-12 col-xs-12  ">
+				<div class="pull-left">
+					<h3>Inscreva-se para receber informações da nossa Base de Conhecimento</h3>
+					<p>Seja notificado quando novos artigos são adicionados à base de conhecimento.</p>
+					<form class="form-inline" id="subscribe-form" action="http://bc.se7esistemas.com.br/subscribe.php" method="post">
+						<input type="email" class="news_latter" name="submail" id="submail" placeholder="Digite e-mail">
+						<button type="submit" class="btn btn-primary" name="subscribe" value="Subscribe">Se inscrever</button>
+					</form>
+				</div>
+				<div class="copy_write_xs pull-left hidden-sm hidden-md hidden-lg"><a href="http://www.se7esistemas.com.br/" class="company_name mt20">Se7e Sistemas</a> (Base de 	Conhecimento)</div>
+			</div>
+			<div class="clearfix"></div><nav id="top_view" class="nav is-fixed" role="navigation">
+				<div class="wrapper wrapper-flush">
+					<button class="nav-toggle">
+						<div class="icon-menu">Categories</div>
+					</button>
+					<div class="nav-container"></div>
+				</div>
+			</nav>
+			<div class="clearfix"></div>	</div><!-- End Container -->
+                
+<script src="./11 - Strings_files/jquery-2.1.1.min.js.baixados"></script>
+<script src="./11 - Strings_files/bootstrap.min.js.baixados" type="text/javascript"></script>
+<script type="text/javascript">
+	var tabs = '';
+	jQuery(document).ready(function(){
+		/*
+		jQuery('.righttab .tab').mouseover(function(){
+			$('.righttab').css('right','0');
+		});
+		jQuery('.righttab .tabcontent').mouseover(function(){
+			$('.righttab').css('right','0');
+		});
+		jQuery('.righttab .tab').mouseout(function(){
+			$('.righttab').css('right','-220px');
+			//jQuery('.righttab').css('right':0);
+		});
+		jQuery('.righttab .tabcontent').mouseout(function(){
+			$('.righttab').css('right','-220px');
+			//jQuery('.righttab').css('right':0);
+		});
+		*/
+		jQuery('.righttab .tab').click(function(){
+			if($('.righttab').css('right')=='0px'){
+				$('.righttab').css('right','-220px');
+			}
+			else{
+				$('.righttab').css('right','0');
+			}			
+		});
+	});
+</script>
+<script src="./11 - Strings_files/responsive.js.baixados" type="text/javascript"> </script>
+<script src="./11 - Strings_files/common.js.baixados" type="text/javascript"></script>
+<script src="./11 - Strings_files/ajax.js.baixados" type="text/javascript"></script>
+
+			<script type="text/javascript">var SRV_BASE = 'http://bc.se7esistemas.com.br/thesaurus/';</script>
+			<script src="./11 - Strings_files/jquery1-7-1.js.baixados" type="text/javascript"></script>
+			<script src="./11 - Strings_files/jquery-thesaurus.js.baixados" type="text/javascript"></script>
+			<script type="text/javascript">
+			$(document).ready(function(){
+				$('article').Thesaurus({
+					effect: 'fade',
+					caseSensitive: false 
+				});
+			});
+			</script><script type="text/javascript">SyntaxHighlighter.config.stripBrs=true; SyntaxHighlighter.all();</script><input type="hidden" name="JSONGLOSSARY" id="JSONGLOSSARY" value="">
+<script src="./11 - Strings_files/jquery.livesearch.js.baixados"></script>
+<script type="text/javascript">
+//<![CDATA[
+jQuery(document).ready(function(){
+	jQuery('#search_field').liveSearch({url: 'http://bc.se7esistemas.com.br/include/ajax-hub.php?ajax=true&usefor=livesearch&keywords=', typeDelay:500});
+});
+//]]>
+</script>	
+</div></body></html>

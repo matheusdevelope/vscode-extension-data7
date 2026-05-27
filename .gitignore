@@ -1,46 +1,47 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
+# Operating system / editor noise
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+*.swp
+*.swo
+.history/
 
-# IntelliJ related
+# JetBrains IDE settings
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
 #.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# Node / npm
 node_modules/
+npm-debug.log*
+yarn-error.log
+package-lock.json.bak
+
+# TypeScript / build output
+out/
+dist/
+*.tsbuildinfo
+
+# Linter / formatter caches
+.eslintcache
+.prettiercache
+
+# Coverage and test artefacts
+coverage/
+.nyc_output/
+.vscode-test/
+
+# VS Code Extension package output
+*.vsix
+
+# Logs
+*.log
+
+# OS / archive scratch (locally cached external docs are intentionally large
+# HTML scrapes and must not enter the repo).
+"Documentacao Classes Form Delphi/"
+eslint-report.txt

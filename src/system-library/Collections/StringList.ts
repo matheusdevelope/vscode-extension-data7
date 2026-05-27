@@ -1,716 +1,719 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "StringList",
-    "kind": "class",
-    "type": "StringList",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "StringList",
+    kind: "class",
+    type: "StringList",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Collections",
-    "inheritsFrom": "Collections.TStringList",
-    "description": "Classe nativa para manipulação de listas de strings, pares chave-valor e textos longos."
+    fileUri: "system://library",
+    containerName: "Collections",
+    inheritsFrom: "Collections.TStringList",
+    description:
+      "Classe nativa para manipulação de listas de strings, pares chave-valor e textos longos.",
   },
   {
-    "name": "Add",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Add",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pText",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pText",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Adiciona uma string na lista e retorna o índice adicionado."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Adiciona uma string na lista e retorna o índice adicionado.",
   },
   {
-    "name": "AddObject",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddObject",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pText",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pText",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pObj",
-        "type": "TObject",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pObj",
+        type: "TObject",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Adiciona uma string associada a um objeto na lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Adiciona uma string associada a um objeto na lista.",
   },
   {
-    "name": "Count",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Count",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Quantidade de elementos na lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Quantidade de elementos na lista.",
   },
   {
-    "name": "Strings",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Strings",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Retorna a string presente no índice especificado."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Retorna a string presente no índice especificado.",
   },
   {
-    "name": "Objects",
-    "kind": "method",
-    "type": "TObject",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Objects",
+    kind: "method",
+    type: "TObject",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Retorna o objeto associado no índice especificado."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Retorna o objeto associado no índice especificado.",
   },
   {
-    "name": "Text",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Text",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Todo o conteúdo do StringList concatenado e separado por quebras de linha."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Todo o conteúdo do StringList concatenado e separado por quebras de linha.",
   },
   {
-    "name": "Clear",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Clear",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Esvazia a lista inteira."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Esvazia a lista inteira.",
   },
   {
-    "name": "Delete",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Delete",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Remove o elemento do índice indicado da lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Remove o elemento do índice indicado da lista.",
   },
   {
-    "name": "IndexOfName",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "IndexOfName",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Localiza o índice do par Nome=Valor cujo nome corresponde ao parâmetro."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Localiza o índice do par Nome=Valor cujo nome corresponde ao parâmetro.",
   },
   {
-    "name": "IndexOf",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "IndexOf",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Retorna o índice da primeira ocorrência da string especificada na lista, ou -1 se não for encontrada."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description:
+      "Retorna o índice da primeira ocorrência da string especificada na lista, ou -1 se não for encontrada.",
   },
   {
-    "name": "Values",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Values",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Retorna o valor associado à chave em um par Nome=Valor."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Retorna o valor associado à chave em um par Nome=Valor.",
   },
   {
-    "name": "NameValueSeparator",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "NameValueSeparator",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Caractere separador de chaves e valores (padrão é \"=\")."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: 'Caractere separador de chaves e valores (padrão é "=").',
   },
   {
-    "name": "LineBreak",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "LineBreak",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Caractere separador de quebras de linha para a propriedade Text."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Caractere separador de quebras de linha para a propriedade Text.",
   },
   {
-    "name": "Insert",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Insert",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pText",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pText",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Insere uma linha no índice indicado."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Insere uma linha no índice indicado.",
   },
   {
-    "name": "Equals",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Equals",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pText",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pText",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Compara duas strings."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Compara duas strings.",
   },
   {
-    "name": "IndexOfObject",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "IndexOfObject",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pObj",
-        "type": "TObject",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pObj",
+        type: "TObject",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Retorna o índice da primeira ocorrência do objeto especificado na lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Retorna o índice da primeira ocorrência do objeto especificado na lista.",
   },
   {
-    "name": "AddStrings",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "AddStrings",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pList",
-        "type": "StringList",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pList",
+        type: "StringList",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Adiciona strings de outro objeto StringList à lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Adiciona strings de outro objeto StringList à lista.",
   },
   {
-    "name": "Append",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Append",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pText",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pText",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Adiciona uma string à lista de strings."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Adiciona uma string à lista de strings.",
   },
   {
-    "name": "Assign",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Assign",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSource",
-        "type": "TObject",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSource",
+        type: "TObject",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Copia o conteúdo de outro objeto compatível para esta lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Copia o conteúdo de outro objeto compatível para esta lista.",
   },
   {
-    "name": "BeginUpdate",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "BeginUpdate",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Chame BeginUpdate antes de modificar diretamente as sequências de caracteres na lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description:
+      "Chame BeginUpdate antes de modificar diretamente as sequências de caracteres na lista.",
   },
   {
-    "name": "EndUpdate",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "EndUpdate",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Chame EndUpdate para finalizar modificações na lista de strings."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Chame EndUpdate para finalizar modificações na lista de strings.",
   },
   {
-    "name": "Exchange",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Exchange",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex1",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pIndex1",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pIndex2",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pIndex2",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Utilize o Exchange para reorganizar as sequências de caracteres na lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Utilize o Exchange para reorganizar as sequências de caracteres na lista.",
   },
   {
-    "name": "InsertObject",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "InsertObject",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pText",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pText",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pObj",
-        "type": "TObject",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pObj",
+        type: "TObject",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Insere uma string na lista na posição especificada e a associa a um objeto."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Insere uma string na lista na posição especificada e a associa a um objeto.",
   },
   {
-    "name": "SaveToFile",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "SaveToFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pFileName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pFileName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Salva as strings em um arquivo de texto."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Salva as strings em um arquivo de texto.",
   },
   {
-    "name": "LoadFromFile",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "LoadFromFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pFileName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pFileName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Preenche uma lista de strings com os dados de um arquivo físico."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Preenche uma lista de strings com os dados de um arquivo físico.",
   },
   {
-    "name": "Move",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Move",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pCurIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pCurIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pNewIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pNewIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Altera a posição de uma sequência na lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Altera a posição de uma sequência na lista.",
   },
   {
-    "name": "Capacity",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Capacity",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Capacidade máxima de Strings que poderão ser adicionadas à lista."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Capacidade máxima de Strings que poderão ser adicionadas à lista.",
   },
   {
-    "name": "CommaText",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "CommaText",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Lista formatada/obtida por meio de uma string separada por vírgulas."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Lista formatada/obtida por meio de uma string separada por vírgulas.",
   },
   {
-    "name": "Names",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Names",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Retorna a parte de nome de um par chave-valor no índice indicado."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Retorna a parte de nome de um par chave-valor no índice indicado.",
   },
   {
-    "name": "OwnsObjects",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "OwnsObjects",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Especifica se a lista possui a propriedade dos objetos armazenados."
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Especifica se a lista possui a propriedade dos objetos armazenados.",
   },
   {
-    "name": "Sorted",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Sorted",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StringList",
-    "description": "Ordena a lista de strings por ordem ascendente."
-  }
+    fileUri: "system://library",
+    containerName: "StringList",
+    description: "Ordena a lista de strings por ordem ascendente.",
+  },
 ];

@@ -1,0 +1,61 @@
+
+Esse é o autocomplete completo do namespace TJSONObject, com base nele, atualize a definição completa do namespace.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Além dessa definição do autocomplete, analise a pasta Documentação Data7/Global/TJSONObject, nela vão ter os arquivos
+XML das documentações de TJSONObject (Ela herda diretamente de TObject) que terá tudo que existe na documentação
+das classes bases e que exista nessa definição de autocomoplete abaixo:
+
+Cruze os dados com as classes que o grid herda, para não adicionar props que já existem nas classes base
+
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,Create,(Const JsonString As UnicodeString),Sim
+Sub,Create,(),Sim
+Function,PutString,"(Const Key As UnicodeString, Const Value As UnicodeString) As TJSONObject",Sim
+Function,PutBoolean,"(Const Key As UnicodeString, Const Value As Boolean) As TJSONObject",Sim
+Function,PutInteger,"(Const Key As UnicodeString, Const Value As Integer) As TJSONObject",Sim
+Function,PutInt64,"(Const Key As UnicodeString, Const Value As Int64) As TJSONObject",Sim
+Function,PutDouble,"(Const Key As UnicodeString, Const Value As Double) As TJSONObject",Sim
+Function,PutExtended,"(Const Key As UnicodeString, Const Value As Extended) As TJSONObject",Sim
+Function,PutDate,"(Const Key As UnicodeString, Const Value As ) As TJSONObject",Não
+Function,PutTime,"(Const Key As UnicodeString, Const Value As ) As TJSONObject",Não
+Function,PutDateTime,"(Const Key As UnicodeString, Const Value As TDateTime) As TJSONObject",Sim
+Function,PutArray,"(Const Key As UnicodeString, JSONArray As TJSONArray) As TJSONObject",Sim
+Function,PutObject,"(Const Key As UnicodeString, JSONObject As TJSONObject) As TJSONObject",Sim
+Function,GetJSONObject,(Const key As UnicodeString) As TJSONObject,Sim
+Function,GetArray,(Const Key As UnicodeString) As TJSONArray,Sim
+Sub,GetDate,(Const Key As UnicodeString),Sim
+Sub,GetTime,(Const Key As UnicodeString),Sim
+Function,GetString,(Const Key As UnicodeString) As UnicodeString,Sim
+Function,GetInt64,(Const Key As UnicodeString) As Int64,Sim
+Function,GetInteger,(Const Key As UnicodeString) As Integer,Sim
+Function,GetDouble,(Const Key As UnicodeString) As Double,Sim
+Function,GetBoolean,(Const Key As UnicodeString) As Boolean,Sim
+Function,ToString,() As UnicodeString,Sim
+Function,Has,(Const Key As UnicodeString) As Boolean,Sim
+Sub,Clear,(),Sim
+Sub,LoadFromFile,(Const FileName As UnicodeString),Sim
+Sub,SaveToFile,(Const FileName As UnicodeString),Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,Destroy,(),Sim
+Sub,Free,(),Sim
+Function,ClassName,() As ShortString,Sim
+Function,ClassType,() As TClass,Sim
+Function,ClassParent,() As TClass,Sim
+Function,InstanceSize,() As Integer,Sim
+Function,SafeCallException,"(ExceptObject As TObject, ExceptAddr As Pointer) As HRESULT",Sim
+Sub,AfterConstruction,(),Sim
+Sub,BeforeDestruction,(),Sim
+Sub,Dispatch,(ByRef Message As PVOID),Sim
+Sub,DefaultHandler,(ByRef Message As PVOID),Sim
+Function,NewInstance,() As TObject,Sim
+Sub,FreeInstance,(),Sim
+Function,Equals,(Obj As TObject) As Boolean,Sim
+Function,GetHashCode,() As Integer,Sim
+Function,FieldAddress,(Name As ShortString) As Pointer,Sim
+Function,InheritsFrom,(AClass As TClass) As Boolean,Sim
+Function,MethodAddress,(Name As ShortString) As Pointer,Sim
+Function,MethodName,(Address As Pointer) As ShortString,Sim
+Function,GetInterface,"(Const IID As TGUID, ByRef Obj As PVOID) As Boolean",Sim

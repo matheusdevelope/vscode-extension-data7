@@ -1,0 +1,139 @@
+/** CSS Fixed Tab Styles **/
+
+.fixedtab
+{
+	position: fixed;
+	float: left;
+	width: 260px;
+	top: 150px;
+	
+	-moz-transition: all 0.2s ease-in-out;
+	-webkit-transition: all 0.2s ease-in-out;
+	-o-transition: all 0.2s ease-in-out;
+	transition: all 0.2s ease-in-out;
+	
+	z-index:4;
+	
+}
+
+.lefttab
+{
+	left: -410px;
+}
+
+.lefttab:hover
+{
+	left: 0;
+	cursor: pointer;
+}
+
+.righttab
+{
+	right: -220px;
+}
+
+
+.fixedtab .tab
+{
+	float: left!important;
+	width: 40px;
+	padding: 10px 10px;
+	margin: 15px 0 0 0;
+	cursor: pointer;
+}
+	
+.fixedtab .tab span.notification
+{
+	position: absolute;
+	top: 4px;
+	padding: 3px 5px;
+	line-height: normal;
+	color: #FFF;
+	font-size: 11px;
+	background: #B02B2C;
+	text-transform: uppercase;
+	
+	-webkit-border-radius: 4px;
+	-moz-border-radius: 4px;
+	border-radius: 4px;
+}
+/*.righttab:hover
+{
+	right: 0;
+	cursor: pointer;
+}*/
+/*.fixedtab .tab:hover .righttab
+{
+	right: 0;
+	cursor: pointer;
+}
+*/			
+.lefttab .tab span.notification
+{
+	right: -10px;
+}
+
+.righttab .tab span.notification
+{
+	left: -10px;
+}
+
+.lefttab .tab
+{
+	-webkit-border-top-right-radius: 6px;
+	-webkit-border-bottom-right-radius: 6px;
+	-moz-border-radius-topright: 6px;
+	-moz-border-radius-bottomright: 6px;
+	border-top-right-radius: 6px;
+	border-bottom-right-radius: 6px;
+}
+		
+.righttab .tab
+{
+	-webkit-border-top-left-radius: 6px;
+	-webkit-border-bottom-left-radius: 6px;
+	-moz-border-radius-topleft: 6px;
+	-moz-border-radius-bottomleft: 6px;
+	border-top-left-radius: 6px;
+	border-bottom-left-radius: 6px;
+}
+		
+.fixedtab .green
+{
+	background: #9C0;
+}
+
+.fixedtab .blue
+{
+	background: #09F;
+}
+	
+.fixedtab .tabcontent
+{
+	float: left!important;
+	width: 220px;
+	padding: 15px 20px 15px 0px;
+	border:1px solid #D5E2F1;
+	border-right:none;
+	background:#F1F5F8;
+}
+	
+.lefttab .tabcontent
+{
+	-webkit-border-top-right-radius: 6px;
+	-webkit-border-bottom-right-radius: 6px;
+	-moz-border-radius-topright: 6px;
+	-moz-border-radius-bottomright: 6px;
+	border-top-right-radius: 6px;
+	border-bottom-right-radius: 6px;
+}
+
+.righttab .tabcontent
+{
+	-webkit-border-top-left-radius: 6px;
+	-webkit-border-bottom-left-radius: 6px;
+	-moz-border-radius-topleft: 6px;
+	-moz-border-radius-bottomleft: 6px;
+	border-top-left-radius: 6px;
+	border-bottom-left-radius: 6px;
+}

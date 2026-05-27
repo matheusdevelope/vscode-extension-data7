@@ -1,0 +1,21 @@
+---
+description: "Universal coding standards"
+globs: ["src/**/*.ts"]
+alwaysApply: true
+---
+
+# Coding Standards
+
+- This is a universal rule file. Language specifics live in `typescript.mdc`; VS Code API specifics live in `vscode_extension.mdc`.
+- Prefer simple modules and small functions over clever abstractions.
+- Keep files focused on one responsibility. Split large providers, services, or parsers before they become hard to scan; a provider file should not also own scope-resolution logic or XML helpers.
+- Use descriptive names from the domain or VS Code context, such as `WorkspaceSymbolIndexer`, `provideCompletionItems`, `MissingImportDiagnostic`, or `buildProjectFile`.
+- Follow the project naming pattern consistently: provider files end with `-provider.ts`, services with `-service.ts`, tests with `.test.ts`, and classes are `PascalCase`.
+- Replace business-significant literals with named constants. Diagnostic codes (e.g. `"missing-import"`), language IDs (`"d7basic"`, `"data7project"`), command identifiers (`"data7.runProject"`), and configuration keys (`"data7.executorPath"`) must each have a single canonical declaration that the rest of the code imports.
+- Comments should explain non-obvious intent, trade-offs, or constraints — for example why a parser ignores a specific token, or why a legacy `.7proj` shape is still tolerated. Do not narrate what the code does.
+- When comments are necessary, write them in English. User-facing messages and error strings shown in the VS Code UI may remain in Portuguese to match the existing extension UX.
+- Do not leave commented-out code, empty catch blocks, `TODO` without an owner or removal condition, or unused exports behind.
+- Never generate standalone documentation files (`README.md`, `CHANGELOG.md`, separate design docs) unless the user explicitly requests them. The `project_context.md` at the repository root is the canonical conceptual document; update it instead of forking a new file.
+- Handle failures explicitly: surface user-relevant errors to the user and detailed context to logs. Do not swallow exceptions. The concrete VS Code surfaces (`showErrorMessage`, `OutputChannel`) are described in `vscode_extension.mdc`.
+- Avoid premature abstractions. Duplicate once if needed, then extract when the pattern is real (the second or third occurrence). When a shared helper already exists for a concern, reuse it instead of re-implementing it.
+- Optimize for readability first: names, types, module boundaries, and control flow should help a reviewer understand the code quickly.

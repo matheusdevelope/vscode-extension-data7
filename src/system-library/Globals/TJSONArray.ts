@@ -1,85 +1,120 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Length",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "TJSONArray",
-    "description": "Retorna a quantidade de elementos no array."
+    name: "TJSONArray",
+    kind: "class",
+    type: "TJSONArray",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Classe para criação, leitura e manipulação de arrays JSON.",
+  },
+
+  // ───────── Construtor (overloads) ─────────
+  {
+    name: "Create",
+    kind: "method",
+    type: "TJSONArray",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pJsonArray", type: "String", isByRef: false, isOptional: false }],
+    overloads: [[]],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description:
+      "Construtor. Aceita uma string JSON inicial para popular o array ou nenhum argumento para criar um array vazio.",
+  },
+
+  // ───────── Inserção / leitura ─────────
+  {
+    name: "PutObject",
+    kind: "method",
+    type: "TJSONArray",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "Value", type: "TJSONObject", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description:
+      "Adiciona um objeto TJSONObject ao final do array. Retorna o próprio TJSONArray para encadeamento.",
   },
   {
-    "name": "GetJSONObject",
-    "kind": "method",
-    "type": "TJSONObject",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
-      {
-        "name": "pIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
-    ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "TJSONArray",
-    "description": "Obtém o objeto TJSONObject presente no índice especificado."
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description: "Retorna a representação textual (string JSON) do array.",
   },
   {
-    "name": "PutObject",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
-      {
-        "name": "pValue",
-        "type": "TJSONObject",
-        "isByRef": false,
-        "isOptional": false
-      }
-    ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "TJSONArray",
-    "description": "Adiciona um objeto TJSONObject ao final do array."
+    name: "Length",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description: "Retorna a quantidade de elementos no array.",
   },
   {
-    "name": "TJSONArray",
-    "kind": "class",
-    "type": "TJSONArray",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Classe para criação, leitura e manipulação de arrays JSON."
-  }
+    name: "GetString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description: "Obtém o valor string presente no índice especificado.",
+  },
+  {
+    name: "GetJSONObject",
+    kind: "method",
+    type: "TJSONObject",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description: "Obtém o objeto TJSONObject presente no índice especificado.",
+  },
+
+  // ───────── Persistência ─────────
+  {
+    name: "LoadFromFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pFileName", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description: "Carrega o conteúdo do array JSON a partir de um arquivo físico.",
+  },
+  {
+    name: "SaveToFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pFileName", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONArray",
+    description: "Salva o conteúdo do array JSON em um arquivo físico.",
+  },
 ];

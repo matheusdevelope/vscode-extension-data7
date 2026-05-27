@@ -1,0 +1,37 @@
+---
+description: "Testing strategy for the Data7 VS Code extension"
+globs: ["src/test/**/*.ts", "**/*.test.ts"]
+alwaysApply: true
+---
+
+# Testing Standards
+
+- This is a universal rule file. Stack-specific test requirements live in `vscode_extension.mdc` (provider testing) and `security.mdc` (input-handling tests).
+- The test runner for this project is the Node.js built-in test runner (`node --test out/test/**/*.test.js`). Use `node:test` (`test`, `describe`, `before`, `beforeEach`, …) and `node:assert/strict` only. Do not import Mocha, Jest, Vitest, Chai, or Sinon.
+- Tests live under `src/test/` and compile alongside the rest of `src/` to `out/test/`. Mirror the source layout so the target module is obvious (`diagnostics.test.ts` tests `diagnostics.ts`, `builder.test.ts` tests `builder.ts`, etc.).
+
+## VS Code API in tests
+
+- The test process does not run inside the VS Code extension host. `src/test/setup.ts` registers a mock of the `vscode` namespace; every test file that exercises code touching `vscode` must import the setup first.
+- Add a new mock surface to `src/test/setup.ts` only when at least one test needs it. Keep mock fidelity minimal — return the smallest object shape the code under test actually consumes.
+- Do not introduce `@vscode/test-electron`, `vscode-test`, or any host-running test framework without an explicit request. The current strategy is fast in-process unit and integration tests with mocked APIs.
+
+## What to test
+
+- Unit-test the linter (`diagnostics.ts`), parsers (`symbol-indexer.ts`, `dependency-scanner.ts`), the formatter, and pure helpers in `src/services/`. These have no VS Code dependency beyond the mocked types.
+- Integration-test the builder + decompiler round-trip on representative `.bas`/`.7proj` fixtures. Round-trip invariants (build then decompile then build) are the canonical regression for that pair.
+- Integration-test the `RepositoryService` against a temporary directory created with `node:fs/promises.mkdtemp(os.tmpdir(), ...)`; never write to the user's real `globalStoragePath` from tests.
+- Add a regression test for every fixed bug. The test name should describe the user-visible symptom.
+
+## Test structure
+
+- Use `describe` / `test` blocks with AAA naming (`should emit missing-import when namespace is not imported`).
+- Co-locate fixtures (sample `.bas` snippets, `.7proj` XML) inside `src/test/fixtures/` and load them through a small helper, instead of inlining long strings in every test.
+- Reset all shared state between tests (`beforeEach`): clear the indexer, dispose mock diagnostic collections, remove temp directories. No test may depend on execution order.
+
+## Coverage expectations
+
+- Every new linter diagnostic code must ship with at least one positive test (rule triggers) and one negative test (rule does not trigger).
+- Every new code action must have a test that asserts the resulting edit text and target range.
+- Every new entry in `src/system-library/types.ts` (`SystemContainer` union) and every new container folder must be covered by an autocomplete or hover test that proves the container is reachable.
+- Every intentional compatibility branch (legacy `.7proj` shapes, deprecated import syntax) must have a regression test so the exception stays localized.

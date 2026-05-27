@@ -1,0 +1,189 @@
+
+Esse é o autocomplete completo do namespace System, com base nele, atualize a definição completa do namespace.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,GetMem,"(ByRef P As Pointer, Size As Integer)",Sim
+Sub,FreeMem,"(P As Pointer, Size As Integer)",Sim
+Function,AllocMem,(Size As Cardinal) As Pointer,Sim
+Sub,Abs,(ByRef X As Void),Sim
+Function,ArcTan,(X As Extended) As Extended,Sim
+Function,Cos,(X As Extended) As Extended,Sim
+Function,Exp,(X As Extended) As Extended,Sim
+Function,Frac,(X As Extended) As Extended,Sim
+Function,Int,(X As Extended) As Extended,Sim
+Function,Ln,(X As Extended) As Extended,Sim
+Const,Pi,"As Extended = 3,14159265358979",Sim
+Function,Sin,(X As Extended) As Extended,Sim
+Function,Sqr,(X As Extended) As Extended,Sim
+Function,Sqrt,(X As Extended) As Extended,Sim
+Function,Trunc,(X As Extended) As Integer,Sim
+Function,Power,"(Base As Extended, Exponent As Extended) As Extended",Sim
+Sub,New,(),Sim
+Sub,Dispose,(),Sim
+Sub,Inc,(),Sim
+Sub,Dec,(),Sim
+Sub,Pred,(),Sim
+Sub,Succ,(),Sim
+Sub,Ord,(),Sim
+Sub,Chr,(),Sim
+Sub,Low,(),Sim
+Sub,High,(),Sim
+Function,Odd,(X As Integer) As Boolean,Sim
+Sub,Delete,"(ByRef S As String, Index As Integer, Count As Integer)",Sim
+Sub,Insert,"(Substr As String, ByRef Dest As String, Index As Integer)",Sim
+Sub,Str,(),Sim
+Sub,Val,"(S As UnicodeString, ByRef V As Integer, ByRef Code As Integer)",Sim
+Sub,Val,"(X As UnicodeString, ByRef V As Double, ByRef Code As Integer)",Sim
+Function,Copy,"(S As String, Index As Integer, Count As Integer) As String",Sim
+Function,Pos,"(Substr As String, Str As String) As Integer",Sim
+Function,Pos,"(Ch As Char, Str As String) As Integer",Sim
+Sub,SizeOf,(ByRef X As Void),Sim
+Sub,Move,"(Source As PVOID, ByRef Dest As PVOID, Count As Integer)",Sim
+Sub,FillChar,"(ByRef X As PVOID, Count As Integer, Value As Char)",Sim
+Sub,FillChar,"(ByRef X As PVOID, Count As Integer, Value As Byte)",Sim
+Function,Upcase,(C As Char) As Char,Sim
+Sub,Randomize,(),Sim
+Function,Random,(X As Integer) As Integer,Sim
+Function,Random,() As Double,Sim
+Function,Hi,(X As Integer) As Byte,Sim
+Function,Hi,(X As Word) As Byte,Sim
+Function,Lo,(X As Integer) As Byte,Sim
+Function,Lo,(X As Word) As Byte,Sim
+Function,Round,(X As Extended) As Int64,Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Type,Real,(vazio),Sim
+Type,TDateTime,(vazio),Sim
+Type,Longint,(vazio),Sim
+Type,THandle,(vazio),Sim
+Type,LongWord,(vazio),Sim
+Type,HRESULT,(vazio),Sim
+Type,HMODULE,(vazio),Sim
+Type,PInteger,(vazio),Sim
+Type,PSmallInt,(vazio),Sim
+Type,PShortInt,(vazio),Sim
+Type,PCardinal,(vazio),Sim
+Type,PWord,(vazio),Sim
+Type,PByte,(vazio),Sim
+Type,PInt64,(vazio),Sim
+Type,PSingle,(vazio),Sim
+Type,PDouble,(vazio),Sim
+Type,PExtended,(vazio),Sim
+Type,PCurrency,(vazio),Sim
+Type,PVariant,(vazio),Sim
+Type,PPointer,(vazio),Sim
+Type,PBoolean,(vazio),Sim
+Type,PLongint,(vazio),Sim
+Type,PLongword,(vazio),Sim
+Type,PDate,(vazio),Sim
+Type,PAnsiChar,(vazio),Sim
+Type,PPInteger,(vazio),Sim
+Type,PPSmallInt,(vazio),Sim
+Type,PPShortInt,(vazio),Sim
+Type,PPCardinal,(vazio),Sim
+Type,PPWord,(vazio),Sim
+Type,PPByte,(vazio),Sim
+Type,PPInt64,(vazio),Sim
+Type,PPSingle,(vazio),Sim
+Type,PPDouble,(vazio),Sim
+Type,PPExtended,(vazio),Sim
+Type,PPCurrency,(vazio),Sim
+Type,PPVariant,(vazio),Sim
+Type,PPPointer,(vazio),Sim
+Type,PPBoolean,(vazio),Sim
+Type,PPWideChar,(vazio),Sim
+Type,PPAnsiChar,(vazio),Sim
+Type,TVarType,(vazio),Sim
+Type,PWideString,(vazio),Sim
+Const,MaxLongInt,As Integer = 2147483647,Sim
+Type,IInvokable,(vazio),Sim
+Type,TDispatchMessage,(vazio),Sim
+Type,PAnsiString,(vazio),Sim
+Type,UCS2Char,(vazio),Sim
+Type,PUCS2Char,(vazio),Sim
+Type,UCS4Char,(vazio),Sim
+Type,PUCS4Char,(vazio),Sim
+Type,TUCS4CharArray,(vazio),Sim
+Type,PUCS4CharArray,(vazio),Sim
+Type,UCS4String,(vazio),Sim
+Type,UTF8String,(vazio),Sim
+Type,PUTF8String,(vazio),Sim
+Type,IntegerArray,(vazio),Sim
+Type,PIntegerArray,(vazio),Sim
+Type,PointerArray,(vazio),Sim
+Type,PPointerArray,(vazio),Sim
+Type,TBoundArray,(vazio),Sim
+Type,TPCharArray,(vazio),Sim
+Type,PPCharArray,(vazio),Sim
+Type,PDispatch,(vazio),Sim
+Type,PPDispatch,(vazio),Sim
+Type,PError,(vazio),Sim
+Type,PWordBool,(vazio),Sim
+Type,PUnknown,(vazio),Sim
+Type,PPUnknown,(vazio),Sim
+Type,POleVariant,(vazio),Sim
+Type,PDateTime,(vazio),Sim
+Type,TVarArrayBound,(vazio),Sim
+Type,TVarArrayBoundArray,(vazio),Sim
+Type,PVarArrayBoundArray,(vazio),Sim
+Type,TVarArrayCoorArray,(vazio),Sim
+Type,PVarArrayCoorArray,(vazio),Sim
+Type,TVarArray,(vazio),Sim
+Type,PVarData,(vazio),Sim
+Type,TVarOp,(vazio),Sim
+Type,TCallDesc,(vazio),Sim
+Type,PCallDesc,(vazio),Sim
+Type,TDispDesc,(vazio),Sim
+Type,PDispDesc,(vazio),Sim
+Type,PVarRec,(vazio),Sim
+Type,TTextLineBreakStyle,(vazio),Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Const,tlbsLF,As TTextLineBreakStyle = 1558,Sim
+Const,tlbsCRLF,As TTextLineBreakStyle = 1,Sim
+Type,HRSRC,(vazio),Sim
+Type,TResourceHandle,(vazio),Sim
+Type,HINST,(vazio),Sim
+Type,HGLOBAL,(vazio),Sim
+Type,TResStringRec,(vazio),Sim
+Type,PResStringRec,(vazio),Sim
+Type,TThreadFunc,(vazio),Sim
+Function,BeginThread,"(P As Pointer, C As Cardinal, T As TThreadFunc, P As Pointer, C As Cardinal, ByRef C As Cardinal) As Integer",Sim
+Sub,EndThread,(I As Integer),Sim
+Const,varEmpty,As Integer = 0,Sim
+Const,varNull,As Integer = 1,Sim
+Const,varSmallint,As Integer = 2,Sim
+Const,varInteger,As Integer = 3,Sim
+Const,varSingle,As Integer = 4,Sim
+Const,varDouble,As Integer = 5,Sim
+Const,varCurrency,As Integer = 6,Sim
+Const,varDate,As Integer = 7,Sim
+Const,varOleStr,As Integer = 8,Sim
+Const,varDispatch,As Integer = 9,Sim
+Const,varError,As Integer = 10,Sim
+Const,varBoolean,As Integer = 11,Sim
+Const,varVariant,As Integer = 12,Sim
+Const,varUnknown,As Integer = 13,Sim
+Const,varShortInt,As Integer = 16,Sim
+Const,varByte,As Integer = 17,Sim
+Const,varWord,As Integer = 18,Sim
+Const,varLongWord,As Integer = 19,Sim
+Const,varInt64,As Integer = 20,Sim
+Const,varUInt64,As Integer = 21,Sim
+Const,varStrArg,As Integer = 72,Sim
+Const,varString,As Integer = 256,Sim
+Const,varAny,As Integer = 257,Sim
+Const,varTypeMask,As Integer = 4095,Sim
+Const,varArray,As Integer = 8192,Sim
+Const,varByRef,As Integer = 16384,Sim
+Const,varUString,As Integer = 258,Sim
+Type,TInterfaceEntry,(vazio),Sim
+Type,PInterfaceEntry,(vazio),Sim
+Type,TInterfaceTable,(vazio),Sim
+Function,Length,(S As UnicodeString) As Integer,Sim
+Sub,Delete,"(ByRef S As UnicodeString, Index As Integer, Count As Integer)",Sim
+Sub,Insert,"(Substr As UnicodeString, ByRef Dest As UnicodeString, Index As Integer)",Sim
+Function,Copy,"(S As UnicodeString, Index As Integer, Count As Integer) As UnicodeString",Sim
+Function,Pos,"(Substr As UnicodeString, Str As UnicodeString) As Integer",Sim

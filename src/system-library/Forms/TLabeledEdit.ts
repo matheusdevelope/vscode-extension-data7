@@ -1,133 +1,134 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "TLabeledEdit",
-    "kind": "class",
-    "type": "TLabeledEdit",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TLabeledEdit",
+    kind: "class",
+    type: "TLabeledEdit",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Forms",
-    "inheritsFrom": "TWinControl",
-    "description": "Caixa de entrada de texto com um rótulo (label) associado."
+    fileUri: "system://library",
+    containerName: "Forms",
+    inheritsFrom: "TWinControl",
+    description: "Caixa de entrada de texto com um rótulo (label) associado.",
   },
   {
-    "name": "Text",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Text",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Conteúdo textual digitado no controle."
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description: "Conteúdo textual digitado no controle.",
   },
   {
-    "name": "ReadOnly",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ReadOnly",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Indica se a caixa de texto é somente leitura."
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description: "Indica se a caixa de texto é somente leitura.",
   },
   {
-    "name": "PasswordChar",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "PasswordChar",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Caractere usado para mascarar a digitação (ex: senhas)."
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description: "Caractere usado para mascarar a digitação (ex: senhas).",
   },
   {
-    "name": "MaxLength",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "MaxLength",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Número máximo de caracteres permitidos para entrada."
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description: "Número máximo de caracteres permitidos para entrada.",
   },
   {
-    "name": "EditLabel",
-    "kind": "property",
-    "type": "TBoundLabel",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "EditLabel",
+    kind: "property",
+    type: "TBoundLabel",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Referência ao rótulo (TBoundLabel) associado a este edit."
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description: "Referência ao rótulo (TBoundLabel) associado a este edit.",
   },
   {
-    "name": "LabelPosition",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "LabelPosition",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Posição do rótulo relativo ao controle de edição (0 = lpAbove, 1 = lpBelow, 2 = lpLeft, 3 = lpRight)."
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description:
+      "Posição do rótulo relativo ao controle de edição (0 = lpAbove, 1 = lpBelow, 2 = lpLeft, 3 = lpRight).",
   },
   {
-    "name": "LabelSpacing",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "LabelSpacing",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TLabeledEdit",
-    "description": "Espaçamento (em pixels) entre o controle de edição e seu rótulo."
-  }
+    fileUri: "system://library",
+    containerName: "TLabeledEdit",
+    description: "Espaçamento (em pixels) entre o controle de edição e seu rótulo.",
+  },
 ];

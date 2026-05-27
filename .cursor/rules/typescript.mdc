@@ -1,0 +1,20 @@
+---
+description: "TypeScript-specific coding standards"
+globs: ["src/**/*.ts"]
+alwaysApply: true
+---
+
+# TypeScript Standards
+
+- This is a stack-specific rule file for TypeScript language features and compiler-driven safety. The project compiles with `tsc -p ./` using `strict: true`; do not weaken `tsconfig.json` to silence individual errors.
+- Prefer strong, explicit typing. Narrow types make providers, the linter, and the indexer easier to read, review, and refactor safely.
+- Never introduce `any` when `unknown`, generics, unions, or narrowing solve the problem. When interacting with `fast-xml-parser` output or other untyped JSON-like values, type the result as `unknown` and narrow it before use.
+- Add explicit return types to exported functions, public class methods, and provider methods (`provideCompletionItems`, `provideHover`, …). This protects the public surface from accidental shape changes.
+- Use `interface` for object contracts and `type` for unions, mapped types, and branded primitives. Reach for `interface` when the shape will be extended (e.g. a service contract); reach for `type` for diagnostic codes, command identifiers, and finite enumerations.
+- Prefer types that communicate domain intent at the call site (`type DiagnosticCode = "missing-import" | …`, `SystemContainer`) over broad structural shapes that hide meaning.
+- Prefer named exports and `import type` where appropriate. Default exports are reserved for VS Code activation glue if the API requires them.
+- Model API states and domain outcomes with discriminated unions or result objects instead of magic strings or booleans. When branching on a discriminated union, enforce exhaustive handling with a `never`-typed default branch.
+- Prefer utility types such as `Pick`, `Omit`, `Readonly`, `Partial`, `Record`, and `Awaited` over manually duplicating type shapes.
+- Validate external data at the boundary before treating it as a trusted TypeScript type. Examples of external data in this project: `.bas` parser output, `.7proj` XML parsed by `fast-xml-parser`, values returned by `vscode.workspace.getConfiguration`, and arguments passed into command callbacks.
+- Catch errors as `unknown` and narrow them (`error instanceof Error`) before reading properties.
+- Prefer `readonly`, `as const`, and immutable transforms for shared data structures such as the system library catalog, diagnostic-code tables, and the configuration helper's typed snapshot.

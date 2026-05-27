@@ -1,781 +1,784 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "String",
-    "kind": "class",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "String",
+    kind: "class",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "description": "Tipo primitivo representando uma sequência de caracteres de texto."
+    fileUri: "system://library",
+    description: "Tipo primitivo representando uma sequência de caracteres de texto.",
   },
   {
-    "name": "Length",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Length",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna a quantidade de caracteres contidos na string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna a quantidade de caracteres contidos na string.",
   },
   {
-    "name": "ToLower",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToLower",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna uma nova string convertida para minúsculas."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna uma nova string convertida para minúsculas.",
   },
   {
-    "name": "ToUpper",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToUpper",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna uma nova string convertida para maiúsculas."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna uma nova string convertida para maiúsculas.",
   },
   {
-    "name": "Trim",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Trim",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Remove espaços em branco do início e fim da string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Remove espaços em branco do início e fim da string.",
   },
   {
-    "name": "TrimStart",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TrimStart",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Remove espaços em branco do início da string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Remove espaços em branco do início da string.",
   },
   {
-    "name": "TrimEnd",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TrimEnd",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Remove espaços em branco do fim da string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Remove espaços em branco do fim da string.",
   },
   {
-    "name": "Substring",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Substring",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pStartIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pStartIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pLength",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": true
-      }
+        name: "pLength",
+        type: "Integer",
+        isByRef: false,
+        isOptional: true,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Extrai uma parte (substring) da string a partir do índice informado."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Extrai uma parte (substring) da string a partir do índice informado.",
   },
   {
-    "name": "IndexOf",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "IndexOf",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Busca a primeira ocorrência do valor informado na string. Retorna o índice de início ou -1 se não encontrar."
+    fileUri: "system://library",
+    containerName: "String",
+    description:
+      "Busca a primeira ocorrência do valor informado na string. Retorna o índice de início ou -1 se não encontrar.",
   },
   {
-    "name": "Contains",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Contains",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Verifica se a string contém a substring informada."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Verifica se a string contém a substring informada.",
   },
   {
-    "name": "Replace",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Replace",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pOldValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pOldValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pNewValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pNewValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Substitui todas as ocorrências de um termo por outro termo na string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Substitui todas as ocorrências de um termo por outro termo na string.",
   },
   {
-    "name": "Split",
-    "kind": "method",
-    "type": "Variant",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Split",
+    kind: "method",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pDelimiter",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pDelimiter",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Divide a string em um array/lista usando o delimitador especificado."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Divide a string em um array/lista usando o delimitador especificado.",
   },
   {
-    "name": "StartsWith",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "StartsWith",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pPrefix",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pPrefix",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Verifica se a string inicia com o prefixo informado."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Verifica se a string inicia com o prefixo informado.",
   },
   {
-    "name": "EndsWith",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "EndsWith",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSuffix",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSuffix",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Verifica se a string termina com o sufixo informado."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Verifica se a string termina com o sufixo informado.",
   },
   {
-    "name": "ToBase64",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToBase64",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Converte a string de texto para uma representação Base64."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Converte a string de texto para uma representação Base64.",
   },
   {
-    "name": "String",
-    "kind": "class",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "String",
+    kind: "class",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Representa uma sequência de caracteres de texto (tipo primitivo)."
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Representa uma sequência de caracteres de texto (tipo primitivo).",
   },
   {
-    "name": "Length",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Length",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna a quantidade de caracteres na string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna a quantidade de caracteres na string.",
   },
   {
-    "name": "Split",
-    "kind": "method",
-    "type": "Variant",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Split",
+    kind: "method",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSeparator",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSeparator",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Divide a string em um array de strings com base em um delimitador."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Divide a string em um array de strings com base em um delimitador.",
   },
   {
-    "name": "ToBase64",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToBase64",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Codifica o conteúdo da string em formato Base64."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Codifica o conteúdo da string em formato Base64.",
   },
   {
-    "name": "FromBase64",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "FromBase64",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Decodifica uma string previamente codificada em Base64."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Decodifica uma string previamente codificada em Base64.",
   },
   {
-    "name": "ToUpper",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToUpper",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna uma cópia da string com todas as letras em maiúsculo."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna uma cópia da string com todas as letras em maiúsculo.",
   },
   {
-    "name": "ToLower",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToLower",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna uma cópia da string com todas as letras em minúsculo."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna uma cópia da string com todas as letras em minúsculo.",
   },
   {
-    "name": "Trim",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Trim",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Remove todos os espaços em branco do início e do fim da string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Remove todos os espaços em branco do início e do fim da string.",
   },
   {
-    "name": "TrimStart",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TrimStart",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Remove todos os espaços em branco do início da string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Remove todos os espaços em branco do início da string.",
   },
   {
-    "name": "TrimEnd",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TrimEnd",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Remove todos os espaços em branco do fim da string."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Remove todos os espaços em branco do fim da string.",
   },
   {
-    "name": "Substring",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Substring",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pStartIndex",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pStartIndex",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pLength",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": true
-      }
+        name: "pLength",
+        type: "Integer",
+        isByRef: false,
+        isOptional: true,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna uma sub-string começando em pStartIndex com comprimento pLength."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna uma sub-string começando em pStartIndex com comprimento pLength.",
   },
   {
-    "name": "Replace",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Replace",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pOldValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pOldValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pNewValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pNewValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Substitui todas as ocorrências de pOldValue por pNewValue."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Substitui todas as ocorrências de pOldValue por pNewValue.",
   },
   {
-    "name": "Contains",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Contains",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSearch",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSearch",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Verifica se a string contém a sub-string especificada."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Verifica se a string contém a sub-string especificada.",
   },
   {
-    "name": "StartsWith",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "StartsWith",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSearch",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSearch",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Verifica se a string inicia com a sub-string especificada."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Verifica se a string inicia com a sub-string especificada.",
   },
   {
-    "name": "EndsWith",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "EndsWith",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSearch",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSearch",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Verifica se a string termina com a sub-string especificada."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Verifica se a string termina com a sub-string especificada.",
   },
   {
-    "name": "IndexOf",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "IndexOf",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSearch",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSearch",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna o índice base 0 da primeira ocorrência da sub-string especificada."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna o índice base 0 da primeira ocorrência da sub-string especificada.",
   },
   {
-    "name": "LastIndexOf",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "LastIndexOf",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pSearch",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pSearch",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna o índice base 0 da última ocorrência da sub-string especificada."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna o índice base 0 da última ocorrência da sub-string especificada.",
   },
   {
-    "name": "PadLeft",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PadLeft",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pTotalWidth",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pTotalWidth",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pPaddingChar",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": true,
-        "defaultValue": "\" \""
-      }
+        name: "pPaddingChar",
+        type: "String",
+        isByRef: false,
+        isOptional: true,
+        defaultValue: '" "',
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Preenche a string à esquerda com o caractere especificado até atingir o tamanho total."
+    fileUri: "system://library",
+    containerName: "String",
+    description:
+      "Preenche a string à esquerda com o caractere especificado até atingir o tamanho total.",
   },
   {
-    "name": "PadRight",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PadRight",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pTotalWidth",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
+        name: "pTotalWidth",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pPaddingChar",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": true,
-        "defaultValue": "\" \""
-      }
+        name: "pPaddingChar",
+        type: "String",
+        isByRef: false,
+        isOptional: true,
+        defaultValue: '" "',
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Preenche a string à direita com o caractere especificado até atingir o tamanho total."
+    fileUri: "system://library",
+    containerName: "String",
+    description:
+      "Preenche a string à direita com o caractere especificado até atingir o tamanho total.",
   },
   {
-    "name": "StringOfChar",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "StringOfChar",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pChar",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pChar",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pCount",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pCount",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna uma string contendo o caractere pChar repetido pCount vezes."
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna uma string contendo o caractere pChar repetido pCount vezes.",
   },
   {
-    "name": "Quoted",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Quoted",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "String",
-    "description": "Retorna a string envolta por aspas simples ou duplas."
-  }
+    fileUri: "system://library",
+    containerName: "String",
+    description: "Retorna a string envolta por aspas simples ou duplas.",
+  },
 ];

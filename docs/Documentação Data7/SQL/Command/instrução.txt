@@ -1,0 +1,205 @@
+Esse é o autocomplete completo da classe SQL.Command, com base nele, atualize a definição completa da classe.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Cruze os dados com as classes que o SQL.Command herda, para não adicionar props que já existem nas classes base
+
+Além dessa definição do autocomplete, analise a pasta Documentação Data7/SQL/Command, nela vão ter os arquivos
+XML das documentações das classes nativas base TFDQuery e da SQL.Command,  portanto SQL.Command terá tudo que existe na documentação
+das classes bases e que exista nessa definição de autocomoplete abaixo:
+
+Categoria,Nome,Tipo,Suportado
+Property,Name,UnicodeString,Sim
+Property,Tag,Integer,Sim
+Property,ActiveStoredUsage,TFDStoredActivationUsage,Sim
+Property,Active,Boolean,Sim
+Property,AutoCalcFields,Boolean,Sim
+Property,BeforeOpen,TDataSetNotifyEvent,Sim
+Property,AfterOpen,TDataSetNotifyEvent,Sim
+Property,BeforeClose,TDataSetNotifyEvent,Sim
+Property,AfterClose,TDataSetNotifyEvent,Sim
+Property,BeforeInsert,TDataSetNotifyEvent,Sim
+Property,AfterInsert,TDataSetNotifyEvent,Sim
+Property,BeforeEdit,TDataSetNotifyEvent,Sim
+Property,AfterEdit,TDataSetNotifyEvent,Sim
+Property,BeforePost,TDataSetNotifyEvent,Sim
+Property,AfterPost,TDataSetNotifyEvent,Sim
+Property,BeforeCancel,TDataSetNotifyEvent,Sim
+Property,AfterCancel,TDataSetNotifyEvent,Sim
+Property,BeforeDelete,TDataSetNotifyEvent,Sim
+Property,AfterDelete,TDataSetNotifyEvent,Sim
+Property,BeforeScroll,TDataSetNotifyEvent,Sim
+Property,AfterScroll,TDataSetNotifyEvent,Sim
+Property,BeforeRefresh,TDataSetNotifyEvent,Sim
+Property,AfterRefresh,TDataSetNotifyEvent,Sim
+Property,OnCalcFields,TDataSetNotifyEvent,Sim
+Property,OnDeleteError,TMethod,Sim
+Property,OnEditError,TMethod,Sim
+Property,OnNewRecord,TDataSetNotifyEvent,Sim
+Property,OnPostError,TMethod,Sim
+Property,FieldOptions,(),Não
+Property,Filtered,Boolean,Sim
+Property,FilterOptions,TFilterOptions,Sim
+Property,Filter,UnicodeString,Sim
+Property,OnFilterRecord,TFilterRecordEvent,Sim
+Property,ObjectView,Boolean,Sim
+Property,Constraints,(),Não
+Property,CachedUpdates,Boolean,Sim
+Property,FilterChanges,TFDUpdateRecordTypes,Sim
+Property,Indexes,(),Não
+Property,IndexesActive,Boolean,Sim
+Property,IndexName,UnicodeString,Sim
+Property,IndexFieldNames,UnicodeString,Sim
+Property,Aggregates,(),Não
+Property,AggregatesActive,Boolean,Sim
+Property,ConstraintsEnabled,Boolean,Sim
+Property,MasterSource,(),Não
+Property,MasterFields,UnicodeString,Sim
+Property,DetailFields,UnicodeString,Sim
+Property,OnUpdateRecord,TMethod,Sim
+Property,OnUpdateError,TMethod,Sim
+Property,OnReconcileError,TMethod,Sim
+Property,BeforeExecute,TFDDataSetEvent,Sim
+Property,AfterExecute,TFDDataSetEvent,Sim
+Property,BeforeApplyUpdates,TFDDataSetEvent,Sim
+Property,AfterApplyUpdates,TFDAfterApplyUpdatesEvent,Sim
+Property,BeforeGetRecords,TFDDataSetEvent,Sim
+Property,AfterGetRecords,TFDDataSetEvent,Sim
+Property,AfterGetRecord,TFDDataSetEvent,Sim
+Property,BeforeRowRequest,TFDDataSetEvent,Sim
+Property,AfterRowRequest,TFDDataSetEvent,Sim
+Property,OnMasterSetValues,TFDDataSetEvent,Sim
+Property,LocalSQL,(),Não
+Property,ChangeAlerter,(),Não
+Property,ChangeAlertName,UnicodeString,Sim
+Property,ConnectionName,UnicodeString,Sim
+Property,Connection,(),Não
+Property,Transaction,(),Não
+Property,UpdateTransaction,(),Não
+Property,SchemaAdapter,(),Não
+Property,Params,(),Não
+Property,FetchOptions,(),Não
+Property,FormatOptions,(),Não
+Property,ResourceOptions,(),Não
+Property,SecurityOptions,(),Não
+Property,UpdateOptions,(),Não
+Property,UpdateObject,(),Não
+Property,OnError,TFDErrorEvent,Sim
+Property,OnExecuteError,TMethod,Sim
+Property,OnCommandChanged,TNotifyEvent,Sim
+Property,SQL,TStrings,Sim
+Property,Macros,(),Não
+Property,CommandText,UnicodeString,Sim
+Property,CodigoTabela,Integer,Sim
+Property,ReadOnly,Boolean,Sim
+Property,RowsAffected,Integer,Sim
+Property,MacroCount,Integer,Sim
+Property,Text,UnicodeString,Sim
+Property,ParamCount,Integer,Sim
+Property,DataSource,(),Não
+Property,Prepared,Boolean,Sim
+Property,Adapter,(),Não
+Property,DatsManager,(),Não
+Property,Command,(),Não
+Property,PointedConnection,(),Não
+Property,ServerEditRequest,(),Não
+Property,ActualDetailFields,UnicodeString,Sim
+Property,ChangeCount,Integer,Sim
+Property,ClientCursor,Boolean,Sim
+Property,CloneSource,TFDDataSet,Sim
+Property,Data,(),Não
+Property,Delta,(),Não
+Property,Exists,Boolean,Sim
+Property,RowError,(),Não
+Property,FilteredData,(),Não
+Property,GroupingLevel,Integer,Sim
+Property,UpdatesPending,Boolean,Sim
+Property,IndexDefs,(),Não
+Property,LocalIndexName,UnicodeString,Sim
+Property,IndexFieldCount,Integer,Sim
+Property,KeyExclusive,Boolean,Sim
+Property,KeyFieldCount,Integer,Sim
+Property,MasterLink,(),Não
+Property,OptionsIntf,(),Não
+Property,ParentDataSet,TFDDataSet,Sim
+Property,SavePoint,Int64,Sim
+Property,SourceEOF,Boolean,Sim
+Property,SourceView,(),Não
+Property,Table,(),Não
+Property,BaseView,(),Não
+Property,Encoder,(),Não
+Property,AggFields,(),Não
+Property,Bof,Boolean,Sim
+Property,Bookmark,(),Não
+Property,CanModify,Boolean,Sim
+Property,CanRefresh,Boolean,Sim
+Property,DataSetField,(),Não
+Property,Designer,(),Não
+Property,Eof,Boolean,Sim
+Categoria,Nome,Tipo / Assinatura,Valor,Suportado
+Property,BlockReadSize,Integer,Sim
+Property,FieldCount,Integer,Sim
+Property,FieldDefs,(),Não
+Property,FieldDefList,(),Não
+Property,Fields,(),Não
+Property,FieldList,(),Não
+Property,Found,Boolean,Sim
+Property,IsUniDirectional,Boolean,Sim
+Property,Modified,Boolean,Sim
+Property,StoredFieldKinds,(),Não
+Property,RecordCount,Integer,Sim
+Property,RecNo,Integer,Sim
+Property,RecordSize,Word,Sim
+Property,SparseArrays,Boolean,Sim
+Property,State,(),Não
+Property,ComObject,IInterface,Sim
+Property,ComponentCount,Integer,Sim
+Property,ComponentIndex,Integer,Sim
+Property,ComponentState,(),Não
+Property,ComponentStyle,(),Não
+Property,DesignInfo,Integer,Sim
+Property,Owner,TComponent,Sim
+Property,VCLComObject,Pointer,Sim
+Property,Observers,(),Não
+Sub,New,(),Sim
+Sub,Open,"(Const pDescricao As UnicodeString = '', Const pTituloJanela As UnicodeString = '', Const pNomeJanela As UnicodeString = '')",Sim
+Function,IsEmpty,() As Boolean,Sim
+Function,ExecSQL,"(Const pDescricao As UnicodeString = '', Const pTituloJanela As UnicodeString = '', Const pNomeJanela As UnicodeString = '') As Integer",Sim
+Sub,SaveToFile,"(Const NomeArquivo As UnicodeString, SalvarEmXML As Boolean = True)",Sim
+Function,RowsAffected,() As Integer,Sim
+Sub,Close,(),Sim
+Sub,Next,(),Sim
+Sub,First,(),Sim
+Sub,Last,(),Sim
+Sub,Prior,(),Sim
+Function,Field,(Const FieldName As UnicodeString) As TField,Sim
+Function,Param,(Const ParamName As UnicodeString) As TFDParam,Sim
+Function,TCommandSQL_GetEOF,() As Boolean,Sim
+Property,Count,As Integer,Sim
+Property,OnExecuteError,(),Não
+Property,OnReconcileError,(),Não
+Property,OnUpdateRecord,(),Não
+Property,OnUpdateError,(),Não
+Property,OnDeleteError,(),Não
+Property,OnEditError,(),Não
+Property,OnPostError,(),Não
+Categoria,Nome,Tipo / Assinatura,Valor,Suportado
+Sub,Create,(),Sim
+Sub,Destroy,(),Sim
+Sub,Free,(),Sim
+Function,ClassName,() As ShortString,Sim
+Function,ClassType,() As TClass,Sim
+Function,ClassParent,() As TClass,Sim
+Function,InstanceSize,() As Integer,Sim
+Function,SafeCallException,"(ExceptObject As TObject, ExceptAddr As Pointer) As HRESULT",Sim
+Sub,AfterConstruction,(),Sim
+Sub,BeforeDestruction,(),Sim
+Sub,Dispatch,(ByRef Message As PVOID),Sim
+Sub,DefaultHandler,(ByRef Message As PVOID),Sim
+Function,NewInstance,() As TObject,Sim
+Sub,FreeInstance,(),Sim
+Function,ToString,() As UnicodeString,Sim
+Function,Equals,(Obj As TObject) As Boolean,Sim
+Function,GetHashCode,() As Integer,Sim
+Function,FieldAddress,(Name As ShortString) As Pointer,Sim

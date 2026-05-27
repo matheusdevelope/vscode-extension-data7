@@ -1,86 +1,86 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Integer",
-    "kind": "class",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Integer",
+    kind: "class",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "description": "Tipo primitivo de número inteiro de 32 bits."
+    fileUri: "system://library",
+    description: "Tipo primitivo de número inteiro de 32 bits.",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Integer",
-    "description": "Converte o valor inteiro para uma string."
+    fileUri: "system://library",
+    containerName: "Integer",
+    description: "Converte o valor inteiro para uma string.",
   },
   {
-    "name": "Integer",
-    "kind": "class",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Integer",
+    kind: "class",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Representa um número inteiro de 32 bits (tipo primitivo)."
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Representa um número inteiro de 32 bits (tipo primitivo).",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Integer",
-    "description": "Converte o valor inteiro para sua representação em String."
+    fileUri: "system://library",
+    containerName: "Integer",
+    description: "Converte o valor inteiro para sua representação em String.",
   },
   {
-    "name": "ToDouble",
-    "kind": "method",
-    "type": "Double",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToDouble",
+    kind: "method",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Integer",
-    "description": "Converte o valor inteiro para Double."
-  }
+    fileUri: "system://library",
+    containerName: "Integer",
+    description: "Converte o valor inteiro para Double.",
+  },
 ];

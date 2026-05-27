@@ -1,0 +1,20 @@
+
+Esse é o autocomplete completo do namespace XML.IXMLNodeList, com base nele, atualize a definição completa do namespace.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Além dessa definição do autocomplete, analise a pasta Documentação Data7/XML/IXMLNodeList, nela vão ter os arquivos
+XML das documentações de XML.IXMLNodeList (Ela herda diretamente de TObject) que terá tudo que existe na documentação
+das classes bases e que exista nessa definição de autocomoplete abaixo:
+
+Cruze os dados com as classes que o grid herda, para não adicionar props que já existem nas classes base
+
+Categoria,Nome,Tipo / Assinatura,Suportado
+Function,FindNode,(NodeName As UnicodeString) As IXMLNode,Sim
+Function,Count,() As Integer,Sim
+Function,_GetNodes,(I As Integer) As IXMLNode,Sim
+Property,Nodes,(I As Integer) As IXMLNode,Sim
+Function,QueryInterface,"(Const IID As TGUID, ByRef Obj As PVOID) As HRESULT",Sim
+Function,_AddRef,() As Integer,Sim
+Function,_Release,() As Integer,Sim

@@ -1,116 +1,116 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "TField",
-    "kind": "class",
-    "type": "TField",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TField",
+    kind: "class",
+    type: "TField",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "SQL",
-    "description": "Representa um campo retornado de uma consulta de banco de dados."
+    fileUri: "system://library",
+    containerName: "SQL",
+    description: "Representa um campo retornado de uma consulta de banco de dados.",
   },
   {
-    "name": "AsString",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsString",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TField",
-    "description": "Valor do campo convertido em String."
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo convertido em String.",
   },
   {
-    "name": "AsInteger",
-    "kind": "property",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsInteger",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TField",
-    "description": "Valor do campo convertido em Integer."
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo convertido em Integer.",
   },
   {
-    "name": "AsFloat",
-    "kind": "property",
-    "type": "Double",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsFloat",
+    kind: "property",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TField",
-    "description": "Valor do campo convertido em Double/Float."
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo convertido em Double/Float.",
   },
   {
-    "name": "AsBoolean",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsBoolean",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TField",
-    "description": "Valor do campo convertido em Boolean."
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo convertido em Boolean.",
   },
   {
-    "name": "AsDate",
-    "kind": "property",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsDate",
+    kind: "property",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TField",
-    "description": "Valor do campo convertido em TDateTime (somente data)."
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo convertido em TDateTime (somente data).",
   },
   {
-    "name": "AsDateTime",
-    "kind": "property",
-    "type": "TDateTime",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AsDateTime",
+    kind: "property",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TField",
-    "description": "Valor do campo convertido em TDateTime (data e hora)."
-  }
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo convertido em TDateTime (data e hora).",
+  },
 ];

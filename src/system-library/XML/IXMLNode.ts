@@ -1,142 +1,187 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "IXMLNode",
-    "kind": "class",
-    "type": "XML.IXMLNode",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "XML",
-    "description": "Nó individual de um documento XML contendo propriedades, atributos e nós filhos."
+    name: "IXMLNode",
+    kind: "class",
+    type: "XML.IXMLNode",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "XML",
+    inheritsFrom: "TObject",
+    description: "Nó individual de um documento XML contendo propriedades, atributos e nós filhos.",
+  },
+
+  // ───────── Acessores de valor ─────────
+  {
+    name: "_GetNodeValue",
+    kind: "method",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Acessor interno (getter) da propriedade NodeValue (OleVariant).",
   },
   {
-    "name": "NodeValue",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "IXMLNode",
-    "description": "Lê ou configura o valor de texto contido neste nó."
+    name: "_SetNodeValue",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "Value", type: "Variant", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Acessor interno (setter) da propriedade NodeValue (OleVariant).",
   },
   {
-    "name": "Attributes",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
-      {
-        "name": "pAttrName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+    name: "NodeValue",
+    kind: "property",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Lê ou configura o valor de texto contido neste nó (OleVariant).",
+  },
+
+  // ───────── Atributos ─────────
+  {
+    name: "_GetAttribute",
+    kind: "method",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "I", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Acessor interno (getter) para um atributo XML identificado pelo nome.",
+  },
+  {
+    name: "_SetAttribute",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      { name: "I", type: "String", isByRef: false, isOptional: false },
+      { name: "Value", type: "Variant", isByRef: false, isOptional: false },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "IXMLNode",
-    "description": "Lê ou define o valor do atributo XML indicado pelo nome."
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Acessor interno (setter) para um atributo XML identificado pelo nome.",
   },
   {
-    "name": "AddChild",
-    "kind": "method",
-    "type": "XML.IXMLNode",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
-      {
-        "name": "pTagName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+    name: "Attributes",
+    kind: "indexed-property",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pAttrName", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description:
+      "Propriedade indexada por nome do atributo. Lê ou define o valor do atributo XML correspondente.",
+  },
+
+  // ───────── Filhos / navegação ─────────
+  {
+    name: "AddChild",
+    kind: "method",
+    type: "XML.IXMLNode",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pTagName", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Adiciona e retorna um novo nó filho com o nome de tag informado.",
+  },
+  {
+    name: "ChildNodes",
+    kind: "method",
+    type: "XML.IXMLNodeList",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Retorna a lista de nós filhos diretos deste nó.",
+  },
+  {
+    name: "GetNodeName",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Retorna o nome da tag XML correspondente a este nó.",
+  },
+  {
+    name: "SelectSingleNode",
+    kind: "method",
+    type: "XML.IXMLNode",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "NodeName", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Busca e retorna um único nó utilizando a query/nome informado.",
+  },
+
+  // ───────── IUnknown (interface base) ─────────
+  {
+    name: "QueryInterface",
+    kind: "method",
+    type: "HRESULT",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      { name: "IID", type: "TGUID", isByRef: false, isOptional: false },
+      { name: "Obj", type: "PVOID", isByRef: true, isOptional: false },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "IXMLNode",
-    "description": "Adiciona e retorna um novo nó filho com o nome de tag informado."
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Herdado de IUnknown — retorna outra interface implementada pelo nó (RTTI COM).",
   },
   {
-    "name": "ChildNodes",
-    "kind": "method",
-    "type": "Variant",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "IXMLNode",
-    "description": "Lista e provê acesso aos nós filhos deste nó."
+    name: "_AddRef",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description: "Herdado de IUnknown — incrementa o contador de referências da interface.",
   },
   {
-    "name": "GetNodeName",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "IXMLNode",
-    "description": "Retorna o nome da tag XML correspondente a este nó."
+    name: "_Release",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "IXMLNode",
+    description:
+      "Herdado de IUnknown — decrementa o contador de referências; libera a instância ao chegar a zero.",
   },
-  {
-    "name": "SelectSingleNode",
-    "kind": "method",
-    "type": "XML.IXMLNode",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
-      {
-        "name": "pXPath",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
-    ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "IXMLNode",
-    "description": "Busca e retorna um único nó utilizando a query XPath informada."
-  }
 ];

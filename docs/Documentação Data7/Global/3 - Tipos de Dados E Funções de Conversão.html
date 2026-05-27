@@ -1,0 +1,829 @@
+
+<!-- saved from url=(0055)http://bc.se7esistemas.com.br/article.php?id=200&oid=43 -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style>
+    .wordbreak {
+        /* These are technically the same, but use both */
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+
+        -ms-word-break: break-all;
+        /* This is the dangerous one in WebKit, as it breaks things wherever */
+        word-break: break-all;
+        /* Instead use this non-standard one: */
+        word-break: break-word;
+
+        /* Adds a hyphen where the word breaks, if supported (No Blink) */
+        -ms-hyphens: auto;
+        -moz-hyphens: auto;
+        -webkit-hyphens: auto;
+        hyphens: auto;
+    }
+</style>
+
+
+
+
+<title>3 - Tipos de Dados</title>
+<meta http-equiv="X-UA-Compatible" content="IE=9; IE=8; IE=EDGE">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+
+<meta name="description" content="3 - Tipos de Dados">
+<link rel="shortcut icon" href="http://bc.se7esistemas.com.br/images/favicon.png" type="image/png"><meta name="robots" content="index, follow">
+<meta name="generator" content="Base de Conhecimento da Se7e Sistemas">
+<!-- Powered by 'Base de Conhecimento da Se7e Sistemas' (http://www.se7esistemas.com.br) -->
+<!-- Please do not remove this line from the code to keep the license valid -->
+<link href="./3 - Tipos de Dados E Funções de Conversão_files/bootstrap.min.css" rel="stylesheet" type="text/css">
+<link href="./3 - Tipos de Dados E Funções de Conversão_files/phpkb.css" rel="stylesheet" type="text/css">
+<link href="./3 - Tipos de Dados E Funções de Conversão_files/fixed-tabs.css" rel="stylesheet" type="text/css">
+
+			<!-- Syntax Highlighter Scripts - STARTS -->
+			<script type="text/javascript" src="./3 - Tipos de Dados E Funções de Conversão_files/shCore.js.baixados"></script>
+			<script type="text/javascript" src="./3 - Tipos de Dados E Funções de Conversão_files/shBrushVb.js.baixados"></script>
+			<link type="text/css" rel="stylesheet" href="./3 - Tipos de Dados E Funções de Conversão_files/shCoreDefault.css">
+			<!-- LOAD THEME -->
+			<link type="text/css" rel="stylesheet" href="./3 - Tipos de Dados E Funções de Conversão_files/shThemeDefault.css">
+			<!-- Syntax Highlighter Scripts - ENDS --></head>
+
+	<body class="layout-fluid">	<div class="container">	
+		<div class="row">
+	<div class="header col-md-12 col-sm-12 col-xs-12" style="height: 55px;">
+		<div class="row fixed" style="background: #006B98; height: 55px;">
+		
+			<nav class="navbar navbar-default pull-left"> <!-- navbar starting-->
+				<!-- Brand and toggle get grouped for better mobile display -->
+				<div class="navbar-header">
+					<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+						<span class="icon-bar"></span>
+						<span class="icon-bar"></span>
+						<span class="icon-bar"></span>
+					</button>
+				</div>
+				<!-- Collect the nav links, forms, and other content for toggling -->
+				<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+					<ul class="nav navbar-nav">
+						<li><a href="http://bc.se7esistemas.com.br/index.php" title="KB Home">Inicio</a></li><li><a href="http://bc.se7esistemas.com.br/search.php" title="Advanced Search">Pesquisa Avançada</a></li><li><a href="http://bc.se7esistemas.com.br/news.php" title="News">Notícias e Avisos</a></li><li><a href="http://bc.se7esistemas.com.br/glossary.php" title="Glossary">Glossário</a></li><li><a href="http://bc.se7esistemas.com.br/contact.php" title="Ask a Question">Perguntas</a></li><li><a href="http://bc.se7esistemas.com.br/my-favorites.php" title="My Favorites">Meus Favoritos</a></li><li><a href="http://bc.se7esistemas.com.br/my-profile.php" title="My Profile">Meu Perfil</a></li><li><a href="http://bc.se7esistemas.com.br/admin/index.php" target="_blank" title="View Admin Dashboard">Administrativo</a></li>					</ul>
+				</div><!-- navbar-collapse -->
+			</nav>
+		</div><!-- End Fixed Row -->
+		
+
+		<!--
+		<div class="row">
+			<div class="logo_part col-md-12 col-sm-12 col-xs-12">
+				<div class="kbtitle pull-left">Base de Conhecimento</div>
+				<div class="logo pull-right"><img src="http://bc.se7esistemas.com.br/images/phpkb-logo.png" class="img-responsive" alt="Logo"/></div>
+			</div>
+		</div>
+		-->
+
+	</div> <!-- End Header -->
+</div><!-- End Row -->
+<div class="clearfix"></div>
+
+		<div class="row">
+			<div class="content-area col-md-12 col-sm-12 col-xs-12">
+			<div class="breadcrumb"><a href="http://bc.se7esistemas.com.br/index.php" title="">Inicio</a> » 
+							   <a href="http://bc.se7esistemas.com.br/category.php" title="">Grupos de Categorias</a>
+							   » <a href="http://bc.se7esistemas.com.br/category.php?id=43" title="">Referências da Linguagem</a></div>				
+				<div class="categories_tree col-md-3">
+					
+				<div class="phpkb-tree"><div class="treeNode"><a href="http://bc.se7esistemas.com.br/category.php" class="nodeHeading">Todas as Categorias</a></div>
+								<div id="dd0" class="clip" style="display:block;">
+									<div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(182,&#39;tdvlv1_182&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg182" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon182" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=182">Agente (2)</a>
+										<input type="hidden" name="nstate182" id="nstate182" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_182" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(180,&#39;tdvlv1_180&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg180" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon180" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=180">Atualização Sistema (12)</a>
+										<input type="hidden" name="nstate180" id="nstate180" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_180" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(2,&#39;tdvlv1_2&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg2" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon2" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=2">Compra (12)</a>
+										<input type="hidden" name="nstate2" id="nstate2" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_2" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(29,&#39;tdvlv1_29&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg29" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon29" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=29">Configurador (11)</a>
+										<input type="hidden" name="nstate29" id="nstate29" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_29" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(184,&#39;tdvlv1_184&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg184" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon184" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=184">Data7 2020.1 (13)</a>
+										<input type="hidden" name="nstate184" id="nstate184" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_184" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(177,&#39;tdvlv1_177&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg177" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon177" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=177">DataChef (37)</a>
+										<input type="hidden" name="nstate177" id="nstate177" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_177" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(42,&#39;tdvlv1_42&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg42" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_minus.gif" alt="Collapse"></a></div>
+										<div class="col"><img id="ticon42" src="./3 - Tipos de Dados E Funções de Conversão_files/folderopen-lock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=42">Developer Studio (344)</a>
+										<input type="hidden" name="nstate42" id="nstate42" value="yes">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_42" class="clip" style=""><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(272,&#39;tdvlv2_272&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg272" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon272" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=272">Funções Avulso (2)</a>
+										<input type="hidden" name="nstate272" id="nstate272" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_272" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(45,&#39;tdvlv2_45&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg45" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon45" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=45">Namespaces (309)</a>
+										<input type="hidden" name="nstate45" id="nstate45" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_45" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(43,&#39;tdvlv2_43&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg43" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_minus.gif" alt="Collapse"></a></div>
+										<div class="col"><img id="ticon43" src="./3 - Tipos de Dados E Funções de Conversão_files/folderopen-lock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=43">Referências da Linguagem (33)</a>
+										<input type="hidden" name="nstate43" id="nstate43" value="yes">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_43" class="clip" style=""><div class="treeNode">
+									<div style="padding-left:36px">
+										<div class="col"><a href="javascript: expand_collapse(152,&#39;tdvlv3_152&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg152" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon152" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=152">Conversão de Tipos (18)</a>
+										<input type="hidden" name="nstate152" id="nstate152" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv3_152" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=198&amp;oid=43">1 - Estrutura do Programa</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=207&amp;oid=43">10 - Repetições (Loops)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=208&amp;oid=43">11 - Strings</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=209&amp;oid=43">12 - Data e Hora</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=210&amp;oid=43">13 - Funções (Function)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=211&amp;oid=43">14 - Procedimento (Sub)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=212&amp;oid=43">15 - Classes e Objetos</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=199&amp;oid=43">2 - Sintaxe Básica</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak nodeSel articleNode" href="http://bc.se7esistemas.com.br/article.php?id=200&amp;oid=43">3 - Tipos de Dados</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=201&amp;oid=43">4 - Variáveis</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=202&amp;oid=43">5 - Constantes</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=203&amp;oid=43">6 - Modificadores</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=204&amp;oid=43">7 - Declarações</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=205&amp;oid=43">8 - Operadores</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./3 - Tipos de Dados E Funções de Conversão_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=206&amp;oid=43">9 - Estruturas de Decisão</a></div>
+									</div>
+								</div></div></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(6,&#39;tdvlv1_6&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg6" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon6" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=6">Documentos Fiscais (65)</a>
+										<input type="hidden" name="nstate6" id="nstate6" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_6" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(35,&#39;tdvlv1_35&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg35" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon35" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=35">Estoque (3)</a>
+										<input type="hidden" name="nstate35" id="nstate35" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_35" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(10,&#39;tdvlv1_10&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg10" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon10" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=10">Financeiro (31)</a>
+										<input type="hidden" name="nstate10" id="nstate10" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_10" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./3 - Tipos de Dados E Funções de Conversão_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon11" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=11">Folha Lite (0)</a></div>
+								</div>
+							</div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(4,&#39;tdvlv1_4&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg4" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon4" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=4">Frente de Loja (15)</a>
+										<input type="hidden" name="nstate4" id="nstate4" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_4" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(26,&#39;tdvlv1_26&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg26" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon26" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=26">Gerenciador de Banco de Dados (19)</a>
+										<input type="hidden" name="nstate26" id="nstate26" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_26" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(275,&#39;tdvlv1_275&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg275" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon275" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=275">GIT (1)</a>
+										<input type="hidden" name="nstate275" id="nstate275" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_275" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(276,&#39;tdvlv1_276&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg276" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon276" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=276">IDashBoard (1)</a>
+										<input type="hidden" name="nstate276" id="nstate276" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_276" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(14,&#39;tdvlv1_14&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg14" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon14" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=14">Impostos (7)</a>
+										<input type="hidden" name="nstate14" id="nstate14" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_14" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(279,&#39;tdvlv1_279&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg279" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon279" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=279">Integrações (5)</a>
+										<input type="hidden" name="nstate279" id="nstate279" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_279" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(34,&#39;tdvlv1_34&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg34" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon34" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=34">Mobile - Android (19)</a>
+										<input type="hidden" name="nstate34" id="nstate34" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_34" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(16,&#39;tdvlv1_16&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg16" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon16" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=16">Outros (46)</a>
+										<input type="hidden" name="nstate16" id="nstate16" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_16" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(39,&#39;tdvlv1_39&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg39" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon39" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=39">Parâmetros (16)</a>
+										<input type="hidden" name="nstate39" id="nstate39" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_39" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./3 - Tipos de Dados E Funções de Conversão_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon21" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=21">PDV (Frente de Caixa) (0)</a></div>
+								</div>
+							</div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(148,&#39;tdvlv1_148&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg148" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon148" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=148">PostgreSQL (63)</a>
+										<input type="hidden" name="nstate148" id="nstate148" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_148" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(185,&#39;tdvlv1_185&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg185" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon185" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=185">Regras de Bloqueio (61)</a>
+										<input type="hidden" name="nstate185" id="nstate185" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_185" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(25,&#39;tdvlv1_25&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg25" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon25" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=25">Relatório (15)</a>
+										<input type="hidden" name="nstate25" id="nstate25" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_25" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(3,&#39;tdvlv1_3&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg3" src="./3 - Tipos de Dados E Funções de Conversão_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon3" src="./3 - Tipos de Dados E Funções de Conversão_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=3">Venda (35)</a>
+										<input type="hidden" name="nstate3" id="nstate3" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_3" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./3 - Tipos de Dados E Funções de Conversão_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon281" src="./3 - Tipos de Dados E Funções de Conversão_files/folder.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=281">Teste (0)</a></div>
+								</div>
+							</div>
+								</div>
+							</div><div class="recentview"><div class="recentview-title">Visualizado Recentemente</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=199">2 - Sintaxe Básica</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=212">15 - Classes e Objetos</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=210">13 - Funções (Function)</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=208">11 - Strings</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=209">12 - Data e Hora</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=207">10 - Repetições (Loops)</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=198">1 - Estrutura do Programa</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=354">Values</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=362">Strings</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=348">Sorted</a>
+									</div></div></div><!-- End Left Menu -->
+								
+				<div class="right-content col-md-9 col-sm-12 col-xs-12">
+						<div class="phpkb-search">
+					<form class="search-wrapper clearfix" name="frmsearch" method="post" action="http://bc.se7esistemas.com.br/search.php" onsubmit="return check_form();">
+						<input type="text" id="search_field" name="keywords" placeholder="Pesquisar..." required=""><input type="hidden" name="search_att" value="yes">
+						<button type="submit" name="submit_search" value="Search">Pesquisar</button>
+					</form>
+				</div>
+				<div class="clearfix"></div>					<div class="article-area">
+					<div id="articleContent">
+													<div class="favorite-fixed"><div class="icon" id="output_fav">
+									<a href="javascript:;" title="Adicionar aos favoritos" onclick="getScriptPage(&#39;output_fav&#39;,&#39;AddFav&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;200&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;);">
+								 	<img src="./3 - Tipos de Dados E Funções de Conversão_files/icon-favorite.png" alt="Icon Favorite"></a>
+								 </div></div>
+													<div class="article-title">
+														<h1><span itemprop="name">3 - Tipos de Dados</span></h1>
+													</div>
+													<div class="article-info">Nº do Artigo: 200 | Avaliação: Não avaliado | Última atualização: Thu, May 9, 2019 at 5:41 PM</div>
+													
+													<div class="article-content">
+														<span itemprop="articleBody"><div id="ARTICLECONTENT"><article><p>Tipos de dados referem-se a um sistema extensivo usado para declarar variáveis ​​ou funções de diferentes tipos.&nbsp;O tipo de variável determina quanto espaço ocupa no armazenamento e como o padrão de bits armazenado é interpretado.</p>
+<h2>Tipos de dados disponíveis no&nbsp;Developer Studio</h2>
+<p>O Developer Studio&nbsp;fornece uma ampla gama de tipos de dados.&nbsp;A tabela a seguir mostra todos os tipos de dados disponíveis:</p>
+<table class="table table-bordered" style="height: 816px;" border="1">
+<tbody>
+<tr style="height: 48px;"><th style="width: 86px; height: 48px; text-align: left;">&nbsp;Tipo de&nbsp; &nbsp;dados</th><th style="width: 257px; height: 48px; text-align: left;">&nbsp;Alocação de Armazenamento</th><th style="width: 972px; height: 48px; text-align: left;">&nbsp;Faixa de valor</th></tr>
+<tr style="height: 48px;">
+<td style="width: 86px; height: 48px; text-align: left;">&nbsp;<strong>Boolean</strong></td>
+<td style="width: 257px; height: 48px; text-align: left;">&nbsp;</td>
+<td style="width: 972px; height: 48px; text-align: left;"><strong>&nbsp;Verdadeiro</strong>&nbsp;ou&nbsp;<strong>falso</strong></td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 86px; height: 24px; text-align: left;">&nbsp;<strong>Byte</strong></td>
+<td style="width: 257px; height: 24px; text-align: left;">&nbsp;1 byte</td>
+<td style="width: 972px; height: 24px; text-align: left;">&nbsp;0 a 255 (sem assinatura)</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 86px; height: 24px; text-align: left;">&nbsp;<strong>Char</strong></td>
+<td style="width: 257px; height: 24px; text-align: left;">&nbsp;2 bytes</td>
+<td style="width: 972px; height: 24px; text-align: left;">&nbsp;0 a 65535 (sem assinatura)</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 86px; height: 24px; text-align: left;">&nbsp;<strong>Date</strong></td>
+<td style="width: 257px; height: 24px; text-align: left;">&nbsp;8 bytes</td>
+<td style="width: 972px; height: 24px; text-align: left;">&nbsp;0:00:00 (meia-noite) de 1º de janeiro de 0001 a 23:59:59 de 31 de dezembro de 9999</td>
+</tr>
+<tr style="height: 48px;">
+<td style="width: 86px; height: 48px; text-align: left;">&nbsp;<strong>Decimal</strong></td>
+<td style="width: 257px; height: 48px; text-align: left;">&nbsp;16 bytes</td>
+<td style="width: 972px; height: 48px; text-align: left;">&nbsp;0 a +/- 79.228.162.514.264.337.593.543.950.335 (+/- 7,9 ... E + 28) sem ponto decimal; 0 a +/- 7,9228162514264337593543950335&nbsp; &nbsp;com 28 lugares à direita da casa decimal</td>
+</tr>
+<tr style="height: 112px;">
+<td style="width: 86px; height: 112px; text-align: left;">&nbsp;<strong>Double</strong></td>
+<td style="width: 257px; height: 112px; text-align: left;">&nbsp;8 bytes</td>
+<td style="width: 972px; height: 112px; text-align: left;">
+<p>&nbsp;-1.79769313486231570E + 308 a -4.94065645841246544E-324, para valores negativos</p>
+<p>&nbsp;4.94065645841246544E-324 a 1.79769313486231570E + 308, para valores positivos</p>
+</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 86px; height: 24px; text-align: left;">&nbsp;<strong>Integer</strong></td>
+<td style="width: 257px; height: 24px; text-align: left;">&nbsp;4 bytes</td>
+<td style="width: 972px; height: 24px; text-align: left;">&nbsp;-2.147.483.648 através de 2.147.483.647 (assinado)</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 86px; height: 24px; text-align: left;">&nbsp;<strong>Long</strong></td>
+<td style="width: 257px; height: 24px; text-align: left;">&nbsp;8 bytes</td>
+<td style="width: 972px; height: 24px; text-align: left;">&nbsp;-9,223,372,036,854,775,808 a 9,223,372,036,854,775,807 (assinada)</td>
+</tr>
+<tr style="height: 112px;">
+<td style="width: 86px; height: 112px; text-align: left;">&nbsp;<strong>TObject</strong></td>
+<td style="width: 257px; height: 112px; text-align: left;">
+<p>&nbsp;4 bytes na plataforma de 32 bits</p>
+<p>&nbsp;8 bytes na plataforma de 64 bits</p>
+</td>
+<td style="width: 972px; height: 112px; text-align: left;">&nbsp;Qualquer tipo pode ser armazenado em uma variável do tipo Object</td>
+</tr>
+<tr style="height: 24px;">
+<td style="width: 86px; height: 24px; text-align: left;">&nbsp;<strong>Short</strong></td>
+<td style="width: 257px; height: 24px; text-align: left;">&nbsp;2 bytes</td>
+<td style="width: 972px; height: 24px; text-align: left;">&nbsp;-32.768 a 32.767 (assinado)</td>
+</tr>
+<tr style="height: 112px;">
+<td style="width: 86px; height: 112px; text-align: left;">&nbsp;<strong>Single</strong></td>
+<td style="width: 257px; height: 112px; text-align: left;">&nbsp;4 bytes</td>
+<td style="width: 972px; height: 112px; text-align: left;">
+<p>&nbsp;-3,4028235E + 38 a -1,401298E-45 para valores negativos;</p>
+<p>&nbsp;1,401298E-45 a 3,4028235E + 38 para valores positivos</p>
+</td>
+</tr>
+<tr style="height: 48px;">
+<td style="width: 86px; height: 48px; text-align: left;">&nbsp;<strong>String</strong></td>
+<td style="width: 257px; height: 48px; text-align: left;">&nbsp;Depende da plataforma de&nbsp; &nbsp;implementação</td>
+<td style="width: 972px; height: 48px; text-align: left;">&nbsp;0 a aproximadamente 2 bilhões de caracteres Unicode</td>
+</tr>
+</tbody>
+</table>
+<h2>Exemplo</h2>
+<p>O exemplo a seguir demonstra o uso de alguns dos tipos.</p>
+<div><div id="highlighter_410444" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div><div class="line number31 index30 alt2">31</div><div class="line number32 index31 alt1">32</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">b </code><code class="vb keyword">As</code> <code class="vb keyword">Byte</code></div><div class="line number2 index1 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">n </code><code class="vb keyword">As</code> <code class="vb keyword">Integer</code></div><div class="line number3 index2 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">si </code><code class="vb keyword">As</code> <code class="vb keyword">Single</code></div><div class="line number4 index3 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">d </code><code class="vb keyword">As</code> <code class="vb keyword">Double</code></div><div class="line number5 index4 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">da </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number6 index5 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">c </code><code class="vb keyword">As</code> <code class="vb keyword">Char</code></div><div class="line number7 index6 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">s </code><code class="vb keyword">As</code> <code class="vb keyword">String</code></div><div class="line number8 index7 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">bl </code><code class="vb keyword">As</code> <code class="vb keyword">Boolean</code></div><div class="line number9 index8 alt2">&nbsp;</div><div class="line number10 index9 alt1"><code class="vb plain">b = 1</code></div><div class="line number11 index10 alt2"><code class="vb plain">n = 1234567</code></div><div class="line number12 index11 alt1"><code class="vb plain">si = 0.12345678901234566</code></div><div class="line number13 index12 alt2"><code class="vb plain">d&nbsp; = 0.12345678901234566</code></div><div class="line number14 index13 alt1"><code class="vb plain">da = Now()</code></div><div class="line number15 index14 alt2"><code class="vb plain">c = </code><code class="vb string">"O"</code></div><div class="line number16 index15 alt1"><code class="vb plain">s = </code><code class="vb string">"Developer Studio"</code></div><div class="line number17 index16 alt2">&nbsp;</div><div class="line number18 index17 alt1"><code class="vb keyword">If</code> <code class="vb plain">IsNumeric(n) </code><code class="vb keyword">Then</code></div><div class="line number19 index18 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">bl = </code><code class="vb keyword">True</code></div><div class="line number20 index19 alt1"><code class="vb keyword">Else</code></div><div class="line number21 index20 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">bl = </code><code class="vb keyword">False</code></div><div class="line number22 index21 alt1"><code class="vb keyword">End</code> <code class="vb keyword">If</code></div><div class="line number23 index22 alt2">&nbsp;</div><div class="line number24 index23 alt1"><code class="vb keyword">If</code> <code class="vb plain">bl </code><code class="vb keyword">Then</code></div><div class="line number25 index24 alt2"><code class="vb comments">' Quebra de Linha</code></div><div class="line number26 index25 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print c.ToString() &amp; </code><code class="vb string">" "</code> <code class="vb plain">&amp; s.ToString()</code></div><div class="line number27 index26 alt2"><code class="vb comments">' Print "declaring on the day of: " &amp; da</code></div><div class="line number28 index27 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb string">"é uma ótima ferramenta para criar soluções customizadas."</code> <code class="vb plain">&amp; </code><code class="vb keyword">Char</code><code class="vb plain">(10)</code></div><div class="line number29 index28 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb string">"Single: "</code> <code class="vb plain">&amp; si.ToString()</code></div><div class="line number30 index29 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb string">"Double: "</code> <code class="vb plain">&amp; d.ToString()</code></div><div class="line number31 index30 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb string">"Data da compilação: "</code> <code class="vb plain">&amp; da.ToString()</code></div><div class="line number32 index31 alt1"><code class="vb keyword">End</code> <code class="vb keyword">If</code></div></div></td></tr></tbody></table></div></div>
+<p>&nbsp;</p>
+<p>Quando o código acima é compilado e executado, produz o seguinte resultado:</p>
+<div><div id="highlighter_355604" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb plain">O Developer Studio</code></div><div class="line number2 index1 alt1"><code class="vb plain">é uma ótima ferramenta para criar soluções customizadas.</code></div><div class="line number3 index2 alt2">&nbsp;</div><div class="line number4 index3 alt1"><code class="vb keyword">Single</code><code class="vb plain">: 0,123456791043282</code></div><div class="line number5 index4 alt2"><code class="vb keyword">Double</code><code class="vb plain">: 0,123456789012346</code></div><div class="line number6 index5 alt1"><code class="vb plain">Data da compilação: 23/04/2019</code></div></div></td></tr></tbody></table></div></div>
+<p>&nbsp;</p>
+<h2>As funções de conversão de tipo no&nbsp;Developer Studio</h2>
+<p>O Developer Studio&nbsp;fornece as seguintes funções de conversão de tipo em linha:</p>
+<table class="table table-bordered" style="width: 1127px;" border="1">
+<tbody>
+<tr><th style="width: 1125px;">&nbsp;Funções e Descrição</th></tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CBool ​​(expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados booleano.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CByte (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados Byte.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CChar (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados Char.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CDate (expressão)</strong></p>
+<p>&nbsp;Converte a expressão para o tipo de dados Data</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CDbl (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em Double type de dados.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CDec (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados Decimal.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CInt (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados Integer.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CLng (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados Long.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CSByte (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados SByte.</p>
+</td>
+</tr>
+<tr>
+<td style="width: 1125px;">
+<p><strong>&nbsp;CSng (expressão)</strong></p>
+<p>&nbsp;Converte a expressão em tipo de dados Único.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h2>Exemplo</h2>
+<p>O exemplo a seguir demonstra algumas dessas funções:</p>
+<div><div id="highlighter_200634" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Sub</code> <code class="vb plain">Principal()</code></div><div class="line number2 index1 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb keyword">Dim</code> <code class="vb plain">numero </code><code class="vb keyword">As</code> <code class="vb keyword">Integer</code></div><div class="line number3 index2 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb keyword">Dim</code> <code class="vb plain">data </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number4 index3 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb keyword">Dim</code> <code class="vb plain">bool </code><code class="vb keyword">As</code> <code class="vb keyword">Boolean</code> <code class="vb plain">= </code><code class="vb keyword">True</code></div><div class="line number5 index4 alt2">&nbsp;</div><div class="line number6 index5 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">numero = 64</code></div><div class="line number7 index6 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">data = DateTime() </code><code class="vb comments">'DateTime() retorna a data e hora atual</code></div><div class="line number8 index7 alt1">&nbsp;</div><div class="line number9 index8 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print(bool)</code></div><div class="line number10 index9 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb keyword">CByte</code><code class="vb plain">(numero)</code></div><div class="line number11 index10 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb keyword">CStr</code><code class="vb plain">(bool)</code></div><div class="line number12 index11 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print </code><code class="vb keyword">Char</code><code class="vb plain">(numero)</code></div><div class="line number13 index12 alt2"><code class="vb spaces">&nbsp;&nbsp;&nbsp;</code><code class="vb plain">Print data.ToString() </code><code class="vb comments">' Para converter uma data e hora para string, utiliza-se a function ToString(), que também converte</code></div><div class="line number14 index13 alt1"><code class="vb spaces">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</code><code class="vb comments">' para o tipo string, porém possui características específicas que veremos mais pra frente.</code></div><div class="line number15 index14 alt2"><code class="vb keyword">End</code> <code class="vb keyword">Sub</code></div><div class="line number16 index15 alt1">&nbsp;</div><div class="line number17 index16 alt2"><code class="vb plain">Principal()</code></div></div></td></tr></tbody></table></div></div>
+<p>&nbsp;</p>
+<p>Quando o código acima é compilado e executado, produz o seguinte resultado:</p>
+<div><div id="highlighter_159831" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb plain">true</code></div><div class="line number2 index1 alt1"><code class="vb plain">64</code></div><div class="line number3 index2 alt2"><code class="vb keyword">True</code></div><div class="line number4 index3 alt1"><code class="vb plain">@</code></div><div class="line number5 index4 alt2"><code class="vb plain">25/04/2019 10:44:37</code></div></div></td></tr></tbody></table></div></div>
+<p>&nbsp;</p></article></div></span>
+													</div><div class="clearfix"></div>
+													<div class="breadcrumb mt15">
+														Autor: <a href="mailto:giovani.prado@se7esistemas.com.br"><span itemprop="author">Giovani Garbulha do Prado Júnior</span></a> - Wed, May 8, 2019 at 4:24 PM. Visualizado 191 vezes.
+														<br>Arquivado em: <span itemprop="articleSection"><a href="http://bc.se7esistemas.com.br/category.php?id=43" title="Group Categories » Referências da Linguagem">Referências da Linguagem</a></span>
+													</div>
+												</div>
+								<div class="categories">
+									<div class="section-options">
+										<div id="output_ratings" class="rating-box pull-left">	<div itemprop="aggregateRating" itemscope="" itemtype="http://schema.org/AggregateRating" style="display: none;">
+						<span itemprop="ratingValue">0</span> (<span itemprop="reviewCount">0</span>) 
+					</div>
+					<div class="rating">
+						<div class="rating-title">Avaliação do artigo <span>(Nenhum Voto)</span></div>
+						<div class="rating_bar" title="0 de 5" align="left"><div style="width:0%" title="0 de 5"></div></div>
+						Avalie este artigo<br>
+							<form id="rating_form" action="http://bc.se7esistemas.com.br/article.php?id=200&amp;oid=43#" method="post" style="margin:0">
+							<select name="rating" id="ratings" style="width:110px;">
+								<option value="">Selecione um</option>
+								<option value="5">5 - Excelente</option>
+								<option value="4">4 - Acima da média</option>
+								<option value="3">3 - Média</option>
+								<option value="2">2 - Abaixo da média</option>
+								<option value="1">1 - Inútil</option>
+							</select>
+							<input type="button" onclick="getScriptPage(&#39;output_ratings&#39;,&#39;AddRatings&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;200&#39;,&#39;ratings&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;);" name="ratebtn" value="Avaliar">
+							</form>
+					</div></div><div class="\&quot;clearfix\&quot;"></div>
+										<ul class="article-options pull-left"><li><a href="http://bc.se7esistemas.com.br/subscribe.php?id=200"><img src="./3 - Tipos de Dados E Funções de Conversão_files/icon-user.png" alt="Icon Subscriber"> Inscrever-se para o artigo</a></li><li><a href="http://bc.se7esistemas.com.br/print.php?id=200" target="_blank"><img src="./3 - Tipos de Dados E Funções de Conversão_files/icon-printer.png" alt="Icon Printer"> Imprimir artigo</a></li></ul><ul class="article-options pull-left"><li><a href="http://bc.se7esistemas.com.br/export.php?type=PDF&amp;id=200"><img src="./3 - Tipos de Dados E Funções de Conversão_files/icon-pdf.png" alt="Icon PDF"> Exportar para PDF</a></li><li><a href="http://bc.se7esistemas.com.br/export.php?type=DOC&amp;id=200"><img src="./3 - Tipos de Dados E Funções de Conversão_files/icon-word.png" alt="Icon MS-Word"> Exportar para o MS Word</a></li>	</ul>
+									</div><!-- Section Options -->
+									<div class="clearfix"></div>
+								</div><!-- End Categories --><div class="article-tabs"><a name="attachments"></a><div class="category-articles">
+								<div class="section-title">Anexos </div>
+							</div>
+							<div class="articles-list">
+								Não há anexos para este artigo.
+							</div><div class="category-articles">
+									<div class="section-title">Comentarios </div>
+								 </div>
+								 <div class="articles-list">
+								 	<div class="section-content">Não há comentários para este artigo. Seja o primeiro a postar um comentário.</div>
+								 	<div id="output_div"><div class="panel panel-default panel-comments mt15">
+							<div class="panel-body">
+								<form name="frmpstcmt" action="http://bc.se7esistemas.com.br/article.php?id=200&amp;oid=43" method="post">
+									<div class="row">
+										<div class="col-sm-12 col-xs-12">
+											<div class="form-group"><input type="hidden" name="name" id="name" value="" class="form-control">
+												<input type="hidden" name="email" id="email" value="" class="form-control">
+												
+												<div class="mb15">
+													<textarea name="comment" id="comment" class="form-control" placeholder="comentarios" rows="5"></textarea> 
+												</div>
+												
+											</div>
+										</div>
+									</div>
+								</form>
+							</div>
+							<div class="panel-footer panel-comments-footer">
+								<button class="btn btn-glossary btn-info" type="button" name="postcmt" id="postcmt" value="Enviar Comentario" onclick="return getScriptPage(&#39;output_div&#39;,&#39;AddComments&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;name&#39;,&#39;email&#39;,&#39;comment&#39;,&#39;200&#39;,&#39;&#39;);">Enviar Comentario</button>
+							</div>
+						</div></div>
+								 </div><div class="section-content"><div class="category-articles"><div class="section-title">Artigos relacionados <a href="http://bc.se7esistemas.com.br/rss.php?id=200&amp;mode=related" target="_blank" title="RSS"><img src="./3 - Tipos de Dados E Funções de Conversão_files/rss.png" style="vertical-align:middle; float:right;" alt="RSS Feed" border="0"></a></div></div><div class="articles-list"><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=201">4 - Variáveis</a>
+										<div class="grey-text">visualizado 118 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=210">13 - Funções (Function)</a>
+										<div class="grey-text">visualizado 115 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=202">5 - Constantes</a>
+										<div class="grey-text">visualizado 81 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=199">2 - Sintaxe Básica</a>
+										<div class="grey-text">visualizado 181 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=207">10 - Repetições (Loops)</a>
+										<div class="grey-text">visualizado 129 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=208">11 - Strings</a>
+										<div class="grey-text">visualizado 447 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=205">8 - Operadores</a>
+										<div class="grey-text">visualizado 95 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=211">14 - Procedimento (Sub)</a>
+										<div class="grey-text">visualizado 77 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=203">6 - Modificadores</a>
+										<div class="grey-text">visualizado 112 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=212">15 - Classes e Objetos</a>
+										<div class="grey-text">visualizado 270 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=206">9 - Estruturas de Decisão</a>
+										<div class="grey-text">visualizado 114 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=209">12 - Data e Hora</a>
+										<div class="grey-text">visualizado 482 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=198">1 - Estrutura do Programa</a>
+										<div class="grey-text">visualizado 213 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=204">7 - Declarações</a>
+										<div class="grey-text">visualizado 117 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div></div></div>		           </div><!-- End Article Area -->
+		           <div id="recentviewed"></div>				</div><!-- End Right Content -->
+				<!-- ------------------------- -->
+								<!-- ------------------------- -->
+						</div><!-- End Content Area -->
+		</div><!-- End Row -->
+		<div class="clearfix"></div>	
+        						
+			<div class="Subscribe col-md-12 col-sm-12 col-xs-12  ">
+				<div class="pull-left">
+					<h3>Inscreva-se para receber informações da nossa Base de Conhecimento</h3>
+					<p>Seja notificado quando novos artigos são adicionados à base de conhecimento.</p>
+					<form class="form-inline" id="subscribe-form" action="http://bc.se7esistemas.com.br/subscribe.php" method="post">
+						<input type="email" class="news_latter" name="submail" id="submail" placeholder="Digite e-mail">
+						<button type="submit" class="btn btn-primary" name="subscribe" value="Subscribe">Se inscrever</button>
+					</form>
+				</div>
+				<div class="copy_write_xs pull-left hidden-sm hidden-md hidden-lg"><a href="http://www.se7esistemas.com.br/" class="company_name mt20">Se7e Sistemas</a> (Base de 	Conhecimento)</div>
+			</div>
+			<div class="clearfix"></div><nav id="top_view" class="nav is-fixed" role="navigation">
+				<div class="wrapper wrapper-flush">
+					<button class="nav-toggle">
+						<div class="icon-menu">Categories</div>
+					</button>
+					<div class="nav-container"></div>
+				</div>
+			</nav>
+			<div class="clearfix"></div>	</div><!-- End Container -->
+                
+<script src="./3 - Tipos de Dados E Funções de Conversão_files/jquery-2.1.1.min.js.baixados"></script>
+<script src="./3 - Tipos de Dados E Funções de Conversão_files/bootstrap.min.js.baixados" type="text/javascript"></script>
+<script type="text/javascript">
+	var tabs = '';
+	jQuery(document).ready(function(){
+		/*
+		jQuery('.righttab .tab').mouseover(function(){
+			$('.righttab').css('right','0');
+		});
+		jQuery('.righttab .tabcontent').mouseover(function(){
+			$('.righttab').css('right','0');
+		});
+		jQuery('.righttab .tab').mouseout(function(){
+			$('.righttab').css('right','-220px');
+			//jQuery('.righttab').css('right':0);
+		});
+		jQuery('.righttab .tabcontent').mouseout(function(){
+			$('.righttab').css('right','-220px');
+			//jQuery('.righttab').css('right':0);
+		});
+		*/
+		jQuery('.righttab .tab').click(function(){
+			if($('.righttab').css('right')=='0px'){
+				$('.righttab').css('right','-220px');
+			}
+			else{
+				$('.righttab').css('right','0');
+			}			
+		});
+	});
+</script>
+<script src="./3 - Tipos de Dados E Funções de Conversão_files/responsive.js.baixados" type="text/javascript"> </script>
+<script src="./3 - Tipos de Dados E Funções de Conversão_files/common.js.baixados" type="text/javascript"></script>
+<script src="./3 - Tipos de Dados E Funções de Conversão_files/ajax.js.baixados" type="text/javascript"></script>
+
+			<script type="text/javascript">var SRV_BASE = 'http://bc.se7esistemas.com.br/thesaurus/';</script>
+			<script src="./3 - Tipos de Dados E Funções de Conversão_files/jquery1-7-1.js.baixados" type="text/javascript"></script>
+			<script src="./3 - Tipos de Dados E Funções de Conversão_files/jquery-thesaurus.js.baixados" type="text/javascript"></script>
+			<script type="text/javascript">
+			$(document).ready(function(){
+				$('article').Thesaurus({
+					effect: 'fade',
+					caseSensitive: false 
+				});
+			});
+			</script><script type="text/javascript">SyntaxHighlighter.config.stripBrs=true; SyntaxHighlighter.all();</script><input type="hidden" name="JSONGLOSSARY" id="JSONGLOSSARY" value="">
+<script src="./3 - Tipos de Dados E Funções de Conversão_files/jquery.livesearch.js.baixados"></script>
+<script type="text/javascript">
+//<![CDATA[
+jQuery(document).ready(function(){
+	jQuery('#search_field').liveSearch({url: 'http://bc.se7esistemas.com.br/include/ajax-hub.php?ajax=true&usefor=livesearch&keywords=', typeDelay:500});
+});
+//]]>
+</script>	
+</div></body></html>

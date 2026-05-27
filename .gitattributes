@@ -1,0 +1,24 @@
+# Default to LF on checkout for every text file. This pairs with
+# `endOfLine: "lf"` in .prettierrc and `end_of_line = lf` in .editorconfig
+# so that Windows clones do not produce CRLF diffs.
+* text=auto eol=lf
+
+# Explicit overrides for files where the shipped EOL must match the format
+# (Windows shells require CRLF; binaries must never be touched).
+*.cmd     text eol=crlf
+*.bat     text eol=crlf
+*.ps1     text eol=crlf
+
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.svg     text eol=lf
+*.woff    binary
+*.woff2   binary
+*.vsix    binary
+
+# Generated documentation should not appear in normal diffs.
+docs/system-library/** linguist-generated=true
+out/**                 linguist-generated=true

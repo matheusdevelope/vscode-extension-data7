@@ -1,0 +1,686 @@
+
+<!-- saved from url=(0055)http://bc.se7esistemas.com.br/article.php?id=209&oid=43 -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style>
+    .wordbreak {
+        /* These are technically the same, but use both */
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+
+        -ms-word-break: break-all;
+        /* This is the dangerous one in WebKit, as it breaks things wherever */
+        word-break: break-all;
+        /* Instead use this non-standard one: */
+        word-break: break-word;
+
+        /* Adds a hyphen where the word breaks, if supported (No Blink) */
+        -ms-hyphens: auto;
+        -moz-hyphens: auto;
+        -webkit-hyphens: auto;
+        hyphens: auto;
+    }
+</style>
+
+
+
+
+<title>12 - Data e Hora</title>
+<meta http-equiv="X-UA-Compatible" content="IE=9; IE=8; IE=EDGE">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+
+<meta name="description" content="12 - Data e Hora">
+<link rel="shortcut icon" href="http://bc.se7esistemas.com.br/images/favicon.png" type="image/png"><meta name="robots" content="index, follow">
+<meta name="generator" content="Base de Conhecimento da Se7e Sistemas">
+<!-- Powered by 'Base de Conhecimento da Se7e Sistemas' (http://www.se7esistemas.com.br) -->
+<!-- Please do not remove this line from the code to keep the license valid -->
+<link href="./12 - Data e Hora_files/bootstrap.min.css" rel="stylesheet" type="text/css">
+<link href="./12 - Data e Hora_files/phpkb.css" rel="stylesheet" type="text/css">
+<link href="./12 - Data e Hora_files/fixed-tabs.css" rel="stylesheet" type="text/css">
+
+			<!-- Syntax Highlighter Scripts - STARTS -->
+			<script type="text/javascript" src="./12 - Data e Hora_files/shCore.js.baixados"></script>
+			<script type="text/javascript" src="./12 - Data e Hora_files/shBrushVb.js.baixados"></script>
+			<link type="text/css" rel="stylesheet" href="./12 - Data e Hora_files/shCoreDefault.css">
+			<!-- LOAD THEME -->
+			<link type="text/css" rel="stylesheet" href="./12 - Data e Hora_files/shThemeDefault.css">
+			<!-- Syntax Highlighter Scripts - ENDS --></head>
+
+	<body class="layout-fluid">	<div class="container">	
+		<div class="row">
+	<div class="header col-md-12 col-sm-12 col-xs-12" style="height: 55px;">
+		<div class="row fixed" style="background: #006B98; height: 55px;">
+		
+			<nav class="navbar navbar-default pull-left"> <!-- navbar starting-->
+				<!-- Brand and toggle get grouped for better mobile display -->
+				<div class="navbar-header">
+					<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+						<span class="icon-bar"></span>
+						<span class="icon-bar"></span>
+						<span class="icon-bar"></span>
+					</button>
+				</div>
+				<!-- Collect the nav links, forms, and other content for toggling -->
+				<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+					<ul class="nav navbar-nav">
+						<li><a href="http://bc.se7esistemas.com.br/index.php" title="KB Home">Inicio</a></li><li><a href="http://bc.se7esistemas.com.br/search.php" title="Advanced Search">Pesquisa Avançada</a></li><li><a href="http://bc.se7esistemas.com.br/news.php" title="News">Notícias e Avisos</a></li><li><a href="http://bc.se7esistemas.com.br/glossary.php" title="Glossary">Glossário</a></li><li><a href="http://bc.se7esistemas.com.br/contact.php" title="Ask a Question">Perguntas</a></li><li><a href="http://bc.se7esistemas.com.br/my-favorites.php" title="My Favorites">Meus Favoritos</a></li><li><a href="http://bc.se7esistemas.com.br/my-profile.php" title="My Profile">Meu Perfil</a></li><li><a href="http://bc.se7esistemas.com.br/admin/index.php" target="_blank" title="View Admin Dashboard">Administrativo</a></li>					</ul>
+				</div><!-- navbar-collapse -->
+			</nav>
+		</div><!-- End Fixed Row -->
+		
+
+		<!--
+		<div class="row">
+			<div class="logo_part col-md-12 col-sm-12 col-xs-12">
+				<div class="kbtitle pull-left">Base de Conhecimento</div>
+				<div class="logo pull-right"><img src="http://bc.se7esistemas.com.br/images/phpkb-logo.png" class="img-responsive" alt="Logo"/></div>
+			</div>
+		</div>
+		-->
+
+	</div> <!-- End Header -->
+</div><!-- End Row -->
+<div class="clearfix"></div>
+
+		<div class="row">
+			<div class="content-area col-md-12 col-sm-12 col-xs-12">
+			<div class="breadcrumb"><a href="http://bc.se7esistemas.com.br/index.php" title="">Inicio</a> » 
+							   <a href="http://bc.se7esistemas.com.br/category.php" title="">Grupos de Categorias</a>
+							   » <a href="http://bc.se7esistemas.com.br/category.php?id=43" title="">Referências da Linguagem</a></div>				
+				<div class="categories_tree col-md-3">
+					
+				<div class="phpkb-tree"><div class="treeNode"><a href="http://bc.se7esistemas.com.br/category.php" class="nodeHeading">Todas as Categorias</a></div>
+								<div id="dd0" class="clip" style="display:block;">
+									<div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(182,&#39;tdvlv1_182&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg182" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon182" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=182">Agente (2)</a>
+										<input type="hidden" name="nstate182" id="nstate182" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_182" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(180,&#39;tdvlv1_180&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg180" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon180" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=180">Atualização Sistema (12)</a>
+										<input type="hidden" name="nstate180" id="nstate180" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_180" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(2,&#39;tdvlv1_2&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg2" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon2" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=2">Compra (12)</a>
+										<input type="hidden" name="nstate2" id="nstate2" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_2" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(29,&#39;tdvlv1_29&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg29" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon29" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=29">Configurador (11)</a>
+										<input type="hidden" name="nstate29" id="nstate29" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_29" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(184,&#39;tdvlv1_184&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg184" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon184" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=184">Data7 2020.1 (13)</a>
+										<input type="hidden" name="nstate184" id="nstate184" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_184" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(177,&#39;tdvlv1_177&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg177" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon177" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=177">DataChef (37)</a>
+										<input type="hidden" name="nstate177" id="nstate177" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_177" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(42,&#39;tdvlv1_42&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg42" src="./12 - Data e Hora_files/nolines_minus.gif" alt="Collapse"></a></div>
+										<div class="col"><img id="ticon42" src="./12 - Data e Hora_files/folderopen-lock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=42">Developer Studio (344)</a>
+										<input type="hidden" name="nstate42" id="nstate42" value="yes">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_42" class="clip" style=""><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(272,&#39;tdvlv2_272&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg272" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon272" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=272">Funções Avulso (2)</a>
+										<input type="hidden" name="nstate272" id="nstate272" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_272" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(45,&#39;tdvlv2_45&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg45" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon45" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=45">Namespaces (309)</a>
+										<input type="hidden" name="nstate45" id="nstate45" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_45" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:18px">
+										<div class="col"><a href="javascript: expand_collapse(43,&#39;tdvlv2_43&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg43" src="./12 - Data e Hora_files/nolines_minus.gif" alt="Collapse"></a></div>
+										<div class="col"><img id="ticon43" src="./12 - Data e Hora_files/folderopen-lock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=43">Referências da Linguagem (33)</a>
+										<input type="hidden" name="nstate43" id="nstate43" value="yes">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv2_43" class="clip" style=""><div class="treeNode">
+									<div style="padding-left:36px">
+										<div class="col"><a href="javascript: expand_collapse(152,&#39;tdvlv3_152&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg152" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon152" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=152">Conversão de Tipos (18)</a>
+										<input type="hidden" name="nstate152" id="nstate152" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv3_152" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=198&amp;oid=43">1 - Estrutura do Programa</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=207&amp;oid=43">10 - Repetições (Loops)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=208&amp;oid=43">11 - Strings</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak nodeSel articleNode" href="http://bc.se7esistemas.com.br/article.php?id=209&amp;oid=43">12 - Data e Hora</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=210&amp;oid=43">13 - Funções (Function)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=211&amp;oid=43">14 - Procedimento (Sub)</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=212&amp;oid=43">15 - Classes e Objetos</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=199&amp;oid=43">2 - Sintaxe Básica</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=200&amp;oid=43">3 - Tipos de Dados</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=201&amp;oid=43">4 - Variáveis</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=202&amp;oid=43">5 - Constantes</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=203&amp;oid=43">6 - Modificadores</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=204&amp;oid=43">7 - Declarações</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=205&amp;oid=43">8 - Operadores</a></div>
+									</div>
+								</div><div class="treeNode">
+									<div style="padding-left:54px">
+										<div class="col"><img src="./12 - Data e Hora_files/article-lock.png" alt="article"> </div>
+										<div class="col"><a class="node wordbreak  articleNode" href="http://bc.se7esistemas.com.br/article.php?id=206&amp;oid=43">9 - Estruturas de Decisão</a></div>
+									</div>
+								</div></div></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(6,&#39;tdvlv1_6&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg6" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon6" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=6">Documentos Fiscais (65)</a>
+										<input type="hidden" name="nstate6" id="nstate6" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_6" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(35,&#39;tdvlv1_35&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg35" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon35" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=35">Estoque (3)</a>
+										<input type="hidden" name="nstate35" id="nstate35" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_35" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(10,&#39;tdvlv1_10&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg10" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon10" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=10">Financeiro (31)</a>
+										<input type="hidden" name="nstate10" id="nstate10" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_10" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./12 - Data e Hora_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon11" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=11">Folha Lite (0)</a></div>
+								</div>
+							</div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(4,&#39;tdvlv1_4&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg4" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon4" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=4">Frente de Loja (15)</a>
+										<input type="hidden" name="nstate4" id="nstate4" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_4" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(26,&#39;tdvlv1_26&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg26" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon26" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=26">Gerenciador de Banco de Dados (19)</a>
+										<input type="hidden" name="nstate26" id="nstate26" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_26" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(275,&#39;tdvlv1_275&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg275" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon275" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=275">GIT (1)</a>
+										<input type="hidden" name="nstate275" id="nstate275" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_275" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(276,&#39;tdvlv1_276&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg276" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon276" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=276">IDashBoard (1)</a>
+										<input type="hidden" name="nstate276" id="nstate276" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_276" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(14,&#39;tdvlv1_14&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg14" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon14" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=14">Impostos (7)</a>
+										<input type="hidden" name="nstate14" id="nstate14" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_14" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(279,&#39;tdvlv1_279&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg279" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon279" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=279">Integrações (5)</a>
+										<input type="hidden" name="nstate279" id="nstate279" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_279" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(34,&#39;tdvlv1_34&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg34" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon34" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=34">Mobile - Android (19)</a>
+										<input type="hidden" name="nstate34" id="nstate34" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_34" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(16,&#39;tdvlv1_16&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg16" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon16" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=16">Outros (46)</a>
+										<input type="hidden" name="nstate16" id="nstate16" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_16" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(39,&#39;tdvlv1_39&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg39" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon39" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=39">Parâmetros (16)</a>
+										<input type="hidden" name="nstate39" id="nstate39" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_39" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./12 - Data e Hora_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon21" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=21">PDV (Frente de Caixa) (0)</a></div>
+								</div>
+							</div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(148,&#39;tdvlv1_148&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg148" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon148" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=148">PostgreSQL (63)</a>
+										<input type="hidden" name="nstate148" id="nstate148" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_148" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(185,&#39;tdvlv1_185&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg185" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon185" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=185">Regras de Bloqueio (61)</a>
+										<input type="hidden" name="nstate185" id="nstate185" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_185" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(25,&#39;tdvlv1_25&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg25" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon25" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=25">Relatório (15)</a>
+										<input type="hidden" name="nstate25" id="nstate25" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_25" class="clip" style="display:none;"></div><div class="treeNode">
+									<div style="padding-left:0px">
+										<div class="col"><a href="javascript: expand_collapse(3,&#39;tdvlv1_3&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;folderlock.png&#39;,&#39;folderopen-lock.png&#39;,&#39;tree&#39;);"><img id="timg3" src="./12 - Data e Hora_files/nolines_plus.gif" alt="Expand"></a></div>
+										<div class="col"><img id="ticon3" src="./12 - Data e Hora_files/folderlock.png" alt="Category"></div>
+										<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=3">Venda (35)</a>
+										<input type="hidden" name="nstate3" id="nstate3" value="no">
+										</div>
+									</div>
+								</div>
+								<div id="tdvlv1_3" class="clip" style="display:none;"></div><div class="treeNode">
+								<div style="padding-left:0px">
+									<div class="col"><img id="img" src="./12 - Data e Hora_files/empty.gif" alt="empty"></div>
+									<div class="col"><img id="ticon281" src="./12 - Data e Hora_files/folder.png" alt="Category"></div>
+									<div class="col"><a class="node " href="http://bc.se7esistemas.com.br/category.php?id=281">Teste (0)</a></div>
+								</div>
+							</div>
+								</div>
+							</div><div class="recentview"><div class="recentview-title">Visualizado Recentemente</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=208">11 - Strings</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=207">10 - Repetições (Loops)</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=198">1 - Estrutura do Programa</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=354">Values</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=362">Strings</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=348">Sorted</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=367">OwnsObjects</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=355">Names</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=353">NameValueSeparator</a>
+									</div><div class="private-article-small">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=356">IndexOfName</a>
+									</div></div></div><!-- End Left Menu -->
+								
+				<div class="right-content col-md-9 col-sm-12 col-xs-12">
+						<div class="phpkb-search">
+					<form class="search-wrapper clearfix" name="frmsearch" method="post" action="http://bc.se7esistemas.com.br/search.php" onsubmit="return check_form();">
+						<input type="text" id="search_field" name="keywords" placeholder="Pesquisar..." required=""><input type="hidden" name="search_att" value="yes">
+						<button type="submit" name="submit_search" value="Search">Pesquisar</button>
+					</form>
+				</div>
+				<div class="clearfix"></div>					<div class="article-area">
+					<div id="articleContent">
+													<div class="favorite-fixed"><div class="icon" id="output_fav">
+									<a href="javascript:;" title="Adicionar aos favoritos" onclick="getScriptPage(&#39;output_fav&#39;,&#39;AddFav&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;209&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;);">
+								 	<img src="./12 - Data e Hora_files/icon-favorite.png" alt="Icon Favorite"></a>
+								 </div></div>
+													<div class="article-title">
+														<h1><span itemprop="name">12 - Data e Hora</span></h1>
+													</div>
+													<div class="article-info">Nº do Artigo: 209 | Avaliação: 5/5 de 1 votos | Última atualização: Tue, May 28, 2019 at 6:00 PM</div>
+													
+													<div class="article-content">
+														<span itemprop="articleBody"><div id="ARTICLECONTENT"><article><p>A maioria dos softwares que você escreve precisa implementar alguma forma de função de data, retornando a data e hora atuais.&nbsp;As datas fazem parte da vida cotidiana e torna-se fácil trabalhar com elas sem pensar.&nbsp;O Developer Studio também fornece ferramentas poderosas para aritmética de datas que facilitam a manipulação de datas.</p>
+<p>O&nbsp;tipo de dados&nbsp;<strong>TDateTime</strong> contém valores de data, valores de hora ou valores de data e hora.</p>
+<h2>Propriedades e métodos da estrutura de data e hora</h2>
+<p>A lista a seguir mostra alguns dos <strong>métodos</strong> comumente usados da estrutura <strong>TD</strong><strong>ateTime.</strong></p>
+<div><div id="highlighter_600007" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div><div class="line number31 index30 alt2">31</div><div class="line number32 index31 alt1">32</div><div class="line number33 index32 alt2">33</div><div class="line number34 index33 alt1">34</div><div class="line number35 index34 alt2">35</div><div class="line number36 index35 alt1">36</div><div class="line number37 index36 alt2">37</div><div class="line number38 index37 alt1">38</div><div class="line number39 index38 alt2">39</div><div class="line number40 index39 alt1">40</div><div class="line number41 index40 alt2">41</div><div class="line number42 index41 alt1">42</div><div class="line number43 index42 alt2">43</div><div class="line number44 index43 alt1">44</div><div class="line number45 index44 alt2">45</div><div class="line number46 index45 alt1">46</div><div class="line number47 index46 alt2">47</div><div class="line number48 index47 alt1">48</div><div class="line number49 index48 alt2">49</div><div class="line number50 index49 alt1">50</div><div class="line number51 index50 alt2">51</div><div class="line number52 index51 alt1">52</div><div class="line number53 index52 alt2">53</div><div class="line number54 index53 alt1">54</div><div class="line number55 index54 alt2">55</div><div class="line number56 index55 alt1">56</div><div class="line number57 index56 alt2">57</div><div class="line number58 index57 alt1">58</div><div class="line number59 index58 alt2">59</div><div class="line number60 index59 alt1">60</div><div class="line number61 index60 alt2">61</div><div class="line number62 index61 alt1">62</div><div class="line number63 index62 alt2">63</div><div class="line number64 index63 alt1">64</div><div class="line number65 index64 alt2">65</div><div class="line number66 index65 alt1">66</div><div class="line number67 index66 alt2">67</div><div class="line number68 index67 alt1">68</div><div class="line number69 index68 alt2">69</div><div class="line number70 index69 alt1">70</div><div class="line number71 index70 alt2">71</div><div class="line number72 index71 alt1">72</div><div class="line number73 index72 alt2">73</div><div class="line number74 index73 alt1">74</div><div class="line number75 index74 alt2">75</div><div class="line number76 index75 alt1">76</div><div class="line number77 index76 alt2">77</div><div class="line number78 index77 alt1">78</div><div class="line number79 index78 alt2">79</div><div class="line number80 index79 alt1">80</div><div class="line number81 index80 alt2">81</div><div class="line number82 index81 alt1">82</div><div class="line number83 index82 alt2">83</div><div class="line number84 index83 alt1">84</div><div class="line number85 index84 alt2">85</div><div class="line number86 index85 alt1">86</div><div class="line number87 index86 alt2">87</div><div class="line number88 index87 alt1">88</div><div class="line number89 index88 alt2">89</div><div class="line number90 index89 alt1">90</div><div class="line number91 index90 alt2">91</div><div class="line number92 index91 alt1">92</div><div class="line number93 index92 alt2">93</div><div class="line number94 index93 alt1">94</div><div class="line number95 index94 alt2">95</div><div class="line number96 index95 alt1">96</div><div class="line number97 index96 alt2">97</div><div class="line number98 index97 alt1">98</div><div class="line number99 index98 alt2">99</div><div class="line number100 index99 alt1">100</div><div class="line number101 index100 alt2">101</div><div class="line number102 index101 alt1">102</div><div class="line number103 index102 alt2">103</div><div class="line number104 index103 alt1">104</div><div class="line number105 index104 alt2">105</div><div class="line number106 index105 alt1">106</div><div class="line number107 index106 alt2">107</div><div class="line number108 index107 alt1">108</div><div class="line number109 index108 alt2">109</div><div class="line number110 index109 alt1">110</div><div class="line number111 index110 alt2">111</div><div class="line number112 index111 alt1">112</div><div class="line number113 index112 alt2">113</div><div class="line number114 index113 alt1">114</div><div class="line number115 index114 alt2">115</div><div class="line number116 index115 alt1">116</div><div class="line number117 index116 alt2">117</div><div class="line number118 index117 alt1">118</div><div class="line number119 index118 alt2">119</div><div class="line number120 index119 alt1">120</div><div class="line number121 index120 alt2">121</div><div class="line number122 index121 alt1">122</div><div class="line number123 index122 alt2">123</div><div class="line number124 index123 alt1">124</div><div class="line number125 index124 alt2">125</div><div class="line number126 index125 alt1">126</div><div class="line number127 index126 alt2">127</div><div class="line number128 index127 alt1">128</div><div class="line number129 index128 alt2">129</div><div class="line number130 index129 alt1">130</div><div class="line number131 index130 alt2">131</div><div class="line number132 index131 alt1">132</div><div class="line number133 index132 alt2">133</div><div class="line number134 index133 alt1">134</div><div class="line number135 index134 alt2">135</div><div class="line number136 index135 alt1">136</div><div class="line number137 index136 alt2">137</div><div class="line number138 index137 alt1">138</div><div class="line number139 index138 alt2">139</div><div class="line number140 index139 alt1">140</div><div class="line number141 index140 alt2">141</div><div class="line number142 index141 alt1">142</div><div class="line number143 index142 alt2">143</div><div class="line number144 index143 alt1">144</div><div class="line number145 index144 alt2">145</div><div class="line number146 index145 alt1">146</div><div class="line number147 index146 alt2">147</div><div class="line number148 index147 alt1">148</div><div class="line number149 index148 alt2">149</div><div class="line number150 index149 alt1">150</div><div class="line number151 index150 alt2">151</div><div class="line number152 index151 alt1">152</div><div class="line number153 index152 alt2">153</div><div class="line number154 index153 alt1">154</div><div class="line number155 index154 alt2">155</div><div class="line number156 index155 alt1">156</div><div class="line number157 index156 alt2">157</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">data </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number2 index1 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">datahora </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number3 index2 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">horaInicial </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number4 index3 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">horaFinal </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number5 index4 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">dataInicial </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number6 index5 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">dataFinal </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number7 index6 alt2">&nbsp;</div><div class="line number8 index7 alt1"><code class="vb comments">'-------------------------------------------------------------------------------</code></div><div class="line number9 index8 alt2"><code class="vb comments">'Declaração das variáveis-------------------------------------------------------</code></div><div class="line number10 index9 alt1"><code class="vb comments">'-------------------------------------------------------------------------------</code></div><div class="line number11 index10 alt2">&nbsp;</div><div class="line number12 index11 alt1"><code class="vb plain">data = Now()</code></div><div class="line number13 index12 alt2">&nbsp;</div><div class="line number14 index13 alt1"><code class="vb comments">' "DateTime()" define a data e hora atual para a variável data</code></div><div class="line number15 index14 alt2"><code class="vb plain">datahora = DateTime()</code></div><div class="line number16 index15 alt1">&nbsp;</div><div class="line number17 index16 alt2"><code class="vb comments">'StrToDateTime Converte uma String para o tipo DateTime</code></div><div class="line number18 index17 alt1"><code class="vb plain">horaInicial = StrToDateTime(</code><code class="vb string">"30/04/2019 14:00:10"</code><code class="vb plain">)</code></div><div class="line number19 index18 alt2">&nbsp;</div><div class="line number20 index19 alt1"><code class="vb comments">'StrToDateTime Converte uma String para o tipo DateTime</code></div><div class="line number21 index20 alt2"><code class="vb plain">horaFinal = StrToDateTime(</code><code class="vb string">"30/04/2019 16:30:58"</code><code class="vb plain">)</code></div><div class="line number22 index21 alt1">&nbsp;</div><div class="line number23 index22 alt2"><code class="vb comments">'StrToDateTime Converte uma String para o tipo Date</code></div><div class="line number24 index23 alt1"><code class="vb plain">dataInicial = StrToDate(</code><code class="vb string">"10/01/2018"</code><code class="vb plain">)</code></div><div class="line number25 index24 alt2">&nbsp;</div><div class="line number26 index25 alt1"><code class="vb comments">'StrToDateTime Converte uma String para o tipo Date</code></div><div class="line number27 index26 alt2"><code class="vb plain">dataFinal = StrToDate(</code><code class="vb string">"20/03/2019"</code><code class="vb plain">)</code></div><div class="line number28 index27 alt1">&nbsp;</div><div class="line number29 index28 alt2">&nbsp;</div><div class="line number30 index29 alt1"><code class="vb comments">'-------------------------------------------------------------------------------</code></div><div class="line number31 index30 alt2"><code class="vb comments">' Principais funções------------------------------------------------------------</code></div><div class="line number32 index31 alt1"><code class="vb comments">'-------------------------------------------------------------------------------</code></div><div class="line number33 index32 alt2">&nbsp;</div><div class="line number34 index33 alt1"><code class="vb comments">' Retorna true se a data for igual a data informada no parâmetro</code></div><div class="line number35 index34 alt2"><code class="vb plain">Print </code><code class="vb string">"Equals: "</code> <code class="vb plain">+ datahora.Equals(dataInicial).ToString()</code></div><div class="line number36 index35 alt1">&nbsp;</div><div class="line number37 index36 alt2"><code class="vb comments">' Retorna true se a variável for do tipo date</code></div><div class="line number38 index37 alt1"><code class="vb plain">Print </code><code class="vb string">"IsDate: "</code> <code class="vb plain">+ data.IsDate().ToString()</code></div><div class="line number39 index38 alt2">&nbsp;</div><div class="line number40 index39 alt1"><code class="vb comments">' Retorna a data no formato integer, sem formatação</code></div><div class="line number41 index40 alt2"><code class="vb plain">Print </code><code class="vb string">"ToInt32: "</code> <code class="vb plain">+ </code><code class="vb keyword">CStr</code><code class="vb plain">(datahora.ToInt32())</code></div><div class="line number42 index41 alt1">&nbsp;</div><div class="line number43 index42 alt2"><code class="vb comments">' Retorna true se a variável for do tipo datetime</code></div><div class="line number44 index43 alt1"><code class="vb plain">Print </code><code class="vb string">"IsDateTime: "</code> <code class="vb plain">+ datahora.IsDateTime().ToString()</code></div><div class="line number45 index44 alt2">&nbsp;</div><div class="line number46 index45 alt1"><code class="vb comments">' Retorna true se a variável do do tipo time</code></div><div class="line number47 index46 alt2"><code class="vb plain">Print </code><code class="vb string">"IsTime: "</code> <code class="vb plain">+ datahora.IsTime().ToString()</code></div><div class="line number48 index47 alt1">&nbsp;</div><div class="line number49 index48 alt2"><code class="vb comments">' Retorna a data atual</code></div><div class="line number50 index49 alt1"><code class="vb plain">Print </code><code class="vb string">"Date: "</code> <code class="vb plain">+ DateUtils.ToStringFormat(</code><code class="vb string">"dd/mm/yyyy"</code><code class="vb plain">, datahora.</code><code class="vb keyword">Date</code><code class="vb plain">())</code></div><div class="line number51 index50 alt2">&nbsp;</div><div class="line number52 index51 alt1"><code class="vb comments">' Retorna a hora atual</code></div><div class="line number53 index52 alt2"><code class="vb plain">Print </code><code class="vb string">"Time: "</code> <code class="vb plain">+ DateUtils.ToStringFormat(</code><code class="vb string">"hh:mm"</code><code class="vb plain">, datahora.Time())</code></div><div class="line number54 index53 alt1">&nbsp;</div><div class="line number55 index54 alt2"><code class="vb comments">' Retorna a data atual</code></div><div class="line number56 index55 alt1"><code class="vb plain">Print </code><code class="vb string">"Now: "</code> <code class="vb plain">+ DateUtils.ToStringFormat(</code><code class="vb string">"dd/mm/yyyy"</code><code class="vb plain">, datahora.Now())</code></div><div class="line number57 index56 alt2">&nbsp;</div><div class="line number58 index57 alt1"><code class="vb comments">' Retorna True se o ano atual estiver no calendário bissexto</code></div><div class="line number59 index58 alt2"><code class="vb plain">Print </code><code class="vb string">"IsInLeapYear: "</code> <code class="vb plain">+ datahora.IsInLeapYear().ToString()</code></div><div class="line number60 index59 alt1">&nbsp;</div><div class="line number61 index60 alt2"><code class="vb comments">' Retorna apenas o ano</code></div><div class="line number62 index61 alt1"><code class="vb plain">Print </code><code class="vb string">"YearOf: "</code> <code class="vb plain">+ datahora.YearOf().ToString()</code></div><div class="line number63 index62 alt2">&nbsp;</div><div class="line number64 index63 alt1"><code class="vb comments">' Retorna apenas o mês</code></div><div class="line number65 index64 alt2"><code class="vb plain">Print </code><code class="vb string">"MonthOf: "</code> <code class="vb plain">+ datahora.MonthOf().ToString()</code></div><div class="line number66 index65 alt1">&nbsp;</div><div class="line number67 index66 alt2"><code class="vb comments">' Retorna apenas o dia</code></div><div class="line number68 index67 alt1"><code class="vb plain">Print </code><code class="vb string">"DayOf: "</code> <code class="vb plain">+ datahora.DayOf().ToString()</code></div><div class="line number69 index68 alt2">&nbsp;</div><div class="line number70 index69 alt1"><code class="vb comments">' Retorna apenas a hora</code></div><div class="line number71 index70 alt2"><code class="vb plain">Print </code><code class="vb string">"HourOf: "</code> <code class="vb plain">+ datahora.HourOf().ToString()</code></div><div class="line number72 index71 alt1">&nbsp;</div><div class="line number73 index72 alt2"><code class="vb comments">' Retorna apenas os minuto</code></div><div class="line number74 index73 alt1"><code class="vb plain">Print </code><code class="vb string">"MinuteOf: "</code> <code class="vb plain">+ datahora.MinuteOf().ToString()</code></div><div class="line number75 index74 alt2">&nbsp;</div><div class="line number76 index75 alt1"><code class="vb comments">' Retorna apenas os milissegundos</code></div><div class="line number77 index76 alt2"><code class="vb plain">Print </code><code class="vb string">"MilliSecondOf: "</code> <code class="vb plain">+ datahora.MilliSecondOf().ToString()</code></div><div class="line number78 index77 alt1">&nbsp;</div><div class="line number79 index78 alt2"><code class="vb comments">' Retorna o número de semanas no ano</code></div><div class="line number80 index79 alt1"><code class="vb plain">Print </code><code class="vb string">"WeeksInYear: "</code> <code class="vb plain">+ datahora.WeeksInYear().ToString()</code></div><div class="line number81 index80 alt2">&nbsp;</div><div class="line number82 index81 alt1"><code class="vb comments">' Retorna o número de dias no ano</code></div><div class="line number83 index82 alt2"><code class="vb plain">Print </code><code class="vb string">"DaysInYear: "</code> <code class="vb plain">+ datahora.DaysInYear().ToString()</code></div><div class="line number84 index83 alt1">&nbsp;</div><div class="line number85 index84 alt2"><code class="vb comments">' Retorna a data atual</code></div><div class="line number86 index85 alt1"><code class="vb plain">Print </code><code class="vb string">"Today: "</code> <code class="vb plain">+ DateUtils.ToStringFormat(</code><code class="vb string">"dd/mm/yyyy"</code><code class="vb plain">, datahora.Today())</code></div><div class="line number87 index86 alt2">&nbsp;</div><div class="line number88 index87 alt1"><code class="vb comments">' Retorna a data do dia anterior a data atual</code></div><div class="line number89 index88 alt2"><code class="vb plain">Print </code><code class="vb string">"Yesterday: "</code> <code class="vb plain">+ DateUtils.ToStringFormat(</code><code class="vb string">"dd/mm/yyyy"</code><code class="vb plain">, datahora.Yesterday())</code></div><div class="line number90 index89 alt1">&nbsp;</div><div class="line number91 index90 alt2"><code class="vb comments">' Retorna a data do dia posterior a data atual</code></div><div class="line number92 index91 alt1"><code class="vb plain">Print </code><code class="vb string">"Tomorrow: "</code> <code class="vb plain">+ DateUtils.ToStringFormat(</code><code class="vb string">"dd/mm/yyyy"</code><code class="vb plain">, datahora.Tomorrow())</code></div><div class="line number93 index92 alt2">&nbsp;</div><div class="line number94 index93 alt1"><code class="vb comments">' Retorna a diferença de anos entre as datas informadas</code></div><div class="line number95 index94 alt2"><code class="vb plain">Print </code><code class="vb string">"YearSpan: "</code> <code class="vb plain">+ dataInicial.YearSpan(dataFinal).ToString()</code></div><div class="line number96 index95 alt1">&nbsp;</div><div class="line number97 index96 alt2"><code class="vb comments">' Retorna a diferença de meses entre as datas informadas</code></div><div class="line number98 index97 alt1"><code class="vb plain">Print </code><code class="vb string">"MonthSpan: "</code> <code class="vb plain">+ dataInicial.MonthSpan(dataFinal).ToString()</code></div><div class="line number99 index98 alt2">&nbsp;</div><div class="line number100 index99 alt1"><code class="vb comments">' Retorna a diferença de dias entre as datas informadas</code></div><div class="line number101 index100 alt2"><code class="vb plain">Print </code><code class="vb string">"DaySpan: "</code> <code class="vb plain">+ dataInicial.DaySpan(dataFinal).ToString()</code></div><div class="line number102 index101 alt1">&nbsp;</div><div class="line number103 index102 alt2"><code class="vb comments">' Retorna a diferença de horas entre os horários informados</code></div><div class="line number104 index103 alt1"><code class="vb plain">Print </code><code class="vb string">"HourSpan: "</code> <code class="vb plain">+ horaInicial.HourSpan(horaFinal).ToString()</code></div><div class="line number105 index104 alt2">&nbsp;</div><div class="line number106 index105 alt1"><code class="vb comments">' Retorna a diferença de minutos entre os horários informados</code></div><div class="line number107 index106 alt2"><code class="vb plain">Print </code><code class="vb string">"MinuteSpan: "</code> <code class="vb plain">+ horaInicial.MinuteSpan(horaFinal).ToString()</code></div><div class="line number108 index107 alt1">&nbsp;</div><div class="line number109 index108 alt2"><code class="vb comments">' Retorna a diferença de segundos entre os horários informados</code></div><div class="line number110 index109 alt1"><code class="vb plain">Print </code><code class="vb string">"SecondSpan: "</code> <code class="vb plain">+ horaInicial.SecondSpan(horaFinal).ToString()</code></div><div class="line number111 index110 alt2">&nbsp;</div><div class="line number112 index111 alt1"><code class="vb comments">' Retorna a diferença de milissegundos entre os horários informados</code></div><div class="line number113 index112 alt2"><code class="vb plain">Print </code><code class="vb string">"MilliSecondSpan: "</code> <code class="vb plain">+ horaInicial.MilliSecondSpan(horaFinal).ToString()</code></div><div class="line number114 index113 alt1">&nbsp;</div><div class="line number115 index114 alt2"><code class="vb comments">' Acrescenta a quantidade de anos de acordo com o valor informado</code></div><div class="line number116 index115 alt1"><code class="vb plain">datahora = datahora.AddYears(2)</code></div><div class="line number117 index116 alt2"><code class="vb plain">Print </code><code class="vb string">"AddYears: "</code> <code class="vb plain">+ datahora.ToString()</code></div><div class="line number118 index117 alt1">&nbsp;</div><div class="line number119 index118 alt2"><code class="vb comments">' Acrescenta a quantidade de semanas de acordo com o valor informado</code></div><div class="line number120 index119 alt1"><code class="vb plain">datahora = datahora.AddWeeks(2)</code></div><div class="line number121 index120 alt2"><code class="vb plain">Print </code><code class="vb string">"AddWeeks: "</code> <code class="vb plain">+ datahora.ToString()</code></div><div class="line number122 index121 alt1">&nbsp;</div><div class="line number123 index122 alt2"><code class="vb comments">' Acrescenta a quantidade de horas de acordo com o valor informado</code></div><div class="line number124 index123 alt1"><code class="vb plain">horaInicial = horaInicial.AddHours(2)</code></div><div class="line number125 index124 alt2"><code class="vb plain">Print </code><code class="vb string">"AddHours: "</code> <code class="vb plain">+ horaInicial.ToString()</code></div><div class="line number126 index125 alt1">&nbsp;</div><div class="line number127 index126 alt2"><code class="vb comments">' Acrescenta a quantidade de minutos de acordo com o valor informado</code></div><div class="line number128 index127 alt1"><code class="vb plain">horaInicial = horaInicial.AddMinutes(30)</code></div><div class="line number129 index128 alt2"><code class="vb plain">Print </code><code class="vb string">"AddMinutes: "</code> <code class="vb plain">+ horaInicial.ToString()</code></div><div class="line number130 index129 alt1">&nbsp;</div><div class="line number131 index130 alt2"><code class="vb comments">' Acrescenta a quantidade de segundos de acordo com o valor informado</code></div><div class="line number132 index131 alt1"><code class="vb plain">horaInicial = horaInicial.AddSeconds(30)</code></div><div class="line number133 index132 alt2"><code class="vb plain">Print </code><code class="vb string">"AddSeconds: "</code> <code class="vb plain">+ horaInicial.ToString()</code></div><div class="line number134 index133 alt1">&nbsp;</div><div class="line number135 index134 alt2"><code class="vb comments">' Acrescenta a quantidade de milisegundos de acordo com o valor informado</code></div><div class="line number136 index135 alt1"><code class="vb plain">horaInicial = horaInicial.AddMilliSeconds(1500)</code></div><div class="line number137 index136 alt2"><code class="vb plain">Print </code><code class="vb string">"AddMilliSeconds: "</code> <code class="vb plain">+ horaInicial.ToString()</code></div><div class="line number138 index137 alt1">&nbsp;</div><div class="line number139 index138 alt2"><code class="vb comments">' A função EncodeDateTime gera um valor de retorno TDateTime dos valores passados ​​de Ano, Mês, Dia, Hora, Min, Sec e MSec (milissegundo)</code></div><div class="line number140 index139 alt1"><code class="vb plain">datahora = datahora.EncodeDateTime(2019, 04, 29, 12, 34, 56, 789)</code></div><div class="line number141 index140 alt2"><code class="vb plain">Print </code><code class="vb string">"EncodeDateTime: "</code> <code class="vb plain">&amp; datahora.ToString()</code></div><div class="line number142 index141 alt1">&nbsp;</div><div class="line number143 index142 alt2"><code class="vb comments">' A função EncodeDateTime gera um valor de retorno TDateTime dos valores passados ​​de Ano, Mês, Dia</code></div><div class="line number144 index143 alt1"><code class="vb plain">datahora.EncodeDate(2019, 04, 25)</code></div><div class="line number145 index144 alt2"><code class="vb plain">Print </code><code class="vb string">"EncodeDate: "</code> <code class="vb plain">&amp; datahora.ToString()</code></div><div class="line number146 index145 alt1">&nbsp;</div><div class="line number147 index146 alt2"><code class="vb comments">' A função EncodeDateTime gera um valor de retorno TDateTime dos valores passados ​​de Hora, Min, Sec e MSec (milissegundo)</code></div><div class="line number148 index147 alt1"><code class="vb plain">datahora.EncodeTime(12, 34, 56, 789)</code></div><div class="line number149 index148 alt2"><code class="vb plain">Print </code><code class="vb string">"EncodeTime: "</code> <code class="vb plain">&amp; datahora.ToString()</code></div><div class="line number150 index149 alt1">&nbsp;</div><div class="line number151 index150 alt2"><code class="vb comments">' Retorna a menor data possível</code></div><div class="line number152 index151 alt1"><code class="vb plain">datahora = datahora.MinValue()</code></div><div class="line number153 index152 alt2"><code class="vb plain">Print </code><code class="vb string">"Min: "</code> <code class="vb plain">&amp; datahora.ToString()</code></div><div class="line number154 index153 alt1">&nbsp;</div><div class="line number155 index154 alt2"><code class="vb comments">' Retorna a maior data possível</code></div><div class="line number156 index155 alt1"><code class="vb plain">datahora = datahora.MaxValue()</code></div><div class="line number157 index156 alt2"><code class="vb plain">Print </code><code class="vb string">"Max: "</code> <code class="vb plain">&amp; datahora.ToString()</code></div></div></td></tr></tbody></table></div></div>
+<p style="box-sizing: inherit; margin: 0px 0px 20px; line-height: 2; color: #616170; font-family: &#39;Open Sans&#39;, Roboto, sans-serif; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: #ffffff; text-decoration-style: initial; text-decoration-color: initial;"><strong style="box-sizing: inherit; font-family: &#39;Open Sans&#39;, sans-serif !important; font-size: 1em !important; font-weight: bold; color: #00537d;">Resultado</strong></p>
+<div><div id="highlighter_433011" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div><div class="line number31 index30 alt2">31</div><div class="line number32 index31 alt1">32</div><div class="line number33 index32 alt2">33</div><div class="line number34 index33 alt1">34</div><div class="line number35 index34 alt2">35</div><div class="line number36 index35 alt1">36</div><div class="line number37 index36 alt2">37</div><div class="line number38 index37 alt1">38</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb plain">Equals: false</code></div><div class="line number2 index1 alt1"><code class="vb plain">IsDate: true</code></div><div class="line number3 index2 alt2"><code class="vb plain">ToInt32: 20190528</code></div><div class="line number4 index3 alt1"><code class="vb plain">IsDateTime: true</code></div><div class="line number5 index4 alt2"><code class="vb plain">IsTime: false</code></div><div class="line number6 index5 alt1"><code class="vb keyword">Date</code><code class="vb plain">: 28/05/2019</code></div><div class="line number7 index6 alt2"><code class="vb plain">Time: 17:59</code></div><div class="line number8 index7 alt1"><code class="vb plain">Now: 28/05/2019</code></div><div class="line number9 index8 alt2"><code class="vb plain">IsInLeapYear: false</code></div><div class="line number10 index9 alt1"><code class="vb plain">YearOf: 2019</code></div><div class="line number11 index10 alt2"><code class="vb plain">MonthOf: 5</code></div><div class="line number12 index11 alt1"><code class="vb plain">DayOf: 28</code></div><div class="line number13 index12 alt2"><code class="vb plain">HourOf: 17</code></div><div class="line number14 index13 alt1"><code class="vb plain">MinuteOf: 59</code></div><div class="line number15 index14 alt2"><code class="vb plain">MilliSecondOf: 353</code></div><div class="line number16 index15 alt1"><code class="vb plain">WeeksInYear: 52</code></div><div class="line number17 index16 alt2"><code class="vb plain">DaysInYear: 365</code></div><div class="line number18 index17 alt1"><code class="vb plain">Today: 28/05/2019</code></div><div class="line number19 index18 alt2"><code class="vb plain">Yesterday: 27/05/2019</code></div><div class="line number20 index19 alt1"><code class="vb plain">Tomorrow: 29/05/2019</code></div><div class="line number21 index20 alt2"><code class="vb plain">YearSpan: 1,18822724161533</code></div><div class="line number22 index21 alt1"><code class="vb plain">MonthSpan: 14,258726899384</code></div><div class="line number23 index22 alt2"><code class="vb plain">DaySpan: 434</code></div><div class="line number24 index23 alt1"><code class="vb plain">HourSpan: 2,51333333324874</code></div><div class="line number25 index24 alt2"><code class="vb plain">MinuteSpan: 150,799999994924</code></div><div class="line number26 index25 alt1"><code class="vb plain">SecondSpan: 9047,99999969546</code></div><div class="line number27 index26 alt2"><code class="vb plain">MilliSecondSpan: 150,799999994924</code></div><div class="line number28 index27 alt1"><code class="vb plain">AddYears: 28/05/2021 17:59:00</code></div><div class="line number29 index28 alt2"><code class="vb plain">AddWeeks: 11/06/2021 17:59:00</code></div><div class="line number30 index29 alt1"><code class="vb plain">AddHours: 30/04/2019 16:00:10</code></div><div class="line number31 index30 alt2"><code class="vb plain">AddMinutes: 30/04/2019 16:30:10</code></div><div class="line number32 index31 alt1"><code class="vb plain">AddSeconds: 30/04/2019 16:30:40</code></div><div class="line number33 index32 alt2"><code class="vb plain">AddMilliSeconds: 30/04/2019 16:30:41</code></div><div class="line number34 index33 alt1"><code class="vb plain">EncodeDateTime: 29/04/2019 12:34:56</code></div><div class="line number35 index34 alt2"><code class="vb plain">EncodeDate: 29/04/2019 12:34:56</code></div><div class="line number36 index35 alt1"><code class="vb plain">EncodeTime: 29/04/2019 12:34:56</code></div><div class="line number37 index36 alt2"><code class="vb plain">Min: 30/12/1899</code></div><div class="line number38 index37 alt1"><code class="vb plain">Max: 31/12/9999 23:59:59</code></div></div></td></tr></tbody></table></div></div>
+<h2>Formatos de data / hora predefinidos</h2>
+<p>Com a função <strong>ToString()&nbsp;</strong>podemos exibir a data e hora com formatos pré-definidos. Abaixo segue uma lista com os possíveis parâmetros.</p>
+<div><div id="highlighter_53282" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div><div class="line number31 index30 alt2">31</div><div class="line number32 index31 alt1">32</div><div class="line number33 index32 alt2">33</div><div class="line number34 index33 alt1">34</div><div class="line number35 index34 alt2">35</div><div class="line number36 index35 alt1">36</div><div class="line number37 index36 alt2">37</div><div class="line number38 index37 alt1">38</div><div class="line number39 index38 alt2">39</div><div class="line number40 index39 alt1">40</div><div class="line number41 index40 alt2">41</div><div class="line number42 index41 alt1">42</div><div class="line number43 index42 alt2">43</div><div class="line number44 index43 alt1">44</div><div class="line number45 index44 alt2">45</div><div class="line number46 index45 alt1">46</div><div class="line number47 index46 alt2">47</div><div class="line number48 index47 alt1">48</div><div class="line number49 index48 alt2">49</div><div class="line number50 index49 alt1">50</div><div class="line number51 index50 alt2">51</div><div class="line number52 index51 alt1">52</div><div class="line number53 index52 alt2">53</div><div class="line number54 index53 alt1">54</div><div class="line number55 index54 alt2">55</div><div class="line number56 index55 alt1">56</div><div class="line number57 index56 alt2">57</div><div class="line number58 index57 alt1">58</div><div class="line number59 index58 alt2">59</div><div class="line number60 index59 alt1">60</div><div class="line number61 index60 alt2">61</div><div class="line number62 index61 alt1">62</div><div class="line number63 index62 alt2">63</div><div class="line number64 index63 alt1">64</div><div class="line number65 index64 alt2">65</div><div class="line number66 index65 alt1">66</div><div class="line number67 index66 alt2">67</div><div class="line number68 index67 alt1">68</div><div class="line number69 index68 alt2">69</div><div class="line number70 index69 alt1">70</div><div class="line number71 index70 alt2">71</div><div class="line number72 index71 alt1">72</div><div class="line number73 index72 alt2">73</div><div class="line number74 index73 alt1">74</div><div class="line number75 index74 alt2">75</div><div class="line number76 index75 alt1">76</div><div class="line number77 index76 alt2">77</div><div class="line number78 index77 alt1">78</div><div class="line number79 index78 alt2">79</div><div class="line number80 index79 alt1">80</div><div class="line number81 index80 alt2">81</div><div class="line number82 index81 alt1">82</div><div class="line number83 index82 alt2">83</div><div class="line number84 index83 alt1">84</div><div class="line number85 index84 alt2">85</div><div class="line number86 index85 alt1">86</div><div class="line number87 index86 alt2">87</div><div class="line number88 index87 alt1">88</div><div class="line number89 index88 alt2">89</div><div class="line number90 index89 alt1">90</div><div class="line number91 index90 alt2">91</div><div class="line number92 index91 alt1">92</div><div class="line number93 index92 alt2">93</div><div class="line number94 index93 alt1">94</div><div class="line number95 index94 alt2">95</div><div class="line number96 index95 alt1">96</div><div class="line number97 index96 alt2">97</div><div class="line number98 index97 alt1">98</div><div class="line number99 index98 alt2">99</div><div class="line number100 index99 alt1">100</div><div class="line number101 index100 alt2">101</div><div class="line number102 index101 alt1">102</div><div class="line number103 index102 alt2">103</div><div class="line number104 index103 alt1">104</div><div class="line number105 index104 alt2">105</div><div class="line number106 index105 alt1">106</div><div class="line number107 index106 alt2">107</div><div class="line number108 index107 alt1">108</div><div class="line number109 index108 alt2">109</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">datahora </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number2 index1 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">horaInicial </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number3 index2 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">horaFinal </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number4 index3 alt1"><code class="vb keyword">Dim</code> <code class="vb plain">dataInicial </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number5 index4 alt2"><code class="vb keyword">Dim</code> <code class="vb plain">dataFinal </code><code class="vb keyword">As</code> <code class="vb plain">TDateTime</code></div><div class="line number6 index5 alt1">&nbsp;</div><div class="line number7 index6 alt2"><code class="vb comments">'-------------------------------------------------------------------------------</code></div><div class="line number8 index7 alt1"><code class="vb comments">'Declaração das variáveis-------------------------------------------------------</code></div><div class="line number9 index8 alt2"><code class="vb comments">'-------------------------------------------------------------------------------</code></div><div class="line number10 index9 alt1"><code class="vb comments">' "Now()" define a data atual para a variável data</code></div><div class="line number11 index10 alt2"><code class="vb plain">datahora = DateTime()</code></div><div class="line number12 index11 alt1">&nbsp;</div><div class="line number13 index12 alt2"><code class="vb comments">'StrToDateTime Converte uma String para o tipo DateTime</code></div><div class="line number14 index13 alt1"><code class="vb plain">horaInicial = StrToDateTime(</code><code class="vb string">"30/04/2019 14:00:10"</code><code class="vb plain">)</code></div><div class="line number15 index14 alt2">&nbsp;</div><div class="line number16 index15 alt1"><code class="vb comments">'StrToDateTime Converte uma String para o tipo DateTime</code></div><div class="line number17 index16 alt2"><code class="vb plain">horaFinal = StrToDateTime(</code><code class="vb string">"30/04/2019 16:30:58"</code><code class="vb plain">)</code></div><div class="line number18 index17 alt1">&nbsp;</div><div class="line number19 index18 alt2"><code class="vb comments">'StrToDateTime Converte uma String para o tipo Date</code></div><div class="line number20 index19 alt1"><code class="vb plain">dataInicial = StrToDate(</code><code class="vb string">"10/01/2018"</code><code class="vb plain">)</code></div><div class="line number21 index20 alt2">&nbsp;</div><div class="line number22 index21 alt1"><code class="vb comments">'StrToDateTime Converte uma String para o tipo Date</code></div><div class="line number23 index22 alt2"><code class="vb plain">dataFinal = StrToDate(</code><code class="vb string">"20/03/2019"</code><code class="vb plain">)</code></div><div class="line number24 index23 alt1">&nbsp;</div><div class="line number25 index24 alt2"><code class="vb plain">Print </code><code class="vb string">"Função ToString() e seus possíveis parâmetros:"</code></div><div class="line number26 index25 alt1"><code class="vb comments">' y = Últimos 2 dígitos do ano</code></div><div class="line number27 index26 alt2"><code class="vb plain">Print </code><code class="vb string">"y: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"y"</code><code class="vb plain">)</code></div><div class="line number28 index27 alt1"><code class="vb plain">Print </code><code class="vb string">"yy: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"yy"</code><code class="vb plain">)</code></div><div class="line number29 index28 alt2">&nbsp;</div><div class="line number30 index29 alt1"><code class="vb comments">' yyyy = Ano com 4 dígitos</code></div><div class="line number31 index30 alt2"><code class="vb plain">Print </code><code class="vb string">"yyyy: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"yyyy"</code><code class="vb plain">)</code></div><div class="line number32 index31 alt1">&nbsp;</div><div class="line number33 index32 alt2"><code class="vb comments">' m = Mês sem o zero à esquerda</code></div><div class="line number34 index33 alt1"><code class="vb plain">Print </code><code class="vb string">"m: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"m"</code><code class="vb plain">)</code></div><div class="line number35 index34 alt2">&nbsp;</div><div class="line number36 index35 alt1"><code class="vb comments">'mm = Mês com dois digítos (zero à esquerda)</code></div><div class="line number37 index36 alt2"><code class="vb plain">Print </code><code class="vb string">"mm: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"mm"</code><code class="vb plain">)</code></div><div class="line number38 index37 alt1">&nbsp;</div><div class="line number39 index38 alt2"><code class="vb comments">' mmm = Mês utilizando nome curto Ex: (Jan)</code></div><div class="line number40 index39 alt1"><code class="vb plain">Print </code><code class="vb string">"mmm: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"mmm"</code><code class="vb plain">)</code></div><div class="line number41 index40 alt2">&nbsp;</div><div class="line number42 index41 alt1"><code class="vb comments">' mmmm = Mês utilizando nome longo Ex: (January)</code></div><div class="line number43 index42 alt2"><code class="vb plain">Print </code><code class="vb string">"mmmm: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"mmmm"</code><code class="vb plain">)</code></div><div class="line number44 index43 alt1">&nbsp;</div><div class="line number45 index44 alt2"><code class="vb comments">' d = Dia sem o zero à esquerda</code></div><div class="line number46 index45 alt1"><code class="vb plain">Print </code><code class="vb string">"d: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"d"</code><code class="vb plain">)</code></div><div class="line number47 index46 alt2">&nbsp;</div><div class="line number48 index47 alt1"><code class="vb comments">' dd = Dia com dois digítos (zero à esquerda)</code></div><div class="line number49 index48 alt2"><code class="vb plain">Print </code><code class="vb string">"dd: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"dd"</code><code class="vb plain">)</code></div><div class="line number50 index49 alt1">&nbsp;</div><div class="line number51 index50 alt2"><code class="vb comments">' ddd = Dia utilizando nome curto Ex: (Seg)</code></div><div class="line number52 index51 alt1"><code class="vb plain">Print </code><code class="vb string">"ddd: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"ddd"</code><code class="vb plain">)</code></div><div class="line number53 index52 alt2">&nbsp;</div><div class="line number54 index53 alt1"><code class="vb comments">' dddd = Dia utilizando nome longo (Segunda)</code></div><div class="line number55 index54 alt2"><code class="vb plain">Print </code><code class="vb string">"dddd: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"dddd"</code><code class="vb plain">)</code></div><div class="line number56 index55 alt1">&nbsp;</div><div class="line number57 index56 alt2"><code class="vb comments">' ddddd&nbsp;&nbsp;&nbsp;&nbsp; = Dia no formato curto</code></div><div class="line number58 index57 alt1"><code class="vb plain">Print </code><code class="vb string">"ddddd: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"ddddd"</code><code class="vb plain">)</code></div><div class="line number59 index58 alt2">&nbsp;</div><div class="line number60 index59 alt1"><code class="vb comments">' dddddd = Dia no formato longo</code></div><div class="line number61 index60 alt2"><code class="vb plain">Print </code><code class="vb string">"dddddd: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"dddddd"</code><code class="vb plain">)</code></div><div class="line number62 index61 alt1">&nbsp;</div><div class="line number63 index62 alt2"><code class="vb comments">' c = Dia e hora no formato curto</code></div><div class="line number64 index63 alt1"><code class="vb plain">Print </code><code class="vb string">"c: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"c"</code><code class="vb plain">)</code></div><div class="line number65 index64 alt2">&nbsp;</div><div class="line number66 index65 alt1"><code class="vb comments">' h = Hora com dois dígitos (sem zero à esquerda)</code></div><div class="line number67 index66 alt2"><code class="vb plain">Print </code><code class="vb string">"h: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"h"</code><code class="vb plain">)</code></div><div class="line number68 index67 alt1">&nbsp;</div><div class="line number69 index68 alt2"><code class="vb comments">' hh = Hora com dois dígitos (com zero à esquerda)</code></div><div class="line number70 index69 alt1"><code class="vb plain">Print </code><code class="vb string">"hh: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"hh"</code><code class="vb plain">)</code></div><div class="line number71 index70 alt2">&nbsp;</div><div class="line number72 index71 alt1"><code class="vb comments">' n = Minuto com dois dígitos (sem zero à esquerda)</code></div><div class="line number73 index72 alt2"><code class="vb plain">Print </code><code class="vb string">"n: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"n"</code><code class="vb plain">)</code></div><div class="line number74 index73 alt1">&nbsp;</div><div class="line number75 index74 alt2"><code class="vb comments">' nn = Minuto com dois dígitos (com zero à esquerda)</code></div><div class="line number76 index75 alt1"><code class="vb plain">Print </code><code class="vb string">"nn: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"nn"</code><code class="vb plain">)</code></div><div class="line number77 index76 alt2">&nbsp;</div><div class="line number78 index77 alt1"><code class="vb comments">' s = Segundo com dois dígitos (sem zero à esquerda)</code></div><div class="line number79 index78 alt2"><code class="vb plain">Print </code><code class="vb string">"s: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"s"</code><code class="vb plain">)</code></div><div class="line number80 index79 alt1">&nbsp;</div><div class="line number81 index80 alt2"><code class="vb comments">' ss = Segundo com dois dígitos (com zero à esquerda)</code></div><div class="line number82 index81 alt1"><code class="vb plain">Print </code><code class="vb string">"ss: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"ss"</code><code class="vb plain">)</code></div><div class="line number83 index82 alt2">&nbsp;</div><div class="line number84 index83 alt1"><code class="vb comments">' z = Milisegundo sem zero à esquerda</code></div><div class="line number85 index84 alt2"><code class="vb plain">Print </code><code class="vb string">"z: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"z"</code><code class="vb plain">)</code></div><div class="line number86 index85 alt1">&nbsp;</div><div class="line number87 index86 alt2"><code class="vb comments">' zzz = Milisegundo com 3 dígitos</code></div><div class="line number88 index87 alt1"><code class="vb plain">Print </code><code class="vb string">"zzz: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"zzz"</code><code class="vb plain">)</code></div><div class="line number89 index88 alt2">&nbsp;</div><div class="line number90 index89 alt1"><code class="vb comments">' t = Hora no formato curto</code></div><div class="line number91 index90 alt2"><code class="vb plain">Print </code><code class="vb string">"t: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"t"</code><code class="vb plain">)</code></div><div class="line number92 index91 alt1">&nbsp;</div><div class="line number93 index92 alt2"><code class="vb comments">' tt = Hora no formato longo</code></div><div class="line number94 index93 alt1"><code class="vb plain">Print </code><code class="vb string">"tt: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"tt"</code><code class="vb plain">)</code></div><div class="line number95 index94 alt2">&nbsp;</div><div class="line number96 index95 alt1"><code class="vb comments">' am/pm = Após a hora, exibe as letras am ou pm</code></div><div class="line number97 index96 alt2"><code class="vb plain">Print </code><code class="vb string">"am/pm: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"hham/pm"</code><code class="vb plain">)</code></div><div class="line number98 index97 alt1">&nbsp;</div><div class="line number99 index98 alt2"><code class="vb comments">' a/p = Após a hora, exibe a letra a ou p</code></div><div class="line number100 index99 alt1"><code class="vb plain">Print </code><code class="vb string">"a/p: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"hha/p"</code><code class="vb plain">)</code></div><div class="line number101 index100 alt2">&nbsp;</div><div class="line number102 index101 alt1"><code class="vb comments">' ampm = Exibe a hora no formato am/pm</code></div><div class="line number103 index102 alt2"><code class="vb plain">Print </code><code class="vb string">"ampm: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"hhampm"</code><code class="vb plain">)</code></div><div class="line number104 index103 alt1">&nbsp;</div><div class="line number105 index104 alt2"><code class="vb comments">' h:n:s.z = Exibe a hora sem zeros</code></div><div class="line number106 index105 alt1"><code class="vb plain">Print </code><code class="vb string">"h:n:s.z: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"h:n:s.z"</code><code class="vb plain">)</code></div><div class="line number107 index106 alt2">&nbsp;</div><div class="line number108 index107 alt1"><code class="vb comments">' hh:nn:ss.zzz = Exibe a hora com zeros</code></div><div class="line number109 index108 alt2"><code class="vb plain">Print </code><code class="vb string">"hh:nn:ss.zzz: "</code> <code class="vb plain">&amp; datahora.ToString(</code><code class="vb string">"hh:nn:ss.zzz"</code><code class="vb plain">)</code></div></div></td></tr></tbody></table></div></div>
+<p style="box-sizing: inherit; margin: 0px 0px 20px; line-height: 2; color: #616170; font-family: &#39;Open Sans&#39;, Roboto, sans-serif; font-size: 16px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: justify; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; background-color: #ffffff; text-decoration-style: initial; text-decoration-color: initial;"><strong style="box-sizing: inherit; font-family: &#39;Open Sans&#39;, sans-serif !important; font-size: 1em !important; font-weight: bold; color: #00537d;">Resultado</strong></p>
+<div><div id="highlighter_398465" class="syntaxhighlighter  vb"><table border="0" cellpadding="0" cellspacing="0"><tbody><tr><td class="gutter"><div class="line number1 index0 alt2">1</div><div class="line number2 index1 alt1">2</div><div class="line number3 index2 alt2">3</div><div class="line number4 index3 alt1">4</div><div class="line number5 index4 alt2">5</div><div class="line number6 index5 alt1">6</div><div class="line number7 index6 alt2">7</div><div class="line number8 index7 alt1">8</div><div class="line number9 index8 alt2">9</div><div class="line number10 index9 alt1">10</div><div class="line number11 index10 alt2">11</div><div class="line number12 index11 alt1">12</div><div class="line number13 index12 alt2">13</div><div class="line number14 index13 alt1">14</div><div class="line number15 index14 alt2">15</div><div class="line number16 index15 alt1">16</div><div class="line number17 index16 alt2">17</div><div class="line number18 index17 alt1">18</div><div class="line number19 index18 alt2">19</div><div class="line number20 index19 alt1">20</div><div class="line number21 index20 alt2">21</div><div class="line number22 index21 alt1">22</div><div class="line number23 index22 alt2">23</div><div class="line number24 index23 alt1">24</div><div class="line number25 index24 alt2">25</div><div class="line number26 index25 alt1">26</div><div class="line number27 index26 alt2">27</div><div class="line number28 index27 alt1">28</div><div class="line number29 index28 alt2">29</div><div class="line number30 index29 alt1">30</div></td><td class="code"><div class="container"><div class="line number1 index0 alt2"><code class="vb plain">Função ToString() e seus possíveis parâmetros:</code></div><div class="line number2 index1 alt1"><code class="vb plain">y: 19</code></div><div class="line number3 index2 alt2"><code class="vb plain">yy: 19</code></div><div class="line number4 index3 alt1"><code class="vb plain">yyyy: 2019</code></div><div class="line number5 index4 alt2"><code class="vb plain">m: 5</code></div><div class="line number6 index5 alt1"><code class="vb plain">mm: 05</code></div><div class="line number7 index6 alt2"><code class="vb plain">mmm: mai</code></div><div class="line number8 index7 alt1"><code class="vb plain">mmmm: maio</code></div><div class="line number9 index8 alt2"><code class="vb plain">d: 28</code></div><div class="line number10 index9 alt1"><code class="vb plain">dd: 28</code></div><div class="line number11 index10 alt2"><code class="vb plain">ddd: ter</code></div><div class="line number12 index11 alt1"><code class="vb plain">dddd: terça-feira</code></div><div class="line number13 index12 alt2"><code class="vb plain">ddddd: 28/05/2019</code></div><div class="line number14 index13 alt1"><code class="vb plain">dddddd: terça-feira, 28 de maio de 2019</code></div><div class="line number15 index14 alt2"><code class="vb plain">c: 28/05/2019 17:44:25</code></div><div class="line number16 index15 alt1"><code class="vb plain">h: 17</code></div><div class="line number17 index16 alt2"><code class="vb plain">hh: 17</code></div><div class="line number18 index17 alt1"><code class="vb plain">n: 44</code></div><div class="line number19 index18 alt2"><code class="vb plain">nn: 44</code></div><div class="line number20 index19 alt1"><code class="vb plain">s: 25</code></div><div class="line number21 index20 alt2"><code class="vb plain">ss: 25</code></div><div class="line number22 index21 alt1"><code class="vb plain">z: 428</code></div><div class="line number23 index22 alt2"><code class="vb plain">zzz: 428</code></div><div class="line number24 index23 alt1"><code class="vb plain">t: 17:44</code></div><div class="line number25 index24 alt2"><code class="vb plain">tt: 17:44:25</code></div><div class="line number26 index25 alt1"><code class="vb plain">am/pm: 05pm</code></div><div class="line number27 index26 alt2"><code class="vb plain">a/p: 05p</code></div><div class="line number28 index27 alt1"><code class="vb plain">ampm: 05</code></div><div class="line number29 index28 alt2"><code class="vb plain">h:n:s.z: 17:44:25.428</code></div><div class="line number30 index29 alt1"><code class="vb plain">hh:nn:ss.zzz: 17:44:25.428</code></div></div></td></tr></tbody></table></div></div></article></div></span>
+													</div><div class="clearfix"></div>
+													<div class="breadcrumb mt15">
+														Autor: <a href="mailto:giovani.prado@se7esistemas.com.br"><span itemprop="author">Giovani Garbulha do Prado Júnior</span></a> - Thu, May 9, 2019 at 2:24 PM. Visualizado 482 vezes.
+														<br>Arquivado em: <span itemprop="articleSection"><a href="http://bc.se7esistemas.com.br/category.php?id=43" title="Group Categories » Referências da Linguagem">Referências da Linguagem</a></span>
+													</div>
+												</div>
+								<div class="categories">
+									<div class="section-options">
+										<div id="output_ratings" class="rating-box pull-left">	<div itemprop="aggregateRating" itemscope="" itemtype="http://schema.org/AggregateRating" style="display: none;">
+						<span itemprop="ratingValue">5</span> (<span itemprop="reviewCount">1</span>) 
+					</div>
+					<div class="rating">
+						<div class="rating-title">Avaliação do artigo <span>(1 Voto)</span></div>
+						<div class="rating_bar" title="5 de 5" align="left"><div style="width:100%" title="5 de 5"></div></div>
+						Avalie este artigo<br>
+							<form id="rating_form" action="http://bc.se7esistemas.com.br/article.php?id=209&amp;oid=43#" method="post" style="margin:0">
+							<select name="rating" id="ratings" style="width:110px;">
+								<option value="">Selecione um</option>
+								<option value="5">5 - Excelente</option>
+								<option value="4">4 - Acima da média</option>
+								<option value="3">3 - Média</option>
+								<option value="2">2 - Abaixo da média</option>
+								<option value="1">1 - Inútil</option>
+							</select>
+							<input type="button" onclick="getScriptPage(&#39;output_ratings&#39;,&#39;AddRatings&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;209&#39;,&#39;ratings&#39;,&#39;&#39;,&#39;&#39;,&#39;&#39;);" name="ratebtn" value="Avaliar">
+							</form>
+					</div></div><div class="\&quot;clearfix\&quot;"></div>
+										<ul class="article-options pull-left"><li><a href="http://bc.se7esistemas.com.br/subscribe.php?id=209"><img src="./12 - Data e Hora_files/icon-user.png" alt="Icon Subscriber"> Inscrever-se para o artigo</a></li><li><a href="http://bc.se7esistemas.com.br/print.php?id=209" target="_blank"><img src="./12 - Data e Hora_files/icon-printer.png" alt="Icon Printer"> Imprimir artigo</a></li></ul><ul class="article-options pull-left"><li><a href="http://bc.se7esistemas.com.br/export.php?type=PDF&amp;id=209"><img src="./12 - Data e Hora_files/icon-pdf.png" alt="Icon PDF"> Exportar para PDF</a></li><li><a href="http://bc.se7esistemas.com.br/export.php?type=DOC&amp;id=209"><img src="./12 - Data e Hora_files/icon-word.png" alt="Icon MS-Word"> Exportar para o MS Word</a></li>	</ul>
+									</div><!-- Section Options -->
+									<div class="clearfix"></div>
+								</div><!-- End Categories --><div class="article-tabs"><a name="attachments"></a><div class="category-articles">
+								<div class="section-title">Anexos </div>
+							</div>
+							<div class="articles-list">
+								Não há anexos para este artigo.
+							</div><div class="category-articles">
+									<div class="section-title">Comentarios (1)</div>
+								 </div>
+								 <div class="articles-list">
+								 	<div class="comment">
+										<div class="comment-title">comentário por <strong>joaonatal@se7esistemas.com.br</strong> on Tue, Nov 24th, 2020 at 4:37 PM</div>
+										<div class="comment-text">Muito bom!! Giovani pardo</div>
+									</div>
+								 	<div id="output_div"><div class="panel panel-default panel-comments mt15">
+							<div class="panel-body">
+								<form name="frmpstcmt" action="http://bc.se7esistemas.com.br/article.php?id=209&amp;oid=43" method="post">
+									<div class="row">
+										<div class="col-sm-12 col-xs-12">
+											<div class="form-group"><input type="hidden" name="name" id="name" value="" class="form-control">
+												<input type="hidden" name="email" id="email" value="" class="form-control">
+												
+												<div class="mb15">
+													<textarea name="comment" id="comment" class="form-control" placeholder="comentarios" rows="5"></textarea> 
+												</div>
+												
+											</div>
+										</div>
+									</div>
+								</form>
+							</div>
+							<div class="panel-footer panel-comments-footer">
+								<button class="btn btn-glossary btn-info" type="button" name="postcmt" id="postcmt" value="Enviar Comentario" onclick="return getScriptPage(&#39;output_div&#39;,&#39;AddComments&#39;,&#39;http://bc.se7esistemas.com.br&#39;,&#39;name&#39;,&#39;email&#39;,&#39;comment&#39;,&#39;209&#39;,&#39;&#39;);">Enviar Comentario</button>
+							</div>
+						</div></div>
+								 </div><div class="section-content"><div class="category-articles"><div class="section-title">Artigos relacionados <a href="http://bc.se7esistemas.com.br/rss.php?id=209&amp;mode=related" target="_blank" title="RSS"><img src="./12 - Data e Hora_files/rss.png" style="vertical-align:middle; float:right;" alt="RSS Feed" border="0"></a></div></div><div class="articles-list"><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=205">8 - Operadores</a>
+										<div class="grey-text">visualizado 95 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=200">3 - Tipos de Dados</a>
+										<div class="grey-text">visualizado 190 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=201">4 - Variáveis</a>
+										<div class="grey-text">visualizado 118 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=202">5 - Constantes</a>
+										<div class="grey-text">visualizado 81 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=203">6 - Modificadores</a>
+										<div class="grey-text">visualizado 112 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=199">2 - Sintaxe Básica</a>
+										<div class="grey-text">visualizado 180 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=211">14 - Procedimento (Sub)</a>
+										<div class="grey-text">visualizado 77 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=207">10 - Repetições (Loops)</a>
+										<div class="grey-text">visualizado 129 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=212">15 - Classes e Objetos</a>
+										<div class="grey-text">visualizado 269 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=208">11 - Strings</a>
+										<div class="grey-text">visualizado 446 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=210">13 - Funções (Function)</a>
+										<div class="grey-text">visualizado 114 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=206">9 - Estruturas de Decisão</a>
+										<div class="grey-text">visualizado 114 vezes  since  Thu, May 9, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=198">1 - Estrutura do Programa</a>
+										<div class="grey-text">visualizado 213 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div><div class="private-article">
+										<a href="http://bc.se7esistemas.com.br/article.php?id=204">7 - Declarações</a>
+										<div class="grey-text">visualizado 117 vezes  since  Wed, May 8, 2019 </div>
+										
+									</div></div></div>		           </div><!-- End Article Area -->
+		           <div id="recentviewed"></div>				</div><!-- End Right Content -->
+				<!-- ------------------------- -->
+								<!-- ------------------------- -->
+						</div><!-- End Content Area -->
+		</div><!-- End Row -->
+		<div class="clearfix"></div>	
+        						
+			<div class="Subscribe col-md-12 col-sm-12 col-xs-12  ">
+				<div class="pull-left">
+					<h3>Inscreva-se para receber informações da nossa Base de Conhecimento</h3>
+					<p>Seja notificado quando novos artigos são adicionados à base de conhecimento.</p>
+					<form class="form-inline" id="subscribe-form" action="http://bc.se7esistemas.com.br/subscribe.php" method="post">
+						<input type="email" class="news_latter" name="submail" id="submail" placeholder="Digite e-mail">
+						<button type="submit" class="btn btn-primary" name="subscribe" value="Subscribe">Se inscrever</button>
+					</form>
+				</div>
+				<div class="copy_write_xs pull-left hidden-sm hidden-md hidden-lg"><a href="http://www.se7esistemas.com.br/" class="company_name mt20">Se7e Sistemas</a> (Base de 	Conhecimento)</div>
+			</div>
+			<div class="clearfix"></div><nav id="top_view" class="nav is-fixed" role="navigation">
+				<div class="wrapper wrapper-flush">
+					<button class="nav-toggle">
+						<div class="icon-menu">Categories</div>
+					</button>
+					<div class="nav-container"></div>
+				</div>
+			</nav>
+			<div class="clearfix"></div>	</div><!-- End Container -->
+                
+<script src="./12 - Data e Hora_files/jquery-2.1.1.min.js.baixados"></script>
+<script src="./12 - Data e Hora_files/bootstrap.min.js.baixados" type="text/javascript"></script>
+<script type="text/javascript">
+	var tabs = '';
+	jQuery(document).ready(function(){
+		/*
+		jQuery('.righttab .tab').mouseover(function(){
+			$('.righttab').css('right','0');
+		});
+		jQuery('.righttab .tabcontent').mouseover(function(){
+			$('.righttab').css('right','0');
+		});
+		jQuery('.righttab .tab').mouseout(function(){
+			$('.righttab').css('right','-220px');
+			//jQuery('.righttab').css('right':0);
+		});
+		jQuery('.righttab .tabcontent').mouseout(function(){
+			$('.righttab').css('right','-220px');
+			//jQuery('.righttab').css('right':0);
+		});
+		*/
+		jQuery('.righttab .tab').click(function(){
+			if($('.righttab').css('right')=='0px'){
+				$('.righttab').css('right','-220px');
+			}
+			else{
+				$('.righttab').css('right','0');
+			}			
+		});
+	});
+</script>
+<script src="./12 - Data e Hora_files/responsive.js.baixados" type="text/javascript"> </script>
+<script src="./12 - Data e Hora_files/common.js.baixados" type="text/javascript"></script>
+<script src="./12 - Data e Hora_files/ajax.js.baixados" type="text/javascript"></script>
+
+			<script type="text/javascript">var SRV_BASE = 'http://bc.se7esistemas.com.br/thesaurus/';</script>
+			<script src="./12 - Data e Hora_files/jquery1-7-1.js.baixados" type="text/javascript"></script>
+			<script src="./12 - Data e Hora_files/jquery-thesaurus.js.baixados" type="text/javascript"></script>
+			<script type="text/javascript">
+			$(document).ready(function(){
+				$('article').Thesaurus({
+					effect: 'fade',
+					caseSensitive: false 
+				});
+			});
+			</script><script type="text/javascript">SyntaxHighlighter.config.stripBrs=true; SyntaxHighlighter.all();</script><input type="hidden" name="JSONGLOSSARY" id="JSONGLOSSARY" value="">
+<script src="./12 - Data e Hora_files/jquery.livesearch.js.baixados"></script>
+<script type="text/javascript">
+//<![CDATA[
+jQuery(document).ready(function(){
+	jQuery('#search_field').liveSearch({url: 'http://bc.se7esistemas.com.br/include/ajax-hub.php?ajax=true&usefor=livesearch&keywords=', typeDelay:500});
+});
+//]]>
+</script>	
+</div></body></html>

@@ -1,69 +1,69 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Boolean",
-    "kind": "class",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Boolean",
+    kind: "class",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "description": "Tipo primitivo lógico (True ou False)."
+    fileUri: "system://library",
+    description: "Tipo primitivo lógico (True ou False).",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Boolean",
-    "description": "Converte o valor lógico para string (\"True\" ou \"False\")."
+    fileUri: "system://library",
+    containerName: "Boolean",
+    description: 'Converte o valor lógico para string ("True" ou "False").',
   },
   {
-    "name": "Boolean",
-    "kind": "class",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Boolean",
+    kind: "class",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Representa um valor lógico Verdadeiro (True) ou Falso (False)."
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Representa um valor lógico Verdadeiro (True) ou Falso (False).",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Boolean",
-    "description": "Retorna a representação em texto do valor booleano (\"True\" ou \"False\")."
-  }
+    fileUri: "system://library",
+    containerName: "Boolean",
+    description: 'Retorna a representação em texto do valor booleano ("True" ou "False").',
+  },
 ];

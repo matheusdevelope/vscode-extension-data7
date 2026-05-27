@@ -1,0 +1,809 @@
+Esse é o autocomplete completo da classe Forms.Grid, com base nele, atualize a definição completa da classe.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Cruze os dados com as classes que o grid herda, para não adicionar props que já existem nas classes base
+
+Categoria,Nome,Tipo,Suportado
+Property,Name,UnicodeString,Sim
+Property,Tag,Integer,Sim
+Property,AlignWithMargins,Boolean,Sim
+Property,Left,Integer,Sim
+Property,Top,Integer,Sim
+Property,Width,Integer,Sim
+Property,Height,Integer,Sim
+Property,Cursor,Integer,Sim
+Property,Hint,UnicodeString,Sim
+Property,HelpType,THelpType,Sim
+Property,HelpKeyword,UnicodeString,Sim
+Property,HelpContext,Integer,Sim
+Property,Margins,TMargins,Sim
+Property,CustomHint,(vazio),Não
+Property,ParentCustomHint,Boolean,Sim
+Property,TabStop,Boolean,Sim
+Property,Align,TAlign,Sim
+Property,Anchors,TAnchors,Sim
+Property,BevelEdges,TBevelEdges,Sim
+Property,BevelInner,TBevelCut,Sim
+Property,BevelKind,TBevelKind,Sim
+Property,BevelOuter,TBevelCut,Sim
+Property,BevelWidth,Integer,Sim
+Property,BiDiMode,TBiDiMode,Sim
+Property,BorderStyle,TBorderStyle,Sim
+Property,Color,Integer,Sim
+Property,ColCount,Integer,Sim
+Property,Constraints,(vazio),Não
+Property,Ctl3D,Boolean,Sim
+Property,DefaultColWidth,Integer,Sim
+Property,DefaultColAlignment,TAlignment,Sim
+Property,DefaultRowHeight,Integer,Sim
+Property,DefaultDrawing,Boolean,Sim
+Property,DoubleBuffered,Boolean,Sim
+Property,DoubleBufferedMode,TDoubleBufferedMode,Sim
+Property,DragCursor,Integer,Sim
+Property,DragKind,TDragKind,Sim
+Property,DragMode,TDragMode,Sim
+Property,DrawingStyle,TGridDrawingStyle,Sim
+Property,Enabled,Boolean,Sim
+Property,FixedColor,Integer,Sim
+Property,FixedCols,Integer,Sim
+Property,RowCount,Integer,Sim
+Property,FixedRows,Integer,Sim
+Property,Font,TFont,Sim
+Property,GradientEndColor,Integer,Sim
+Property,GradientStartColor,Integer,Sim
+Property,GridLineWidth,Integer,Sim
+Property,Options,TGridOptions,Sim
+Property,ParentBiDiMode,Boolean,Sim
+Property,ParentColor,Boolean,Sim
+Property,ParentCtl3D,Boolean,Sim
+Property,ParentDoubleBuffered,Boolean,Sim
+Property,ParentFont,Boolean,Sim
+Property,ParentShowHint,Boolean,Sim
+Property,PopupMenu,(vazio),Não
+Property,ScrollBars,TScrollStyle,Sim
+Property,ShowHint,Boolean,Sim
+Property,TabOrder,Integer,Sim
+Property,Touch,(vazio),Não
+Property,Visible,Boolean,Sim
+Property,StyleElements,TStyleElements,Sim
+Property,StyleName,UnicodeString,Sim
+Property,VisibleColCount,Integer,Sim
+Property,VisibleRowCount,Integer,Sim
+Event,OnClick,TNotifyEvent,Sim
+Event,OnColumnMoved,TMovedEvent,Sim
+Event,OnContextPopup,TContextPopupEvent,Sim
+Event,OnDblClick,TNotifyEvent,Sim
+Event,OnDragDrop,TDragDropEvent,Sim
+Event,OnDragOver,TMethod,Sim
+Event,OnDrawCell,TDrawCellEvent,Sim
+Event,OnEndDock,TEndDragEvent,Sim
+Event,OnEndDrag,TEndDragEvent,Sim
+Event,OnEnter,TNotifyEvent,Sim
+Event,OnExit,TNotifyEvent,Sim
+Event,OnFixedCellClick,TFixedCellClickEvent,Sim
+Event,OnGesture,TMethod,Sim
+Event,OnGetEditMask,TGetEditEvent,Sim
+Event,OnGetEditText,TGetEditEvent,Sim
+Event,OnKeyDown,TKeyEvent,Sim
+Event,OnKeyPress,TKeyPressEvent,Sim
+Event,OnKeyUp,TKeyEvent,Sim
+Event,OnMouseActivate,TMethod,Sim
+Event,OnMouseDown,TMethod,Sim
+Event,OnMouseEnter,TNotifyEvent,Sim
+Event,OnMouseLeave,TNotifyEvent,Sim
+Event,OnMouseMove,TMouseMoveEvent,Sim
+Event,OnMouseUp,TMethod,Sim
+Event,OnMouseWheelDown,TMouseWheelUpDownEvent,Sim
+Event,OnMouseWheelUp,TMouseWheelUpDownEvent,Sim
+Event,OnRowMoved,TMovedEvent,Sim
+Event,OnSelectCell,TSelectCellEvent,Sim
+Event,OnSetEditText,TSetEditEvent,Sim
+Event,OnStartDock,TMethod,Sim
+Event,OnStartDrag,TMethod,Sim
+Event,OnTopLeftChanged,TNotifyEvent,Sim
+Event,OnGetDisplText,TGetDisplTextEvent,Sim
+Event,OnGetDisplWideText,TGetDisplWideTextEvent,Sim
+Event,OnAutoAdvance,TAutoAdvanceEvent,Sim
+Event,OnBeforeFilter,TNotifyEvent,Sim
+Event,OnBeforeEdit,TBeforeEditEvent,Sim
+Event,OnCustomCellBkgDraw,TCustomCellDrawEvent,Sim
+Event,OnCustomCellDraw,TCustomCellDrawEvent,Sim
+Event,OnCustomCellSize,TCustomCellSizeEvent,Sim
+Event,OnCustomFilter,TCustomFilterEvent,Sim
+Event,OnGetCellColor,TGridColorEvent,Sim
+Event,OnGetCellCursor,TMethod,Sim
+Event,OnGetCellGradient,TMethod,Sim
+Event,OnGetCellPrintColor,TGridColorEvent,Sim
+Event,OnGetCellPrintBorder,TMethod,Sim
+Event,OnGetCellBorder,TMethod,Sim
+Event,OnGetCellBorderProp,TGridBorderPropEvent,Sim
+Event,OnGetAlignment,TMethod,Sim
+Event,OnGetWordWrap,TWordWrapEvent,Sim
+Event,OnGetColumnFilter,TGetColumnFilterEvent,Sim
+Event,OnFilterDone,TNotifyEvent,Sim
+Event,OnPrintNewPage,TGridPrintNewPageEvent,Sim
+Event,OnPrintSetColumnWidth,TGridPrintColumnWidthEvent,Sim
+Event,OnPrintSetRowHeight,TGridPrintRowHeightEvent,Sim
+Event,OnCanAddCol,TCanAddColEvent,Sim
+Event,OnCanAddRow,TCanAddRowEvent,Sim
+Event,OnAutoAddRow,TAutoAddRowEvent,Sim
+Event,OnCanInsertRow,TCanInsertRowEvent,Sim
+Event,OnCanDisunctRowSelectDrag,TCanDisunctRowSelectDragEvent,Sim
+Event,OnAutoInsertRow,TAutoInsertRowEvent,Sim
+Event,OnAutoInsertCol,TAutoInsertColEvent,Sim
+Event,OnCanDeleteRow,TCanDeleteRowEvent,Sim
+Event,OnAutoDeleteRow,TAutoDeleteRowEvent,Sim
+Event,OnClickSort,TClickSortEvent,Sim
+Event,OnCanSort,TCanSortEvent,Sim
+Event,OnExpandNode,TNodeClickEvent,Sim
+Event,OnContractNode,TNodeClickEvent,Sim
+Event,OnDropDownHeaderButtonClick,TDropDownButtonClickEvent,Sim
+Event,OnDropDownFooterButtonClick,TDropDownButtonClickEvent,Sim
+Event,OnBeforeExpandNode,TNodeAllowEvent,Sim
+Event,OnBeforeContractNode,TNodeAllowEvent,Sim
+Event,OnCustomCompare,TCustomCompareEvent,Sim
+Event,OnRawCompare,TRawCompareEvent,Sim
+Event,OnSearchEditChange,TSearchEditChangeEvent,Sim
+Event,OnSearchFooterAction,TMethod,Sim
+Event,OnSearchFooterSearch,TSearchFooterSearchEvent,Sim
+Event,OnSearchFooterClose,TNotifyEvent,Sim
+Event,OnSearchFooterSearchEnd,TSearchFooterSearchEndEvent,Sim
+Event,OnCanShowFixedDropDown,TCanShowFixedDropDownEvent,Sim
+Event,OnFixedDropDownClick,TMethod,Sim
+Event,OnClickCell,TClickCellEvent,Sim
+Event,OnRightClickCell,TClickCellEvent,Sim
+Event,OnDblClickCell,TDblClickCellEvent,Sim
+Event,OnCanClickCell,TCanClickCellEvent,Sim
+Event,OnCanEditCell,TCanEditCellEvent,Sim
+Event,OnFixedEdit,TMethod,Sim
+Event,OnIsFixedCell,TIsFixedCellEvent,Sim
+Event,OnIsFixedHoverCell,TIsFixedCellEvent,Sim
+Event,OnIsPasswordCell,TIsPasswordCellEvent,Sim
+Event,OnAnchorClick,TAnchorClickEvent,Sim
+Event,OnAnchorEnter,TAnchorEvent,Sim
+Event,OnAnchorExit,TAnchorEvent,Sim
+Event,OnAnchorHint,TAnchorHintEvent,Sim
+Event,OnControlClick,TCellControlEvent,Sim
+Event,OnControlEditDone,TCellControlEvent,Sim
+Event,OnControlComboList,TCellComboControlEvent,Sim
+Event,OnControlComboSelect,TCellComboControlSelectEvent,Sim
+Event,OnClipboardPaste,TClipboardEvent,Sim
+Event,OnClipboardPasteDone,TMethod,Sim
+Event,OnClipboardCopy,TClipboardEvent,Sim
+Event,OnClipboardCopyDone,TMethod,Sim
+Event,OnClipboardCut,TClipboardEvent,Sim
+Event,OnClipboardCutDone,TMethod,Sim
+Event,OnClipboardAfterPasteCell,TAfterCellPasteEvent,Sim
+Event,OnClipboardAfterPasteWideCell,TAfterCellPasteWideEvent,Sim
+Event,OnClipboardBeforePasteCell,TBeforeCellPasteEvent,Sim
+Event,OnClipboardBeforePasteWideCell,TBeforeCellPasteWideEvent,Sim
+Event,OnCellValidate,TCellValidateEvent,Sim
+Event,OnCellValidateWide,TCellValidateWideEvent,Sim
+Event,OnCellsChanged,TCellsChangedEvent,Sim
+Event,OnFileProgress,TGridProgressEvent,Sim
+Event,OnFilterProgress,TGridProgressEvent,Sim
+Event,OnFilterEditDone,TMethod,Sim
+Event,OnFilterEditUpdate,TMethod,Sim
+Event,OnHasComboBox,THasComboEvent,Sim
+Event,OnHasEditBtn,THasEditBtnEvent,Sim
+Event,OnHasFilterEdit,THasFilterEditEvent,Sim
+Event,OnHasSpinEdit,THasSpinEditEvent,Sim
+Event,OnHoverButtonsShow,THoverButtonsShowEvent,Sim
+Event,OnGetEditorType,TGetEditorTypeEvent,Sim
+Event,OnGetEditorProp,TGetEditorPropEvent,Sim
+Event,OnGetFloatFormat,TFloatFormatEvent,Sim
+Event,OnEllipsClick,TEllipsClickEvent,Sim
+Event,OnIntelliZoom,TNotifyEvent,Sim
+Event,OnButtonClick,TButtonClickEvent,Sim
+Event,OnCheckBoxCanToggle,TCheckBoxCanToggleEvent,Sim
+Event,OnCheckBoxChange,TCheckBoxClickEvent,Sim
+Event,OnCheckBoxClick,TCheckBoxClickEvent,Sim
+Event,OnCheckBoxMouseUp,TCheckBoxClickEvent,Sim
+Event,OnColorSelected,TMethod,Sim
+Event,OnColorSelect,TMethod,Sim
+Event,OnColDisunctSelect,TColDisunctSelectEvent,Sim
+Event,OnColDisunctSelected,TColDisunctSelectedEvent,Sim
+Event,OnExpandClick,TExpandClickEvent,Sim
+Event,OnImageSelected,TImageSelectedEvent,Sim
+Event,OnImageSelect,TImageSelectEvent,Sim
+Event,OnRadioClick,TRadioClickEvent,Sim
+Event,OnRadioMouseUp,TRadioClickEvent,Sim
+Event,OnRadioButtonClick,TRadioButtonClickEvent,Sim
+Event,OnDatePickerCloseUp,TClickCellEvent,Sim
+Event,OnDatePickerDropDown,TClickCellEvent,Sim
+Event,OnComboChange,TComboChangeEvent,Sim
+Event,OnComboCloseUp,TClickCellEvent,Sim
+Event,OnComboDropDown,TClickCellEvent,Sim
+Event,OnComboObjectChange,TComboObjectChangeEvent,Sim
+Event,OnSpinClick,TSpinClickEvent,Sim
+Event,OnFloatSpinClick,TFloatSpinClickEvent,Sim
+Event,OnTimeSpinClick,TDateTimeSpinClickEvent,Sim
+Event,OnDateSpinClick,TDateTimeSpinClickEvent,Sim
+Event,OnRichEditSelectionChange,TNotifyEvent,Sim
+Event,OnRowCountChange,TRowCountChangeEvent,Sim
+Event,OnToggleSwitchClick,TCheckBoxClickEvent,Sim
+Event,OnDragScroll,TMethod,Sim
+Event,OnEditingDone,TNotifyEvent,Sim
+Event,OnEditCellDone,TEditCellDoneEvent,Sim
+Event,OnEditChange,TEditChangeEvent,Sim
+Event,OnDateTimeChange,TDateTimeChangeEvent,Sim
+Event,OnFooterPaint,TFooterPaintEvent,Sim
+Event,OnFooterCalc,TCalcFooterEvent,Sim
+Event,OnHoverButtonClick,TMethod,Sim
+Event,OnProgressColor,TMethod,Sim
+Event,OnResize,TNotifyEvent,Sim
+Event,OnRowDisunctSelect,TRowDisunctSelectEvent,Sim
+Event,OnRowDisunctSelected,TAutoInsertRowEvent,Sim
+Event,OnSelectionChanged,TSelectionChanged,Sim
+Event,OnShowFilterEdit,TShowFilterEditEvent,Sim
+Event,OnUnitChanged,TUnitChangedEvent,Sim
+Event,OnOleDrop,TOleDragDropEvent,Sim
+Event,OnOleDropped,TMethod,Sim
+Event,OnOleDrag,TOleDragDropEvent,Sim
+Event,OnOleDragOver,TOleDragOverEvent,Sim
+Event,OnOleDragStart,TOleDragStartEvent,Sim
+Event,OnOleDragStop,TOleDragStopEvent,Sim
+Event,OnOleDropCol,TOleDropColEvent,Sim
+Event,OnOleDropFile,TOleDropFileEvent,Sim
+Event,OnOleDropFiles,TOleDropFilesEvent,Sim
+Event,OnOleDropURL,TOleDropURLEvent,Sim
+Event,OnPainted,TNotifyEvent,Sim
+Event,OnRatingChange,TRatingChangeEvent,Sim
+Event,OnScrollHint,TScrollHintEvent,Sim
+Event,OnChangeScale,TChangeScaleEvent,Sim
+Event,OnColumnSize,TColumnSizeEvent,Sim
+Event,OnColumnSizing,TColumnSizingEvent,Sim
+Event,OnColumnMove,TColumnSizeEvent,Sim
+Event,OnColumnMoving,TColumnSizeEvent,Sim
+Event,OnRowSize,TRowSizeEvent,Sim
+Event,OnRowSizing,TRowSizingEvent,Sim
+Event,OnRowMove,TRowSizeEvent,Sim
+Event,OnRowMoving,TRowSizeEvent,Sim
+Event,OnEndColumnSize,TEndColumnSizeEvent,Sim
+Event,OnUpdateColumnSize,TUpdateColumnSizeEvent,Sim
+Event,OnEndRowSize,TEndRowSizeEvent,Sim
+Event,OnScrollCell,TScrollCellEvent,Sim
+Event,OnSelectionResize,TMethod,Sim
+Event,OnSelectionResized,TMethod,Sim
+Event,OnCreatedFloatingFooter,TNotifyEvent,Sim
+Event,OnCreatedSearchFooter,TNotifyEvent,Sim
+Event,OnSaveCell,TCellSaveLoadEvent,Sim
+Event,OnLoadCell,TCellSaveLoadEvent,Sim
+Event,OnAfterColumnMoved,TAfterColumnMoved,Sim
+Event,OnColumnPopup,TMethod,Sim
+Event,OnMarcaDesmarcaLinhaParaExclusao,TMarcaDesmarcaLinhaParaExclusaoEvent,Sim
+Event,OnFindNoResult,TFindNoResultEvent,Sim
+Event,OnGetInplaceEditorProperties,TGridGetInplaceEditorPropertiesEvent,Sim
+Event,OnGetInplaceEditor,TGridGetInplaceEditorEvent,Sim
+Event,OnExitEvent,UnicodeString,Sim
+Event,OnEnterEvent,UnicodeString,Sim
+Event,OnClickEvent,UnicodeString,Sim
+Event,OnDblClickEvent,UnicodeString,Sim
+Event,OnKeyPressEvent,UnicodeString,Sim
+Event,OnDrawCellEvent,UnicodeString,Sim
+Event,OnSelectCellEvent,UnicodeString,Sim
+Event,OnCanEditCellEvent,UnicodeString,Sim
+Event,OnCanClickCellEvent,UnicodeString,Sim
+Event,OnCanDeleteRowEvent,UnicodeString,Sim
+Event,OnCanInsertRowEvent,UnicodeString,Sim
+Event,OnCanAddRowEvent,UnicodeString,Sim
+Event,OnSetEditTextEvent,UnicodeString,Sim
+Event,OnGetEditTextEvent,UnicodeString,Sim
+Event,OnCellValidateEvent,UnicodeString,Sim
+Event,OnCellsChangedEvent,UnicodeString,Sim
+Event,OnEditChangeEvent,UnicodeString,Sim
+Event,OnGetEditorPropInt,TClickCellEvent,Sim
+Event,OnEnumerateControl,(vazio),Não
+Property,ActiveRowShow,Boolean,Sim
+Property,ActiveRowColor,Integer,Sim
+Property,GridLineColor,Integer,Sim
+Property,GridFixedLineColor,Integer,Sim
+Property,GridFixedLineWidth,Integer,Sim
+Property,HoverRow,Boolean,Sim
+Property,HoverRowColor,Integer,Sim
+Property,HoverRowColorTo,Integer,Sim
+Property,HoverRowCells,THoverRowCells,Sim
+Property,UndoRedo,(vazio),Não
+Property,DragDropSettings,(vazio),Não
+Property,OfficeHint,(vazio),Não
+Property,HighlightColor,Integer,Sim
+Property,HighlightTextColor,Integer,Sim
+Property,HintColor,Integer,Sim
+Property,HintShowCells,Boolean,Sim
+Property,HintShowLargeText,Boolean,Sim
+Property,HintShowLargeTextPos,THintShowLargeTextPos,Sim
+Property,HintShowSizing,Boolean,Sim
+Property,HTMLHint,Boolean,Sim
+Property,HTMLKeepLineBreak,Boolean,Sim
+Property,OemConvert,Boolean,Sim
+Property,AnchorHint,Boolean,Sim
+Property,ActiveCellShow,Boolean,Sim
+Property,ActiveCellFont,TFont,Sim
+Property,ActiveCellColor,Integer,Sim
+Property,ActiveCellColorTo,Integer,Sim
+Property,AutoColor,(vazio),Não
+Property,AutoHideSelection,Boolean,Sim
+Property,AutoNumAlign,Boolean,Sim
+Property,AutoSize,Boolean,Sim
+Property,AutoThemeAdapt,Boolean,Sim
+Property,AutoFilterUpdate,Boolean,Sim
+Property,Balloon,(vazio),Não
+Property,Bands,(vazio),Não
+Property,BackGround,(vazio),Não
+Property,BorderColor,Integer,Sim
+Property,CellNode,(vazio),Não
+Property,CellChecker,(vazio),Não
+Property,ColumnHeaders,TStringList,Sim
+Property,ColumnSize,(vazio),Não
+Property,ControlLook,(vazio),Não
+Property,DefaultAlignment,TAlignment,Sim
+Property,DefaultEditor,TEditorType,Sim
+Property,DisabledFontColor,Integer,Sim
+Property,DragScrollOptions,(vazio),Não
+Property,EditWithTags,Boolean,Sim
+Property,EnableBlink,Boolean,Sim
+Property,EnableHTML,Boolean,Sim
+Property,EnableWheel,Boolean,Sim
+Property,EnhTextSize,Boolean,Sim
+Property,EnhRowColMove,Boolean,Sim
+Property,ExcelStyleDecimalSeparator,Boolean,Sim
+Property,Filter,(vazio),Não
+Property,FilterActive,Boolean,Sim
+Property,FilterDropDown,(vazio),Não
+Property,FilterDropDownAuto,Boolean,Sim
+Property,FilterDropDownMultiCol,Boolean,Sim
+Property,FilterDropDownClear,UnicodeString,Sim
+Property,FilterDropDownCheck,Boolean,Sim
+Property,FilterDropDownCheckUnCheckAll,UnicodeString,Sim
+Property,FilterDropDownColumns,TFilterDropDownColumns,Sim
+Property,FilterDropDownRow,Integer,Sim
+Property,FilterEdit,(vazio),Não
+Property,FilterNormalCellsOnly,Boolean,Sim
+Property,FilterType,TGridFilterType,Sim
+Property,FixedAsButtons,Boolean,Sim
+Property,FixedFooters,Integer,Sim
+Property,FixedRightCols,Integer,Sim
+Property,FixedColWidth,Integer,Sim
+Property,FixedDropDownMenu,(vazio),Não
+Property,FixedRowHeight,Integer,Sim
+Property,FixedRowAlways,Boolean,Sim
+Property,FixedColAlways,Boolean,Sim
+Property,FixedFont,TFont,Sim
+Property,Flat,Boolean,Sim
+Property,FloatFormat,UnicodeString,Sim
+Property,FloatingFooter,(vazio),Não
+Property,FocusHelper,(vazio),Não
+Property,FormatType,TFormatType,Sim
+Property,GridImages,(vazio),Não
+Property,Grouping,(vazio),Não
+Property,HideFocusRect,Boolean,Sim
+Property,HoverButtons,(vazio),Não
+Property,Hovering,Boolean,Sim
+Property,HoverFixedCells,THoverFixedCells,Sim
+Property,HTMLSettings,(vazio),Não
+Property,IntegralHeight,Boolean,Sim
+Property,IntelliPan,TIntelliPan,Sim
+Property,IntelliZoom,Boolean,Sim
+Property,InvalidEntryTitle,UnicodeString,Sim
+Property,InvalidEntryIcon,TInvalidEntryIcon,Sim
+Property,InvalidEntryText,UnicodeString,Sim
+Property,Look,TGridLook,Sim
+Property,LookupItems,TStringList,Sim
+Property,Lookup,Boolean,Sim
+Property,LookupCaseSensitive,Boolean,Sim
+Property,LookupHistory,Boolean,Sim
+Property,MaxEditLength,Integer,Sim
+Property,MaxComboLength,Integer,Sim
+Property,MouseActions,(vazio),Não
+Property,Multilinecells,Boolean,Sim
+Property,Navigation,(vazio),Não
+Property,PictureContainer,(vazio),Não
+Property,PopupToolBar,(vazio),Não
+Property,PopupToolBarMode,TPopupToolBarMode,Sim
+Property,PrintSettings,(vazio),Não
+Property,ProgressAppearance,(vazio),Não
+Property,RowHeaders,TStringList,Sim
+Property,RowIndicator,(vazio),Não
+Property,ScrollBarAlways,TScrollBarAlways,Sim
+Property,ScrollColor,Integer,Sim
+Property,ScrollProportional,Boolean,Sim
+Property,ScrollSynch,Boolean,Sim
+Property,ScrollType,TScrollType,Sim
+Property,ScrollWidth,Integer,Sim
+Property,ScrollHints,TScrollHintType,Sim
+Property,SearchFooter,(vazio),Não
+Property,SelectionColor,Integer,Sim
+Property,SelectionColorTo,Integer,Sim
+Property,SelectionColorMixer,Boolean,Sim
+Property,SelectionColorMixerFactor,Integer,Sim
+Property,SelectionMirrorColor,Integer,Sim
+Property,SelectionMirrorColorTo,Integer,Sim
+Property,SelectionRectangle,Boolean,Sim
+Property,SelectionResizer,Boolean,Sim
+Property,SelectionRTFKeep,Boolean,Sim
+Property,SelectionTextColor,Integer,Sim
+Property,ShowSelection,Boolean,Sim
+Property,ShowModified,As,Não
+Property,ShowDesignHelper,Boolean,Sim
+Property,ShowFocusedSelectionColor,Boolean,Sim
+Property,SizeWhileTyping,(vazio),Não
+Property,SizeWithForm,Boolean,Sim
+Property,SortSettings,(vazio),Não
+Property,SyncGrid,(vazio),Não
+Property,UIStyle,TTMSStyle,Sim
+Property,URLColor,Integer,Sim
+Property,URLShow,Boolean,Sim
+Property,URLShowInText,Boolean,Sim
+Property,URLUnderline,Boolean,Sim
+Property,URLUnderlineOnHover,Boolean,Sim
+Property,URLFull,Boolean,Sim
+Property,URLEdit,Boolean,Sim
+Property,UseFixedFont,Boolean,Sim
+Property,UseInternalHintClass,Boolean,Sim
+Property,UseSelectionTextColor,Boolean,Sim
+Property,ValidChars,UnicodeString,Sim
+Property,VAlignment,TVAlignment,Sim
+Property,Version,UnicodeString,Sim
+Property,WordWrap,Boolean,Sim
+Property,AutoFilterDisplay,Boolean,Sim
+Property,Columns,(vazio),Não
+Property,PermitirApagarUltimaLinhaEmBranco,Boolean,Sim
+Property,PermiteMarcarExclusao,Boolean,Sim
+Property,Row,Integer,Sim
+Property,Col,Integer,Sim
+Property,GridOptions,GridConfigs,Sim
+Property,SortHeader,Boolean,Sim
+Property,Canvas,TCanvas,Sim
+Property,DoAutoEditFilter,Boolean,Sim
+Property,IsThemed,Boolean,Sim
+Property,CSVLineBreak,UnicodeString,Sim
+Property,UseStyleServices,Boolean,Sim
+Property,IsPrintPreview,Boolean,Sim
+Property,FitCellsInGrid,Boolean,Sim
+Property,ZoomFactor,Integer,Sim
+Property,Encoding,(vazio),Não
+Property,LockUpdate,Boolean,Sim
+Property,NarrowDownFromStart,Boolean,Sim
+Property,UsedCells,(vazio),Não
+Property,Delimiter,WideChar,Sim
+Property,FilterList,TStringList,Sim
+Property,FilterImageList,(vazio),Não
+Property,NoDefaultDraw,Boolean,Sim
+Property,PasswordChar,WideChar,Sim
+Property,JavaCSV,Boolean,Sim
+Property,FastPrint,Boolean,Sim
+Property,FindCol,Integer,Sim
+Property,FindRow,Integer,Sim
+Property,CheckTrue,UnicodeString,Sim
+Property,CheckFalse,UnicodeString,Sim
+Property,LoadFirstRow,Boolean,Sim
+Property,SaveFixedCells,Boolean,Sim
+Property,SaveFixedCols,Boolean,Sim
+Property,SaveFixedRows,Boolean,Sim
+Property,SaveHiddenCells,Boolean,Sim
+Property,SaveVirtCells,Boolean,Sim
+Property,SaveWithHTML,Boolean,Sim
+Property,SaveWithRTF,Boolean,Sim
+Property,SaveMergedCells,Boolean,Sim
+Property,SearchCell,TPoint,Sim
+Property,SortIndexes,(vazio),Não
+Property,OriginalCellValue,UnicodeString,Sim
+Property,EditActive,Boolean,Sim
+Property,EditMask,UnicodeString,Sim
+Property,NoImageAndText,Boolean,Sim
+Property,DateTimePicker,(vazio),Não
+Property,DateAndTimePicker,(vazio),Não
+Property,Combobox,(vazio),Não
+Property,FixedEdit,(vazio),Não
+Property,FixedComboBox,(vazio),Não
+Property,DropList,(vazio),Não
+Property,DropCheckList,(vazio),Não
+Property,TrackbarDropDown,(vazio),Não
+Property,MemoDropDown,(vazio),Não
+Property,CalculatorDropDown,(vazio),Não
+Property,TimePickerDropDown,(vazio),Não
+Property,DetailPickerDropDown,(vazio),Não
+Property,GridDropDown,(vazio),Não
+Property,ColorPickerDropDown,(vazio),Não
+Property,ImagePickerDropDown,(vazio),Não
+Property,AdvGridDropDown,(vazio),Não
+Property,ControlDropDown,(vazio),Não
+Property,ClearTextOnly,Boolean,Sim
+Property,UniCombo,(vazio),Não
+Property,SpinEdit,(vazio),Não
+Property,BtnEdit,(vazio),Não
+Property,Btn,(vazio),Não
+Property,BtnUnitEdit,(vazio),Não
+Property,RichEdit,(vazio),Não
+Property,FooterCanvas,TCanvas,Sim
+Property,FooterPanel,(vazio),Não
+Property,InplaceRichEdit,(vazio),Não
+Property,CellEditor,TWinControl,Sim
+Property,IncrSearchText,UnicodeString,Sim
+Property,NormalEdit,(vazio),Não
+Property,SearchPanel,(vazio),Não
+Property,SpreadSheet,Boolean,Sim
+Property,PrinterDriverFix,Boolean,Sim
+Property,RowSelectCount,Integer,Sim
+Property,ColSelectCount,Integer,Sim
+Property,Modified,Boolean,Sim
+Property,FindBusy,Boolean,Sim
+Property,PrintPageRect,TRect,Sim
+Property,PrintPageWidth,Integer,Sim
+Property,PrintColStart,Integer,Sim
+Property,PrintColEnd,Integer,Sim
+Property,PrintNrOfPages,Integer,Sim
+Property,ExcelClipboardFormat,Boolean,Sim
+Property,PreviewPage,Integer,Sim
+Property,AllColCount,Integer,Sim
+Property,AllRowCount,Integer,Sim
+Property,LastCol,Integer,Sim
+Property,LastRow,Integer,Sim
+Property,IgnoreColumns,(vazio),Não
+Property,SelectedCellsCount,Integer,Sim
+Property,SelectedRowCount,Integer,Sim
+Property,SelectedColCount,Integer,Sim
+Property,CurrentCell,UnicodeString,Sim
+Property,CurrentEditor,TEditorType,Sim
+Property,ArrowColor,(vazio),Não
+Property,GroupColumn,Integer,Sim
+Property,QuoteEmptyCells,Boolean,Sim
+Property,QuoteQuoteCells,Boolean,Sim
+Property,CSVMultilineCellImport,Boolean,Sim
+Property,CSVTrimSpaces,Boolean,Sim
+Property,AlwaysQuotes,Boolean,Sim
+Property,ForceDecimalSeparator,Boolean,Sim
+Property,SelectionRectangleColor,(vazio),Não
+Property,RealRow,Integer,Sim
+Property,RealCol,Integer,Sim
+Property,TopRow,Integer,Sim
+Property,SaveStartCol,Integer,Sim
+Property,SaveStartRow,Integer,Sim
+Property,SaveEndCol,Integer,Sim
+Property,SaveEndRow,Integer,Sim
+Property,SaveColCount,Integer,Sim
+Property,SaveRowCount,Integer,Sim
+Property,Selection,(vazio),Não
+Property,ShowNullDates,Boolean,Sim
+Property,VersionNr,Integer,Sim
+Property,VersionString,UnicodeString,Sim
+Property,EditLink,TEditLink,Sim
+Property,XYOffset,TPoint,Sim
+Property,XYRTOffset,TPoint,Sim
+Property,XYOffsetTopLeftOnly,Boolean,Sim
+Property,ImageCache,(vazio),Não
+Property,MergedColumns,(vazio),Não
+Property,AlwaysValidate,Boolean,Sim
+Property,SizeGrowOnly,Boolean,Sim
+Property,MaxRowHeight,Integer,Sim
+Property,MinRowHeight,Integer,Sim
+Property,MaxColWidth,Integer,Sim
+Property,MinColWidth,Integer,Sim
+Property,TMSGradientFrom,(vazio),Não
+Property,TMSGradientTo,(vazio),Não
+Property,TMSGradientMirrorFrom,(vazio),Não
+Property,TMSGradientMirrorTo,(vazio),Não
+Property,TMSGradientHoverFrom,(vazio),Não
+Property,TMSGradientHoverTo,(vazio),Não
+Property,TMSGradientHoverMirrorFrom,(vazio),Não
+Property,TMSGradientHoverMirrorTo,(vazio),Não
+Property,TMSGradientHoverBorder,(vazio),Não
+Property,TMSGradientDownFrom,(vazio),Não
+Property,TMSGradientDownTo,(vazio),Não
+Property,TMSGradientDownMirrorFrom,(vazio),Não
+Property,TMSGradientDownMirrorTo,(vazio),Não
+Property,TMSGradientDownBorder,(vazio),Não
+Property,XMLEncoding,UnicodeString,Sim
+Property,VirtualEdit,Boolean,Sim
+Property,UseHTMLHints,Boolean,Sim
+Property,UseDisabledFont,Boolean,Sim
+Property,OwnsObjects,Boolean,Sim
+Property,AutoNumberDirection,(vazio),Não
+Property,AutoNumberOffset,Integer,Sim
+Property,AutoNumberStart,Integer,Sim
+Property,ValidCharSet,(vazio),Não
+Property,FilterIncremental,Boolean,Sim
+Property,ColumnOrder,(vazio),Não
+Property,VisibleCol,(vazio),Não
+Property,SelectionStyle,(vazio),Não
+Property,ActiveRowColorTo,(vazio),Não
+Property,ActiveRowMirrorColor,(vazio),Não
+Property,ActiveRowMirrorColorTo,(vazio),Não
+Property,EditorMode,Boolean,Sim
+Property,GridHeight,Integer,Sim
+Property,GridWidth,Integer,Sim
+Property,LeftCol,Integer,Sim
+Property,IsUpdating,Boolean,Sim
+Property,DockClientCount,Integer,Sim
+Property,DockSite,Boolean,Sim
+Property,DockManager,(vazio),Não
+Property,PixelsPerInch,Integer,Sim
+Property,AlignDisabled,Boolean,Sim
+Property,MouseInClient,Boolean,Sim
+Property,VisibleDockClientCount,Integer,Sim
+Property,Brush,TBrush,Sim
+Property,ControlCount,Integer,Sim
+Property,Padding,(vazio),Não
+Property,Showing,Boolean,Sim
+Property,IsDrawingLocked,Boolean,Sim
+Property,RedrawDisabled,Boolean,Sim
+Property,UseDockManager,Boolean,Sim
+Property,Action,(vazio),Não
+Property,BoundsRect,TRect,Sim
+Property,ClientHeight,Integer,Sim
+Property,ClientOrigin,TPoint,Sim
+Property,ClientRect,TRect,Sim
+Property,ClientWidth,Integer,Sim
+Property,ClientWidth,Integer,Sim
+Property,ControlState,(vazio),Não
+Property,ControlStyle,(vazio),Não
+Property,CurrentPPI,Integer,Sim
+Property,DockOrientation,(vazio),Não
+Property,ExplicitLeft,Integer,Sim
+Property,ExplicitTop,Integer,Sim
+Property,ExplicitWidth,Integer,Sim
+Property,ExplicitHeight,Integer,Sim
+Property,Floating,Boolean,Sim
+Property,FloatingDockSiteClass,(vazio),Não
+Property,HostDockSite,TWinControl,Sim
+Property,LRDockWidth,Integer,Sim
+Property,ScaleFactor,Single,Sim
+Property,TBDockHeight,Integer,Sim
+Property,UndockHeight,Integer,Sim
+Property,UndockWidth,Integer,Sim
+Property,WindowProc,(vazio),Não
+Property,Parent,TWinControl,Sim
+Property,ComObject,IInterface,Sim
+Property,ComponentCount,Integer,Sim
+Property,ComponentIndex,Integer,Sim
+Property,ComponentState,(vazio),Não
+Property,ComponentStyle,(vazio),Não
+Property,DesignInfo,Integer,Sim
+Property,Owner,TComponent,Sim
+Property,VCLComObject,Pointer,Sim
+Property,Observers,(vazio),Não
+Property,TabOrder,(vazio),Não
+Property,OnGesture,(vazio),Não
+Sub,Create,(AOwner As TComponent),Sim
+Sub,SetFocus,(),Sim
+Function,GetCanvas,() As TCanvas,Sim
+Sub,SetCelulas,(ACol As Integer, ARow As Integer, Const pValue As String),Sim
+Function,GetCelulas,(ACol As Integer, ARow As Integer) As String,Sim
+Sub,SetColWidth,(Const ACol As Integer, Const Value As Integer),Sim
+Sub,SetRowHeight,(Const ARow As Integer, Const Value As Integer),Sim
+Function,GetColWidth,(Const ACol As Integer) As Integer,Sim
+Property,ColWidth,(Const ACol As Integer) As Integer,Sim
+Property,RowHeight,Integer,Sim
+Property,Cells,(ACol As Integer, ARow As Integer) As String,Sim
+Sub,SetColAlignment,(Const ACol As Integer, Const Value As TAlignment),Sim
+Function,GetColAlignment,(Const ACol As Integer) As TAlignment,Sim
+Property,ColAlignment,(Const ACol As Integer) As TAlignment,Sim
+Sub,SetCellColor,(ACol As Integer, ARow As Integer, Const Value As Integer),Sim
+Sub,SetFontSize,(Const ACol As Integer, Const ARow As Integer, Const Value As Integer),Sim
+Function,GetFontSize,(Const ACol As Integer, Const ARow As Integer) As Integer,Sim
+Function,GetCellColor,(Const ACol As Integer, Const ARow As Integer) As Integer,Sim
+Property,CellColor,(Const ACol As Integer, Const ARow As Integer) As Integer,Sim
+Property,FontSize,(Const ACol As Integer, Const ARow As Integer) As Integer,Sim
+Sub,SetFontColor,(ACol As Integer, ARow As Integer, Const Value As Integer),Sim
+Function,GetFontColor,(ACol As Integer, ARow As Integer) As Integer,Sim
+Property,FontColor,(ACol As Integer, ARow As Integer) As Integer,Sim
+Sub,SetFontName,(Const ACol As Integer, Const ARow As Integer, Const Value As UnicodeString),Sim
+Property,FontName,(ARow As Integer) As UnicodeString,Sim
+Sub,SetMergeCells,(Const ACol As Integer, Const ARow As Integer, Const x As Integer, Const y As Integer),Sim
+Sub,RemoveRows,(RowIndex As Integer, RCount As Integer),Sim
+Sub,RemoveCols,(ColIndex As Integer, CCount As Integer),Sim
+Sub,DeleteRow,(ARow As Longint),Sim
+Sub,DeleteColumn,(ACol As Longint),Sim
+Sub,RemoveSelectedRows,(),Sim
+Sub,RemoveUnselectedRows,(),Sim
+Sub,ClearNormalCells,(),Sim
+Sub,LoadFromXLS,(Filename As UnicodeString),Sim
+Function,RealRowIndex,(ARow As Integer) As Integer,Sim
+Function,RealColIndex,(ACol As Integer) As Integer,Sim
+Function,DisplRowIndex,(ARow As Integer) As Integer,Sim
+Function,DisplColIndex,(ACol As Integer) As Integer,Sim
+Function,ColumnPosition,(ACol As Integer) As Integer,Sim
+Function,ColumnAtPosition,(ACol As Integer) As Integer,Sim
+Function,ColumnByHeader,(AValue As UnicodeString) As Integer,Sim
+Function,UnSortedRowIndex,(ARow As Integer) As Integer,Sim
+Function,SortedRowIndex,(ARow As Integer) As Integer,Sim
+Function,GetRealCol,() As Integer,Sim
+Function,GetRealRow,() As Integer,Sim
+Function,GetRowEx,() As Integer,Sim
+Sub,SetRowEx,(Const Value As Integer),Sim
+Function,GetTopRowEx,() As Integer,Sim
+Sub,SetTopRowEx,(Const Value As Integer),Sim
+Sub,ScreenToCell,(pt As TPoint, ByRef ACol As Integer, ByRef ARow As Integer),Sim
+Sub,HideSelection,(),Sim
+Sub,UnHideSelection,(),Sim
+Function,IsSelectionHidden,() As Boolean,Sim
+Sub,NextEdit,(ACol As Integer, ARow As Integer, AForward As Boolean = True),Sim
+Sub,UpdateEditMode,(),Sim
+Sub,UpdateFooter,(),Sim
+Sub,UpdateSearchPanel,(),Sim
+Sub,ScrollInView,(ColIndex As Integer, RowIndex As Integer, pPosiotn As TScrollPosition = spMiddle),Sim
+Sub,MoveRow,(FromIndex As Integer, ToIndex As Integer),Sim
+Sub,MoveRows,(FromIndex As Integer, ToIndex As Integer, RCount As Integer),Sim
+Sub,MoveColumn,(FromIndex As Integer, ToIndex As Integer),Sim
+Sub,SwapRows,(ARow1 As Integer, ARow2 As Integer),Sim
+Sub,SortSwapRows,(ARow1 As Integer, ARow2 As Integer),Sim
+Sub,ColorRect,(ACol1 As Integer, ARow1 As Integer, ACol2 as Integer, aRow2 As Itneger, aColor As INteger),Sim
+Sub,ClearRect,(ACol1 As Integer, ARow1 As Integer, ACol2 as Integer, aRow2 As Itneger),Sim
+Sub,ClearRect,(ARect As TRect ),Não
+Sub,Clear,(),Sim
+Sub,ClearAll,(),Sim
+Sub,ClearRows,(RowIndex As Integer, RCount As Integer),Sim
+Sub,ClearCols,(ColIndex As Integer, CCount As Integer),Sim
+Sub,ClearNormalRows,(RowIndex As Integer, RCount As Integer),Sim
+Sub,ClearNormalCols,(ColIndex As Integer, CCount As Integer),Sim
+Sub,ClearSelection,(),Sim
+Sub,ClearRowSelect,(),Sim
+Sub,ClearColSelect,(),Sim
+Sub,TrimRect,(ACol1 As Integer, ARow1 As Integer, ACol2 As INteger, ARow2 As Integer),Sim
+Sub,TrimColumn,(ACol As Integer),Sim
+Sub,TrimRow,(ARow As Integer),Sim
+Sub,TrimAll,(),Sim
+Sub,EditCell,(ACol As Integer, ARow As Integer),Sim
+Sub,FocusCell,(ACol As Integer, ARow As Integer),Sim
+Sub,GotoCell,(ACol As Integer, ARow As Integer),Sim
+Sub,LaunchEdit,(ACol As Integer, ARow As Integer),Sim
+Sub,SwapCells,(FromCell As Integer , ToCell As Integer),Não
+Sub,SelectAll,(),Sim
+Sub,SelectRows,(RowIndex As Integer, RCount As Integer),Sim
+Sub,UnSelectRows,(RowIndex As Integer, RCount As Integer),Sim
+Sub,SelectCols,(ColIndex As Integer, CCount As Integer),Sim
+Sub,UnSelectCols,(ColIndex As Integer, CCount As Integer),Sim
+Sub,SelectRange,(FromCol As Integer, ToCol As Integer, FromRow As Itneger, ToRow As Integer),Sim
+Sub,ClearSelectedCells,(),Sim
+Sub,ClearModifiedRows,(),Sim
+Function,ModifiedRowCount,() As Integer,Sim
+Sub,AddColumn,(),Sim
+Sub,HideColumn,(Colindex As Integer),Sim
+Sub,HideColumns,(FromCol As Integer, ToCol As Integer),Sim
+Sub,UnHideColumn,(Colindex As Integer),Sim
+Sub,UnHideColumns,(FromCol As Integer, ToCol As Integer),Sim
+Sub,UnHideColumnsAll,(),Sim
+Function,IsHiddenRow,(Rowindex As Integer) As Boolean,Sim
+Function,IsHiddenColumn,(Colindex As Integer) As Boolean,Sim
+Sub,AddRow,(),Sim
+Sub,HideRow,(Rowindex As Integer),Sim
+Function,TotalRowCount,() As Integer,Sim
+Function,TotalColCount,() As Integer,Sim
+Sub,HideRows,(FromRow As Integer, ToRow As Integer),Sim
+Sub,HideSelectedRows,(),Sim
+Sub,HideUnselectedRows,(),Sim
+Sub,UnHideRow,(Rowindex As Integer),Sim
+Sub,UnHideRows,(FromRow As Integer, ToRow As Integer),Sim
+Sub,BeginUpdate,(),Sim
+Sub,EndUpdate,(),Sim
+Sub,ExportToExcel,(Const FilePath As UnicodeString),Sim
+Sub,ExportToJson,(Const FilePath As UnicodeString),Sim
+Sub,ExportToXml,(Const FilePath As UnicodeString),Sim
+Sub,ExportToTxt,(Const FilePath As UnicodeString, Const delimitador As UnicodeString),Sim
+Sub,ExportToCsv,(Const FilePath As UnicodeString, Const delimitador As UnicodeString),Sim
+Function,GetEditorLink,() As GridEditorLink,Sim
+Function,_GetParent,() As TWinControl,Sim
+Sub,_SetParent,(Value As TWinControl),Sim
+Sub,Create,(),Sim
+Sub,Destroy,(),Sim
+Sub,Free,(),Sim
+Function,ClassName,() As ShortString,Sim
+Function,ClassType,() As TClass,Sim
+Function,ClassParent,() As TClass,Sim
+Function,InstanceSize,() As Integer,Sim
+Function,SafeCallException,(ExceptObject As TObject, ExpectAddr AS Pointer) As HRESULT,Sim
+Sub,AfterConstruction,(),Sim
+Sub,BeforeDestruction,(),Sim
+Sub,Dispatch,(ByRef Message As PVOID),Sim
+Sub,DefaultHandler,(ByRef Message As PVOID),Sim
+Function,NewInstance,() As TObject,Sim
+Sub,FreeInstance,(),Sim
+Function,ToString,() As UnicodeString,Sim
+Function,Equals,(Obj As TObject) As Boolean,Sim
+Function,GetHashCode,() As Integer,Sim
+Function,FieldAddress,(Name As ShortString) As Pointer,Sim
+Function,InheritsFrom,(AClass As TClass) As Boolean,Sim
+Function,MethodAddress,(Name As ShortString) As Pointer,Sim
+Function,MethodName,(Address As Pointer) As ShortString,Sim

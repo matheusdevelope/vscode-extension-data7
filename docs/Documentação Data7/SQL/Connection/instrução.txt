@@ -1,0 +1,17 @@
+
+Esse é o autocomplete completo do namespace SQL.Connection, com base nele, atualize a definição completa do namespace.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Além dessa definição do autocomplete, analise a pasta Documentação Data7/SQL/Connection, nela vão ter os arquivos
+XML das documentações de SQL.Connection que terá tudo que existe na documentação
+das classes bases e que exista nessa definição de autocomoplete abaixo:
+
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,StartTransaction,(Const pDescricao As UnicodeString = ''),Sim
+Sub,Commit,(Const pDescricao As UnicodeString = ''),Sim
+Sub,Rollback,(),Sim
+Function,RDBMS,() As TRDBMS,Sim
+Function,InTransaction,() As Boolean,Sim
+Function,DefaultSchema,() As UnicodeString,Sim

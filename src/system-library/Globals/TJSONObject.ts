@@ -1,564 +1,640 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "GetString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém o valor de um atributo do tipo String."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo do tipo String.",
   },
   {
-    "name": "GetDouble",
-    "kind": "method",
-    "type": "Double",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetDouble",
+    kind: "method",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém o valor de um atributo do tipo Double."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo do tipo Double.",
   },
   {
-    "name": "GetBoolean",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetBoolean",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém o valor de um atributo do tipo Boolean."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo do tipo Boolean.",
   },
   {
-    "name": "GetInt64",
-    "kind": "method",
-    "type": "Long",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetInt64",
+    kind: "method",
+    type: "Long",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém o valor de um atributo do tipo Int64."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo do tipo Int64.",
   },
   {
-    "name": "GetInteger",
-    "kind": "method",
-    "type": "Integer",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetInteger",
+    kind: "method",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém o valor de um atributo do tipo Integer."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo do tipo Integer.",
   },
   {
-    "name": "GetJSONObject",
-    "kind": "method",
-    "type": "TJSONObject",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetJSONObject",
+    kind: "method",
+    type: "TJSONObject",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém um objeto TJSONObject dentro de outro objeto TJSONObject."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém um objeto TJSONObject dentro de outro objeto TJSONObject.",
   },
   {
-    "name": "GetArray",
-    "kind": "method",
-    "type": "TJSONArray",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "GetArray",
+    kind: "method",
+    type: "TJSONArray",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Obtém um objeto TJSONArray dentro de outro objeto TJSONObject."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém um objeto TJSONArray dentro de outro objeto TJSONObject.",
   },
   {
-    "name": "Has",
-    "kind": "method",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "Has",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Retorna true caso encontre um atributo com o mesmo nome informado."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Retorna true caso encontre um atributo com o mesmo nome informado.",
   },
   {
-    "name": "PutString",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutString",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo String."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo String.",
   },
   {
-    "name": "PutDouble",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutDouble",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "Double",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "Double",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo Double."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo Double.",
   },
   {
-    "name": "PutBoolean",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutBoolean",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "Boolean",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "Boolean",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo Boolean."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo Boolean.",
   },
   {
-    "name": "PutObject",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutObject",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "TJSONObject",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "TJSONObject",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo TJSONObject."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo TJSONObject.",
   },
   {
-    "name": "PutArray",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutArray",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "TJSONArray",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "TJSONArray",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo TJSONArray."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo TJSONArray.",
   },
   {
-    "name": "PutDateTime",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutDateTime",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "TDateTime",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "TDateTime",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo TDateTime."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo TDateTime.",
   },
   {
-    "name": "PutExtended",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutExtended",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "Double",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "Double",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo Extended (Double)."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo Extended (Double).",
   },
   {
-    "name": "PutInt64",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutInt64",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "Long",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "Long",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo Int64."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo Int64.",
   },
   {
-    "name": "PutInteger",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "PutInteger",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pKey",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
+        name: "pKey",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
       },
       {
-        "name": "pValue",
-        "type": "Integer",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pValue",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Adiciona um atributo do tipo Integer."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Adiciona um atributo do tipo Integer.",
   },
   {
-    "name": "LoadFromFile",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "LoadFromFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pFileName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pFileName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Popula o objeto JSON a partir de um arquivo físico."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Popula o objeto JSON a partir de um arquivo físico.",
   },
   {
-    "name": "SaveToFile",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [
+    name: "SaveToFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
       {
-        "name": "pFileName",
-        "type": "String",
-        "isByRef": false,
-        "isOptional": false
-      }
+        name: "pFileName",
+        type: "String",
+        isByRef: false,
+        isOptional: false,
+      },
     ],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Salva o objeto JSON em um arquivo físico."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Salva o objeto JSON em um arquivo físico.",
   },
   {
-    "name": "Clear",
-    "kind": "method",
-    "type": "Void",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Clear",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Limpa todos os atributos do objeto."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Limpa todos os atributos do objeto.",
   },
   {
-    "name": "ToString",
-    "kind": "method",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "parameters": [],
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "ToString",
+    kind: "method",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "TJSONObject",
-    "description": "Retorna a representação do objeto JSON em formato de string."
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Retorna a representação do objeto JSON em formato de string.",
   },
   {
-    "name": "TJSONObject",
-    "kind": "class",
-    "type": "TJSONObject",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "TJSONObject",
+    kind: "class",
+    type: "TJSONObject",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "inheritsFrom": "TObject",
-    "description": "Classe para criação, leitura e manipulação de objetos JSON."
-  }
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Classe para criação, leitura e manipulação de objetos JSON.",
+  },
+
+  // ───────── Construtor (overloads) ─────────
+  {
+    name: "Create",
+    kind: "method",
+    type: "TJSONObject",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pJsonString", type: "String", isByRef: false, isOptional: false }],
+    overloads: [[]],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description:
+      "Construtor. Aceita uma string JSON inicial para popular o objeto ou nenhum argumento para criar um objeto vazio.",
+  },
+
+  // ───────── Acesso a datas (Put*/Get*) ─────────
+  {
+    name: "PutDate",
+    kind: "method",
+    type: "TJSONObject",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      { name: "pKey", type: "String", isByRef: false, isOptional: false },
+      { name: "pValue", type: "TDateTime", isByRef: false, isOptional: false },
+    ],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description:
+      "Adiciona um atributo do tipo Date. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member.",
+    isUnsupported: true,
+  },
+  {
+    name: "PutTime",
+    kind: "method",
+    type: "TJSONObject",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      { name: "pKey", type: "String", isByRef: false, isOptional: false },
+      { name: "pValue", type: "TDateTime", isByRef: false, isOptional: false },
+    ],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description:
+      "Adiciona um atributo do tipo Time. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member.",
+    isUnsupported: true,
+  },
+  {
+    name: "GetDate",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pKey", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo Date a partir da chave informada.",
+  },
+  {
+    name: "GetTime",
+    kind: "method",
+    type: "TDateTime",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pKey", type: "String", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TJSONObject",
+    description: "Obtém o valor de um atributo Time a partir da chave informada.",
+  },
 ];

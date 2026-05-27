@@ -1,37 +1,111 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Canvas",
-    "kind": "property",
-    "type": "TCanvas",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "Forms.Imagem",
-    "description": "Área de desenho do componente gráfico."
+    name: "Imagem",
+    kind: "class",
+    type: "Imagem",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Forms",
+    inheritsFrom: "TGraphicControl",
+    description:
+      "Componente gráfico para exibição de imagens (bitmap, JPEG, PNG, ICO, etc.) e desenhos em tela. Wrapper sobre TImage do Delphi — sem janela própria, renderiza no Canvas do pai.",
+  },
+
+  // ───────── Properties (TImage-specific) ─────────
+  {
+    name: "Picture",
+    kind: "property",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Imagem exibida pelo controle (TPicture).",
   },
   {
-    "name": "Imagem",
-    "kind": "class",
-    "type": "Forms.Imagem",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
-    },
-    "fileUri": "system://library",
-    "containerName": "Forms",
-    "inheritsFrom": "TWinControl",
-    "description": "Componente gráfico para exibição de imagens e desenhos em tela."
-  }
+    name: "Canvas",
+    kind: "property",
+    type: "TCanvas",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Superfície de desenho do componente gráfico.",
+  },
+  {
+    name: "Center",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Se a imagem é centralizada quando ela é menor que o controle.",
+  },
+  {
+    name: "Proportional",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Se a imagem mantém a proporção quando redimensionada (com Stretch ativo).",
+  },
+  {
+    name: "Stretch",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Se a imagem é redimensionada para preencher o controle.",
+  },
+  {
+    name: "Transparent",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Se o fundo da imagem é renderizado de forma transparente.",
+  },
+  {
+    name: "IncrementalDisplay",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description:
+      "Se a imagem é renderizada incrementalmente durante o carregamento (útil para imagens grandes).",
+  },
+
+  // ───────── Events ─────────
+  {
+    name: "OnProgress",
+    kind: "property",
+    type: "TNotifyEvent",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description:
+      "Ocorre periodicamente durante operações lentas que afetam a imagem (carregamento/conversão).",
+  },
 ];

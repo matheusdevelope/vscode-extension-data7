@@ -1,0 +1,44 @@
+
+Esse é o autocomplete completo do namespace TJSONArray, com base nele, atualize a definição completa do namespace.
+Note que tem a coluna Suportado Sim/Não, ela indica se conseguimos usar esse membro da classe no projeto, 
+se tiver marcado como não, adicione a definição na classe, mas deixe ela marcada para gerar um erro no linter
+caso seja usada, pois não teremos suporte à elas ao compilar o projeto.
+
+Além dessa definição do autocomplete, analise a pasta Documentação Data7/Global/TJSONArray, nela vão ter os arquivos
+XML das documentações de TJSONArray (Ela herda diretamente de TObject) que terá tudo que existe na documentação
+das classes bases e que exista nessa definição de autocomoplete abaixo:
+
+
+Cruze os dados com as classes que o grid herda, para não adicionar props que já existem nas classes base
+
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,Create,(Const JsonArray As UnicodeString),Sim
+Sub,Create,(),Sim
+Function,PutObject,(Value As TJSONObject) As TJSONArray,Sim
+Function,ToString,() As UnicodeString,Sim
+Function,Length,() As Integer,Sim
+Function,GetString,(Const Index As Integer) As UnicodeString,Sim
+Function,GetJSONObject,(Const index As Integer) As TJSONObject,Sim
+Sub,LoadFromFile,(Const FileName As UnicodeString),Sim
+Sub,SaveToFile,(Const FileName As UnicodeString),Sim
+Categoria,Nome,Tipo / Assinatura,Suportado
+Sub,Destroy,(),Sim
+Sub,Free,(),Sim
+Function,ClassName,() As ShortString,Sim
+Function,ClassType,() As TClass,Sim
+Function,ClassParent,() As TClass,Sim
+Function,InstanceSize,() As Integer,Sim
+Function,SafeCallException,"(ExceptObject As TObject, ExceptAddr As Pointer) As HRESULT",Sim
+Sub,AfterConstruction,(),Sim
+Sub,BeforeDestruction,(),Sim
+Sub,Dispatch,(ByRef Message As PVOID),Sim
+Sub,DefaultHandler,(ByRef Message As PVOID),Sim
+Function,NewInstance,() As TObject,Sim
+Sub,FreeInstance,(),Sim
+Function,Equals,(Obj As TObject) As Boolean,Sim
+Function,GetHashCode,() As Integer,Sim
+Function,FieldAddress,(Name As ShortString) As Pointer,Sim
+Function,InheritsFrom,(AClass As TClass) As Boolean,Sim
+Function,MethodAddress,(Name As ShortString) As Pointer,Sim
+Function,MethodName,(Address As Pointer) As ShortString,Sim
+Function,GetInterface,"(Const IID As TGUID, ByRef Obj As PVOID) As Boolean",Sim

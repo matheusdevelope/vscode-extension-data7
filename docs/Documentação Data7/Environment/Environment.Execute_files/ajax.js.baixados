@@ -1,0 +1,185 @@
+function iqs_data(e,pkb) {
+	var code;
+	if (!e) var e = window.event;
+	if (e.keyCode) code = e.keyCode;
+	else if (e.which) code = e.which;
+	if (code == 32)
+	{
+		getScriptPage('output_suggestions','Suggestions',pkb,'comment','','','','','');
+	}
+}
+
+function EmailToFriend(url)
+{
+	xPos = screen.availWidth / 2 - 250;
+	yPos = screen.availHeight / 2 - 215;
+	
+	// Open the window to email this question to a friend
+	var y = window.open(url, "EmailQuestion", "width=540, height=455, toolbar=0, scrollbars=1, left=" + xPos + ", top=" + yPos);
+}
+
+function CheckContactForm(qchars)
+{				
+	// Check the form to make sure that all fields are complete
+	var f = document.frmcontactus;
+	if(f.yourname.value == '')
+	{
+		alert('Porfavor digite seu nome completo.');
+		f.yourname.focus();
+		return false;
+	}
+	if(f.yourname.value.length < 3)
+	{
+		alert('Seu nome deve conter pelo menos 3 alfabetos.');
+		f.yourname.focus();
+		return false;
+	}
+	
+	if(f.youremail.value.indexOf('@') == -1 || f.youremail.value.indexOf('.') == -1)
+	{
+		alert('Por favor insira um endereço de e-mail válido.');
+		f.youremail.focus();
+		return false;
+	}
+	if(f.subject.value == '')
+	{
+		alert('Digite o Assunto.');
+		f.subject.focus();
+		return false;
+	}
+	if(f.comment.value == '')
+	{
+		alert('Digite o Pergunta ou comentários.');
+		f.comment.focus();
+		return false;
+	}
+	if(f.comment.value.length < qchars)
+	{
+		alert('Por favor, insira pelo menos '+qchars+' caracteres na sua pergunta / Comentários.');
+		f.comment.focus();
+		return false;
+	}
+	if(f.number.value == "")
+	{
+		alert('Digite o código de segurança correcto.');
+		f.number.focus();
+		return false;
+	}
+	// Everything is OK
+	return true;									
+}
+
+function getScriptPage(div_id,usefor,kbpath,p1,p2,p3,p4,p5)
+{
+	subject_id = div_id;
+	if(usefor == 'AddComments')
+	{
+		var name  = document.getElementById(p1).value;	
+		var email = document.getElementById(p2).value;	
+		var cmnt  = document.getElementById(p3).value;	
+		if(p5 != "")
+		{
+			var scode = document.getElementById(p5).value;
+		}
+		getvars = "usefor=AddComments&aid=" + p4+"&nm="+encodeURIComponent(name)+"&em="+encodeURIComponent(email)+"&cmt="+encodeURIComponent(cmnt)+"&sc="+scode;
+		document.getElementById(subject_id).innerHTML = "<div class=\"breadcrumb\" align=\"center\" style=\"padding:20pt;\"><img src=\""+kbpath+"/images/loading.gif\" alt=\"Loading Results\" style=\"vertical-align:middle;\" /> <b>Saving Comment</b></div>";
+		xmlHttp.open("GET", kbpath+"/include/ajax-hub.php?" + getvars, true);
+	}
+	else if( (usefor == 'AddFav')||(usefor == 'EmailFrnd')||(usefor == 'AddRatings')||(usefor == 'UnSubscribe')||(usefor=='ShowCats') )
+	{
+		if(usefor == 'EmailFrnd')
+		{ 	if(p2 != "")
+			{ 
+				var femail = document.getElementById(p2).value; 
+			}	
+			getvars = "usefor=" + usefor +"&aid=" + p1 + "" + "&femail=" + femail; 
+		}
+		else if(usefor == 'AddFav')
+		{ getvars = "usefor=" + usefor +"&aid=" + p1; }
+		else if(usefor == 'AddRatings')
+		{ 
+			var ratings = document.getElementById(p2).value;
+			getvars = "usefor=" + usefor +"&aid=" + p1+ "" + "&ratings=" + ratings;
+			document.getElementById(subject_id).innerHTML = "<div class=\"rating\" align=\"center\"><img src=\""+kbpath+"/images/loading.gif\" alt=\"Loading Results\" style=\"vertical-align:middle;\" /> <b>Processing</b></div>";
+		}
+		else if(usefor == 'UnSubscribe')
+		{ getvars = "usefor=" + usefor +"&aid=" + p1+"&type="+p2; }
+		else if(usefor == 'ShowCats'){
+			imgid = p3; imgsrc=p4;
+			document.getElementById(imgid).src = kbpath+"/images/loader.gif";
+			getvars = "usefor=" + usefor +"&id=" + p1+'&divid='+p2;
+		}
+		xmlHttp.open("GET", kbpath+"/include/ajax-hub.php?" + getvars, true);
+	}
+	else
+	{
+		content = document.getElementById(p1).value;
+		document.getElementById(subject_id).style.display="";
+		getvars = "usefor=Suggestions&content=" + encodeURIComponent(content);
+		document.getElementById(subject_id).innerHTML = "<div align=\"center\"><img src=\""+kbpath+"/images/loading.gif\" alt=\"Loading Suggestions\" style=\"vertical-align:middle;\" /></div>";
+		xmlHttp.open("GET", kbpath+"/include/ajax-hub.php?" + getvars, true);
+	}
+	
+	xmlHttp.onreadystatechange = handleHttpResponse;
+	xmlHttp.send(null);
+}
+
+function remove_favorite(div_id,fid2)
+{	
+	subject_id = div_id;
+	input_box = confirm("Você está prestes a remover esta entrada dos seus favoritos, você tem certeza?");
+	if(input_box==true)
+	{		
+		var fid	= document.getElementById(fid2).value;
+		xmlHttp.open("GET", "include/ajax-hub.php?usefor=MyFavorites&fid="+fid, true);
+		xmlHttp.onreadystatechange = handleHttpResponse;
+		xmlHttp.send(null);
+		return true;
+	}
+}
+
+function newRequest()
+{
+	var xmlHttp;
+	try
+	{
+		xmlHttp=new XMLHttpRequest();
+	}
+	catch (e)
+	{
+		try
+		{
+			xmlHttp=new ActiveXObject("Msxml2.XMLHTTP");
+		}
+		catch (e)
+		{
+		try
+		{
+			xmlHttp=new ActiveXObject("Microsoft.XMLHTTP");
+		}
+		catch (e)
+		{
+			return false;
+		}
+	}
+	}
+	return xmlHttp;
+}
+
+xmlHttp = newRequest();
+subject_id = '';
+imgid = imgsrc='';
+
+function handleHttpResponse()
+{
+    if(xmlHttp.readyState == 4)
+    {
+		if (subject_id != '')
+		{
+			var perm = xmlHttp.responseText.split('||');
+			if((perm[0]=='Access Denied'||perm[0]=='Login Required')&&(perm[1]!='undefined'||perm[1]!='')){ alert(perm[2]); window.location=perm[1]; return;}
+			if(imgid!=''&&document.getElementById(imgid)){document.getElementById(imgid).src = imgsrc;}
+			document.getElementById(subject_id).innerHTML = xmlHttp.responseText;
+		}		
+    }
+}

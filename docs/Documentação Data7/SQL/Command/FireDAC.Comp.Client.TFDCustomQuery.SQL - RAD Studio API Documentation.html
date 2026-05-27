@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<!-- saved from url=(0090)https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL -->
+<html class="client-js" lang="en" dir="ltr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>FireDAC.Comp.Client.TFDCustomQuery.SQL - RAD Studio API Documentation</title>
+<script type="text/javascript">document.documentElement.className = document.documentElement.className.replace( /(^|\s)client-nojs(\s|$)/, "$1client-js$2" );</script>
+<script type="text/javascript">(window.RLQ=window.RLQ||[]).push(function(){mw.config.set({"wgCanonicalNamespace":"","wgCanonicalSpecialPageName":false,"wgNamespaceNumber":0,"wgPageName":"FireDAC.Comp.Client.TFDCustomQuery.SQL","wgTitle":"FireDAC.Comp.Client.TFDCustomQuery.SQL","wgCurRevisionId":594681,"wgRevisionId":594681,"wgArticleId":272835,"wgIsArticle":true,"wgIsRedirect":false,"wgAction":"view","wgUserName":null,"wgUserGroups":["*"],"wgCategories":["API Documentation","XE5"],"wgBreakFrames":false,"wgPageContentLanguage":"en","wgPageContentModel":"wikitext","wgSeparatorTransformTable":["",""],"wgDigitTransformTable":["",""],"wgDefaultDateFormat":"dmy","wgMonthNames":["","January","February","March","April","May","June","July","August","September","October","November","December"],"wgMonthNamesShort":["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],"wgRelevantPageName":"FireDAC.Comp.Client.TFDCustomQuery.SQL","wgRelevantArticleId":272835,"wgRequestId":"ahbyHg35NxbQVXOChOs0UQAAAMI","wgIsProbablyEditable":false,"wgRelevantPageIsProbablyEditable":false,"wgRestrictionEdit":[],"wgRestrictionMove":[],"wgWikiEditorEnabledModules":[],"wgPreferredVariant":"en","wgMFExpandAllSectionsUserOption":true,"wgMFEnableFontChanger":true,"wgMFDisplayWikibaseDescriptions":{"search":false,"nearby":false,"watchlist":false,"tagline":false}});mw.loader.state({"site.styles":"ready","noscript":"ready","user.styles":"ready","user":"ready","site":"ready","user.options":"ready","user.tokens":"loading","ext.pygments":"ready","mediawiki.legacy.shared":"ready","mediawiki.legacy.commonPrint":"ready","mediawiki.sectionAnchor":"ready","mediawiki.skinning.interface":"ready","skins.duobook2.styles":"ready"});mw.loader.implement("user.tokens@12vgpea",function($,jQuery,require,module){/*@nomin*/mw.user.tokens.set({"editToken":"+\\","patrolToken":"+\\","watchToken":"+\\","csrfToken":"+\\"});
+});mw.loader.load(["mediawiki.page.startup","mediawiki.user","mediawiki.hidpi","mediawiki.page.ready","mediawiki.toc","mediawiki.searchSuggest","skins.duobook2.js"]);});</script>
+<link rel="stylesheet" href="./FireDAC.Comp.Client.TFDCustomQuery.SQL - RAD Studio API Documentation_files/load.php">
+<script async="" src="./FireDAC.Comp.Client.TFDCustomQuery.SQL - RAD Studio API Documentation_files/load(1).php" type="text/javascript"></script>
+<style>
+@media screen {
+	.tochidden,.toctoggle{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;user-select:none}.toctoggle{font-size:94%}}
+@media print {
+	.toc.tochidden,.toctoggle{display:none}}
+.suggestions{overflow:hidden;position:absolute;top:0;left:0;width:0;border:0;z-index:1099;padding:0;margin:-1px 0 0 0}.suggestions-special{position:relative;background-color:#fff;cursor:pointer;border:1px solid #a2a9b1;margin:0;margin-top:-2px;display:none;padding:0.25em 0.25em;line-height:1.25em}.suggestions-results{background-color:#fff;cursor:pointer;border:1px solid #a2a9b1;padding:0;margin:0}.suggestions-result{color:#000;margin:0;line-height:1.5em;padding:0.01em 0.25em;text-align:left; overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.suggestions-result-current{background-color:#2a4b8d;color:#fff}.suggestions-special .special-label{color:#72777d;text-align:left}.suggestions-special .special-query{color:#000;font-style:italic;text-align:left}.suggestions-special .special-hover{background-color:#c8ccd1}.suggestions-result-current .special-label,.suggestions-result-current .special-query{color:#fff}.highlight{font-weight:bold}</style><style>
+.suggestions a.mw-searchSuggest-link,.suggestions a.mw-searchSuggest-link:hover,.suggestions a.mw-searchSuggest-link:active,.suggestions a.mw-searchSuggest-link:focus{color:#000;text-decoration:none}.suggestions-result-current a.mw-searchSuggest-link,.suggestions-result-current a.mw-searchSuggest-link:hover,.suggestions-result-current a.mw-searchSuggest-link:active,.suggestions-result-current a.mw-searchSuggest-link:focus{color:#fff}.suggestions a.mw-searchSuggest-link .special-query{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}</style><meta name="ResourceLoaderDynamicStyles" content="">
+<link rel="stylesheet" href="./FireDAC.Comp.Client.TFDCustomQuery.SQL - RAD Studio API Documentation_files/load(2).php">
+<meta name="generator" content="MediaWiki 1.31.16">
+<link rel="shortcut icon" href="https://docwiki.embarcadero.com/favicon.ico">
+<link rel="search" type="application/opensearchdescription+xml" href="https://docwiki.embarcadero.com/Libraries/Sydney/e/opensearch_desc.php" title="RAD Studio API Documentation (en)">
+<link rel="EditURI" type="application/rsd+xml" href="https://docwiki.embarcadero.com/Libraries/Sydney/e/api.php?action=rsd">
+<link rel="alternate" type="application/atom+xml" title="RAD Studio API Documentation Atom feed" href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=Special:RecentChanges&amp;feed=atom">
+<style type="text/css">.appmethod { display:none; }</style>
+<!--[if lt IE 9]><script src="/Libraries/Sydney/e/load.php?debug=false&amp;lang=en&amp;modules=html5shiv&amp;only=scripts&amp;skin=duobook2&amp;sync=1"></script><![endif]-->
+<script src="./FireDAC.Comp.Client.TFDCustomQuery.SQL - RAD Studio API Documentation_files/load(3).php"></script></head>
+<body class="mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-FireDAC_Comp_Client_TFDCustomQuery_SQL rootpage-FireDAC_Comp_Client_TFDCustomQuery_SQL skin-duobook2 action-view">		<div id="mw-page-base" class="noprint"></div>
+		<div id="mw-head-base" class="noprint"></div>
+		<div id="content" class="mw-body" role="main">
+			<a id="top"></a>
+			<div id="siteNotice" class="mw-body-content"><div id="localNotice" lang="en" dir="ltr"><div class="mw-parser-output"><div style="background-color: white; color: black; font-size: 1em; font-style: normal; font-family: Arial, Helvetica, sans-serif; padding: 0em; margin: 0em; white-space: normal; word-wrap: break-word;"><b><a rel="nofollow" class="external text" href="https://www.embarcadero.com/products/rad-studio/whats-new-in-13-florence">13.0 release available - Learn More!</a></b></div>
+</div></div></div><div class="mw-indicators mw-body-content">
+</div>
+<h1 id="firstHeading" class="firstHeading" lang="en">FireDAC.Comp.Client.TFDCustomQuery.SQL</h1>			<div id="bodyContent" class="mw-body-content">
+				<div id="siteSub" class="noprint">From RAD Studio API Documentation</div>				<div id="contentSub"></div>
+								<div id="jump-to-nav" class="mw-jump">
+					Jump to:					<a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL#mw-head">navigation</a>, 					<a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL#p-search">search</a>
+				</div>
+				<div id="mw-content-text" lang="en" dir="ltr" class="mw-content-ltr"><div class="mw-parser-output"><ul id="childlinks"><li class="first"><b><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery" title="FireDAC.Comp.Client.TFDCustomQuery">Up to Parent: TFDCustomQuery</a></b></li>
+</ul>
+<p><!--VCLInfo parent='TFDCustomQuery' type='property' name='SQL' ns='FireDAC.Comp.Client' delphi='True' cpp='True' VCLInfo-->
+</p>
+<div id="codesig">
+<div class="delphi sig">
+<p>		<span class="lang">Delphi</span>
+</p>
+			<div class="thesig"><div class="mw-highlight mw-content-ltr" dir="ltr"><pre><span></span><span class="k">property</span> <span class="py">SQL</span><span class="o">:</span> <span class="n">TStrings</span> <span class="kp">read</span> <span class="nf">GetSQL</span> <span class="kp">write</span> <span class="nf">SetSQL</span><span class="o">;</span>
+</pre></div></div>
+	</div>
+<div class="cpp sig">
+<p>		<span class="lang">C++</span>
+</p>
+			<div class="thesig"><div class="mw-highlight mw-content-ltr" dir="ltr"><pre><span></span><span class="n">__property</span> <span class="n">System</span><span class="o">::</span><span class="n">Classes</span><span class="o">::</span><span class="n">TStrings</span><span class="o">*</span> <span class="n">SQL</span> <span class="o">=</span> <span class="p">{</span><span class="n">read</span><span class="o">=</span><span class="n">GetSQL</span><span class="p">,</span> <span class="n">write</span><span class="o">=</span><span class="n">SetSQL</span><span class="p">};</span>
+</pre></div></div>
+	</div>
+</div>
+<div id="toc" class="toc"><div class="toctitle" lang="en" dir="ltr"><h2>Contents</h2><span class="toctoggle">&nbsp;[<a role="button" tabindex="0" class="togglelink">hide</a>]&nbsp;</span></div>
+<ul>
+<li class="toclevel-1"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL#Properties"><span class="tocnumber">1</span> <span class="toctext">Properties</span></a></li>
+<li class="toclevel-1 tocsection-1"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL#Description"><span class="tocnumber">2</span> <span class="toctext">Description</span></a>
+<ul>
+<li class="toclevel-2 tocsection-2"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL#Example"><span class="tocnumber">2.1</span> <span class="toctext">Example</span></a></li>
+<li class="toclevel-2 tocsection-3"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL#See_Also"><span class="tocnumber">2.2</span> <span class="toctext">See Also</span></a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+<h4><span class="mw-headline" id="Properties">Properties</span></h4>
+<table id="vclinfo">
+	<tbody><tr class="vclinfot">
+		<th>Type</th>
+		<th>Visibility</th>
+		<th>Source</th>
+        <th>Unit</th>
+        <th>Parent</th>
+	</tr>
+	<tr>
+		<td class="vclinfol">property</td>
+		<td>public</td>
+		<td><div class="delphi">FireDAC.Comp.Client.pas</div><div class="cpp">FireDAC.Comp.Client.hpp</div></td>
+        <td><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client" title="FireDAC.Comp.Client">FireDAC.Comp.Client</a></td>
+        <td><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery" title="FireDAC.Comp.Client.TFDCustomQuery">TFDCustomQuery</a></td>
+	</tr>
+</tbody></table>
+<h2><span class="mw-headline" id="Description">Description</span></h2>
+<p>Contains the text of the SQL statement to execute for the query.
+</p><p>Use the <a class="mw-selflink selflink">SQL</a> property to specify the SQL command that a query will <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.DataSet.TFDDataSet.Execute" title="FireDAC.Comp.DataSet.TFDDataSet.Execute">Execute</a> / <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.ExecSQL" title="FireDAC.Comp.Client.TFDCustomQuery.ExecSQL">ExecSQL</a> / <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDRdbmsDataSet.Open" title="FireDAC.Comp.Client.TFDRdbmsDataSet.Open">Open</a>.&nbsp;
+</p><p>At design time, the <a class="mw-selflink selflink">SQL</a> property can be edited by invoking the <a href="https://docwiki.embarcadero.com/RADStudio/Sydney/en/Executing_Commands_(FireDAC)" class="extiw" title="rad en:Executing Commands (FireDAC)">FireDAC Query Editor dialog</a>. For this, double-click the <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery" title="FireDAC.Comp.Client.TFDCustomQuery">TFDCustomQuery</a> component. The dialog offers a syntax highlighting editor, a query builder, an ability to test the query and other.&nbsp;
+</p><p>The <a class="mw-selflink selflink">SQL</a> property can contain an SQL command or a "batch" SQL command, consisting of several SQL commands or a block of code written in the server side programming language. To execute a full featured SQL script, use the <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Script.TFDScript" title="FireDAC.Comp.Script.TFDScript">TFDScript</a> component.&nbsp;
+</p><p>The SQL statement in the SQL property can also contain:
+</p>
+<ul><li>Parameter markers, following standard SQL-92 syntax conventions. Parameters are created automatically and stored in the <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.DataSet.TFDDataSet.Params" title="FireDAC.Comp.DataSet.TFDDataSet.Params">Params</a> property, if <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.DataSet.TFDDataSet.ResourceOptions" title="FireDAC.Comp.DataSet.TFDDataSet.ResourceOptions">ResourceOptions</a>.<a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Stan.Option.TFDResourceOptions.ParamCreate" title="FireDAC.Stan.Option.TFDResourceOptions.ParamCreate">ParamCreate</a> is <b>True</b>. If <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode" title="FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode">ParamBindMode</a> is <code>pbByName</code>, then for all occurrences of the same marker a single item is created in <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.DataSet.TFDDataSet.Params" title="FireDAC.Comp.DataSet.TFDDataSet.Params">Params</a>. If <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode" title="FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode">ParamBindMode</a> is <code>pbByNumber</code>, then one item is created per each marker.</li>
+<li>Substitution variable markers. Macros are created automatically and stored in the <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDRdbmsDataSet.Macros" title="FireDAC.Comp.Client.TFDRdbmsDataSet.Macros">Macros</a> property, if <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.DataSet.TFDDataSet.ResourceOptions" title="FireDAC.Comp.DataSet.TFDDataSet.ResourceOptions">ResourceOptions</a>.<a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Stan.Option.TFDResourceOptions.MacroCreate" title="FireDAC.Stan.Option.TFDResourceOptions.MacroCreate">MacroCreate</a> is <b>True</b>.</li>
+<li>Escape sequences. They allow writing DBMS independent SQL commands.</li>
+<li>Conditional substitutions. They allow you to expand an SQL command conditionally, depending on the application defined attributes.</li></ul>
+<p>For details, see <a href="https://docwiki.embarcadero.com/RADStudio/Sydney/en/Preprocessing_Command_Text_(FireDAC)" class="extiw" title="rad en:Preprocessing Command Text (FireDAC)">Preprocessing Command Text</a>.&nbsp;
+</p><p>To improve performance on adding big SQL queries to the property using <a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/System.Classes.TStringList" title="System.Classes.TStringList">TStringList</a> methods, surround this code with <b>SQL.BeginUpdate / SQL.EndUpdate</b>.&nbsp;
+</p><p>After filling this property value, the <code>Param</code> collection is filled automatically, if <code>ResourceOptions.ParamCreate</code> is <b>True</b>.
+</p>
+<h3><span class="mw-headline" id="Example">Example</span></h3>
+<div class="mw-highlight mw-content-ltr" dir="ltr"><pre><span></span><span class="n">FDQuery1</span><span class="o">.</span><span class="n">SQL</span><span class="o">.</span><span class="n">BeginUpdate</span><span class="o">;</span>
+<span class="k">try</span>
+  <span class="n">FDQuery1</span><span class="o">.</span><span class="n">SQL</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="s">'SELECT ...'</span><span class="p">)</span><span class="o">;</span>
+  <span class="n">FDQuery1</span><span class="o">.</span><span class="n">SQL</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="s">'...'</span><span class="p">)</span><span class="o">;</span>
+  <span class="n">FDQuery1</span><span class="o">.</span><span class="n">SQL</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="s">'...'</span><span class="p">)</span><span class="o">;</span>
+  <span class="n">FDQuery1</span><span class="o">.</span><span class="n">SQL</span><span class="o">.</span><span class="n">Add</span><span class="p">(</span><span class="s">'WHERE ID = :ID'</span><span class="p">)</span><span class="o">;</span>
+<span class="k">finally</span>
+  <span class="n">FDQuery1</span><span class="o">.</span><span class="n">SQL</span><span class="o">.</span><span class="n">EndUpdate</span><span class="o">;</span>
+<span class="k">end</span><span class="o">;</span>
+<span class="n">FDQuery1</span><span class="o">.</span><span class="n">ParamByName</span><span class="p">(</span><span class="s">'ID'</span><span class="p">)</span><span class="o">.</span><span class="n">AsInteger</span> <span class="o">:=</span> <span class="mi">100</span><span class="o">;</span>
+<span class="n">FDQuery1</span><span class="o">.</span><span class="n">Open</span><span class="o">;</span>
+</pre></div>
+<h3><span class="mw-headline" id="See_Also">See Also</span></h3>
+<ul><li><a href="https://docwiki.embarcadero.com/RADStudio/Sydney/en/Executing_Commands_(FireDAC)" class="extiw" title="rad en:Executing Commands (FireDAC)">Executing Command</a></li>
+<li><a href="https://docwiki.embarcadero.com/RADStudio/Sydney/en/Preprocessing_Command_Text_(FireDAC)" class="extiw" title="rad en:Preprocessing Command Text (FireDAC)">Preprocessing Command Text</a></li>
+<li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDRdbmsDataSet.Prepare" title="FireDAC.Comp.Client.TFDRdbmsDataSet.Prepare">FireDAC.Comp.Client.TFDRdbmsDataSet.Prepare</a></li>
+<li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.ExecSQL" title="FireDAC.Comp.Client.TFDCustomQuery.ExecSQL">FireDAC.Comp.Client.TFDCustomQuery.ExecSQL</a></li>
+<li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Stan.Option.TFDResourceOptions.ParamCreate" title="FireDAC.Stan.Option.TFDResourceOptions.ParamCreate">FireDAC.Stan.Option.TFDResourceOptions.ParamCreate</a></li>
+<li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Stan.Option.TFDResourceOptions.MacroCreate" title="FireDAC.Stan.Option.TFDResourceOptions.MacroCreate">FireDAC.Stan.Option.TFDResourceOptions.MacroCreate</a></li>
+<li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode" title="FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode">FireDAC.Comp.Client.TFDRdbmsDataSet.ParamBindMode</a></li></ul>
+
+<!-- 
+NewPP limit report
+Cached time: 20260527133111
+Cache expiry: 0
+Dynamic content: true
+CPU time usage: 0.035 seconds
+Real time usage: 0.307 seconds
+Preprocessor visited node count: 106/1000000
+Preprocessor generated node count: 241/1000000
+Post‐expand include size: 962/2097152 bytes
+Template argument size: 0/2097152 bytes
+Highest expansion depth: 3/40
+Expensive parser function count: 0/100
+Unstrip recursion depth: 0/20
+Unstrip post‐expand size: 3190/5000000 bytes
+-->
+<!--
+Transclusion expansion time report (%,ms,calls,template)
+100.00%    0.000      1 -total
+-->
+</div></div>					<div class="printfooter">
+						Retrieved from "<a dir="ltr" href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;oldid=594681">https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;oldid=594681</a>"					</div>
+				<div id="catlinks" class="catlinks" data-mw="interface"><div id="mw-normal-catlinks" class="mw-normal-catlinks"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Special:Categories" title="Special:Categories">Categories</a>: <ul><li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Category:API_Documentation" title="Category:API Documentation">API Documentation</a></li><li><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Category:XE5" title="Category:XE5">XE5</a></li></ul></div></div>				<div class="visualClear"></div>
+							</div>
+		</div>
+		<div id="mw-navigation">
+			<h2>Navigation menu</h2>
+			<div id="mw-head">
+									<div id="p-personal" role="navigation" class="" aria-labelledby="p-personal-label">
+						<h3 id="p-personal-label">Personal tools</h3>
+						<ul>
+							<li id="pt-login"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=Special:UserLogin&amp;returnto=FireDAC.Comp.Client.TFDCustomQuery.SQL" title="You are encouraged to log in; however, it is not mandatory [alt-shift-o]" accesskey="o">Log in</a></li>						</ul>
+					</div>
+									<div id="left-navigation">
+										<div id="p-namespaces" role="navigation" class="duobook2Tabs" aria-labelledby="p-namespaces-label">
+						<h3 id="p-namespaces-label">Namespaces</h3>
+						<ul>
+							<li id="ca-nstab-main" class="selected"><span><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL" title="View the content page [alt-shift-c]" accesskey="c">Page</a></span></li><li id="ca-talk" class="new"><span><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=Talk:FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;action=edit&amp;redlink=1" rel="discussion" title="Discussion about the content page (page does not exist) [alt-shift-t]" accesskey="t">Discussion</a></span></li>						</ul>
+					</div>
+										<div id="p-variants" role="navigation" class="duobook2Menu emptyPortlet" aria-labelledby="p-variants-label">
+												<input type="checkbox" class="duobook2MenuCheckbox" aria-labelledby="p-variants-label">
+						<h3 id="p-variants-label">
+							<span>Variants</span>
+						</h3>
+						<div class="menu">
+							<ul>
+															</ul>
+						</div>
+					</div>
+									</div>
+				<div id="right-navigation">
+										<div id="p-views" role="navigation" class="duobook2Tabs" aria-labelledby="p-views-label">
+						<h3 id="p-views-label">Views</h3>
+						<ul>
+							<li id="ca-view" class="collapsible selected"><span><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FireDAC.Comp.Client.TFDCustomQuery.SQL">Read</a></span></li><li id="ca-viewsource" class="collapsible"><span><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;action=edit" title="This page is protected.
+You can view its source [alt-shift-e]" accesskey="e">View source</a></span></li><li id="ca-history" class="collapsible"><span><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;action=history" title="Past revisions of this page [alt-shift-h]" accesskey="h">View history</a></span></li>						</ul>
+					</div>
+										<div id="p-cactions" role="navigation" class="duobook2Menu emptyPortlet" aria-labelledby="p-cactions-label" style="">
+						<input type="checkbox" class="duobook2MenuCheckbox" aria-labelledby="p-cactions-label">
+						<h3 id="p-cactions-label"><span>More</span></h3>
+						<div class="menu">
+							<ul>
+															</ul>
+						</div>
+					</div>
+										<div id="p-search" role="search">
+						<h3>
+							<label for="searchInput">Search</label>
+						</h3>
+						<form action="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php" id="searchform">
+							<div id="simpleSearch">
+								<input type="search" name="search" placeholder="Search RAD Studio API Documentation" title="Search RAD Studio API Documentation [alt-shift-f]" accesskey="f" id="searchInput" tabindex="1" autocomplete="off"><input type="hidden" value="Special:Search" name="title"><input type="submit" name="go" value="Go" title="Go to a page with this exact name if it exists" id="searchButton" class="searchButton">							</div>
+						</form>
+					</div>
+									</div>
+			</div>
+			<div id="mw-panel">
+				<div id="p-logo" role="banner"><a class="mw-wiki-logo" href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Main_Page" title="Visit the main page"></a></div>
+						<div class="portal" role="navigation" id="p-RAD_Studio_10.4_Sydney" aria-labelledby="p-RAD_Studio_10.4_Sydney-label">
+			<h3 id="p-RAD_Studio_10.4_Sydney-label">RAD Studio 10.4 Sydney</h3>
+			<div class="body">
+								<ul>
+					<li id="n-Topics"><a href="https://docwiki.embarcadero.com/RADStudio/Sydney/en/Main_Page">Topics</a></li><li id="n-Libraries-Reference"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Main_Page">Libraries Reference</a></li><li id="n-Code-Examples"><a href="https://docwiki.embarcadero.com/CodeExamples/Sydney/en/Main_Page">Code Examples</a></li>				</ul>
+							</div>
+		</div>
+			<div class="portal" role="navigation" id="p-RAD_Studio_10.4_Libraries" aria-labelledby="p-RAD_Studio_10.4_Libraries-label">
+			<h3 id="p-RAD_Studio_10.4_Libraries-label">RAD Studio 10.4 Libraries</h3>
+			<div class="body">
+								<ul>
+					<li id="n-Unit-List"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Unit_List">Unit List</a></li><li id="n-FireMonkey-Unit-List"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/FMX">FireMonkey Unit List</a></li><li id="n-VCL-Unit-List"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Vcl">VCL Unit List</a></li><li id="n-RTL-Unit-List"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/System">RTL Unit List</a></li>				</ul>
+							</div>
+		</div>
+			<div class="portal" role="navigation" id="p-In_Other_Languages" aria-labelledby="p-In_Other_Languages-label">
+			<h3 id="p-In_Other_Languages-label">In Other Languages</h3>
+			<div class="body">
+								<ul>
+					<li id="n-Deutsch"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/de/FireDAC.Comp.Client.TFDCustomQuery.SQL">Deutsch</a></li><li id="n-Fran.C3.A7ais"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/fr/FireDAC.Comp.Client.TFDCustomQuery.SQL">Français</a></li><li id="n-.E6.97.A5.E6.9C.AC.E8.AA.9E"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/ja/FireDAC.Comp.Client.TFDCustomQuery.SQL">日本語</a></li>				</ul>
+							</div>
+		</div>
+			<div class="portal" role="navigation" id="p-Previous_Versions" aria-labelledby="p-Previous_Versions-label">
+			<h3 id="p-Previous_Versions-label">Previous Versions</h3>
+			<div class="body">
+								<ul>
+					<li id="n-Rio-Libraries"><a href="https://docwiki.embarcadero.com/Libraries/Rio/en/Main_Page" rel="nofollow">Rio Libraries</a></li><li id="n-Tokyo-Libraries"><a href="https://docwiki.embarcadero.com/Libraries/Tokyo/en/Main_Page" rel="nofollow">Tokyo Libraries</a></li><li id="n-Older-Versions"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Help_of_Previous_Versions">Older Versions</a></li>				</ul>
+							</div>
+		</div>
+			<div class="portal" role="navigation" id="p-Assistance" aria-labelledby="p-Assistance-label">
+			<h3 id="p-Assistance-label">Assistance</h3>
+			<div class="body">
+								<ul>
+					<li id="n-recentchanges"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Special:RecentChanges" title="A list of recent changes in the wiki [alt-shift-r]" accesskey="r">Recent changes</a></li>				</ul>
+							</div>
+		</div>
+			<div class="portal" role="navigation" id="p-tb" aria-labelledby="p-tb-label">
+			<h3 id="p-tb-label">Tools</h3>
+			<div class="body">
+								<ul>
+					<li id="t-whatlinkshere"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Special:WhatLinksHere/FireDAC.Comp.Client.TFDCustomQuery.SQL" title="A list of all wiki pages that link here [alt-shift-j]" accesskey="j">What links here</a></li><li id="t-recentchangeslinked"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Special:RecentChangesLinked/FireDAC.Comp.Client.TFDCustomQuery.SQL" rel="nofollow" title="Recent changes in pages linked from this page [alt-shift-k]" accesskey="k">Related changes</a></li><li id="t-specialpages"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/Special:SpecialPages" title="A list of all special pages [alt-shift-q]" accesskey="q">Special pages</a></li><li id="t-print"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;printable=yes" rel="alternate" title="Printable version of this page [alt-shift-p]" accesskey="p">Printable version</a></li><li id="t-permalink"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;oldid=594681" title="Permanent link to this revision of the page">Permanent link</a></li><li id="t-info"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;action=info" title="More information about this page">Page information</a></li>				</ul>
+							</div>
+		</div>
+				</div>
+		</div>
+				<div id="footer" role="contentinfo">
+						<ul id="footer-info">
+								<li id="footer-info-lastmod"> This page was last edited on 6 September 2013, at 17:08.</li>
+							</ul>
+						<ul id="footer-places">
+								<li id="footer-places-privacy"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/RAD_Studio_API_Documentation:Privacy_policy" title="RAD Studio API Documentation:Privacy policy">Privacy policy</a></li>
+								<li id="footer-places-about"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/RAD_Studio_API_Documentation:About" title="RAD Studio API Documentation:About">About RAD Studio API Documentation</a></li>
+								<li id="footer-places-disclaimer"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/en/RAD_Studio_API_Documentation:General_disclaimer" title="RAD Studio API Documentation:General disclaimer">Disclaimers</a></li>
+								<li id="footer-places-emailtext"></li><li id="contactus">Help Feedback (<a title="Create a Jira ticket with your EDN account" href="https://qp.embarcadero.com/">QP</a>, <a title="Send us an email" href="mailto:documentation@embarcadero.com?subject=%5BSydney%5D%20FireDAC.Comp.Client.TFDCustomQuery.SQL">email</a>)</li>
+								<li id="footer-places-mobileview"><a href="https://docwiki.embarcadero.com/Libraries/Sydney/e/index.php?title=FireDAC.Comp.Client.TFDCustomQuery.SQL&amp;mobileaction=toggle_view_mobile" class="noprint stopMobileRedirectToggle">Mobile view</a></li>
+							</ul>
+									<div style="clear: both;"></div>
+		</div>
+		<script type="text/javascript">(window.RLQ=window.RLQ||[]).push(function(){mw.config.set({"wgPageParseReport":{"limitreport":{"cputime":"0.035","walltime":"0.307","ppvisitednodes":{"value":106,"limit":1000000},"ppgeneratednodes":{"value":241,"limit":1000000},"postexpandincludesize":{"value":962,"limit":2097152},"templateargumentsize":{"value":0,"limit":2097152},"expansiondepth":{"value":3,"limit":40},"expensivefunctioncount":{"value":0,"limit":100},"unstrip-depth":{"value":0,"limit":20},"unstrip-size":{"value":3190,"limit":5000000},"timingprofile":["100.00%    0.000      1 -total"]},"cachereport":{"timestamp":"20260527133111","ttl":0,"transientcontent":true}}});});</script><script type="text/javascript">(window.RLQ=window.RLQ||[]).push(function(){mw.config.set({"wgBackendResponseTime":407});});</script>
+	
+
+<div class="suggestions" style="display: none; font-size: 13px;"><div class="suggestions-results"></div><div class="suggestions-special"></div></div></body></html>

@@ -1,0 +1,78 @@
+// JavaScript Document
+function confirm_logout(kbpath)
+{
+	input_box=confirm("Tem certeza de que quer sair Agora?");
+	if(input_box==true)
+	{
+		window.location = kbpath+'/logout.php';
+	}
+}
+function check_form()
+{
+	var f = document.frmsearch;
+	if(f.keywords.value==''){
+		alert('Por favor, especifique algumas palavras-chave');
+		f.keywords.focus();
+		return false;
+	}
+}
+function delayer()
+{
+	window.location = "index.php";
+}
+function Home_Tabs(selected, total)
+{
+	for(var i=0; i<total; i++)
+	{
+		if(i==selected){
+			document.getElementById('tab'+i).className		= 'current';
+			document.getElementById('div'+i).style.display	= '';
+			continue;
+		}
+		else{
+			document.getElementById('tab'+i).className		= '';
+			document.getElementById('div'+i).style.display	= 'none';
+		}
+	}
+}
+function expand_collapse(id,divid,base_path,folderclose,folderopen,folder)
+{
+	var icon = '';
+	if(document.getElementById(divid).style.display==''){
+		document.getElementById(divid).style.display = 'none';
+		document.getElementById('timg'+id).src = base_path+'/images/tree/nolines_plus.gif';
+		document.getElementById('ticon'+id).src = base_path+'/images/'+folder+'/'+folderclose;
+	}else{
+		document.getElementById(divid).style.display = '';
+		document.getElementById('timg'+id).src = base_path+'/images/tree/nolines_minus.gif';
+		document.getElementById('ticon'+id).src = base_path+'/images/'+folder+'/'+folderopen;
+		
+		if(document.getElementById('nstate'+id).value == 'no'||(document.getElementById('nstate'+id).value == 'yes'&&document.getElementById(divid).innerHTML=='')){ //Node State
+			getScriptPage(divid,'ShowCats',base_path,id,divid,'ticon'+id,base_path+'/images/'+folder+'/'+folderopen);
+		}
+		document.getElementById('nstate'+id).value = 'yes';
+	}
+}
+function subscribe_actions(act)
+{
+	switch (act)
+	{
+		case 'check-all':
+		case 'uncheck-all':
+			var Count = document.getElementById('count').value;
+			for(var i=0; i<Count; i++){
+				document.getElementById('subscat'+i).checked = (act=='check-all')?true:false;
+			}
+		break;
+		case 'validate':
+			var Count = document.getElementById('count').value;
+			for(var i=0; i<Count; i++){
+				if(document.getElementById('subscat'+i).checked){
+					return true;
+				}
+			}
+			alert('Por favor, marque pelo menos uma caixa de seleção para cancelar a inscrição.');
+			return false;
+		break;
+	}
+}

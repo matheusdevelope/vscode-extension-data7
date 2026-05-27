@@ -1,85 +1,85 @@
-import { SystemSymbolInfo } from "../types";
+import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
-    "name": "Caption",
-    "kind": "property",
-    "type": "String",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Caption",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StaticText",
-    "description": "Texto exibido no componente."
+    fileUri: "system://library",
+    containerName: "StaticText",
+    description: "Texto exibido no componente.",
   },
   {
-    "name": "AutoSize",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "AutoSize",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StaticText",
-    "description": "Determina se o componente redimensiona automaticamente de acordo com o texto."
+    fileUri: "system://library",
+    containerName: "StaticText",
+    description: "Determina se o componente redimensiona automaticamente de acordo com o texto.",
   },
   {
-    "name": "WordWrap",
-    "kind": "property",
-    "type": "Boolean",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "WordWrap",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StaticText",
-    "description": "Especifica se o texto deve quebrar linhas caso ultrapasse a largura do controle."
+    fileUri: "system://library",
+    containerName: "StaticText",
+    description: "Especifica se o texto deve quebrar linhas caso ultrapasse a largura do controle.",
   },
   {
-    "name": "Alignment",
-    "kind": "property",
-    "type": "TAlignment",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "Alignment",
+    kind: "property",
+    type: "TAlignment",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "StaticText",
-    "description": "Alinhamento horizontal do texto."
+    fileUri: "system://library",
+    containerName: "StaticText",
+    description: "Alinhamento horizontal do texto.",
   },
   {
-    "name": "StaticText",
-    "kind": "class",
-    "type": "StaticText",
-    "isShared": false,
-    "isPrivate": false,
-    "range": {
-      "startLine": 0,
-      "startChar": 0,
-      "endLine": 0,
-      "endChar": 0
+    name: "StaticText",
+    kind: "class",
+    type: "StaticText",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
     },
-    "fileUri": "system://library",
-    "containerName": "Forms",
-    "inheritsFrom": "TWinControl",
-    "description": "Componente que exibe um texto estático ou rótulo (Label)."
-  }
+    fileUri: "system://library",
+    containerName: "Forms",
+    inheritsFrom: "TWinControl",
+    description: "Componente que exibe um texto estático ou rótulo (Label).",
+  },
 ];

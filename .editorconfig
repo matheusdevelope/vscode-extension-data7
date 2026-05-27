@@ -1,0 +1,30 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+insert_final_newline = true
+max_line_length = 100
+
+# Markdown uses two trailing spaces for hard line breaks.
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Cursor rule files mirror Markdown semantics.
+[*.mdc]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Data7 Basic sources: the in-tree formatter (src/formatter.ts) emits 3-space
+# indentation. EditorConfig must match so manual edits and saves agree.
+[*.{bas,d7b}]
+indent_size = 3
+
+# Data7 project XML: written by the shared fast-xml-parser helpers; 2 spaces
+# matches the canonical builder/decompiler output.
+[*.{7proj,7Proj}]
+indent_size = 2
