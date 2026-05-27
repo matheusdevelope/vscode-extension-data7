@@ -39,8 +39,10 @@ export function extractSuppressedCodes(text: string): Map<number, SuppressionTar
   const lines = text.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i++) {
-    const match = DIRECTIVE_REGEX.exec(lines[i]);
-    if (!match) continue;
+    const line = lines[i];
+    if (line === undefined) continue;
+    const match = DIRECTIVE_REGEX.exec(line);
+    if (!match?.[1]) continue;
 
     const kind = match[1].toLowerCase();
     const codes = parseCodes(match[2]);
@@ -68,6 +70,55 @@ export function isSuppressed(
   if (!target) return false;
   if (target === "*") return true;
   return code !== undefined && target.has(code);
+}
+
+/**
+ * A single suppression directive parsed from the source. Unlike
+ * {@link extractSuppressedCodes} — which already collapses directives into a
+ * line-index map — this iterator preserves the raw directive position so the
+ * linter can emit `unknown-suppression-code` warnings pointing at the exact
+ * typo.
+ *
+ * `codes` is `undefined` for a bare directive (`' data7:disable-line` without
+ * a code list, meaning "suppress everything"); validation rules can skip
+ * those since there is no specific code to check.
+ */
+export interface SuppressionDirective {
+  /** 0-based line index where the directive appears. */
+  readonly line: number;
+  /** 0-based column where the first code character begins. */
+  readonly codesColumn: number;
+  /** Parsed list of codes, or `undefined` for a bare `disable-line` / `disable-next-line`. */
+  readonly codes?: readonly string[];
+}
+
+/**
+ * Yields every `' data7:disable-line` / `' data7:disable-next-line` directive
+ * found in `text`, in source order. Used by the linter to validate that each
+ * referenced code exists in `DiagnosticCodes`.
+ */
+export function listSuppressionDirectives(text: string): SuppressionDirective[] {
+  const out: SuppressionDirective[] = [];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    const match = DIRECTIVE_REGEX.exec(line);
+    if (!match) continue;
+    const rawCodes = match[2];
+    const codes = rawCodes
+      ? rawCodes
+          .split(/[,\s]+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      : undefined;
+    // `match.index` points at the start of the directive; offset to the first
+    // code character so highlight ranges sit on the bogus code, not on the
+    // `data7:` prefix.
+    const codesColumn = rawCodes ? line.indexOf(rawCodes, match.index) : match.index;
+    out.push({ line: i, codesColumn, codes });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +156,7 @@ function mergeSuppression(
 
 function findNextNonBlankLine(lines: readonly string[], startIdx: number): number {
   for (let i = startIdx; i < lines.length; i++) {
-    const cleaned = lines[i]
+    const cleaned = (lines[i] ?? "")
       .replace(/'.*$/, "")
       .replace(/\bREM\b.*$/i, "")
       .trim();

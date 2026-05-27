@@ -25,6 +25,36 @@ export const DiagnosticCodes = {
    * as a warning so users can find an alternative before runtime.
    */
   UnsupportedMember: "unsupported-member",
+  /**
+   * A `For Each ... In <expr>` targets an expression whose type does not
+   * expose the `Count` + indexer pair required by the sugar transpiler.
+   * Surfaced as a warning so the user can switch back to a classic `For`
+   * before the Builder rewrites the file.
+   */
+  NotEnumerable: "not-enumerable",
+  /**
+   * A `' data7:disable-line <code>` (or `disable-next-line`) directive
+   * references a diagnostic code that does not exist in this enum. Usually
+   * a typo (`missig-import`) or a code that was removed from a previous
+   * release. Surfaced as a warning so the user discovers stale directives.
+   */
+  UnknownSuppressionCode: "unknown-suppression-code",
+  /**
+   * A `$"..."` interpolated string is malformed: empty `{}` expression,
+   * unterminated brace `{`, or unterminated string literal. The transpiler
+   * leaves the offending token untouched so the user can see exactly where
+   * the parse stopped.
+   */
+  InvalidInterpolation: "invalid-interpolation",
+  /**
+   * A ternary `cond ? a : b` was used in a context the transpiler cannot
+   * expand into the native multi-line `If/Then/Else/End If` form. Only the
+   * right-hand side of an assignment is supported (`Dim x = c ? a : b`,
+   * `x = c ? a : b`, `obj.prop = c ? a : b`); anything else (function call
+   * argument, expression inside another expression, `Return` statement, …)
+   * is flagged here so the user can refactor before the Builder runs.
+   */
+  TernaryContextUnsupported: "ternary-context-unsupported",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -80,13 +110,56 @@ export interface UnsupportedMemberPayload {
   typeName: string;
 }
 
+/** Payload for `NotEnumerable`: identifies the offending type behind the `For Each`. */
+export interface NotEnumerablePayload {
+  code: typeof DiagnosticCodes.NotEnumerable;
+  /** The type the linter resolved for the `In <expr>` operand, or `"Variant"` when unknown. */
+  typeName: string;
+}
+
+/** Payload for `UnknownSuppressionCode`: identifies the typoed/removed code. */
+export interface UnknownSuppressionCodePayload {
+  code: typeof DiagnosticCodes.UnknownSuppressionCode;
+  /** The bogus code that appeared inside the directive. */
+  suppressedCode: string;
+}
+
+/**
+ * Payload for `InvalidInterpolation`: identifies the failure mode the parser
+ * stopped on so consumers can show a precise error message.
+ *
+ * `reason` is one of the canonical kinds the parser may emit:
+ *  - `"unterminated-string"`: a `$"...` token never reaches a closing `"`.
+ *  - `"unterminated-brace"`: an interpolation `{expr` never reaches `}`.
+ *  - `"empty-expression"`: a `{}` (or `{   }`) with no actual expression.
+ */
+export interface InvalidInterpolationPayload {
+  code: typeof DiagnosticCodes.InvalidInterpolation;
+  reason: "unterminated-string" | "unterminated-brace" | "empty-expression";
+}
+
+/**
+ * Payload for `TernaryContextUnsupported`: identifies the surface where the
+ * ternary appears. Today the only recognised context is `"non-assignment"`,
+ * but the field is extensible so future strategies (lifting to a temp var,
+ * helper function injection) can route on a finer-grained tag.
+ */
+export interface TernaryContextUnsupportedPayload {
+  code: typeof DiagnosticCodes.TernaryContextUnsupported;
+  context: "non-assignment";
+}
+
 export type DiagnosticPayload =
   | MissingImportPayload
   | ModuleNotDeclaredPayload
   | ModuleNotFoundPayload
   | UnusedImportPayload
   | UnknownMemberPayload
-  | UnsupportedMemberPayload;
+  | UnsupportedMemberPayload
+  | NotEnumerablePayload
+  | UnknownSuppressionCodePayload
+  | InvalidInterpolationPayload
+  | TernaryContextUnsupportedPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

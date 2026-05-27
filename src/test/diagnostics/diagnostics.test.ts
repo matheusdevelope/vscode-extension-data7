@@ -6,6 +6,7 @@ import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
 import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, registerOpenDocument } from "../_helpers/mock-doc";
 import { expectDiagnostic, expectNoDiagnostic } from "../_helpers/assertions";
+import { loadExample, parseExampleHeader } from "../_helpers/fixtures";
 
 /**
  * `DiagnosticsLinter.runAdvancedDiagnostics` — full coverage of every canonical
@@ -227,22 +228,18 @@ End Namespace`;
   // unsupported-member — System Library marks a symbol with isUnsupported=true
   // -------------------------------------------------------------------------
   describe("unsupported-member", () => {
+    // Loaded from `docs/exemple/diagnostics/unsupported-member/trigger.bas`.
+    // The example header also asserts the diagnostic line — drift between the
+    // example and the linter behaviour shows up as a failure here.
     test("emits when a property flagged as unsupported is accessed", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
-      // ColumnHeaders is real and supported; PopupMenu is currently marked
-      // isUnsupported=true in Grid.ts. Use Grid because it's the actual class
-      // where the new flag is configured.
-      const code = `Imports Forms
-Namespace mod_unsup
-   Class C
-      Public Sub Run()
-         Dim g As Grid
-         g.PopupMenu = Nothing
-      End Sub
-   End Class
-End Namespace`;
-      indexer.updateFileContent("file:///unsup.bas", code);
+      const code = loadExample("diagnostics/unsupported-member/trigger.bas");
+      const header = parseExampleHeader(code);
+      assert.equal(header.diagnostics.length, 1);
+      const declared = header.diagnostics[0]!;
+      assert.equal(declared.code, DiagnosticCodes.UnsupportedMember);
 
+      indexer.updateFileContent("file:///unsup.bas", code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(
         createMockDoc("file:///unsup.bas", code),
         indexer,
@@ -251,6 +248,8 @@ End Namespace`;
       const payload = (diag as { data?: { member?: string; typeName?: string } }).data;
       assert.equal(payload?.member, "PopupMenu");
       assert.match(diag.message, /n[aã]o é suportado/i);
+      // The header reports a 1-based line; convert to the 0-based range start.
+      assert.equal(diag.range.start.line, declared.line - 1);
     });
 
     test("does NOT emit when a supported property is accessed", () => {
@@ -313,6 +312,131 @@ End Namespace`;
         indexer,
       );
       expectNoDiagnostic(diags, DiagnosticCodes.UnsupportedMember);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // not-enumerable — `For Each` over a type without Count+indexer
+  // -------------------------------------------------------------------------
+  describe("not-enumerable", () => {
+    // Loaded from `docs/exemple/` to keep the canonical example and the
+    // regression test in lockstep (see testing.mdc § Coverage expectations).
+    test("does NOT emit when iterating a Collections.StringList (has Count + Strings)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = loadExample("sugar/for-each/01-stringlist-explicit-type.bas");
+      const header = parseExampleHeader(code);
+      assert.equal(header.diagnostics.length, 0, "example header must declare @diagnostics: none");
+
+      indexer.updateFileContent("file:///iter_ok.bas", code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///iter_ok.bas", code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.NotEnumerable);
+    });
+
+    test("emits when iterating a type that has no Count property", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_iter_bad
+   Class TNotIterable
+      Public foo As String
+   End Class
+   Class C
+      Public Sub Run()
+         Dim x As TNotIterable
+         For Each item In x
+            ' iterate
+         Next
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///iter_bad.bas", code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///iter_bad.bas", code),
+        indexer,
+      );
+      const diag = expectDiagnostic(diags, DiagnosticCodes.NotEnumerable, "TNotIterable");
+      const payload = (diag as { data?: { code?: string; typeName?: string } }).data;
+      assert.equal(payload?.code, DiagnosticCodes.NotEnumerable);
+      assert.equal(payload?.typeName, "TNotIterable");
+    });
+
+    test("emits a Variant-typed warning when the operand type cannot be resolved", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_iter_unknown
+   Class C
+      Public Sub Run()
+         For Each item In unknownVar
+            ' iterate
+         Next
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///iter_unknown.bas", code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///iter_unknown.bas", code),
+        indexer,
+      );
+      const diag = expectDiagnostic(diags, DiagnosticCodes.NotEnumerable);
+      const payload = (diag as { data?: { typeName?: string } }).data;
+      assert.equal(payload?.typeName, "Variant");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // implicit TObject inheritance
+  //
+  // Every workspace class without an explicit `Inherits` clause inherits
+  // from TObject by default (mirrors Delphi semantics). The linter must NOT
+  // emit `unknown-member` for inherited members like Free/Create/Destroy.
+  // -------------------------------------------------------------------------
+  describe("implicit TObject inheritance", () => {
+    test("does NOT emit unknown-member for .Free() on a class without Inherits", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_card
+   Class TCardController
+      Public Sub Run()
+      End Sub
+   End Class
+   Class TCardForm
+      Public Sub Open()
+         Dim ctrl As TCardController
+         ctrl.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///implicit_tobject.bas", code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///implicit_tobject.bas", code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+
+    test("still emits unknown-member for a member that is NOT on TObject", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_card2
+   Class TCardController
+      Public Sub Run()
+      End Sub
+   End Class
+   Class TCardForm
+      Public Sub Open()
+         Dim ctrl As TCardController
+         ctrl.DoesNotExist()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///implicit_tobject_neg.bas", code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///implicit_tobject_neg.bas", code),
+        indexer,
+      );
+      expectDiagnostic(diags, DiagnosticCodes.UnknownMember, "DoesNotExist");
     });
   });
 

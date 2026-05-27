@@ -6,17 +6,24 @@ import {
   lookupSystemByName,
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
+import { detectEnumerable } from "../analysis/enumerable-detector";
 import { DependencyScanner, IMPORTS_REGEX_ANCHORED } from "../analysis/dependency-scanner";
 import type {
+  InvalidInterpolationPayload,
   MissingImportPayload,
+  NotEnumerablePayload,
+  TernaryContextUnsupportedPayload,
   UnknownMemberPayload,
+  UnknownSuppressionCodePayload,
   UnsupportedMemberPayload,
   UnusedImportPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configuration";
-import { extractSuppressedCodes } from "../utils/suppression-comments";
+import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
+import { parseInterpolation } from "../utils/interpolation";
+import { findTopLevelTernary } from "../utils/ternary";
 
 export class DiagnosticsLinter {
   private static resolveClassName(className: string): string {
@@ -52,8 +59,11 @@ export class DiagnosticsLinter {
     const visited = new Set<string>();
     while (cur && !visited.has(cur.name.toLowerCase()) && names.size < limit) {
       visited.add(cur.name.toLowerCase());
-      const parentName = cur.inheritsFrom ?? "TObject";
-      if (parentName.toLowerCase() === "tobject" && cur.name.toLowerCase() === "tobject") break;
+      // Delegate the "implicit TObject for workspace classes" rule to a
+      // single helper (TypeResolver.resolveParent) so any tweak to that
+      // policy stays in one file.
+      const parentName = TypeResolver.resolveParent(cur);
+      if (!parentName) break;
       pushMembers(this.resolveClassName(parentName));
       cur = firstClass(this.resolveClassName(parentName));
     }
@@ -234,7 +244,16 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.UnsupportedMember]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ModuleNotFound]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.ModuleNotDeclared]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.NotEnumerable]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.UnknownSuppressionCode]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.InvalidInterpolation]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.TernaryContextUnsupported]: vscode.DiagnosticSeverity.Warning,
   };
+
+  /** Frozen set of canonical codes accepted by `' data7:disable-line <code>`. */
+  private static readonly VALID_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set(
+    Object.values(DiagnosticCodes),
+  );
 
   public static runAdvancedDiagnostics(
     document: vscode.TextDocument,
@@ -251,8 +270,8 @@ export class DiagnosticsLinter {
     lines.forEach((lineText, lineIdx) => {
       const cleanLine = DependencyScanner.stripComments(lineText);
       const match = cleanLine.match(importsRegex);
-      if (match) {
-        const name = match[1];
+      const name = match?.[1];
+      if (name) {
         const start = lineText.indexOf(name);
         imports.push({
           name,
@@ -358,6 +377,7 @@ export class DiagnosticsLinter {
       while ((match = memberAccessRegex.exec(cleanLine)) !== null) {
         const objectName = match[1];
         const memberName = match[2];
+        if (!objectName || !memberName) continue;
         const objectLower = objectName.toLowerCase();
 
         memberAccessRegex.lastIndex = match.index + objectName.length + 1;
@@ -495,36 +515,24 @@ export class DiagnosticsLinter {
       const cleanLine = DependencyScanner.stripComments(lineText);
       if (!cleanLine.trim() || cleanLine.toLowerCase().startsWith("imports ")) return;
 
-      let match;
-      typeRefRegex.lastIndex = 0;
-      while ((match = typeRefRegex.exec(cleanLine)) !== null) {
-        const typeName = match[1];
-        const start = match.index + match[0].indexOf(typeName);
-        this.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
-      }
-
-      newInstRegex.lastIndex = 0;
-      while ((match = newInstRegex.exec(cleanLine)) !== null) {
-        const precedingText = cleanLine.substring(0, match.index).trim();
-        if (precedingText.toLowerCase().endsWith("as")) continue;
-        const typeName = match[1];
-        const start = match.index + match[0].indexOf(typeName);
-        this.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
-      }
-
-      inheritsRegex.lastIndex = 0;
-      while ((match = inheritsRegex.exec(cleanLine)) !== null) {
-        const typeName = match[1];
-        const start = match.index + match[0].indexOf(typeName);
-        this.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
-      }
-
-      implementsRegex.lastIndex = 0;
-      while ((match = implementsRegex.exec(cleanLine)) !== null) {
-        const typeName = match[1];
-        const start = match.index + match[0].indexOf(typeName);
-        this.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
-      }
+      const runTypeRefScan = (regex: RegExp, skipAsPrefix = false): void => {
+        regex.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = regex.exec(cleanLine)) !== null) {
+          const typeName = m[1];
+          if (!typeName) continue;
+          if (skipAsPrefix) {
+            const precedingText = cleanLine.substring(0, m.index).trim();
+            if (precedingText.toLowerCase().endsWith("as")) continue;
+          }
+          const start = m.index + m[0].indexOf(typeName);
+          this.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
+        }
+      };
+      runTypeRefScan(typeRefRegex);
+      runTypeRefScan(newInstRegex, /* skipAsPrefix */ true);
+      runTypeRefScan(inheritsRegex);
+      runTypeRefScan(implementsRegex);
     });
 
     // 4. Event signature mismatch.
@@ -548,11 +556,13 @@ export class DiagnosticsLinter {
         const lhsExpr = m[1];
         const eventName = m[2];
         const handlerName = m[3];
+        if (!lhsExpr || !eventName || !handlerName) continue;
         if (!/^On[A-Z]/.test(eventName)) continue;
 
         // Resolve LHS type.
         const lhsParts = lhsExpr.split(".");
         const rootName = lhsParts[lhsParts.length - 1];
+        if (!rootName) continue;
         const rootLower = rootName.toLowerCase();
 
         let lhsType: string | undefined;
@@ -609,6 +619,174 @@ export class DiagnosticsLinter {
         }
       }
     });
+
+    // 5. `For Each <var>[ As T] In <expr>` sugar: warn when the operand's
+    //    type does not expose `Count` + an integer-indexed accessor. The
+    //    Builder's transpiler will refuse to expand those lines as well, so
+    //    we surface the same problem to the user inline in the editor.
+    //
+    //    `detectEnumerable` results are cached per (typeName, explicitType)
+    //    for the lifetime of this single pass — files with many `For Each`
+    //    over the same collection class would otherwise re-walk the entire
+    //    inheritance chain on every loop.
+    const forEachRegex = /^(\s*)For\s+Each\s+\w+(?:\s+As\s+[\w.]+)?\s+In\s+([A-Za-z_]\w*)\s*$/i;
+    const enumerableCache = new Map<string, ReturnType<typeof detectEnumerable>>();
+    const cachedDetect = (
+      typeName: string,
+      explicitType: string | undefined,
+    ): ReturnType<typeof detectEnumerable> => {
+      const key = `${typeName}\u0000${explicitType ?? ""}`;
+      if (enumerableCache.has(key)) return enumerableCache.get(key);
+      const computed = detectEnumerable(
+        typeName,
+        (t) => TypeResolver.getAllMembersForType(t, indexer),
+        explicitType,
+      );
+      enumerableCache.set(key, computed);
+      return computed;
+    };
+    lines.forEach((lineText, lineIdx) => {
+      const cleanLine = DependencyScanner.stripComments(lineText);
+      const match = forEachRegex.exec(cleanLine);
+      if (!match) return;
+
+      const leadingIndent = match[1];
+      const operandName = match[2];
+      if (leadingIndent === undefined || !operandName) return;
+      // Start the search ONE line before the `For Each` header — otherwise
+      // the regex inside `getVariableType` matches the `In <operand>` portion
+      // on the very same line and returns `Variant`.
+      const lookupLine = Math.max(0, lineIdx - 1);
+      const operandType = TypeResolver.getVariableType(
+        operandName,
+        document,
+        new vscode.Position(lookupLine, 0),
+        indexer,
+      );
+      const explicitTypeMatch = /\bAs\s+([\w.]+)\s+In\b/i.exec(cleanLine);
+      const explicitType = explicitTypeMatch?.[1];
+
+      const enumerable = operandType ? cachedDetect(operandType, explicitType) : undefined;
+      if (enumerable) return;
+
+      const typeName = operandType ?? "Variant";
+      const operandStart = lineText.indexOf(operandName, leadingIndent.length);
+      const range =
+        operandStart >= 0
+          ? new vscode.Range(lineIdx, operandStart, lineIdx, operandStart + operandName.length)
+          : new vscode.Range(lineIdx, leadingIndent.length, lineIdx, lineText.length);
+
+      const diag = new vscode.Diagnostic(
+        range,
+        `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
+          `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.NotEnumerable;
+      const payload: NotEnumerablePayload = {
+        code: DiagnosticCodes.NotEnumerable,
+        typeName,
+      };
+      setDiagnosticPayload(diag, payload);
+      diagnostics.push(diag);
+    });
+
+    // 6. `$"..."` string interpolation: validate that every interpolated
+    //    string is well-formed BEFORE the Builder tries to expand it. The
+    //    shared `parseInterpolation` helper in `src/utils/` is the single
+    //    source of truth for both the live linter and the build-time
+    //    transpiler — there is no second parser to keep in sync.
+    lines.forEach((lineText, lineIdx) => {
+      if (!lineText.includes('$"')) return;
+      const result = parseInterpolation(lineText);
+      for (const d of result.diagnostics) {
+        const range = new vscode.Range(lineIdx, d.column, lineIdx, lineText.length);
+        const diag = new vscode.Diagnostic(
+          range,
+          `String interpolada \`$"..."\` mal formada (${d.reason}). O Builder não conseguirá expandir esta linha.`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.InvalidInterpolation;
+        const payload: InvalidInterpolationPayload = {
+          code: DiagnosticCodes.InvalidInterpolation,
+          reason: d.reason,
+        };
+        setDiagnosticPayload(diag, payload);
+        diagnostics.push(diag);
+      }
+    });
+
+    // 6b. Ternary `cond ? a : b` outside of an assignment surface. The
+    //     transpiler only expands ternaries that appear as the RHS of a
+    //     `Dim x = ...` / `x = ...` / `obj.prop = ...` line; anything else
+    //     (function call argument, `Return c ? a : b`, expression-inside-
+    //     expression) cannot be lowered to the native `If/Then/Else/End If`
+    //     form without restructuring the surrounding code. We flag those
+    //     here so the user refactors before the Builder runs.
+    //
+    //     The shared `findTopLevelTernary` helper in `src/utils/` is the
+    //     single source of truth — same parser the transpiler uses, so the
+    //     two stay in lockstep.
+    const ternaryAssignRegex =
+      /^\s*(?:(?:Dim|Public|Private|Protected|Shared)\s+)?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*(?:As\s+[\w.]+\s*)?=\s*/i;
+    lines.forEach((lineText, lineIdx) => {
+      if (!lineText.includes("?") || !lineText.includes(":")) return;
+      const cleanLine = DependencyScanner.stripComments(lineText);
+      const positions = findTopLevelTernary(cleanLine);
+      if (!positions) return;
+      // Determine whether the line is a supported assignment surface AND
+      // the ternary sits inside the RHS. Anything else triggers the warning.
+      const assignMatch = ternaryAssignRegex.exec(cleanLine);
+      const rhsStart = assignMatch ? assignMatch[0].length : -1;
+      if (assignMatch && positions.questionAt >= rhsStart) return;
+
+      const range = new vscode.Range(lineIdx, positions.questionAt, lineIdx, positions.colonAt + 1);
+      const diag = new vscode.Diagnostic(
+        range,
+        `Tern\u00e1rio \`?:\` fora de contexto de assignment. O Builder s\u00f3 expande tern\u00e1rios em \`Dim x = c ? a : b\`, \`x = c ? a : b\` ou \`obj.prop = c ? a : b\` (forma nativa \u00e9 \`If/Then/Else/End If\`).`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.TernaryContextUnsupported;
+      const payload: TernaryContextUnsupportedPayload = {
+        code: DiagnosticCodes.TernaryContextUnsupported,
+        context: "non-assignment",
+      };
+      setDiagnosticPayload(diag, payload);
+      diagnostics.push(diag);
+    });
+
+    // 7. `' data7:disable-line <code>` / `disable-next-line <code>`: warn when
+    //    `<code>` is not a real `DiagnosticCode`. Catches typos in directives
+    //    that would otherwise silently silence nothing.
+    const directives = listSuppressionDirectives(text);
+    for (const directive of directives) {
+      if (!directive.codes) continue; // bare directive — "suppress everything"
+      for (const rawCode of directive.codes) {
+        const codeLower = rawCode.toLowerCase();
+        if (DiagnosticsLinter.VALID_DIAGNOSTIC_CODES.has(codeLower)) continue;
+        const lineText = lines[directive.line] ?? "";
+        const codeStart = lineText.indexOf(rawCode, directive.codesColumn);
+        const start = codeStart >= 0 ? codeStart : directive.codesColumn;
+        const range = new vscode.Range(
+          directive.line,
+          start,
+          directive.line,
+          start + rawCode.length,
+        );
+        const diag = new vscode.Diagnostic(
+          range,
+          `Código "${rawCode}" inexistente em DiagnosticCodes. Diretiva de supressão ineficaz.`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.UnknownSuppressionCode;
+        const payload: UnknownSuppressionCodePayload = {
+          code: DiagnosticCodes.UnknownSuppressionCode,
+          suppressedCode: rawCode,
+        };
+        setDiagnosticPayload(diag, payload);
+        diagnostics.push(diag);
+      }
+    }
 
     return this.postProcessDiagnostics(diagnostics, text);
   }
@@ -697,17 +875,19 @@ function levenshtein(a: string, b: string): number {
   if (a === b) return 0;
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
+  // Indexed access into `prev` is always within bounds (`prev.length = b.length + 1`).
+  // `?? 0` keeps `noUncheckedIndexedAccess` quiet without changing runtime semantics.
   const prev = new Array<number>(b.length + 1);
   for (let j = 0; j <= b.length; j++) prev[j] = j;
   for (let i = 1; i <= a.length; i++) {
     let curr = i;
     for (let j = 1; j <= b.length; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      const next = Math.min(curr + 1, prev[j] + 1, prev[j - 1] + cost);
+      const next = Math.min(curr + 1, (prev[j] ?? 0) + 1, (prev[j - 1] ?? 0) + cost);
       prev[j - 1] = curr;
       curr = next;
     }
     prev[b.length] = curr;
   }
-  return prev[b.length];
+  return prev[b.length] ?? 0;
 }
