@@ -22,7 +22,9 @@ export const symbols: SystemSymbolInfo[] = [
     type: "String",
     isShared: false,
     isPrivate: false,
-    parameters: [],
+    parameters: [
+      { name: "pFormat", type: "String", isByRef: false, isOptional: true, defaultValue: '""' },
+    ],
     range: {
       startLine: 0,
       startChar: 0,

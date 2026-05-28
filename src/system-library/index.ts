@@ -201,8 +201,8 @@ import { symbols as sym_Net_Net } from "./Net/Net";
 import { symbols as sym_Net_TFTP } from "./Net/TFTP";
 
 // ───────── Primitives ─────────
+import { symbols as sym_Primitives_Primitive } from "./Primitives/TPrimitive";
 import { symbols as sym_Primitives_Boolean } from "./Primitives/Boolean";
-import { symbols as sym_Primitives_Date } from "./Primitives/Date";
 import { symbols as sym_Primitives_Double } from "./Primitives/Double";
 import { symbols as sym_Primitives_Extended } from "./Primitives/Extended";
 import { symbols as sym_Primitives_Integer } from "./Primitives/Integer";
@@ -421,8 +421,8 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Net_Net,
   ...sym_Net_TFTP,
   // Primitives
+  ...sym_Primitives_Primitive,
   ...sym_Primitives_Boolean,
-  ...sym_Primitives_Date,
   ...sym_Primitives_Double,
   ...sym_Primitives_Extended,
   ...sym_Primitives_Integer,

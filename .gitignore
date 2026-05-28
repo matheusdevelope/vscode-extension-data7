@@ -45,5 +45,3 @@ coverage/
 # HTML scrapes and must not enter the repo).
 "Documentacao Classes Form Delphi/"
 eslint-report.txt
-
-example/

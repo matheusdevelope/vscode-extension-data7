@@ -13,6 +13,7 @@ export const symbols: SystemSymbolInfo[] = [
       endLine: 0,
       endChar: 0,
     },
+    inheritsFrom: "TPrimitive",
     fileUri: "system://library",
     description: "Tipo primitivo representando uma sequência de caracteres de texto.",
   },

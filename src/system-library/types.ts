@@ -27,6 +27,7 @@ export type SystemContainer =
   | "Net"
 
   // ───────── Globals & primitives ─────────
+  | "TPrimitive"
   | "String"
   | "Integer"
   | "Double"

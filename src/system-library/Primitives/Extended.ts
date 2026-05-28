@@ -19,6 +19,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: { ...SYSTEM_RANGE },
+    inheritsFrom: "TPrimitive",
     fileUri: SYSTEM_URI,
     description:
       "Tipo primitivo Delphi de ponto flutuante de precisão estendida (alias de Double em x64).",
