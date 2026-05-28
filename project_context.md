@@ -2,6 +2,8 @@
 
 Este documento consolida o contexto de negócio, regras conceituais, objetivos, arquitetura de software e definições técnicas da extensão VS Code para a linguagem/plataforma do ERP Data7. Ele serve como a **única fonte de verdade conceitual e arquitetural** da extensão para guiar desenvolvimentos futuros.
 
+> **Especificação da linguagem-alvo**: a referência sistemática do Data7 Basic — sintaxe, tipos, classes, generics, açúcares, limitações, diagnostic codes — vive em [`docs/linguagem-basic/`](./docs/linguagem-basic/README.md). Esse documento (`project_context.md`) cobre arquitetura **da extensão**; aquela pasta cobre a linguagem para a qual transpilamos.
+
 ---
 
 ## 1. Objetivos do Projeto
@@ -62,6 +64,74 @@ Açúcares atualmente suportados:
 - **Apenas no RHS de assignment** é suportado: `Dim x [As T] = c ? a : b`, `x = c ? a : b`, `obj.prop = c ? a : b`. Qualquer outro contexto (`Print c ? a : b`, `Return c ? a : b`, dentro de chamada de método) emite `ternary-context-unsupported` (warning) e a linha permanece intacta — esses casos requerem refator manual porque a expansão multi-linha mudaria a estrutura visível do código.
 - O `Dim`, quando presente, é emitido **separadamente** do bloco `If/Then/Else` para que ambas as branches consigam atribuir ao mesmo target. Comentários inline trailing são reatachados ao `If` header.
 - Parser puro em `src/utils/ternary.ts` (`findTopLevelTernary`) — respeita strings `"..."`, interpoladas `$"..."`, comentários `'...` e profundidade de parênteses; encontra a `?`/`:` outermost correta mesmo em ternários aninhados.
+
+#### `??` / `??=` / `||=` / `&&=` (logical assignment + null coalescing)
+
+- `Dim x = a ?? b` expande para `Dim x / If a = NULL Then x = b Else x = a / End If`. LHS complexa é materializada em `__srcN`. Diagnostic: `null-coalesce-context-unsupported` quando o `??` aparece fora de assignment RHS.
+- `x ??= y` / `x ||= y` / `x &&= y` expandem para `If <cond> Then x = y / End If` com o teste apropriado (`x = NULL`, `Not x`, `x`).
+
+#### `?.` (optional chaining)
+
+- `Dim x = obj?.Prop` → `Dim x / If obj <> NULL Then x = obj.Prop / End If`. Surfaces suportadas: assignment RHS e chamada-statement (`obj?.Free()`).
+- Diagnostics: `optional-chain-context-unsupported`, `optional-chain-too-deep` (cap em 3 tokens).
+- Parser em `src/utils/optional-chain.ts`.
+
+#### `Numeric separator` (`1_000_000`)
+
+- InlineTransform que remove `_` entre dígitos em literais numéricos (Integer e Double). Preserva identificadores `__src0` e strings `"a_b"`.
+
+#### `New T() With { .X = v, .Y = w }` (object initializer)
+
+- `Dim p = New T() With { .X = 1 }` → `Dim p = New T() / With p / .X = 1 / End With`. Splitting de inicializador respeita strings + parens.
+
+#### `Using x As New T(args) / ... / End Using` (multi-line)
+
+- Expandido para `Dim x = New T(args) / Try / body / Finally / x.Free() / End Try`. Multi-line rule consome até o `End Using`.
+- Diagnostic: `using-non-disposable` quando o tipo não expõe `Free`/`Dispose` na cadeia.
+
+#### `Dim x As New T` (auto-new sem `()`)
+
+- Açúcar para `Dim x As T = New T()`. Funciona com tipos monomorfizados pelo generics-pass (`Dim list As New TList<Product>` vira `Dim list As TList_Product = New TList_Product()`).
+- Diagnostic: `auto-new-non-default-ctor`.
+
+#### `Class T<T>` + `Delegate <T>` + `Sub Foo<T>` (generics — dois pipelines)
+
+- **Pipeline default (textual)**: pre-pass em `src/project/generics-pass.ts` que detecta declarações `Class TList<T>`, `Delegate Function Pred<T>(...)`, free functions `Sub Foo<T>` no nível do namespace, e usos `T<X>` (incluindo invocações `obj.Foo<Product>(item)`) no código. Remove os templates do output e injeta uma cópia concreta por instanciação (`TList_Product`, `TList_Integer`). A substituição de `T` no corpo usa `src/utils/bas-tokenizer.ts` (lexical-aware), então variáveis locais chamadas `T`, comentários e literais são preservados.
+- **Pipeline AST opcional**: ativado por `data7.experimental.useAstGenerics`, dirigido por `src/project/generics-driver.ts`: `parser → GenericsMonomorphizer → serializer`. Os componentes vivem em `src/project/parser/` (lexer + parser + serializer) e `src/project/generics-monomorphizer/` (AST nodes + clone + registry + monomorphizer + warnings). O driver mapeia `MonomorphizationWarning` para `GenericsPassWarning` para que o output do linter e do builder fique idêntico.
+- Suporta generics aninhados (`TList<TList<Integer>>` → `TList_TList_Integer`).
+- O linter live (`src/diagnostics/diagnostics.ts`) chama `analyzeGenericsPass` para emitir os 6 warnings de generics no editor sem rodar o Builder: `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`.
+- IntelliSense design-time: `WorkspaceSymbolIndexer.updateFileContent` detecta `Class T<T>` + cada usage `As TList<Product>` e injeta cópias monomórficas planas (`TList_Product`) no índice de símbolos. O `TypeResolver` normaliza `TList<Product>` → `TList_Product` em `findMember`/`findClassSymbol`/`getAllMembersForType`, então hover, completion e signature-help mostram `Add(pValue As Product)` corretamente.
+- Detalhes do pipeline: [docs/linguagem-basic/07-generics.md](docs/linguagem-basic/07-generics.md).
+
+#### `Dim { Nome, Idade } = pessoa` / `Dim [a, b] = lista` (destructuring)
+
+- Object: cada binding vira um `Dim` independente. Suporta rename (`{ Nome As n }`) e default (`{ Nome As n = "x" }`).
+- Array: cada binding vira `Dim x = lista.Item(i)` indexado pela posição. Rest binding (`[first, ...rest]`) emite um loop For que coleta a cauda em uma `StringList` nova.
+- Parser puro em `src/utils/destructure-parser.ts`.
+
+#### `Enum X As BaseEnum / V = "..." / End Enum` (multi-line)
+
+- Expandido para a classe completa do padrão `BaseEnum` (Initialize lazy, Shared Function por valor, Load por String, GetOptions). Reduz ~40 linhas para 4-6.
+
+#### `Match x / Case Is T : body / End Match` (multi-line)
+
+- Expandido para `If x.InheritsFrom(T) Then body / ElseIf ... / Else / End If`. Pattern matching baseado em hierarquia de classes.
+
+#### `Return If cond Then a Else b`
+
+- Expandido para `If cond Then Return a / Return b`. Early return inline em uma linha.
+
+#### `|>` (pipe operator)
+
+- InlineTransform: `data |> Trim |> UCase` vira `UCase(Trim(data))`. Operação só no RHS de assignments para evitar reescrever `Dim` corretamente.
+
+#### `sql$"SELECT * FROM {tabela}"` (tagged templates)
+
+- InlineTransform: `tag$"texto {expr}"` vira `tag.Build("texto ", (expr), "")`. Estende a interpolação para gerar uma chamada de método em vez de concatenação.
+
+#### `Type X = Y` (type alias)
+
+- Apagado pelo Builder; o linter o trata como o tipo aliasado.
 
 #### Invariante de round-trip
 
@@ -149,6 +219,12 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `unknown-suppression-code` — uma diretiva `' data7:disable-line <code>` ou `disable-next-line <code>` referencia um código que não existe em `DiagnosticCodes` (typo ou código removido). Emite _Warning_ com payload `UnknownSuppressionCodePayload` (`{ code, suppressedCode }`) — a diretiva permanece no arquivo, mas o usuário descobre que está silenciando nada.
 - `invalid-interpolation` — uma string interpolada `$"..."` está malformada (`unterminated-string` / `unterminated-brace` / `empty-expression`). O parser para na primeira falha, preserva o resto da linha, e emite _Warning_ com payload `InvalidInterpolationPayload` (`{ code, reason }`). O Builder seguirá a mesma análise via `src/utils/interpolation.ts` — diagnóstico no editor e falha no build são sempre coerentes.
 - `ternary-context-unsupported` — um ternário `cond ? a : b` foi usado fora do RHS de um assignment (em `Print`, `Return`, argumento de chamada, etc.). O transpilador só consegue expandir o ternário para o bloco multi-linha `If/Then/Else/End If` quando o target da atribuição é claro; outros contextos exigiriam restruturação do código circundante. Emite _Warning_ com payload `TernaryContextUnsupportedPayload` (`{ code, context }`).
+- `unknown-template` — um uso genérico `Foo<Bar>` referencia um nome `Foo` que não corresponde a nenhum template `Class T<T>` / `Delegate <T>` / `Sub Foo<T>` declarado no projeto. Emite _Warning_ — o build vai falhar no compilador nativo porque a sintaxe `<...>` nunca é removida.
+- `generic-arity-mismatch` — `Foo<A, B>` foi escrito mas o template `Foo<T>` declara aridade diferente. Emite _Warning_.
+- `duplicate-template` — o mesmo nome de template (`Class TList<T>`) foi declarado mais de uma vez no projeto; a monomorfização escolhe arbitrariamente uma das versões. Emite _Warning_.
+- `class-generic-method-unsupported` — um método genérico (`Sub Foo<T>(...)`) foi declarado _dentro_ de uma classe. O pipeline textual não reescreve esse caso com segurança (falta análise de escopo) e a engine AST ainda não cobre. A declaração é mantida verbatim e o Builder falha quando o método for chamado. Workaround: extrair para função livre no namespace. Emite _Warning_.
+- `flat-name-collision` — dois templates diferentes produziriam o mesmo flat name após monomorfização (ex.: `Sub Foo<T>` + `Sub Foo_Integer` declarado manualmente). Emite _Warning_.
+- `instantiation-limit-exceeded` — o pipeline gerou ≥ 10.000 instanciações monomórficas distintas (geralmente um caso de recursão infinita como `TList<TList<TList<...>>>`). A expansão aborta para evitar explosão de memória. Emite _Warning_.
 
 Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 
@@ -161,6 +237,7 @@ Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 - `unknown-suppression-code` → sem Quick Fix (o usuário pode ter digitado errado ou copiado de um release antigo). Apenas o warning é exibido.
 - `invalid-interpolation` → sem Quick Fix (depende de qual chave/escape o usuário esqueceu). Apenas o warning é exibido.
 - `ternary-context-unsupported` → sem Quick Fix (a refatoração depende da semântica do código circundante — converter para `If/Then/Else` separado, materializar em variável, etc.). Apenas o warning é exibido.
+- `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded` → sem Quick Fix (correções dependem da estrutura do template/uso; o usuário ajusta manualmente).
 
 ### 4.2. Compilação (`Builder`)
 

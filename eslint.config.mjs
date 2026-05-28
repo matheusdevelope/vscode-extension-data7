@@ -10,7 +10,31 @@ import tseslint from "typescript-eslint";
  * Stylistic concerns are delegated to Prettier (`.prettierrc`); the
  * `prettierConfig` block disables conflicting ESLint rules and must stay last
  * inside each `extends` chain.
+ *
+ * Important — ESLint flat config rule merging:
+ *
+ * When two config blocks both target the same file and both set the SAME
+ * rule key (`no-restricted-imports`), the LATER block completely
+ * REPLACES the earlier one's options. There is no merging of
+ * `patterns[]` between blocks. Consequently every layer-isolation block
+ * below carries its layer-specific bans AND the shared
+ * `DOCS_EXEMPLE_BAN`. Removing the duplicate would silently let layered
+ * files import from `docs/exemple/`. See the comment on
+ * `DOCS_EXEMPLE_BAN` below.
  */
+
+/**
+ * Shared ban: production sources must never import from
+ * `docs/exemple/...` (those files are documentation fixtures consumed
+ * by tests through `loadExample(...)`, not ES modules). Embedded in
+ * every layer-isolation block because flat config rule replacement
+ * forbids relying on a separate "default" block.
+ */
+const DOCS_EXEMPLE_BAN = {
+  group: ["**/docs/**", "**/exemple/**"],
+  message:
+    "Production sources must not import from docs/exemple/. Tests use loadExample() in src/test/_helpers/fixtures.ts (governance.mdc).",
+};
 export default tseslint.config(
   {
     name: "data7/ignores",
@@ -142,6 +166,23 @@ export default tseslint.config(
     },
   },
 
+  // governance.mdc: `docs/exemple/` is documentation-grade fixture data.
+  // Production source must never `import` from it — only tests may read it
+  // via `loadExample(...)` (filesystem read, not module import).
+  //
+  // Must come BEFORE every layer-isolation block so the cascade lets
+  // the layer-specific blocks take over for files they target while
+  // still covering bare `src/<root>.ts` files (e.g. extension.ts,
+  // commands.ts) that no layer block matches.
+  {
+    name: "data7/docs-exemple-isolation",
+    files: ["src/**/*.ts"],
+    ignores: ["src/test/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [DOCS_EXEMPLE_BAN] }],
+    },
+  },
+
   // governance.mdc: system-library/ is the leaf of the dependency graph.
   {
     name: "data7/system-library-isolation",
@@ -162,6 +203,7 @@ export default tseslint.config(
               message:
                 "system-library/ must not import services, providers, diagnostics, project tooling or extension (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -182,6 +224,7 @@ export default tseslint.config(
               group: ["**/providers/**", "**/extension"],
               message: "services/ must not import providers or extension.ts (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -208,6 +251,7 @@ export default tseslint.config(
               message:
                 "Providers must not import from services/ — extract shared logic into analysis/ instead (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -229,6 +273,7 @@ export default tseslint.config(
               group: ["../services/*", "**/services/**"],
               message: "providers/registration.ts must not import from services/ (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -256,6 +301,7 @@ export default tseslint.config(
               message:
                 "analysis/ must not import providers, services, diagnostics, project tooling or extension (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -277,6 +323,7 @@ export default tseslint.config(
               message:
                 "diagnostics/ must not import providers, services, project tooling or extension (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -299,6 +346,47 @@ export default tseslint.config(
               message:
                 "project/ must not import providers, services, diagnostics or extension (governance.mdc).",
             },
+            DOCS_EXEMPLE_BAN,
+          ],
+        },
+      ],
+    },
+  },
+
+  // architecture.mdc: src/project/parser/ is a sub-leaf — the AST-based
+  // lexer/parser/serializer for the generics monomorphizer. It may
+  // depend ONLY on src/utils/ (for bas-tokenizer) and may import
+  // **types only** from src/project/generics-monomorphizer/ast.ts (so
+  // the parser produces / serializer consumes the monomorphizer's AST
+  // shape). Any other src/ import is forbidden.
+  {
+    name: "data7/parser-isolation",
+    files: ["src/project/parser/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/analysis/**",
+                "**/diagnostics/**",
+                "**/services/**",
+                "**/providers/**",
+                "**/system-library/**",
+                "**/infra/**",
+                "**/extension",
+                "vscode",
+              ],
+              message:
+                "src/project/parser/ may only depend on src/utils/ and (type-only) src/project/generics-monomorphizer/ast (architecture.mdc).",
+            },
+            {
+              group: ["**/project/!(parser|generics-monomorphizer)/**", "**/project/*"],
+              message:
+                "src/project/parser/ may only import from src/utils/ and src/project/generics-monomorphizer/ast (architecture.mdc).",
+            },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],
@@ -328,29 +416,7 @@ export default tseslint.config(
               message:
                 "infra/ is a leaf and must not import from other src/ folders (governance.mdc).",
             },
-          ],
-        },
-      ],
-    },
-  },
-
-  // governance.mdc: `docs/exemple/` is documentation-grade fixture data.
-  // Production source must never `import` from it — only tests may read it
-  // via `loadExample(...)` (filesystem read, not module import).
-  {
-    name: "data7/docs-exemple-isolation",
-    files: ["src/**/*.ts"],
-    ignores: ["src/test/**/*.ts"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["**/docs/**", "**/exemple/**"],
-              message:
-                "Production sources must not import from docs/exemple/. Tests use loadExample() in src/test/_helpers/fixtures.ts (governance.mdc).",
-            },
+            DOCS_EXEMPLE_BAN,
           ],
         },
       ],

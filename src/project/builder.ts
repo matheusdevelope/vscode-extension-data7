@@ -7,7 +7,7 @@ import { DependencyScanner } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { isExcluded } from "../infra/configuration";
+import { isExcluded, readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { logger } from "../infra/logger";
 import { readProjectConfig, writeProjectConfig } from "./project-config";
@@ -111,6 +111,18 @@ export class Builder {
     if (fs.existsSync(data7ModulesDir)) {
       this.preIndexDirectory(indexer, data7ModulesDir);
     }
+    // Read the experimental feature flag once per build. Falls back to
+    // `false` when running outside the VS Code extension host (e.g. in
+    // unit tests where `vscode.workspace.getConfiguration` is mocked).
+    let useAstGenerics = false;
+    try {
+      useAstGenerics = readConfiguration().experimentalUseAstGenerics;
+    } catch {
+      useAstGenerics = false;
+    }
+    if (useAstGenerics) {
+      logger.info("[Generics] AST pipeline active (experimental.useAstGenerics=true).");
+    }
     return {
       detectEnumerable: (typeName, preferredElementType) =>
         detectEnumerable(
@@ -118,6 +130,7 @@ export class Builder {
           (t) => TypeResolver.getAllMembersForType(t, indexer),
           preferredElementType,
         ),
+      useAstGenerics,
     };
   }
 

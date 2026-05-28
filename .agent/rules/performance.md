@@ -8,7 +8,7 @@ alwaysApply: true
 
 - This is a stack-specific rule file for the VS Code extension host runtime. The hot paths in this codebase are: workspace indexing on activation, the linter on every save/edit, completion/hover/signature providers on every keystroke, and the builder/decompiler on user-triggered operations.
 - Optimize only after identifying a concrete hot path, bottleneck, or operational limit. Measure first, then change.
-- Cancellation and `withProgress` semantics for provider methods and long-running operations are owned by `vscode_extension.mdc`. This file covers what to do *between* those entry points.
+- Cancellation and `withProgress` semantics for provider methods and long-running operations are owned by `vscode_extension.mdc`. This file covers what to do _between_ those entry points.
 
 ## Provider hot paths
 

@@ -1,0 +1,794 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Projeto_Data7 xmlns="http://www.se7esistemas.com.br/developer/2024" Version="2.0" Language="Basic" Type="Plugin" TargetPlataform="Default">
+  <Opcoes>
+    <Autor>Matheus</Autor>
+    <Versao>1.0.0.0</Versao>
+    <Informacoes>Módulo para separar arquivos de retornos de cartões para faciliar a conciliação de cartões e bancária</Informacoes>
+    <CodEmpresa>1</CodEmpresa>
+    <CodFilial>1</CodFilial>
+    <NomeUsuario>Administrador</NomeUsuario>
+    <PreScript></PreScript>
+    <IdentificacaoBancoDados>0A0B3CB5-D815-4C41-9652-72BF9DC5D5F5</IdentificacaoBancoDados>
+  </Opcoes>
+  <Nome>Principal</Nome>
+  <Data>27/05/2026 12:54:45</Data>
+  <Codigo>
+Imports mod_card_form
+
+Dim _form As New TFormCard("Processar retorno de cartões")
+
+_form.Show()
+
+_form.Free()</Codigo>
+  <Aberto>true</Aberto>
+  <OrdemAbertura>0</OrdemAbertura>
+  <ItemAberto>1</ItemAberto>
+  <Pastas>
+    <Pasta>
+      <Nome>Unidades (8)</Nome>
+      <ID>{1F241EF3-1E14-436D-8374-B5C8F126C988}</ID>
+      <PastaID></PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>mod_card</Nome>
+      <ID>{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}</ID>
+      <PastaID>{1F241EF3-1E14-436D-8374-B5C8F126C988}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>core</Nome>
+      <ID>{67077B15-5467-4E04-9BCD-70653E3AE33E}</ID>
+      <PastaID>{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>form</Nome>
+      <ID>{4EAB588F-35FD-4A74-A5A0-BD614E080E84}</ID>
+      <PastaID>{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>adapters</Nome>
+      <ID>{A573FDF9-B7B4-4DDB-A119-E8EAEB9E4FBA}</ID>
+      <PastaID>{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+  </Pastas>
+  <Modulos>
+    <mod_card_adm>
+      <Codigo>
+Imports mod_enum
+
+'@Module
+Namespace mod_card_adm
+
+   Class CardAdm
+      Inherits BaseEnum
+
+      Private Shared _Initialized As Boolean
+
+      Private Shared Sub Initialize()
+         If _Initialized Then Exit Sub
+         BaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+         'BaseEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+         _Initialized = True
+      End Sub
+
+      Shared Function Stone As CardAdm
+         Stone = Load("Stone")
+      End Function
+
+      'Shared Function Cielo As CardAdm
+      '   Cielo = Load("Cielo")
+      'End Function
+
+      Shared Function Load(pValue As CardAdm) As CardAdm
+         Load = Load(pValue.AsString)
+      End Function
+
+      Shared Function Load(pValue As Integer) As CardAdm
+         CardAdm.Initialize()
+         Load = CardAdm(BaseEnum._GetCache("CardAdm", pValue))
+      End Function
+
+      Shared Function Load(pValue As String) As CardAdm
+         CardAdm.Initialize()
+         Load = CardAdm(BaseEnum._GetCache("CardAdm", pValue))
+      End Function
+
+      Shared Function GetOptions() As String
+         CardAdm.Initialize()
+         GetOptions = BaseEnum._GetEnumOptions("CardAdm")
+      End Function
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{67077B15-5467-4E04-9BCD-70653E3AE33E}</PastaID>
+    </mod_card_adm>
+    <mod_card_schema>
+      <Codigo>
+Imports mod_card_adm
+Imports mod_pipeline_field
+Imports mod_pipeline_schema
+
+'@Module
+Namespace mod_card_schema
+
+   Class CardSchema
+      Inherits TSchema
+
+      ReadOnly Adm As CardAdm
+
+      Estabelecimento As TField = New TField("Estabelecimento")
+      Bandeira As TField = New TField("Bandeira")
+      NumeroCartao As TField = New TField("NumeroCartao")
+      NumeroAutorizacao As TField = New TField("NumeroAutorizacao")
+      NumeroParcela As TField = New TField("NumeroParcela")
+      QuantidadeParcela As TField = New TField("QuantidadeParcela")
+      DataVenda As TField = New TField("DataVenda")
+      DataPagamento As TField = New TField("DataPagamento")
+      ValorBruto As TField = New TField("ValorBruto")
+      ValorLiquido As TField = New TField("ValorLiquido")
+
+      Sub New(pAdm As CardAdm)
+         MyBase.New("CardMapper-" + pAdm.AsString)
+         me.Adm = pAdm
+         me.Window.MinRow = 0
+         me.Window.MaxRow = 9
+         me.Fields.Add(me.Estabelecimento)
+         me.Fields.Add(me.Bandeira)
+         me.Fields.Add(me.NumeroCartao)
+         me.Fields.Add(me.NumeroAutorizacao)
+         me.Fields.Add(me.NumeroParcela)
+         me.Fields.Add(me.QuantidadeParcela)
+         me.Fields.Add(me.DataVenda)
+         me.Fields.Add(me.DataPagamento)
+         me.Fields.Add(me.ValorBruto)
+         me.Fields.Add(me.ValorLiquido)
+      End Sub
+
+      Shared Function Load(pAdm As CardAdm) As CardSchema
+         If pAdm = NULL Then Throw New Exception("Invalid CardAdm, NULL is not accepted.")
+         Select pAdm
+            Case CardAdm.Stone
+               Load = New mod_card_stone.CardSchemaStone()
+            ' TODO:
+            'Case CardAdm.Cielo
+            '   Load = New mod_card_stone.CardSchemaCielo()
+            Case Else
+               Throw New Exception("CardAdm [" + pAdm.AsString + "] not supported, you must implement that resolver before using it.")
+         End Select
+      End Function
+
+      Function ToString(pPrint As Boolean = False) As String
+         With console.Block(me._name)
+            .Prop("Fields.Count", me.Fields.Count())
+            .Prop("Estabelecimento", me.Estabelecimento.ToString())
+            .Prop("Bandeira", me.Bandeira.ToString())
+            .Prop("NumeroCartao", me.NumeroCartao.ToString())
+            .Prop("NumeroAutorizacao", me.NumeroAutorizacao.ToString())
+            .Prop("NumeroParcela", me.NumeroParcela.ToString())
+            .Prop("QuantidadeParcela", me.QuantidadeParcela.ToString())
+            .Prop("DataVenda", me.DataVenda.ToString())
+            .Prop("DataPagamento", me.DataPagamento.ToString())
+            .Prop("ValorBruto", me.ValorBruto.ToString())
+            .Prop("ValorLiquido", me.ValorLiquido.ToString())
+            .Close()
+            .Printe(pPrint)
+            ToString = .Text
+            .Free()
+         End With
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{67077B15-5467-4E04-9BCD-70653E3AE33E}</PastaID>
+    </mod_card_schema>
+    <mod_card_record>
+      <Codigo>
+Imports mod_base_list
+Imports mod_pipeline_record
+
+'@Module
+Namespace mod_card_record
+
+   Class CardRecord
+      Inherits TRecord
+
+      Sub New(pIndex As Integer)
+         MyBase.New(pIndex)
+      End Sub
+
+      Sub New(pValue As CardRecord)
+         MyBase.New(pValue)
+      End Sub
+
+      Property Estabelecimento As String
+         Get
+            Estabelecimento = me.Cell("Estabelecimento").Value.AsDefault
+         End Get
+         Set(pValue As String)
+            me.Cell("Estabelecimento").Value.Value = pValue
+         End Set
+      End Property
+
+      Property Bandeira As String
+         Get
+            console.log(me.Cell("Bandeira").Value = NULL)
+            Bandeira = me.Cell("Bandeira").Value.AsDefault
+         End Get
+         Set(pValue As String)
+            me.Cell("Bandeira").Value.Value = pValue
+         End Set
+      End Property
+
+      Property NumeroCartao As String
+         Get
+            NumeroCartao = me.Cell("NumeroCartao").Value.AsDefault
+         End Get
+         Set(pValue As String)
+            me.Cell("NumeroCartao").Value.Value = pValue
+         End Set
+      End Property
+
+      Property NumeroAutorizacao As String
+         Get
+            NumeroAutorizacao = me.Cell("NumeroAutorizacao").Value.AsDefault
+         End Get
+         Set(pValue As String)
+            me.Cell("NumeroAutorizacao").Value.Value = pValue
+         End Set
+      End Property
+
+      Property NumeroParcela As Integer
+         Get
+            NumeroParcela = me.Cell("NumeroParcela").Value.AsInteger
+         End Get
+         Set(pValue As Integer)
+            me.Cell("NumeroParcela").Value.Value = pValue
+         End Set
+      End Property
+
+      Property QuantidadeParcela As Integer
+         Get
+            QuantidadeParcela = me.Cell("QuantidadeParcela").Value.AsInteger
+         End Get
+         Set(pValue As Integer)
+            me.Cell("QuantidadeParcela").Value.Value = pValue
+         End Set
+      End Property
+
+      Property DataVenda As TDateTime
+         Get
+            DataVenda = me.Cell("DataVenda").Value.AsDateTime
+         End Get
+         Set(pValue As TDateTime)
+            me.Cell("DataVenda").Value.Value = pValue
+         End Set
+      End Property
+
+      Property DataPagamento As TDateTime
+         Get
+            DataPagamento = me.Cell("DataPagamento").Value.AsDateTime
+         End Get
+         Set(pValue As TDateTime)
+            me.Cell("DataPagamento").Value.Value = pValue
+         End Set
+      End Property
+
+      Property ValorBruto As Extended
+         Get
+            ValorBruto = me.Cell("ValorBruto").Value.AsFloat
+         End Get
+         Set(pValue As Extended)
+            me.Cell("ValorBruto").Value.Value = pValue
+         End Set
+      End Property
+
+      Property ValorLiquido As Extended
+         Get
+            ValorLiquido = me.Cell("ValorLiquido").Value.AsFloat
+         End Get
+         Set(pValue As Extended)
+            me.Cell("ValorLiquido").Value.Value = pValue
+         End Set
+      End Property
+
+      Function Copy() As CardRecord
+         Copy = New CardRecord(me)
+      End Function
+
+      Overrides Function ToString(pPrint As Boolean = False) As String
+         With console.Block("CardRecord")
+            .Prop("Estabelecimento", me.Estabelecimento)
+            .Prop("Bandeira", me.Bandeira)
+            .Prop("NumeroCartao", me.NumeroCartao)
+            .Prop("NumeroAutorizacao", me.NumeroAutorizacao)
+            .Prop("NumeroParcela", me.NumeroParcela)
+            .Prop("QuantidadeParcela", me.QuantidadeParcela)
+            .Prop("DataVenda", me.DataVenda.ToString())
+            .Prop("DataPagamento", me.DataPagamento.ToString())
+            .Prop("ValorBruto", me.ValorBruto)
+            .Prop("ValorLiquido", me.ValorLiquido)
+            .Prop("Cells.Count", me.Cells.Count())
+            .Close()
+            .Printe(pPrint)
+            ToString = .Text
+            .Free()
+         End With
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Delegate Function CardRecordFindDelegate(pValue As CardRecord, i As Integer, extra As Variant) As Boolean
+   Delegate Function CardRecordMapDelegate(pValue As CardRecord, i As Integer, extra As Variant) As CardRecord
+   Delegate Sub CardRecordForEachDelegate(pValue As CardRecord, i As Integer, extra As Variant)
+
+   Class CardRecordList
+      Inherits TRecordList
+
+      Sub New()
+         MyBase.New("CardRecordList")
+      End Sub
+
+      Property Item(pIndex As Integer) As CardRecord
+         Get
+            Item = CType(MyBase.Take(pIndex), CardRecord)
+         End Get
+         Set(pValue As CardRecord)
+            me.SetItem(pIndex, pValue)
+         End Set
+      End Property
+
+      Function Take(pIndex As String) As CardRecord
+         Take = CType(MyBase.TakeFromId(pIndex), CardRecord)
+      End Function
+
+      Function Take(pIndex As Integer) As CardRecord
+         Take = CType(MyBase.Take(pIndex), CardRecord)
+      End Function
+
+      Function First As CardRecord
+         First = CType(MyBase.First, CardRecord)
+      End Function
+
+      Function First(pLimit As Integer) As CardRecordList
+         First = CType(MyBase.Range(pLimit, False), CardRecordList)
+      End Function
+
+      Function Last As CardRecord
+         Last = CType(MyBase.Last, CardRecord)
+      End Function
+
+      Function Last(pLimit As Integer) As CardRecordList
+         Last = CType(MyBase.Range(pLimit, True), CardRecordList)
+      End Function
+
+      Function Copy As CardRecordList
+         Copy = CType(MyBase.Copy(), CardRecordList)
+      End Function
+
+      Function IndexOf(handler As CardRecordFindDelegate) As Integer
+         IndexOf = me.IndexOf(handler, "")
+      End Function
+
+      Function IndexOf(handler As CardRecordFindDelegate, extra As Variant) As Integer
+         IndexOf = MyBase.IndexOf(handler, extra)
+      End Function
+
+      Function Find(handler As CardRecordFindDelegate) As CardRecord
+         Find = me.Find(handler, "")
+      End Function
+
+      Function Find(handler As CardRecordFindDelegate, extra As Variant) As CardRecord
+         Find = CType(MyBase.Find(handler, extra), CardRecord)
+      End Function
+
+      Function Filter(handler As CardRecordFindDelegate) As CardRecordList
+         Filter = me.Filter(handler, "")
+      End Function
+
+      Function Filter(handler As CardRecordFindDelegate, extra As Variant) As CardRecordList
+         Filter = CType(MyBase.Filter(handler, extra), CardRecordList)
+      End Function
+
+      Sub ForEach(handler As CardRecordFindDelegate)
+         me.ForEach(handler, "")
+      End Sub
+
+      Sub ForEach(handler As CardRecordForEachDelegate, extra As Variant)
+         MyBase.ForEach(handler, extra)
+      End Sub
+
+      Function Map(handler As CardRecordFindDelegate) As CardRecordList
+         Map = me.Map(handler, "")
+      End Function
+
+      Function Map(handler As CardRecordMapDelegate, extra As Variant) As CardRecordList
+         With CType(MyBase.Map(handler, extra), CardRecordList)
+            Map = .Copy()
+         End With
+      End Function
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{67077B15-5467-4E04-9BCD-70653E3AE33E}</PastaID>
+    </mod_card_record>
+    <mod_card_extractor>
+      <Codigo>
+'Imports mod_card_adm
+'Imports mod_card_mapper
+Imports mod_card_record
+Imports mod_pipeline_record
+Imports mod_pipeline_schema
+Imports mod_pipeline_navigator
+Imports mod_pipeline_extractor
+
+'@Module
+Namespace mod_card_extractor
+
+   Class CardExtractor
+      Inherits TExtractor
+
+      Sub New()
+         MyBase.New("CardExtractor")
+      End Sub
+
+      'Sub New(pCardAdm As CardAdm, pNavigator As TNavigator)
+      '   Dim _mapper As CardMapper = CardMapper.Load(pCardAdm)
+      '   MyBase.New("CardExtractor", _mapper.Schema, _mapper.Navigator)
+      'End Sub
+
+      'Sub New(pMapper As CardMapper)
+      '   MyBase.New("CardExtractor", pMapper.Schema, pMapper.Navigator)
+      'End Sub
+
+      'Function Execute() As CardRecordList
+      '   Execute = me.Execute(me._schema, me._navigator)
+      'End Function
+
+      Function Execute(pSchema As TSchema, pNavigator As TNavigator) As CardRecordList
+         Dim _baseitens As TRecordList = MyBase.Execute(pSchema, pNavigator)
+         Dim _items As New CardRecordList()
+         Dim i As Integer, count As Integer = _baseitens.Count - 1
+         For i = 0 To count
+            _items.Add(New CardRecord(_baseitens.Take(i)))
+         Next
+         Execute = _items
+         _baseitens.Free()
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{67077B15-5467-4E04-9BCD-70653E3AE33E}</PastaID>
+    </mod_card_extractor>
+    <mod_card_stone>
+      <Codigo>
+Imports mod_enum
+Imports mod_card_adm
+Imports mod_card_schema
+Imports mod_card_grouper
+Imports mod_pipeline_field
+Imports mod_pipeline_datasource
+Imports mod_pipeline_navigator
+
+'@Module
+Namespace mod_card_stone
+
+   Class CardSchemaStone
+      Inherits CardSchema
+
+      Sub New()
+         MyBase.New(CardAdm.Stone)
+
+         With me
+            .Estabelecimento.Options.Add("StoneCode")
+            .NumeroCartao.Options.Add("N° Cartao")
+            .NumeroCartao.Options.Add("N° Cartão")
+            .NumeroAutorizacao.Options.Add("Stone ID")
+            .NumeroParcela.Options.Add("Nº da Parcela")
+            .QuantidadeParcela.Options.Add("Qtd de Parcelas")
+            .DataVenda.Options.Add("Data da venda")
+            .DataPagamento.Options.Add("Data do Último Status")
+            .ValorBruto.Options.Add("Valor Bruto")
+            .ValorLiquido.Options.Add("Valor Líquido")
+            .Fields.Add(New TField("StatusTitulo", True))
+            .Fields.Last.Options.Add("Último Status")
+            .Fields.Add(New TField("Produto", True))
+         End With
+
+         me.SupportedInputDataSources.Add(DataSource.Excel)
+         me.SupportedInputDataSources.Add(DataSource.CSV)
+
+         me.SupportedInputNavigators.Add(Navigator.Horizontal)
+
+         me.SupportedOutputDataSources.Add(DataSource.Excel)
+         me.SupportedOutputDataSources.Add(DataSource.CSV)
+
+         'me.SupportedOutputNavigators.Add(Navigator.Horizontal)
+         me.SupportedGroupers.Add(CardGroupersStone.BandeiraProduto)
+
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Class CardGroupersStone
+      Inherits BaseEnum
+
+      Private Shared _Initialized As Boolean
+
+      Private Sub New(pValue As Integer, pDescription As String)
+         MyBase.New(pValue, pDescription)
+      End Sub
+
+      Private Shared Sub Initialize()
+         If _Initialized Then Exit Sub
+         BaseEnum._AddEnumItem("CardGroupersStone", New CardGroupersStone(0, "Por Bandeira e Produto"))
+         BaseEnum._AddEnumItem("CardGroupersStone", New CardGroupersStone(1, "Por Data de Pagamento"))
+         _Initialized = True
+      End Sub
+
+      Shared Function BandeiraProduto As CardGroupersStone
+         BandeiraProduto = Load("Por Bandeira e Produto")
+      End Function
+
+      Shared Function DataPagamento As CardGroupersStone
+         DataPagamento = Load("Por Data de Pagamento")
+      End Function
+
+      Shared Function Load(pValue As CardGroupersStone) As CardGroupersStone
+         Load = Load(pValue.AsString)
+      End Function
+
+      Shared Function Load(pValue As Integer) As CardGroupersStone
+         CardGroupersStone.Initialize()
+         Load = CardGroupersStone(BaseEnum._GetCache("CardGroupersStone", pValue))
+      End Function
+
+      Shared Function Load(pValue As String) As CardGroupersStone
+         CardGroupersStone.Initialize()
+         Load = CardGroupersStone(BaseEnum._GetCache("CardGroupersStone", pValue))
+      End Function
+
+      Shared Function GetOptions() As String
+         CardGroupersStone.Initialize()
+         GetOptions = BaseEnum._GetEnumOptions("CardGroupersStone")
+      End Function
+
+      Shared Function LoadGrouper(pGrouperName As String, pAdm As CardAdm) As CardGrouper
+         CardGroupersStone.Initialize()
+         Select CardGroupersStone.Load(pGrouperName)
+            Case CardGroupersStone.BandeiraProduto
+               Return New GrouperBandeiraProduto(pAdm)
+            Case CardGroupersStone.DataPagamento
+               Return New GrouperDataPagamento(pAdm)
+            Case Else
+               Throw New Exception("Grouper não implementado na Stone.")
+         End Select
+      End Function
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{A573FDF9-B7B4-4DDB-A119-E8EAEB9E4FBA}</PastaID>
+    </mod_card_stone>
+    <mod_card_grouper>
+      <Codigo>
+Imports mod_card_adm
+Imports mod_pipeline_grouper
+Imports mod_pipeline_field
+
+'@Module
+Namespace mod_card_grouper
+
+   Class CardGrouper
+      Inherits TGrouper
+
+      ReadOnly Adm As CardAdm
+
+      Sub New(pAdm As CardAdm, pName As String)
+         MyBase.New("-", "CardGrouper-" + pAdm.AsString + "-" + pName)
+         me.Adm = pAdm
+      End Sub
+
+      Shared Function GetOptions(pAdm As CardAdm) As String
+         If pAdm = NULL Then Return ""
+         Select pAdm
+            Case CardAdm.Stone
+               GetOptions = mod_card_stone.CardGroupersStone.GetOptions()
+            ' Case CardAdm.Cielo
+            '    GetOptions = mod_card_cielo.CardGroupersCielo.GetOptions()
+            Case Else
+               GetOptions = ""
+         End Select
+      End Function
+
+      Shared Function Load(pAdm As CardAdm, pGrouperName As String) As CardGrouper
+         If pAdm = NULL Then Throw New Exception("Invalid CardAdm")
+
+         Select pAdm
+            Case CardAdm.Stone
+               Load = mod_card_stone.CardGroupersStone.LoadGrouper(pGrouperName, pAdm)
+            ' Case CardAdm.Cielo
+            '    Load = mod_card_cielo.CardGroupersCielo.LoadGrouper(pGrouperName, pAdm)
+            Case Else
+               Throw New Exception("Groupers not supported for ADM: " + pAdm.AsString)
+         End Select
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   ' === AGRUPADORES COMPARTILHADOS (REUTILIZÁVEIS) ===
+
+   Class GrouperBandeiraProduto
+      Inherits CardGrouper
+
+      Sub New(pAdm As CardAdm)
+         MyBase.New(pAdm, "BandeiraProduto")
+         With me.Definition.Fields
+            .Add(New TField("Bandeira"))
+            .Add(New TField("Produto"))
+         End With
+      End Sub
+   End Class
+
+   Class GrouperDataPagamento
+      Inherits CardGrouper
+
+      Sub New(pAdm As CardAdm)
+         MyBase.New(pAdm, "DataPagamento")
+         With me.Definition.Fields
+            .Add(New TField("DataPagamento"))
+         End With
+      End Sub
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{67077B15-5467-4E04-9BCD-70653E3AE33E}</PastaID>
+    </mod_card_grouper>
+    <mod_card_controller>
+      <Codigo>Imports mod_card_adm
+Imports mod_card_schema
+Imports mod_card_grouper
+Imports mod_pipeline_controller
+
+'@Module
+Namespace mod_card_controller
+
+   Class TCardController
+      Inherits TPipelineController
+
+      Private _inputAdm As CardAdm
+
+      Sub New()
+         MyBase.New()
+      End Sub
+
+      Overrides Function GetInputSchemaOptions() As String
+         GetInputSchemaOptions = """" &amp; CardAdm.GetOptions().Trim.Replace(";", """;""") &amp; """"
+      End Function
+
+      Overrides Sub SetInputSchema(pSchema As String)
+         MyBase.SetInputSchema(pSchema)
+         Try
+             me._inputAdm = CardAdm.Load(pSchema)
+             me._pipe.Schema = CardSchema.Load(me._inputAdm)
+             me._canExport = False
+         Catch ex As Exception
+             me._lastError = ex._GetMessage()
+             Throw ex
+         End Try
+      End Sub
+
+      Overrides Function GetGrouperOutputOptions() As String
+         If me._pipe.Schema &lt;&gt; NULL
+            If me._pipe.Schema.SupportedGroupers.Count &gt; 0 Then
+               GetGrouperOutputOptions = me._pipe.Schema.SupportedGroupers.AsOptions
+               Exit Function
+            End If
+         End If
+         GetGrouperOutputOptions = """" &amp; CardGrouper.GetOptions(me._inputAdm).Trim.Replace(";", """;""") &amp; """"
+      End Function
+
+      Overrides Sub SetOutputGrouper(pGrouper As String)
+         Dim safeGrouper As String = pGrouper.Replace("""", "").Trim()
+
+         If safeGrouper = "" Then
+            If me._pipe.Grouper &lt;&gt; NULL Then
+               me._pipe.Grouper.Free()
+            End If
+            me._pipe.Grouper = NULL
+
+            If me._pipe.Groups &lt;&gt; NULL Then
+               me._pipe.Groups.Free()
+            End If
+            me._pipe.Groups = NULL
+
+            Exit Sub
+         End If
+
+         MyBase.SetOutputGrouper(safeGrouper)
+         Try
+             me._pipe.Grouper = CardGrouper.Load(me._inputAdm, safeGrouper)
+         Catch ex As Exception
+             me._lastError = ex._GetMessage()
+             Throw ex
+         End Try
+      End Sub
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>1</OrdemAbertura>
+      <PastaID>{4EAB588F-35FD-4A74-A5A0-BD614E080E84}</PastaID>
+    </mod_card_controller>
+    <mod_card_form>
+      <Codigo>
+Imports mod_pipeline_form
+Imports mod_card_controller
+
+'@Module
+Namespace mod_card_form
+
+   Class TFormCard
+      Inherits TPipelineForm
+
+      Private _card_controller As TCardController
+
+      Sub New(pTitle As String = "Processar retorno de cartões")
+         me._card_controller = New TCardController()
+         Mybase.New(me._card_controller, pTitle)
+      End Sub
+
+      Sub Free()
+         me._card_controller.Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>2</OrdemAbertura>
+      <PastaID>{4EAB588F-35FD-4A74-A5A0-BD614E080E84}</PastaID>
+    </mod_card_form>
+  </Modulos>
+</Projeto_Data7>

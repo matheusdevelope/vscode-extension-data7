@@ -25,7 +25,8 @@ Layers from leaf to top:
 2. `src/infra/` — leaf infrastructure (logger, configuration). Depends only on `vscode`.
 3. `src/analysis/` — pure parsers/resolvers. Depends on `infra/` and `system-library/`.
 4. `src/diagnostics/` and `src/project/` — depend on `analysis/`, `system-library/`, `infra/`, `utils/`. Never depend on each other, on `providers/` or on `services/`.
-5. `src/providers/` and `src/services/` — top-of-stack. Depend on everything below. Providers do not import other providers; the only sanctioned provider→service edge is `providers/document-link-provider.ts` → `services/repository-service.ts` (documented exception in the file header and in `eslint.config.mjs`).
-6. `src/extension.ts` — the only file that may depend on everything; nothing should depend on `extension.ts`.
+5. `src/project/parser/` — sub-leaf inside `src/project/`. Implements the AST-based parser/serializer used by the generics monomorphization driver. May depend ONLY on `src/utils/` (for `bas-tokenizer.ts`) and may import **types only** from `src/project/generics-monomorphizer/ast.ts` (so the parser produces / the serializer consumes the AST shape the monomorphizer expects). Must NOT import from `vscode`, `analysis/`, `diagnostics/`, `services/`, `providers/`, or any other part of `project/`.
+6. `src/providers/` and `src/services/` — top-of-stack. Depend on everything below. Providers do not import other providers; the only sanctioned provider→service edge is `providers/document-link-provider.ts` → `services/repository-service.ts` (documented exception in the file header and in `eslint.config.mjs`).
+7. `src/extension.ts` — the only file that may depend on everything; nothing should depend on `extension.ts`.
 
 Cross-cutting concerns (telemetry, logging, configuration) belong in `src/infra/` behind a single helper rather than scattered through providers and services.

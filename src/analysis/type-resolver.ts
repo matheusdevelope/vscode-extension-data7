@@ -5,6 +5,11 @@ import {
   lookupSystemByContainer,
   lookupSystemClassByName,
 } from "../system-library";
+import { inferLiteralType } from "../utils/literal-type-infer";
+import { parseChain } from "../utils/chain-parser";
+import { findTopLevelTernary } from "../utils/ternary";
+import { getNonNullVariablesAt } from "./flow-analyzer";
+import { findInnerMostGenericUsage, flatNameOf } from "./generics-analyzer";
 
 /**
  * Shared scope and type resolution helpers used by every provider and by the
@@ -30,8 +35,11 @@ export class TypeResolver {
     const varLower = varName.toLowerCase();
 
     // Walk upward from the cursor to find a `Dim name As Type` declaration in scope.
+    // The `<...>` suffix lets the regex pick up generic types
+    // (`TList<Product>`); `findMember` later normalises them to their
+    // flat form (`TList_Product`).
     const regex = new RegExp(
-      `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\b(?:\\s+As\\s+(?:New\\s+)?([a-zA-Z0-9_.]+))?`,
+      `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\b(?:\\s+As\\s+(?:New\\s+)?([a-zA-Z0-9_.]+(?:\\s*<[^<>]+>)?))?`,
       "i",
     );
     // `For Each <name> As <Type> In ...` introduces `<name>` into the enclosing
@@ -39,7 +47,7 @@ export class TypeResolver {
     // hover/completion/signature must already see the variable while the file
     // is still authored in sugared form.
     const forEachRegex = new RegExp(
-      `\\bFor\\s+Each\\s+${varName}\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+))?\\s+In\\b`,
+      `\\bFor\\s+Each\\s+${varName}\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+(?:\\s*<[^<>]+>)?))?\\s+In\\b`,
       "i",
     );
     // `Dim name = <expr>` (no As clause) — infer from the right-hand side
@@ -151,6 +159,7 @@ export class TypeResolver {
     qualifiedOrSimpleName: string,
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo | undefined {
+    qualifiedOrSimpleName = normalizeGenericTypeName(qualifiedOrSimpleName);
     if (qualifiedOrSimpleName.includes(".")) {
       const lastDot = qualifiedOrSimpleName.lastIndexOf(".");
       const namePart = qualifiedOrSimpleName.substring(lastDot + 1);
@@ -203,33 +212,57 @@ export class TypeResolver {
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
     const trimmed = expr.trim();
+    if (!trimmed) return undefined;
 
-    // `New <Type>(...)` — easiest case.
-    const newMatch = /^New\s+([\w.]+)\s*\(/i.exec(trimmed);
-    if (newMatch?.[1]) return newMatch[1];
+    // Strip trailing inline comment so `Dim x = 42  ' explanation` infers
+    // `Integer` rather than failing on the comment text.
+    const noComment = stripTrailingComment(trimmed).trim();
+    if (!noComment) return undefined;
 
-    // `<root>.<member>(...)` or `<root>.<member>` (no parens — property access).
-    const callMatch = /^([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*\(/.exec(trimmed);
-    if (callMatch) {
-      const root = callMatch[1];
-      const member = callMatch[2];
-      if (!root || !member) return undefined;
-      const containerType = TypeResolver.resolveRootType(root, document, lineIdx, indexer);
-      if (!containerType) return undefined;
-      const memberSymbol = TypeResolver.findMember(containerType, member, indexer);
-      if (memberSymbol?.type && memberSymbol.type !== "Void") {
-        return memberSymbol.type;
+    // Step 1 — Pure literal / `New T(...)` / `CType(_, T)` / `$"..."`.
+    // The shared helper handles these without consulting the indexer; we keep
+    // them first because they are the fastest path and the most common RHS
+    // shapes in real code.
+    const literal = inferLiteralType(noComment);
+    if (literal) return literal;
+
+    // Step 2 — Top-level ternary `cond ? a : b`. Infer the common type of
+    // both branches; fall back to `Variant` if they disagree.
+    const ternary = findTopLevelTernary(noComment);
+    if (ternary) {
+      const thenBranch = noComment.slice(ternary.questionAt + 1, ternary.colonAt).trim();
+      const elseBranch = noComment.slice(ternary.colonAt + 1).trim();
+      const tType = TypeResolver.inferExpressionType(thenBranch, document, lineIdx, indexer);
+      const eType = TypeResolver.inferExpressionType(elseBranch, document, lineIdx, indexer);
+      if (tType && eType) {
+        return tType.toLowerCase() === eType.toLowerCase() ? tType : "Variant";
       }
-      return undefined;
+      return tType ?? eType ?? "Variant";
     }
 
-    // Bare identifier — recurse via getVariableType (one hop earlier so we
-    // do not match the current declaration line again).
-    if (/^[A-Za-z_]\w*$/.test(trimmed)) {
+    // Step 3 — Member access chain (`a.b().c().d`). The parser walks the
+    // chain segment by segment; we resolve the type at each link via
+    // `findMember`. Chain of length 1 (just the root identifier) falls
+    // through to Step 4 because `parseChain` records zero segments then.
+    const chain = parseChain(noComment);
+    if (chain && chain.segments.length > 0) {
+      let currentType = TypeResolver.resolveRootType(chain.root, document, lineIdx, indexer);
+      if (!currentType) return undefined;
+      for (const seg of chain.segments) {
+        const member = TypeResolver.findMember(currentType, seg.name, indexer);
+        if (!member?.type || member.type === "Void") return undefined;
+        currentType = member.type;
+      }
+      return currentType;
+    }
+
+    // Step 4 — Bare identifier: recurse via getVariableType (one hop earlier
+    // so we do not match the current declaration line again).
+    if (/^[A-Za-z_]\w*$/.test(noComment)) {
       // Construct a position type-erased — we only need `.line` inside the
       // recursive call, and we know the prior declaration sits BEFORE lineIdx.
       const position = { line: lineIdx, character: 0 } as vscode.Position;
-      return TypeResolver.getVariableType(trimmed, document, position, indexer);
+      return TypeResolver.getVariableType(noComment, document, position, indexer);
     }
 
     return undefined;
@@ -361,6 +394,7 @@ export class TypeResolver {
   ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const visited = new Set<string>();
+    typeName = normalizeGenericTypeName(typeName);
 
     const search = (currentTypeName: string): SymbolInfo | undefined => {
       const key = currentTypeName.toLowerCase();
@@ -413,6 +447,7 @@ export class TypeResolver {
   ): SymbolInfo[] {
     const members: SymbolInfo[] = [];
     const visited = new Set<string>();
+    typeName = normalizeGenericTypeName(typeName);
 
     const collect = (currentTypeName: string): void => {
       const key = currentTypeName.toLowerCase();
@@ -442,4 +477,98 @@ export class TypeResolver {
     collect(typeName);
     return members;
   }
+
+  /**
+   * Convenience wrapper over {@link getNonNullVariablesAt} so consumers
+   * (Code Actions, future `?.` / `??` linter rules, null-deref diagnostic)
+   * can ask "is `varName` definitely non-NULL at this position?" without
+   * touching `flow-analyzer` directly.
+   *
+   * Returns `true` only when the flow analyser has propagated a `NotNull`
+   * fact reaching `position.line` for `varName` (case-insensitive). When
+   * the analyser is silent, the function returns `false` — callers must
+   * treat that as "unknown / cannot prove non-null" and act conservatively.
+   */
+  public static isDefinitelyNotNull(
+    varName: string,
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): boolean {
+    const facts = getNonNullVariablesAt(document.getText(), position.line);
+    return facts.has(varName.toLowerCase());
+  }
 }
+
+/**
+ * Strips a trailing `' ...` line comment from `expr`, respecting `"..."` and
+ * `$"..."` string literals (so a literal `'` inside a string is not treated
+ * as a comment start). Returns the trimmed left side.
+ */
+function stripTrailingComment(expr: string): string {
+  let inString = false;
+  for (let i = 0; i < expr.length; i++) {
+    const c = expr[i];
+    if (c === '"') {
+      if (inString && expr[i + 1] === '"') {
+        i++;
+        continue;
+      }
+      inString = !inString;
+      continue;
+    }
+    if (!inString && c === "'") {
+      return expr.slice(0, i);
+    }
+  }
+  return expr;
+}
+
+/**
+ * Translates a generic type reference (`TList<Product>`,
+ * `Collections.TPair<Integer, String>`, `TList<TList<Integer>>`) into
+ * the monomorphic flat name the symbol indexer registers
+ * (`TList_Product`, `Collections.TPair_Integer_String`,
+ * `TList_TList_Integer`).
+ *
+ * Nested usages are flattened iteratively from the inside out — same
+ * algorithm `analyzeGenericsPass` uses — so the resulting name matches
+ * what {@link import("./symbol-indexer").WorkspaceSymbolIndexer} stores
+ * for the synthetic flat class.
+ *
+ * Inputs without a `<…>` suffix (or already-flat names like
+ * `TList_Product`) are returned unchanged.
+ */
+function normalizeGenericTypeName(typeName: string): string {
+  if (typeName.length === 0 || !typeName.includes("<")) return typeName;
+  // `findInnerMostGenericUsage` only inspects identifiers when their
+  // base name appears in the provided template-name set. To stay
+  // resolver-context-free, we pass an `acceptAll` predicate by treating
+  // every PascalCase identifier as a potential template — same heuristic
+  // the indexer uses to surface flat symbols.
+  let current = typeName.trim();
+  for (let iter = 0; iter < 50; iter++) {
+    const hit = findInnerMostGenericUsage(current, ACCEPT_ALL_PASCAL_NAMES);
+    if (hit === null) break;
+    const flat = flatNameOf(hit.base, hit.typeArgs);
+    current = current.slice(0, hit.start) + flat + current.slice(hit.end);
+  }
+  return current;
+}
+
+/**
+ * Sentinel set whose `has()` always returns `true`. We pass it to
+ * {@link findInnerMostGenericUsage} when normalising a type reference
+ * because the resolver does not know the workspace's registered
+ * template names at the call site — any PascalCase identifier followed
+ * by `<…>` is treated as a candidate.
+ *
+ * Implemented as a subclass of `Set` so it satisfies the `Set<string>`
+ * shape that {@link findInnerMostGenericUsage} expects; only `has()` is
+ * overridden, which is the single method the analyzer calls.
+ */
+class AcceptAllSet extends Set<string> {
+  public override has(_value: string): boolean {
+    return true;
+  }
+}
+const ACCEPT_ALL_PASCAL_NAMES: ReadonlySet<string> = new AcceptAllSet();

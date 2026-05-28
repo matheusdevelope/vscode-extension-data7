@@ -17,6 +17,14 @@ export interface Data7Configuration {
   readonly exclude: readonly string[];
   readonly diagnosticSeverity: Readonly<Record<string, DiagnosticSeverityOverride>>;
   readonly autoFormatOnSave: boolean;
+  /**
+   * Experimental: when `true`, the SugarTranspiler routes generics
+   * monomorphization through the AST engine (parser ->
+   * GenericsMonomorphizer -> serializer) instead of the legacy textual
+   * regex pre-pass. Defaults to `false` while the AST pipeline is
+   * stabilised.
+   */
+  readonly experimentalUseAstGenerics: boolean;
 }
 
 /**
@@ -52,6 +60,7 @@ export function readConfiguration(): Data7Configuration {
     diagnosticSeverity:
       cfg.get<Record<string, DiagnosticSeverityOverride>>("diagnosticSeverity") ?? {},
     autoFormatOnSave: cfg.get<boolean>("autoFormatOnSave") ?? false,
+    experimentalUseAstGenerics: cfg.get<boolean>("experimental.useAstGenerics") ?? false,
   };
 }
 

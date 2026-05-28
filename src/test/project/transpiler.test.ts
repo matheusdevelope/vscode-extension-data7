@@ -455,3 +455,314 @@ describe("SugarTranspiler — ternary (`cond ? a : b`)", () => {
     assert.match(out, /^If cond Then ' valor padrao$/m);
   });
 });
+
+describe("SugarTranspiler — A1 null-coalesce (`??`)", () => {
+  const ctx = makeContext({});
+
+  test("expands `Dim x = a ?? b` into Dim + If/Then/Else", () => {
+    const code = `Dim nome As String = pName ?? "Anônimo"`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [
+      "Dim nome As String",
+      "If pName = NULL Then",
+      `   nome = "Anônimo"`,
+      "Else",
+      "   nome = pName",
+      "End If",
+    ]);
+  });
+
+  test("expands reassignment `x = a ?? b` without an extra Dim", () => {
+    const code = `x = a ?? b`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [
+      "If a = NULL Then",
+      "   x = b",
+      "Else",
+      "   x = a",
+      "End If",
+    ]);
+  });
+
+  test("materializes a complex LHS into a __srcN temp so it is evaluated once", () => {
+    const code = `Dim x = me.GetValue() ?? "fallback"`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Dim __src0 = me\.GetValue\(\)$/m);
+    assert.match(out, /^If __src0 = NULL Then$/m);
+  });
+
+  test("emits `null-coalesce-context-unsupported` for non-assignment line", () => {
+    const code = `Print a ?? "x"`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 1);
+    const [diag] = diagnostics;
+    assert.ok(diag);
+    assert.equal(diag.code, "null-coalesce-context-unsupported");
+    assert.equal(out, code);
+  });
+});
+
+describe("SugarTranspiler — A2/A3/A4 compound logical assignments", () => {
+  const ctx = makeContext({});
+
+  test("expands `x ??= y` into If x = NULL Then x = y / End If", () => {
+    const code = `pConfig ??= "default"`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [
+      "If pConfig = NULL Then",
+      `   pConfig = "default"`,
+      "End If",
+    ]);
+  });
+
+  test("expands `x ||= y` into If Not x Then x = y / End If", () => {
+    const code = `pAtivo ||= True`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), ["If Not pAtivo Then", "   pAtivo = True", "End If"]);
+  });
+
+  test("expands `x &&= y` into If x Then x = y / End If", () => {
+    const code = `pAtivo &&= False`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), ["If pAtivo Then", "   pAtivo = False", "End If"]);
+  });
+});
+
+describe("SugarTranspiler — A5 optional chaining (`?.`)", () => {
+  const ctx = makeContext({});
+
+  test("expands property access `Dim x = obj?.Prop` into Dim + If/Then", () => {
+    const code = `Dim nome As String = pObj?.Nome`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [
+      "Dim nome As String",
+      "If pObj <> NULL Then",
+      "   nome = pObj.Nome",
+      "End If",
+    ]);
+  });
+
+  test("expands method call statement `obj?.Method()` into If/Then guard", () => {
+    const code = `pForm?.Free()`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), ["If pForm <> NULL Then", "   pForm.Free()", "End If"]);
+  });
+
+  test("emits `optional-chain-too-deep` when more than 3 ?. tokens on one line", () => {
+    const code = `Dim x = a?.b?.c?.d?.e`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 1);
+    const [diag] = diagnostics;
+    assert.ok(diag);
+    assert.equal(diag.code, "optional-chain-too-deep");
+    assert.equal(out, code);
+  });
+
+  test("emits `optional-chain-context-unsupported` for non-assignment, non-call line", () => {
+    const code = `Print obj?.Nome`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 1);
+    const [diag] = diagnostics;
+    assert.ok(diag);
+    assert.equal(diag.code, "optional-chain-context-unsupported");
+    assert.equal(out, code);
+  });
+});
+
+describe("SugarTranspiler — B1 object initializer", () => {
+  const ctx = makeContext({});
+
+  test("expands `New T() With { .X = v, .Y = w }`", () => {
+    const code = `Dim p As TPessoa = New TPessoa() With { .Nome = "Joao", .Idade = 30 }`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [
+      `Dim p As TPessoa = New TPessoa()`,
+      "With p",
+      `   .Nome = "Joao"`,
+      "   .Idade = 30",
+      "End With",
+    ]);
+  });
+});
+
+describe("SugarTranspiler — B2 Using (multi-line)", () => {
+  const ctx = makeContext({});
+
+  test("expands `Using x As New T(args) / body / End Using` into Try/Finally", () => {
+    const code = ['Using form As New TFormCard("X")', "   form.Show()", "End Using"].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim form As TFormCard = New TFormCard\("X"\)/);
+    assert.match(out, /Try/);
+    assert.match(out, /Finally/);
+    assert.match(out, /form\.Free\(\)/);
+    assert.match(out, /End Try/);
+  });
+});
+
+describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
+  const ctx = makeContext({});
+
+  test("expands `Dim x As New StringList` into the explicit `= New StringList()` form", () => {
+    const code = `Dim list As New StringList`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, `Dim list As StringList = New StringList()`);
+  });
+});
+
+describe("SugarTranspiler — D1 Enum declarative (multi-line)", () => {
+  const ctx = makeContext({});
+
+  test("expands `Enum X / V = ... / End Enum` into a BaseEnum class", () => {
+    const code = [
+      "Enum CardAdm As BaseEnum",
+      '   Stone = "Stone"',
+      '   Cielo = "Cielo"',
+      "End Enum",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class CardAdm/);
+    assert.match(out, /Inherits BaseEnum/);
+    assert.match(out, /Shared Function Stone As CardAdm/);
+    assert.match(out, /Shared Function Cielo As CardAdm/);
+    assert.match(out, /Shared Function GetOptions\(\) As String/);
+  });
+});
+
+describe("SugarTranspiler — G2 Match (multi-line)", () => {
+  const ctx = makeContext({});
+
+  test("expands `Match x / Case Is T : body / End Match` into If/ElseIf/Else/End If", () => {
+    const code = [
+      "Match pValue",
+      '   Case Is CardRecord : Print "registro"',
+      '   Case Else : Print "outro"',
+      "End Match",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /If pValue\.InheritsFrom\(CardRecord\) Then/);
+    assert.match(out, /Else/);
+    assert.match(out, /End If/);
+  });
+});
+
+describe("SugarTranspiler — G3 Return-If", () => {
+  const ctx = makeContext({});
+
+  test("expands `Return If cond Then a Else b` into a two-line form", () => {
+    const code = `Return If x > 0 Then "pos" Else "neg"`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [`If x > 0 Then Return "pos"`, `Return "neg"`]);
+  });
+});
+
+describe("SugarTranspiler — H1 pipe `|>`", () => {
+  const ctx = makeContext({});
+
+  test("rewrites `data |> Trim |> UCase` into nested calls", () => {
+    const code = `Dim r As String = data |> Trim |> UCase`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /UCase\(Trim\(data\)\)/);
+  });
+});
+
+describe("SugarTranspiler — E1/E2/E3 destructure-object", () => {
+  const ctx = makeContext({});
+
+  test("expands `Dim { Nome, Idade } = pessoa` to individual Dims", () => {
+    const code = `Dim { Nome, Idade } = pessoa`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), ["Dim Nome = pessoa.Nome", "Dim Idade = pessoa.Idade"]);
+  });
+
+  test("handles rename `{ Nome As n }`", () => {
+    const code = `Dim { Nome As n } = pessoa`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, "Dim n = pessoa.Nome");
+  });
+
+  test('handles default `{ Nome As n = "x" }` by emitting a fallback line', () => {
+    const code = `Dim { Nome As n = "x" } = pessoa`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim n = pessoa\.Nome/);
+    assert.match(out, /If n = NULL Or n = "" Then n = "x"/);
+  });
+});
+
+describe("SugarTranspiler — E4/E5 destructure-array", () => {
+  const ctx = makeContext({});
+
+  test("expands `Dim [a, b] = lista` to `Item(0)` and `Item(1)`", () => {
+    const code = `Dim [first, second] = lista`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), ["Dim first = lista.Item(0)", "Dim second = lista.Item(1)"]);
+  });
+
+  test("expands `Dim [first, ...rest]` to first + tail loop", () => {
+    const code = `Dim [first, ...rest] = lista`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim first = lista\.Item\(0\)/);
+    assert.match(out, /Dim rest As StringList = New StringList\(\)/);
+    assert.match(out, /For __src0 = 1 To lista\.Count - 1/);
+    assert.match(out, /rest\.Add\(lista\.Item\(__src0\)\)/);
+  });
+});
+
+describe("SugarTranspiler — J2 tagged templates", () => {
+  const ctx = makeContext({});
+
+  test('rewrites `sql$"text {x}"` into `sql.Build(...)`', () => {
+    const code = `Dim cmd As String = sql$"SELECT * FROM {tabela}"`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /sql\.Build\("SELECT \* FROM ", \(tabela\), ""\)/);
+  });
+});
+
+describe("SugarTranspiler — A6 numeric separator", () => {
+  const ctx = makeContext({});
+
+  test("strips underscores from a Long literal", () => {
+    const code = `Dim n As Long = 7_900_000_000`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, `Dim n As Long = 7900000000`);
+  });
+
+  test("strips underscores from a Double literal", () => {
+    const code = `Dim pi As Double = 3.14_15`;
+    const { code: out } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(out, `Dim pi As Double = 3.1415`);
+  });
+
+  test("leaves identifiers with leading/embedded underscores alone", () => {
+    const code = `Dim __src0 As Integer = 42`;
+    const { code: out } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(out, `Dim __src0 As Integer = 42`);
+  });
+
+  test("leaves underscores inside string literals alone", () => {
+    const code = `Dim s As String = "a_b_c"`;
+    const { code: out } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(out, `Dim s As String = "a_b_c"`);
+  });
+});

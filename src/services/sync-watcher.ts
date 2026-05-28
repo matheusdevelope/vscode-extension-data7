@@ -29,11 +29,11 @@ export class SyncWatcher {
   private static readonly REBUILD_DELAY_MS = 400;
 
   /**
-     * Resolves the synchronization mode for the project:
-     * 1. Check data7.json's "sincronizacao.modo"
-     * 2. Fall back to VS Code settings "data7.sincronizacao.modo"
-     * 3. Fall back to "data7.enableAutoSync"
-     */
+   * Resolves the synchronization mode for the project:
+   * 1. Check data7.json's "sincronizacao.modo"
+   * 2. Fall back to VS Code settings "data7.sincronizacao.modo"
+   * 3. Fall back to "data7.enableAutoSync"
+   */
   private static getSyncMode(projectFilePath?: string): string {
     if (projectFilePath) {
       const workspaceDir = path.dirname(projectFilePath);
@@ -41,8 +41,7 @@ export class SyncWatcher {
       try {
         const cfg = readProjectConfig(configJsonPath);
         if (
-          cfg &&
-          cfg.raw &&
+          cfg?.raw &&
           typeof cfg.raw.sincronizacao === "object" &&
           cfg.raw.sincronizacao !== null
         ) {
@@ -56,7 +55,7 @@ export class SyncWatcher {
       }
     }
     const config = readConfiguration();
-    if (config.sincronizacao && typeof config.sincronizacao.modo === "string") {
+    if (typeof config.sincronizacao.modo === "string") {
       return config.sincronizacao.modo.toLowerCase();
     }
     return config.enableAutoSync ? "estrutura <> projeto.7proj" : "disabled";

@@ -53,5 +53,46 @@ End Namespace`;
         "hover content should include the unsupported warning",
       );
     });
+
+    test("renders Add(pValue As Product) when hovering a member of TList<Product>", async () => {
+      // End-to-end: the file declares `Class TList<T>` and uses
+      // `Dim _products As TList<Product>`. The hover provider must
+      // resolve `_products.Add` via the synthetic flat `TList_Product`
+      // and show the substituted parameter type.
+      const code = `Namespace mod_app
+   Class TList<T>
+      Public Count As Integer
+      Public Sub Add(pValue As T)
+      End Sub
+      Public Function Get(pIndex As Integer) As T
+      End Function
+   End Class
+
+   Class TUseCase
+      Public Sub Run()
+         Dim _products As TList<Product>
+         _products.Add(Nothing)
+      End Sub
+   End Class
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///hov_generics.bas";
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicHoverProvider();
+      // Cursor on `Add` in `_products.Add(Nothing)` — line 12 (0-based), column ~21.
+      const hover = (await Promise.resolve(provider.provideHover(doc, pos(12, 21), noopToken))) as
+        | { contents: readonly ({ value?: string } | string)[] }
+        | undefined;
+      assert.ok(hover, "hover must not be undefined for Add on TList<Product>");
+      const text = JSON.stringify(hover.contents);
+      assert.match(
+        text,
+        /pValue\s+As\s+Product/i,
+        `hover should show substituted Product type; got: ${text}`,
+      );
+    });
   });
 });
