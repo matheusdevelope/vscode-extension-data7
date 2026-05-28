@@ -1,0 +1,151 @@
+{
+  "nome": "mod_card_grouper",
+  "language": "Basic",
+  "version": "2.0",
+  "targetPlatform": "Default",
+  "opcoes": {
+    "autor": "Matheus",
+    "versao": "1.0.0.0",
+    "informacoes": "Módulo para separar arquivos de retornos de cartões para faciliar a conciliação de cartões e bancária",
+    "codEmpresa": 1,
+    "codFilial": 1,
+    "nomeUsuario": "Administrador",
+    "preScript": "",
+    "identificacaoBancoDados": "82EF484F-5218-448F-A278-040A928A8BC7"
+  },
+  "virtualFolders": [
+    {
+      "nome": "Unidades (53)",
+      "id": "{1F241EF3-1E14-436D-8374-B5C8F126C988}",
+      "pastaId": "",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "data7_modules",
+      "id": "{975F1BBE-964B-457F-AF70-A7BBD8FC0361}",
+      "pastaId": "{1F241EF3-1E14-436D-8374-B5C8F126C988}",
+      "aberta": "Nao"
+    },
+    {
+      "nome": "mod_card",
+      "id": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
+      "pastaId": "{1F241EF3-1E14-436D-8374-B5C8F126C988}",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "core",
+      "id": "{67077B15-5467-4E04-9BCD-70653E3AE33E}",
+      "pastaId": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "form",
+      "id": "{4EAB588F-35FD-4A74-A5A0-BD614E080E84}",
+      "pastaId": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "adapters",
+      "id": "{A573FDF9-B7B4-4DDB-A119-E8EAEB9E4FBA}",
+      "pastaId": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
+      "aberta": "Sim"
+    }
+  ],
+  "modulesMetadata": {
+    "mod_card_stone": {
+      "nome": "mod_card_stone",
+      "aberto": false,
+      "ordemAbertura": -1,
+      "pastaId": "{A573FDF9-B7B4-4DDB-A119-E8EAEB9E4FBA}"
+    },
+    "mod_card_adm": {
+      "nome": "mod_card_adm",
+      "aberto": false,
+      "ordemAbertura": -1,
+      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+    },
+    "mod_card_extractor": {
+      "nome": "mod_card_extractor",
+      "aberto": false,
+      "ordemAbertura": -1,
+      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+    },
+    "mod_card_grouper": {
+      "nome": "mod_card_grouper",
+      "aberto": false,
+      "ordemAbertura": -1,
+      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+    },
+    "mod_card_record": {
+      "nome": "mod_card_record",
+      "aberto": false,
+      "ordemAbertura": -1,
+      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+    },
+    "mod_card_schema": {
+      "nome": "mod_card_schema",
+      "aberto": false,
+      "ordemAbertura": -1,
+      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+    },
+    "mod_card_controller": {
+      "nome": "mod_card_controller",
+      "aberto": true,
+      "ordemAbertura": 1,
+      "pastaId": "{4EAB588F-35FD-4A74-A5A0-BD614E080E84}"
+    },
+    "mod_card_form": {
+      "nome": "mod_card_form",
+      "aberto": true,
+      "ordemAbertura": 2,
+      "pastaId": "{4EAB588F-35FD-4A74-A5A0-BD614E080E84}"
+    }
+  },
+  "dependencies": {
+    "mod_enum": "1.0.0.0",
+    "mod_pipeline_field": "1.0.0.0",
+    "mod_pipeline_datasource": "1.0.0.0",
+    "mod_pipeline_navigator": "1.0.0.0",
+    "mod_pipeline_record": "1.0.0.0",
+    "mod_pipeline_schema": "1.0.0.0",
+    "mod_pipeline_extractor": "1.0.0.0",
+    "mod_pipeline_grouper": "1.0.0.0",
+    "mod_base_list": "1.0.0.0",
+    "console": "1.0.0.0",
+    "mod_pipeline_controller": "1.0.0.0",
+    "mod_pipeline_form": "1.0.0.0",
+    "mod_pipeline_option": "1.0.0.0",
+    "mod_pipeline_datasource_grid": "1.0.0.0",
+    "mod_pipeline_datasource_excel": "1.0.0.0",
+    "mod_pipeline_datasource_csv": "1.0.0.0",
+    "mod_pipeline_window": "1.0.0.0",
+    "mod_pipeline_navigator_horizontal": "1.0.0.0",
+    "mod_pipeline_navigator_vertical": "1.0.0.0",
+    "mod_pipeline_cell": "1.0.0.0",
+    "mod_pipeline_value": "1.0.0.0",
+    "mod_pipeline_group": "1.0.0.0",
+    "mod_pipeline_group_key": "1.0.0.0",
+    "mod_pipeline_group_definition": "1.0.0.0",
+    "mod_pipeline": "1.0.0.0",
+    "mod_pipeline_exporter": "1.0.0.0",
+    "mod_form": "1.0.0.0",
+    "mod_topbar": "1.0.0.0",
+    "mod_control": "1.0.0.0",
+    "mod_base_editor": "1.0.0.0",
+    "mod_pipeline_actions": "1.0.0.0",
+    "mod_pipeline_resources": "1.0.0.0",
+    "mod_pipeline_util": "1.0.0.0",
+    "mod_value_formatter": "1.0.0.0",
+    "mod_pipeline_mapper": "1.0.0.0",
+    "mod_pipeline_validation": "1.0.0.0",
+    "mod_pipeline_export_field": "1.0.0.0",
+    "mod_props": "1.0.0.0",
+    "mod_winapi": "1.0.0.0",
+    "mod_shortcut": "1.0.0.0",
+    "mod_icons": "1.0.0.0",
+    "mod_event_emitter": "1.0.0.0",
+    "mod_labeled_container": "1.0.0.0",
+    "mod_buttonedtextbox": "1.0.0.0",
+    "mod_notifier": "1.0.0.0"
+  }
+}

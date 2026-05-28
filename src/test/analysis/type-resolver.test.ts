@@ -247,4 +247,267 @@ End Namespace`;
       );
     });
   });
+
+  describe("inferExpressionType — F1 literals & chains", () => {
+    const mkDoc = (text: string): any => ({
+      uri: { toString: () => "file:///infer_f1.bas" },
+      getText: () => text,
+    });
+
+    test("infers String from a quoted literal RHS", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType('"abc"', doc, 0, indexer), "String");
+    });
+
+    test("infers Integer from a decimal literal RHS", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType("42", doc, 0, indexer), "Integer");
+    });
+
+    test("infers Double from a floating-point literal RHS", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType("3.14", doc, 0, indexer), "Double");
+    });
+
+    test("infers Boolean from True/False", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType("True", doc, 0, indexer), "Boolean");
+      assert.equal(TypeResolver.inferExpressionType("False", doc, 0, indexer), "Boolean");
+    });
+
+    test("infers the target type from CType(expr, T)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(
+        TypeResolver.inferExpressionType("CType(MyBase.Take(0), CardRecord)", doc, 0, indexer),
+        "CardRecord",
+      );
+    });
+
+    test('infers String from an interpolated literal $"..."', () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType('$"olá, {nome}"', doc, 0, indexer), "String");
+    });
+
+    test("strips trailing inline comments before inferring", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(
+        TypeResolver.inferExpressionType("42  ' meaning of life", doc, 0, indexer),
+        "Integer",
+      );
+    });
+
+    test("infers common type from ternary when both branches agree", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType('cond ? "a" : "b"', doc, 0, indexer), "String");
+    });
+
+    test("falls back to Variant when ternary branches disagree", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const doc = mkDoc("");
+      assert.equal(TypeResolver.inferExpressionType('cond ? "a" : 1', doc, 0, indexer), "Variant");
+    });
+
+    test("walks a multi-segment chain via System Library members", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => any;
+      };
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_app
+   Imports Collections
+   Class TTest
+      Public Sub Run()
+         Dim list As StringList
+         Dim len = list.Strings(0)
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///chain_infer.bas", code);
+      const doc = createMockDoc("file:///chain_infer.bas", code);
+
+      assert.equal(TypeResolver.inferExpressionType("list.Strings(0)", doc, 5, indexer), "String");
+    });
+  });
+
+  describe("generics IntelliSense (Fase 7)", () => {
+    const { createMockDoc } = require("../_helpers/mock-doc") as {
+      createMockDoc: (uri: string, text: string) => any;
+    };
+
+    const GENERIC_FIXTURE = `Namespace mod_app
+   Class TList<T>
+      Public Count As Integer
+      Public Sub Add(pValue As T)
+      End Sub
+      Public Function Get(pIndex As Integer) As T
+      End Function
+   End Class
+
+   Class TUseCase
+      Public Sub Run()
+         Dim _products As TList<Product>
+         _products.Add(Nothing)
+      End Sub
+   End Class
+End Namespace`;
+
+    test("findMember resolves Add(pValue As Product) on TList<Product>", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_hover.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      createMockDoc(uri, GENERIC_FIXTURE);
+
+      const add = TypeResolver.findMember("TList<Product>", "Add", indexer);
+      assert.ok(add, "Add must be discoverable via TList<Product>");
+      assert.equal(add.kind, "method");
+      assert.equal(add.parameters?.[0]?.type, "Product");
+    });
+
+    test("findMember resolves Get(): Product on TList<Product> (substituted return)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_hover_get.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      createMockDoc(uri, GENERIC_FIXTURE);
+
+      const get = TypeResolver.findMember("TList<Product>", "Get", indexer);
+      assert.ok(get, "Get must be discoverable");
+      assert.equal(get.type, "Product");
+    });
+
+    test("findMember preserves non-generic field types (Count: Integer)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_hover_count.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      createMockDoc(uri, GENERIC_FIXTURE);
+
+      const count = TypeResolver.findMember("TList<Product>", "Count", indexer);
+      assert.ok(count, "Count must be discoverable");
+      assert.equal(count.type, "Integer");
+    });
+
+    test("getVariableType captures the generic type annotation verbatim", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_var.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      const doc = createMockDoc(uri, GENERIC_FIXTURE);
+
+      const pos = { line: 11, character: 20 } as any;
+      assert.equal(TypeResolver.getVariableType("_products", doc, pos, indexer), "TList<Product>");
+    });
+
+    test("findClassSymbol normalises TList<Product> to the flat TList_Product", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_class.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      createMockDoc(uri, GENERIC_FIXTURE);
+
+      const sym = TypeResolver.findClassSymbol("TList<Product>", indexer);
+      assert.ok(sym, "Synthetic flat class TList_Product must be visible");
+      assert.equal(sym.name, "TList_Product");
+    });
+
+    const NESTED_FIXTURE = `Namespace mod_app
+   Class TList<T>
+      Public Count As Integer
+      Public Sub Add(pValue As T)
+      End Sub
+   End Class
+
+   Class TUseCase
+      Public Sub Run()
+         Dim _matrix As TList<TList<Integer>>
+      End Sub
+   End Class
+End Namespace`;
+
+    test("findClassSymbol flattens nested generics (TList<TList<Integer>> -> TList_TList_Integer)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_nested.bas";
+      indexer.updateFileContent(uri, NESTED_FIXTURE);
+      createMockDoc(uri, NESTED_FIXTURE);
+
+      const outer = TypeResolver.findClassSymbol("TList<TList<Integer>>", indexer);
+      assert.ok(outer, "outer TList_TList_Integer must be visible");
+      assert.equal(outer.name, "TList_TList_Integer");
+
+      const inner = TypeResolver.findClassSymbol("TList<Integer>", indexer);
+      assert.ok(inner, "inner TList_Integer must also be visible");
+      assert.equal(inner.name, "TList_Integer");
+    });
+
+    test("findMember on nested TList<TList<Integer>> resolves Add(pValue As TList_Integer)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_nested_member.bas";
+      indexer.updateFileContent(uri, NESTED_FIXTURE);
+      createMockDoc(uri, NESTED_FIXTURE);
+
+      const add = TypeResolver.findMember("TList<TList<Integer>>", "Add", indexer);
+      assert.ok(add, "Add must be discoverable on the outer flat class");
+      assert.equal(add.parameters?.[0]?.type, "TList_Integer");
+    });
+
+    test("indexer does not register phantom instantiations from comments or strings", () => {
+      const FIXTURE = `Namespace mod_app
+   Class TList<T>
+      Public Sub Add(pValue As T)
+      End Sub
+   End Class
+
+   Class TUseCase
+      ' This comment mentions TList<Phantom>.
+      Public Sub Run()
+         Dim _msg As String = "TList<AlsoPhantom>"
+         Dim _real As TList<Product>
+      End Sub
+   End Class
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_phantom.bas";
+      indexer.updateFileContent(uri, FIXTURE);
+      createMockDoc(uri, FIXTURE);
+
+      assert.ok(TypeResolver.findClassSymbol("TList<Product>", indexer), "real usage indexed");
+      assert.equal(
+        TypeResolver.findClassSymbol("TList<Phantom>", indexer),
+        undefined,
+        "comment-mentioned TList<Phantom> must NOT be indexed",
+      );
+      assert.equal(
+        TypeResolver.findClassSymbol("TList<AlsoPhantom>", indexer),
+        undefined,
+        "string-literal TList<AlsoPhantom> must NOT be indexed",
+      );
+    });
+
+    test("synthetic flat class inherits the template's namespace as containerName", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_container.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      createMockDoc(uri, GENERIC_FIXTURE);
+
+      const sym = TypeResolver.findClassSymbol("TList<Product>", indexer);
+      assert.ok(sym);
+      assert.equal(
+        sym.containerName,
+        "mod_app",
+        "synthetic class should sit in the same namespace as TList<T>",
+      );
+    });
+  });
 });

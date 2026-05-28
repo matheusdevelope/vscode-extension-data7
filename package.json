@@ -364,13 +364,18 @@
               "off"
             ]
           },
-          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported."
+          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported, unknown-template, generic-arity-mismatch, duplicate-template, class-generic-method-unsupported, flat-name-collision, instantiation-limit-exceeded."
         },
         "data7.autoFormatOnSave": {
           "type": "boolean",
           "default": false,
           "deprecationMessage": "Deprecado em favor de `editor.formatOnSave` (suporte nativo do VS Code). Defina `\"editor.formatOnSave\": true` em `[d7basic]` para o mesmo efeito.",
           "markdownDescription": "**Deprecado.** Use `#editor.formatOnSave#` no escopo `[d7basic]`. Quando habilitado, formata automaticamente o arquivo `.bas` ao salvar."
+        },
+        "data7.experimental.useAstGenerics": {
+          "type": "boolean",
+          "default": false,
+          "description": "Experimental. Quando habilitado, o SugarTranspiler usa o pipeline baseado em AST (parser -> GenericsMonomorphizer -> serializer) para expandir generics, em vez do pre-pass textual legado. Mantenha desabilitado ate que o pipeline AST esteja estabilizado."
         }
       }
     }

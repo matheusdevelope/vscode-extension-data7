@@ -8,13 +8,20 @@ import {
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { DependencyScanner, IMPORTS_REGEX_ANCHORED } from "../analysis/dependency-scanner";
+import { analyzeGenericsPass, type GenericsPassWarning } from "../analysis/generics-analyzer";
 import type {
+  ClassGenericMethodUnsupportedPayload,
+  DuplicateTemplatePayload,
+  FlatNameCollisionPayload,
+  GenericArityMismatchPayload,
+  InstantiationLimitExceededPayload,
   InvalidInterpolationPayload,
   MissingImportPayload,
   NotEnumerablePayload,
   TernaryContextUnsupportedPayload,
   UnknownMemberPayload,
   UnknownSuppressionCodePayload,
+  UnknownTemplatePayload,
   UnsupportedMemberPayload,
   UnusedImportPayload,
 } from "./diagnostic-codes";
@@ -248,6 +255,12 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.UnknownSuppressionCode]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.InvalidInterpolation]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.TernaryContextUnsupported]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.UnknownTemplate]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.GenericArityMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.DuplicateTemplate]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.ClassGenericMethodUnsupported]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.FlatNameCollision]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.InstantiationLimitExceeded]: vscode.DiagnosticSeverity.Warning,
   };
 
   /** Frozen set of canonical codes accepted by `' data7:disable-line <code>`. */
@@ -755,6 +768,25 @@ export class DiagnosticsLinter {
       diagnostics.push(diag);
     });
 
+    // 6c. Textual generics pre-pass — surfaces unknown templates, arity
+    //     mismatches, duplicate registrations and flat-name collisions
+    //     directly in the Problems panel so the user does not need to
+    //     run a build to find them. Shares the warning shape with the
+    //     SugarTranspiler so a future migration to the AST driver keeps
+    //     the same codes.
+    const genericWarnings = analyzeGenericsPass(text);
+    for (const warning of genericWarnings) {
+      const range = computeGenericWarningRange(warning, lines);
+      const diag = new vscode.Diagnostic(
+        range,
+        formatGenericWarningMessage(warning),
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = mapGenericWarningToDiagnosticCode(warning.code);
+      attachGenericWarningPayload(diag, warning);
+      diagnostics.push(diag);
+    }
+
     // 7. `' data7:disable-line <code>` / `disable-next-line <code>`: warn when
     //    `<code>` is not a real `DiagnosticCode`. Catches typos in directives
     //    that would otherwise silently silence nothing.
@@ -869,6 +901,122 @@ function attachUnknownMemberSuggestions(
     suggestions,
   };
   setDiagnosticPayload(diag, payload);
+}
+
+/**
+ * Maps a {@link GenericsPassWarning}'s `code` to the corresponding
+ * `DiagnosticCodes` literal so the rest of the linter / Problems panel
+ * sees the canonical kebab-case identifier.
+ */
+function mapGenericWarningToDiagnosticCode(code: GenericsPassWarning["code"]): string {
+  switch (code) {
+    case "unknown-template":
+      return DiagnosticCodes.UnknownTemplate;
+    case "generic-arity-mismatch":
+      return DiagnosticCodes.GenericArityMismatch;
+    case "duplicate-template":
+      return DiagnosticCodes.DuplicateTemplate;
+    case "class-generic-method-unsupported":
+      return DiagnosticCodes.ClassGenericMethodUnsupported;
+    case "flat-name-collision":
+      return DiagnosticCodes.FlatNameCollision;
+    case "instantiation-limit-exceeded":
+      return DiagnosticCodes.InstantiationLimitExceeded;
+  }
+}
+
+/**
+ * Computes the editor range for a generics warning. When the warning
+ * carries source coordinates, we point at the offending token (template
+ * name + `<...>` span when feasible); otherwise we fall back to the
+ * first line so the Problems panel still surfaces the message.
+ */
+function computeGenericWarningRange(
+  warning: GenericsPassWarning,
+  lines: readonly string[],
+): vscode.Range {
+  const line = warning.line ?? 0;
+  const col = warning.column ?? 0;
+  const lineText = lines[line] ?? "";
+  // The warning column points at the start of the base identifier. We
+  // extend the range to cover the `<...>` span when one is present on
+  // the same line so the squiggle aligns visually with the user input.
+  const lt = lineText.indexOf("<", col);
+  const gt = lt >= 0 ? lineText.indexOf(">", lt) : -1;
+  const endCol = gt >= 0 ? gt + 1 : Math.max(col + 1, lineText.length);
+  return new vscode.Range(line, col, line, endCol);
+}
+
+function formatGenericWarningMessage(warning: GenericsPassWarning): string {
+  switch (warning.code) {
+    case "unknown-template":
+      return `Generics: template '${warning.templateName ?? ""}' não foi declarado neste arquivo. O Builder deixará a referência inalterada e o compilador surfará erro.`;
+    case "generic-arity-mismatch":
+      return `Generics: '${warning.templateName ?? ""}' espera ${String(warning.expected ?? 0)} argumento(s) de tipo, mas recebeu ${String(warning.actual ?? 0)}.`;
+    case "duplicate-template":
+      return `Generics: template '${warning.templateName ?? ""}' declarado mais de uma vez; a última declaração prevalece.`;
+    case "class-generic-method-unsupported":
+      return `Generics: método genérico '${warning.templateName ?? ""}' dentro de classe não é suportado pelo monomorphizer; a declaração será removida do output do Builder.`;
+    case "flat-name-collision":
+      return `Generics: duas instanciações distintas colapsam ao mesmo nome '${warning.flatName ?? ""}'. Renomeie um dos tipos para desambiguar.`;
+    case "instantiation-limit-exceeded":
+      return `Generics: limite de instanciações excedido; o Builder abortou a expansão. Verifique se há recursão infinita em um template.`;
+  }
+}
+
+function attachGenericWarningPayload(diag: vscode.Diagnostic, warning: GenericsPassWarning): void {
+  switch (warning.code) {
+    case "unknown-template": {
+      const payload: UnknownTemplatePayload = {
+        code: DiagnosticCodes.UnknownTemplate,
+        templateName: warning.templateName ?? "",
+      };
+      setDiagnosticPayload(diag, payload);
+      return;
+    }
+    case "generic-arity-mismatch": {
+      const payload: GenericArityMismatchPayload = {
+        code: DiagnosticCodes.GenericArityMismatch,
+        templateName: warning.templateName ?? "",
+        expected: warning.expected ?? 0,
+        actual: warning.actual ?? 0,
+      };
+      setDiagnosticPayload(diag, payload);
+      return;
+    }
+    case "duplicate-template": {
+      const payload: DuplicateTemplatePayload = {
+        code: DiagnosticCodes.DuplicateTemplate,
+        templateName: warning.templateName ?? "",
+      };
+      setDiagnosticPayload(diag, payload);
+      return;
+    }
+    case "class-generic-method-unsupported": {
+      const payload: ClassGenericMethodUnsupportedPayload = {
+        code: DiagnosticCodes.ClassGenericMethodUnsupported,
+        qualifiedName: warning.templateName ?? "",
+      };
+      setDiagnosticPayload(diag, payload);
+      return;
+    }
+    case "flat-name-collision": {
+      const payload: FlatNameCollisionPayload = {
+        code: DiagnosticCodes.FlatNameCollision,
+        flatName: warning.flatName ?? "",
+      };
+      setDiagnosticPayload(diag, payload);
+      return;
+    }
+    case "instantiation-limit-exceeded": {
+      const payload: InstantiationLimitExceededPayload = {
+        code: DiagnosticCodes.InstantiationLimitExceeded,
+        limit: 10_000,
+      };
+      setDiagnosticPayload(diag, payload);
+      return;
+    }
+  }
 }
 
 function levenshtein(a: string, b: string): number {

@@ -8,6 +8,8 @@ Esta pasta agrupa exemplos pequenos, autocontidos e **versionados** de código `
 
 A política de criação destes arquivos é uma exceção explícita à regra "não criar docs proativamente" em `coding_standards.mdc` — eles são tratados como *insumos versionados*, não como documentação acessória.
 
+> **Referência sistemática da linguagem**: para entender a sintaxe geral, tipos, classes, generics e limitações antes de explorar exemplos pontuais, comece por [`docs/linguagem-basic/README.md`](../linguagem-basic/README.md). Esta pasta complementa aquela com exemplos pontuais e fixtures de teste.
+
 ## Layout
 
 ```
@@ -123,14 +125,27 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (40 arquivos)
+## Índice de exemplos (107 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (25)
+### sugar (71)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
+| [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) expandido para `= New T()` | `none` | — |
+| [`sugar/cast-function/01-ctype-canonical.bas`](./sugar/cast-function/01-ctype-canonical.bas) | forma canônica de cast no Data7 — CType(expr, T) | `none` | — |
+| [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/coalesce-assign/01-simple.bas`](./sugar/coalesce-assign/01-simple.bas) | ??= compound assignment — vira If x = NULL Then x = y | `none` | — |
+| [`sugar/decorators/01-singleton.bas`](./sugar/decorators/01-singleton.bas) | decorator @Singleton — ainda exploratório, exemplo do alvo | `none` | — |
+| [`sugar/default-indexer/01-basic.bas`](./sugar/default-indexer/01-basic.bas) | convenção `Property Item(...)` para indexação tipada | `none` | — |
+| [`sugar/destructure-array/01-basic.bas`](./sugar/destructure-array/01-basic.bas) | Dim [first, second] = lista expandido para Dims com Item(i) | `none` | — |
+| [`sugar/destructure-array/02-rest.bas`](./sugar/destructure-array/02-rest.bas) | Dim [first, ...rest] = lista expandido com loop For | `none` | — |
+| [`sugar/destructure-object/01-basic.bas`](./sugar/destructure-object/01-basic.bas) | Dim { Nome, Idade } = pessoa expandido em Dims individuais | `none` | — |
+| [`sugar/destructure-object/02-rename-default.bas`](./sugar/destructure-object/02-rename-default.bas) | destructuring com rename (As n) e default (= "x") | `none` | — |
+| [`sugar/destructure-param/01-basic.bas`](./sugar/destructure-param/01-basic.bas) | convenção atual: declarar Dims no início do corpo manualmente | `none` | — |
+| [`sugar/enum-declarative/01-basic.bas`](./sugar/enum-declarative/01-basic.bas) | Enum X / End Enum expandido para Class X Inherits BaseEnum | `none` | — |
+| [`sugar/for-each-kv/01-basic.bas`](./sugar/for-each-kv/01-basic.bas) | convenção atual para iterar pares Nome=Valor de uma StringList | `none` | — |
 | [`sugar/for-each-range/_expected/01-simple.bas`](./sugar/for-each-range/_expected/01-simple.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/for-each-range/_expected/02-variable-end.bas`](./sugar/for-each-range/_expected/02-variable-end.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/for-each-range/01-simple.bas`](./sugar/for-each-range/01-simple.bas) | For Each i In 0..10 — açúcar para o For clássico com limites numéricos | `none` | — |
@@ -143,6 +158,17 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/for-each/03-nested-loops.bas`](./sugar/for-each/03-nested-loops.bas) | For Each aninhado — contadores __idx0 e __idx1 não colidem | `none` | — |
 | [`sugar/for-each/04-not-enumerable.bas`](./sugar/for-each/04-not-enumerable.bas) | For Each sobre tipo sem propriedade Count + indexer — emite not-enumerable e Builder mantém a linha intacta | `not-enumerable@12` | — |
 | [`sugar/for-each/05-method-call-operand.bas`](./sugar/for-each/05-method-call-operand.bas) | For Each sobre expressão complexa (chamada de método) — exige materialização em variável local antes | `not-enumerable@10` | — |
+| [`sugar/function-ref/01-basic.bas`](./sugar/function-ref/01-basic.bas) | function reference convencional (sem `@`) — handler nomeado | `none` | — |
+| [`sugar/generic-tlist/_expected/01-basic.bas`](./sugar/generic-tlist/_expected/01-basic.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/generic-tlist/_expected/02-delegate.bas`](./sugar/generic-tlist/_expected/02-delegate.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/generic-tlist/_expected/03-method.bas`](./sugar/generic-tlist/_expected/03-method.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/generic-tlist/_expected/03-nested.bas`](./sugar/generic-tlist/_expected/03-nested.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/generic-tlist/_expected/04-shadowing.bas`](./sugar/generic-tlist/_expected/04-shadowing.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/generic-tlist/01-basic.bas`](./sugar/generic-tlist/01-basic.bas) | Class TList<T> monomorfizada para TList_Product | `none` | — |
+| [`sugar/generic-tlist/02-delegate.bas`](./sugar/generic-tlist/02-delegate.bas) | Delegate Function genérico monomorfizado para tipo concreto | `none` | — |
+| [`sugar/generic-tlist/03-method.bas`](./sugar/generic-tlist/03-method.bas) | Sub/Function generico livre (nivel namespace) monomorfizado para forma concreta | `none` | — |
+| [`sugar/generic-tlist/03-nested.bas`](./sugar/generic-tlist/03-nested.bas) | generics aninhados — TList<TList<Integer>> vira TList_TList_Integer | `none` | — |
+| [`sugar/generic-tlist/04-shadowing.bas`](./sugar/generic-tlist/04-shadowing.bas) | Bug 1 — variavel local nomeada `T` dentro do template NAO e | `none` | — |
 | [`sugar/interpolation/_expected/01-simple.bas`](./sugar/interpolation/_expected/01-simple.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/interpolation/_expected/02-multiple-expressions.bas`](./sugar/interpolation/_expected/02-multiple-expressions.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/interpolation/_expected/03-escaped-braces.bas`](./sugar/interpolation/_expected/03-escaped-braces.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
@@ -150,31 +176,74 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/interpolation/02-multiple-expressions.bas`](./sugar/interpolation/02-multiple-expressions.bas) | $"..." com várias expressões — cada `{x}` vira `& (x) &` | `none` | — |
 | [`sugar/interpolation/03-escaped-braces.bas`](./sugar/interpolation/03-escaped-braces.bas) | chaves literais via `{{` e `}}` — preservadas como `{` e `}` no output | `none` | — |
 | [`sugar/interpolation/04-invalid-empty-expression.bas`](./sugar/interpolation/04-invalid-empty-expression.bas) | $"...{}..." sem expressão dentro das chaves — emite invalid-interpolation | `invalid-interpolation@9` | — |
+| [`sugar/lambda/01-no-capture.bas`](./sugar/lambda/01-no-capture.bas) | alternativa nativa enquanto lambdas inline não são transpilados | `none` | — |
+| [`sugar/logical-and-assign/_expected/01-simple.bas`](./sugar/logical-and-assign/_expected/01-simple.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/logical-and-assign/01-simple.bas`](./sugar/logical-and-assign/01-simple.bas) | &&= compound assignment — vira If x Then x = y | `none` | — |
+| [`sugar/logical-or-assign/_expected/01-simple.bas`](./sugar/logical-or-assign/_expected/01-simple.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/logical-or-assign/01-simple.bas`](./sugar/logical-or-assign/01-simple.bas) | \|\|= compound assignment — vira If Not x Then x = y | `none` | — |
+| [`sugar/match/01-basic.bas`](./sugar/match/01-basic.bas) | Match x / Case Is TFoo : ... / End Match expandido para If/ElseIf/End If | `none` | — |
+| [`sugar/null-coalesce/_expected/01-dim-assignment.bas`](./sugar/null-coalesce/_expected/01-dim-assignment.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/null-coalesce/01-dim-assignment.bas`](./sugar/null-coalesce/01-dim-assignment.bas) | ?? em Dim — expandido para If/Then/Else multi-linha | `none` | — |
+| [`sugar/numeric-separator/_expected/01-simple.bas`](./sugar/numeric-separator/_expected/01-simple.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/numeric-separator/01-simple.bas`](./sugar/numeric-separator/01-simple.bas) | numeric separator `_` em literais — removido na expansão | `none` | — |
+| [`sugar/object-init/01-basic.bas`](./sugar/object-init/01-basic.bas) | New T() With { .X = v, .Y = w } expandido para With block | `none` | — |
+| [`sugar/optional-chain/_expected/01-property-access.bas`](./sugar/optional-chain/_expected/01-property-access.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/optional-chain/_expected/02-method-call.bas`](./sugar/optional-chain/_expected/02-method-call.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/optional-chain/01-property-access.bas`](./sugar/optional-chain/01-property-access.bas) | ?. em property access — vira If obj <> NULL Then ... | `none` | — |
+| [`sugar/optional-chain/02-method-call.bas`](./sugar/optional-chain/02-method-call.bas) | ?. em chamada de método — vira If obj <> NULL Then obj.Method() | `none` | — |
+| [`sugar/pipe/01-basic.bas`](./sugar/pipe/01-basic.bas) | \|> operator — data \|> Trim \|> UCase vira UCase(Trim(data)) | `none` | — |
+| [`sugar/return-if/01-basic.bas`](./sugar/return-if/01-basic.bas) | Return If cond Then a Else b expandido para If/Then/Return | `none` | — |
+| [`sugar/spread-collection/01-basic.bas`](./sugar/spread-collection/01-basic.bas) | convenção atual de inicialização de StringList por Add manual | `none` | — |
+| [`sugar/spread-object/01-basic.bas`](./sugar/spread-object/01-basic.bas) | convenção atual usando .Assign() para spread em object init | `none` | — |
+| [`sugar/tagged-template/01-sql.bas`](./sugar/tagged-template/01-sql.bas) | tagged template sql$"..." — vira sql.Build("...", expr, ...) | `none` | — |
 | [`sugar/ternary/_expected/01-dim-assignment.bas`](./sugar/ternary/_expected/01-dim-assignment.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/ternary/_expected/02-reassignment.bas`](./sugar/ternary/_expected/02-reassignment.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/ternary/_expected/03-member-assignment.bas`](./sugar/ternary/_expected/03-member-assignment.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
 | [`sugar/ternary/01-dim-assignment.bas`](./sugar/ternary/01-dim-assignment.bas) | ternário no RHS de Dim — expandido para If/Then/Else multi-linha | `none` | — |
 | [`sugar/ternary/02-reassignment.bas`](./sugar/ternary/02-reassignment.bas) | ternário em reassignment (sem Dim) — só emite o If/Then/Else | `none` | — |
 | [`sugar/ternary/03-member-assignment.bas`](./sugar/ternary/03-member-assignment.bas) | ternário atribuindo a `obj.prop` — funciona como reassignment | `none` | — |
+| [`sugar/type-alias/01-basic.bas`](./sugar/type-alias/01-basic.bas) | Type ProductId = String — alias só design-time | `none` | — |
+| [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (14)
+### diagnostics (35)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
+| [`diagnostics/auto-new-non-default-ctor/trigger.bas`](./diagnostics/auto-new-non-default-ctor/trigger.bas) | Dim x As New T mas T só tem construtor com args — runtime falha | `auto-new-non-default-ctor@5` | `classe TNeedsArgs sem construtor sem-args` |
+| [`diagnostics/class-generic-method-unsupported/trigger.bas`](./diagnostics/class-generic-method-unsupported/trigger.bas) | a generic method declared inside a non-generic class | `class-generic-method-unsupported@9` | `only emitted by the AST monomorphization engine (Fase 6); the live linter does not yet detect generic methods inside classes.` |
+| [`diagnostics/default-indexer-missing/trigger.bas`](./diagnostics/default-indexer-missing/trigger.bas) | list(i) usado mas o tipo não declara Item(Integer) | `default-indexer-missing@5` | `classe TBag sem Property Item(Integer) no workspace` |
+| [`diagnostics/destructure-context-unsupported/trigger.bas`](./diagnostics/destructure-context-unsupported/trigger.bas) | destructure fora de Dim/parâmetro — não suportado | `destructure-context-unsupported@6` | `emissão futura do linter quando destructure for detectado em contexto não-Dim` |
+| [`diagnostics/destructure-non-array/trigger.bas`](./diagnostics/destructure-non-array/trigger.bas) | destructure array [a, b] aplicado a tipo não indexável | `destructure-non-array@6` | `classe TPessoa sem Item(Integer) no workspace` |
+| [`diagnostics/destructure-too-deep/trigger.bas`](./diagnostics/destructure-too-deep/trigger.bas) | destructure aninhado profundamente — não suportado pelo parser line-based | `destructure-too-deep@6` | `emissão futura do linter quando o parser de destructure detectar aninhamento profundo` |
+| [`diagnostics/destructure-unknown-member/trigger.bas`](./diagnostics/destructure-unknown-member/trigger.bas) | destructure faz referência a membro inexistente | `destructure-unknown-member@6` | `classe TPessoa que NÃO tem campo Endereco no workspace` |
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
+| [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
 | [`diagnostics/event-signature-mismatch/trigger.bas`](./diagnostics/event-signature-mismatch/trigger.bas) | handler atribuído a OnClick (TNotifyEvent espera 1 parâmetro Sender) mas o handler tem 0 | `event-signature-mismatch@11` | — |
+| [`diagnostics/flat-name-collision/trigger.bas`](./diagnostics/flat-name-collision/trigger.bas) | source type carries `_` so two distinct usages collapse to the same flat name | `flat-name-collision@14` | `emitted by the SugarTranspiler at build-time (Fase 6); the live linter does not yet track flat-name collisions.` |
+| [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |
+| [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As BaseEnum> violada por Integer | `generic-constraint-violated@10` | `classes BaseEnum + CardAdm declaradas no workspace` |
+| [`diagnostics/instantiation-limit-exceeded/trigger.bas`](./diagnostics/instantiation-limit-exceeded/trigger.bas) | a generic template that recursively instantiates itself exceeds MAX_INSTANTIATIONS | `instantiation-limit-exceeded@11` | `emitted by the SugarTranspiler at build-time (Fase 6) when the worklist exceeds 10_000 instantiations; the live linter does not run the drain.` |
 | [`diagnostics/invalid-interpolation/trigger.bas`](./diagnostics/invalid-interpolation/trigger.bas) | string interpolada com `{}` vazio — parser não consegue produzir expansão | `invalid-interpolation@8` | — |
+| [`diagnostics/lambda-capture-unsupported/trigger.bas`](./diagnostics/lambda-capture-unsupported/trigger.bas) | lambda referencia variável local — captura não suportada em Data7 | `lambda-capture-unsupported@7` | `emissão futura do linter quando lambdas inline forem implementados (H3)` |
 | [`diagnostics/missing-import/after-quickfix.bas`](./diagnostics/missing-import/after-quickfix.bas) | resultado de aplicar o Quick Fix "Importar mod_resources" sobre diagnostics/missing-import/trigger | `none` | — |
 | [`diagnostics/missing-import/trigger.bas`](./diagnostics/missing-import/trigger.bas) | tipo de outro módulo do workspace usado sem o Imports correspondente | `missing-import@9` | `módulo "mod_resources" exportando "TResourceLoader" no workspace` |
 | [`diagnostics/module-not-declared/trigger.bas`](./diagnostics/module-not-declared/trigger.bas) | módulo existe no repositório privado mas não foi adicionado a data7.json#dependencies | `module-not-declared@6` | `módulo "mod_shared_utility" no repositório privado E ausência da entrada em data7.json` |
 | [`diagnostics/module-not-found/trigger.bas`](./diagnostics/module-not-found/trigger.bas) | Imports de um módulo que não existe no workspace, repositório privado, nem System Library | `module-not-found@6` | `nenhum módulo "mod_unknown_module" instalado em lugar nenhum` |
 | [`diagnostics/not-enumerable/trigger.bas`](./diagnostics/not-enumerable/trigger.bas) | For Each sobre tipo do workspace sem propriedade Count + indexer inteiro | `not-enumerable@12` | — |
+| [`diagnostics/null-coalesce-context-unsupported/trigger.bas`](./diagnostics/null-coalesce-context-unsupported/trigger.bas) | ?? usado fora de assignment RHS — Print não é assignment | `null-coalesce-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
+| [`diagnostics/null-narrowing/01-after-guard.bas`](./diagnostics/null-narrowing/01-after-guard.bas) | TypeResolver propaga NotNull(x) após If x = NULL Then Return | `none` | — |
+| [`diagnostics/optional-chain-context-unsupported/trigger.bas`](./diagnostics/optional-chain-context-unsupported/trigger.bas) | ?. usado fora de assignment ou call-statement | `optional-chain-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
+| [`diagnostics/optional-chain-too-deep/trigger.bas`](./diagnostics/optional-chain-too-deep/trigger.bas) | cadeia ?. com mais de 3 níveis — refator manual exigido | `optional-chain-too-deep@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/private-member-access/trigger.bas`](./diagnostics/private-member-access/trigger.bas) | acesso a membro Private de uma classe a partir de outra classe | `private-member-access@13` | `módulo "mod_vault" exportando a classe Vault com campo Private "secret"` |
+| [`diagnostics/readonly-assignment/trigger.bas`](./diagnostics/readonly-assignment/trigger.bas) | atribuição a campo ReadOnly fora do construtor | `readonly-assignment@11` | `emissão futura do linter quando a checagem ReadOnly for implementada (I3)` |
+| [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |
 | [`diagnostics/ternary-context-unsupported/trigger.bas`](./diagnostics/ternary-context-unsupported/trigger.bas) | ternário em contexto não-assignment (Print) — não é expansível | `ternary-context-unsupported@8` | — |
 | [`diagnostics/unknown-member/trigger.bas`](./diagnostics/unknown-member/trigger.bas) | acesso a propriedade inexistente (typo) — emite unknown-member com "did you mean Align?" | `unknown-member@11` | — |
 | [`diagnostics/unknown-suppression-code/trigger.bas`](./diagnostics/unknown-suppression-code/trigger.bas) | diretiva data7:disable-line referenciando código inexistente em DiagnosticCodes | `unknown-suppression-code@7` | — |
+| [`diagnostics/unknown-template/trigger.bas`](./diagnostics/unknown-template/trigger.bas) | usage of TList<T> without the template declared in scope | `unknown-template@9` | — |
 | [`diagnostics/unsupported-member/trigger.bas`](./diagnostics/unsupported-member/trigger.bas) | acesso a propriedade marcada isUnsupported=true na System Library (não traduzida pelo compilador Data7) | `unsupported-member@11` | — |
 | [`diagnostics/unused-import/trigger.bas`](./diagnostics/unused-import/trigger.bas) | diretiva Imports declarada mas nenhum símbolo do namespace é referenciado | `unused-import@5` | — |
+| [`diagnostics/using-non-disposable/trigger.bas`](./diagnostics/using-non-disposable/trigger.bas) | Using sobre tipo sem Free na cadeia — Builder gera .Free() mesmo assim | `using-non-disposable@5` | `classe TNotDisposable sem Free no workspace` |
 
 ### builder (1)
 

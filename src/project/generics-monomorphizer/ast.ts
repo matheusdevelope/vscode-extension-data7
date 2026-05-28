@@ -61,7 +61,8 @@ export type Node =
   | Identifier
   | Literal
   | Assignment
-  | ExpressionStatement;
+  | ExpressionStatement
+  | OpaqueStatement;
 
 export interface CompilationUnit extends BaseNode {
   readonly kind: "CompilationUnit";
@@ -187,7 +188,7 @@ export interface Literal extends BaseNode {
   value: string | number | boolean | null;
 }
 
-export type Statement = ExpressionStatement | Assignment | VariableDeclaration;
+export type Statement = ExpressionStatement | Assignment | VariableDeclaration | OpaqueStatement;
 
 export interface ExpressionStatement extends BaseNode {
   readonly kind: "ExpressionStatement";
@@ -198,6 +199,19 @@ export interface Assignment extends BaseNode {
   readonly kind: "Assignment";
   target: Expression;
   value: Expression;
+}
+
+/**
+ * Catch-all node for body lines the parser does not structurally
+ * understand. Stores the verbatim source `text` so the serializer can
+ * emit it unchanged, and so the monomorphizer's substitution walker can
+ * apply lexical-aware type-parameter substitution to it (preserving the
+ * textual pass's behaviour for body lines).
+ */
+export interface OpaqueStatement extends BaseNode {
+  readonly kind: "OpaqueStatement";
+  /** Verbatim line text (without trailing EOL). */
+  text: string;
 }
 
 // ============================================================================
@@ -275,6 +289,11 @@ export abstract class ASTWalker {
         return;
       case "Identifier":
       case "Literal":
+      case "OpaqueStatement":
+        // OpaqueStatement is a leaf. Subclasses that need to inspect its
+        // verbatim text (e.g. the monomorphizer's substitution walker)
+        // can override a dedicated hook.
+        if (node.kind === "OpaqueStatement") this.visitOpaqueStatement(node);
         return;
       case "ExpressionStatement":
         this.walk(node.expression);
@@ -297,5 +316,8 @@ export abstract class ASTWalker {
   }
   protected visitMethodInvocation(_node: MethodInvocation): void {
     // No-op base hook; subclasses override to react to MethodInvocation nodes.
+  }
+  protected visitOpaqueStatement(_node: OpaqueStatement): void {
+    // No-op base hook; subclasses override to react to OpaqueStatement nodes.
   }
 }

@@ -4,6 +4,11 @@ import * as vscode from "vscode";
 import { logger } from "../infra/logger";
 import { IMPORTS_REGEX_ANCHORED } from "./dependency-scanner";
 import { isExcluded } from "../infra/configuration";
+import {
+  collectGenericsContext,
+  type GenericTemplateInfo,
+  type GenericUsageOccurrence,
+} from "./generics-analyzer";
 
 // Parameter info
 export interface ParameterInfo {
@@ -461,8 +466,7 @@ export class SymbolParser {
               : funcIdx;
         const modifiersPart = trimmed.substring(0, keywordIdx);
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
-        const isShared =
-          /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
+        const isShared = /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
         const name = methodMatch[3];
         const params = this.parseParameters(methodMatch[4] ?? "");
         const type =
@@ -761,6 +765,7 @@ export class WorkspaceSymbolIndexer {
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, "utf-8");
         const parsed = SymbolParser.parseBasFile(fileUri, content);
+        appendGenericInstantiations(parsed, fileUri, content);
         this.cache.set(key, parsed);
       } else {
         this.cache.delete(key);
@@ -772,10 +777,21 @@ export class WorkspaceSymbolIndexer {
 
   /**
    * Update cache with active text content (useful for open editor changes)
+   *
+   * When the file contains generic templates / usages, we also run the
+   * shared generics analyzer ({@link collectGenericsContext}) and inject
+   * flat-named copies of the template members (`TList_Product`, …) into
+   * the parsed symbol list, so hover/completion/signature providers
+   * surface the substituted members automatically.
+   *
+   * The expansion is best-effort: it short-circuits when no template is
+   * declared, when no usage is observed, or when the arity mismatches —
+   * mirroring the warnings already reported by the live linter.
    */
   public updateFileContent(fileUri: string, content: string): void {
     try {
       const parsed = SymbolParser.parseBasFile(fileUri, content);
+      appendGenericInstantiations(parsed, fileUri, content);
       this.cache.set(this.getCacheKey(fileUri), parsed);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);
@@ -911,4 +927,210 @@ export class WorkspaceSymbolIndexer {
     const workspaceMatch = matches.find((m) => isInsideWorkspace(m.fileUri));
     return workspaceMatch ?? matches[0];
   }
+}
+
+// ============================================================================
+// Generic instantiation helpers (Fase 7)
+// ============================================================================
+
+/**
+ * Cheap pre-filter to avoid invoking the analyzer on files that
+ * obviously carry no generic usage. Requires an UPPERCASE identifier
+ * followed by `<…>` whose body has no inner `<` or newline — rejects
+ * comparisons (`If x < y Then`), HTML-like text, and false positives
+ * caused by `<=` / `<>` operators.
+ *
+ * Nested usages like `TList<TList<Integer>>` still match thanks to the
+ * inner-most `TList<Integer>` sub-string.
+ */
+function hasGenericMarkers(content: string): boolean {
+  return /\b[A-Z]\w*\s*<[^<>\n]{1,200}>/.test(content);
+}
+
+/**
+ * Module-level memoization cache so back-to-back hover/completion calls
+ * over the same file do not re-tokenize and re-clone the same template
+ * members. Keyed by content (the indexer already creates one file entry
+ * per URI; the content is the natural cache key for an open editor).
+ */
+const expansionCache = new WeakMap<object, SymbolInfo[]>();
+const expansionCacheKeys = new Map<string, { ref: object; content: string }>();
+
+/**
+ * Returns the cached expansion for `fileUri` + `content`, or runs the
+ * analyzer + member-cloning pipeline and stores the result. The key is
+ * `(fileUri, content)`; when either changes the cache entry is replaced.
+ */
+function getOrComputeExpansion(
+  fileUri: string,
+  content: string,
+  parsed: FileSymbols,
+): SymbolInfo[] {
+  const cached = expansionCacheKeys.get(fileUri);
+  if (cached?.content === content) {
+    const hit = expansionCache.get(cached.ref);
+    if (hit) return hit;
+  }
+  const computed = computeGenericInstantiations(parsed, fileUri, content);
+  const ref = { fileUri, content };
+  expansionCacheKeys.set(fileUri, { ref, content });
+  expansionCache.set(ref, computed);
+  return computed;
+}
+
+/**
+ * Appends synthetic flat-named symbols (`TList_Product`, …) to the
+ * already-parsed `FileSymbols`. Idempotent and best-effort: when there
+ * is no generic template or usage, the function returns without
+ * touching `parsed`.
+ *
+ * Reuses the shared analyzer in {@link collectGenericsContext} so the
+ * indexer, the live linter, the textual pass and the AST driver all
+ * agree on which usages exist and what their flat names are.
+ */
+function appendGenericInstantiations(parsed: FileSymbols, fileUri: string, content: string): void {
+  if (!hasGenericMarkers(content)) return;
+  const extra = getOrComputeExpansion(fileUri, content, parsed);
+  if (extra.length === 0) return;
+  const known = new Set(parsed.symbols.map(symbolKey));
+  for (const sym of extra) {
+    if (!known.has(symbolKey(sym))) parsed.symbols.push(sym);
+  }
+}
+
+/**
+ * Joins the identifying fields of a SymbolInfo so the synthetic
+ * flat-name expansion does not overwrite a textual declaration already
+ * present in the file (e.g. a hand-written `Class TList_Product` next
+ * to the generic template).
+ */
+function symbolKey(s: SymbolInfo): string {
+  return `${s.containerName ?? ""}::${s.name}#${String(s.range.startLine)}`;
+}
+
+/**
+ * Core of {@link appendGenericInstantiations} — builds the list of
+ * synthetic SymbolInfo entries for `(template, type-args)` pairs
+ * observed in `content`.
+ *
+ * For each usage, we emit one synthetic class symbol plus one cloned
+ * member per template member (containerName === template.name). The
+ * cloned member's `type`/`parameters[].type` carry the substituted
+ * type-arguments so hover/completion show `Add(pValue As Product) As
+ * Integer` instead of the raw `T`.
+ */
+function computeGenericInstantiations(
+  parsed: FileSymbols,
+  fileUri: string,
+  content: string,
+): SymbolInfo[] {
+  const ctx = collectGenericsContext(content);
+  if (ctx.templates.size === 0 || ctx.usages.length === 0) return [];
+
+  // The flat-class needs the namespace its template was declared
+  // inside. Build a `template name -> containerName` lookup from the
+  // already-parsed symbols so we do not re-derive it textually.
+  const namespaceOfTemplate = new Map<string, string | undefined>();
+  for (const sym of parsed.symbols) {
+    if (sym.kind !== "class" && sym.kind !== "delegate") continue;
+    namespaceOfTemplate.set(sym.name.toLowerCase(), sym.containerName);
+  }
+
+  const result: SymbolInfo[] = [];
+  const emitted = new Set<string>();
+
+  for (const usage of ctx.usages) {
+    const template = ctx.templates.get(usage.templateName.toLowerCase());
+    if (template === undefined) continue;
+    if (template.typeParams.length !== usage.typeArgs.length) continue;
+    if (emitted.has(usage.flatName)) continue;
+    emitted.add(usage.flatName);
+
+    const subs = buildSubstitutions(template, usage);
+    if (subs === undefined) continue;
+
+    const containerName = namespaceOfTemplate.get(template.name.toLowerCase());
+    appendSyntheticClass(result, usage, fileUri, containerName);
+    appendClonedMembers(result, parsed.symbols, template, usage, subs);
+  }
+
+  return result;
+}
+
+function buildSubstitutions(
+  template: GenericTemplateInfo,
+  usage: GenericUsageOccurrence,
+): Map<string, string> | undefined {
+  const subs = new Map<string, string>();
+  for (let i = 0; i < template.typeParams.length; i++) {
+    const tp = template.typeParams[i];
+    const ta = usage.typeArgs[i];
+    if (!tp || !ta) return undefined;
+    subs.set(tp, ta);
+  }
+  return subs;
+}
+
+function appendSyntheticClass(
+  out: SymbolInfo[],
+  usage: GenericUsageOccurrence,
+  fileUri: string,
+  containerName: string | undefined,
+): void {
+  out.push({
+    name: usage.flatName,
+    kind: "class",
+    type: usage.flatName,
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: usage.line,
+      startChar: usage.column,
+      endLine: usage.line,
+      endChar: usage.column + usage.flatName.length,
+    },
+    fileUri,
+    containerName,
+    description: `Instanciacao monomorfica de ${usage.templateName}<${usage.typeArgs.join(", ")}>.`,
+  });
+}
+
+function appendClonedMembers(
+  out: SymbolInfo[],
+  source: readonly SymbolInfo[],
+  template: GenericTemplateInfo,
+  usage: GenericUsageOccurrence,
+  subs: ReadonlyMap<string, string>,
+): void {
+  const templateLower = template.name.toLowerCase();
+  for (const sym of source) {
+    if (sym.containerName?.toLowerCase() !== templateLower) continue;
+    const clone: SymbolInfo = {
+      ...sym,
+      type: substituteTypeName(sym.type, subs),
+      containerName: usage.flatName,
+    };
+    if (sym.parameters !== undefined) {
+      clone.parameters = sym.parameters.map((p) => ({
+        ...p,
+        type: substituteTypeName(p.type, subs),
+      }));
+    }
+    out.push(clone);
+  }
+}
+
+/**
+ * Substitutes whole-word type parameter names inside a type string. The
+ * substring `T` inside `TList` must NOT be rewritten, so we anchor with
+ * `\b`. Type parameters are always plain identifiers (ASCII letters,
+ * digits, underscore), so no regex escaping is needed.
+ */
+function substituteTypeName(type: string, subs: ReadonlyMap<string, string>): string {
+  if (subs.size === 0 || type.length === 0) return type;
+  let out = type;
+  for (const [tp, ta] of subs) {
+    out = out.replace(new RegExp(`\\b${tp}\\b`, "g"), ta);
+  }
+  return out;
 }

@@ -7,7 +7,7 @@ import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
 import { createMockDoc, noopToken, pos } from "../_helpers/mock-doc";
 
 interface MockCompletionItem {
-  label: string | { label: string };
+  label: string | { label: string; detail?: string };
   detail?: string;
   tags?: number[];
 }
@@ -75,6 +75,60 @@ End Namespace`;
       assert.ok(
         !colCount.tags?.includes(vscode.CompletionItemTag.Deprecated),
         "ColCount must NOT carry the Deprecated tag",
+      );
+    });
+  });
+
+  describe("generics IntelliSense (Fase 7)", () => {
+    const GENERIC_FIXTURE = `Namespace mod_app
+   Class TList<T>
+      Public Count As Integer
+      Public Sub Add(pValue As T)
+      End Sub
+      Public Function Get(pIndex As Integer) As T
+      End Function
+   End Class
+
+   Class TUseCase
+      Public Sub Run()
+         Dim _products As TList<Product>
+         _products.
+      End Sub
+   End Class
+End Namespace`;
+
+    test("lists members of TList template with T substituted by Product on `_products.`", async () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///cp_generics.bas";
+      indexer.updateFileContent(uri, GENERIC_FIXTURE);
+      const doc = createMockDoc(uri, GENERIC_FIXTURE);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          pos(12, 20),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("Add"), `Add must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Get"), `Get must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Count"), `Count must appear; got ${labels.join(", ")}`);
+
+      // The substituted parameter type must surface in the Add label
+      // signature (the part appended to the right of the label in the
+      // completion list).
+      const add = items.find((i) => labelOf(i) === "Add");
+      assert.ok(add, "Add completion entry expected");
+      const addLabelDetail = typeof add.label === "string" ? "" : (add.label.detail ?? "");
+      assert.match(
+        addLabelDetail,
+        /Product/,
+        `Add label.detail must mention substituted Product; got: ${addLabelDetail}`,
       );
     });
   });

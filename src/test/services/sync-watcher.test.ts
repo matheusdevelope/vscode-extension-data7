@@ -20,7 +20,7 @@ describe("SyncWatcher", () => {
   let originalIndex: any;
   let originalFindPaths: any;
   let originalGetConfiguration: any;
-  
+
   let decompileCalls: any[] = [];
   let buildCalls: any[] = [];
   let detectCalls: any[] = [];
@@ -77,7 +77,7 @@ describe("SyncWatcher", () => {
             if (key === "sincronizacao") return { modo: mockSyncModeSetting };
             if (key === "enableAutoSync") return true;
             return undefined;
-          }
+          },
         };
       }
       return originalGetConfiguration(section);
@@ -107,16 +107,23 @@ describe("SyncWatcher", () => {
       const originalCreateWatcher = vscode.workspace.createFileSystemWatcher;
       vscode.workspace.createFileSystemWatcher = (() => {
         return {
-          onDidChange: (cb: any) => { registeredHandler = cb; return { dispose: () => {} }; },
-          onDidCreate: (cb: any) => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidChange: (cb: any) => {
+            registeredHandler = cb;
+            return { dispose: () => {} };
+          },
+          onDidCreate: (_cb: any) => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
       try {
         SyncWatcher.watchExternalProjectFile(projPath, tmp);
-        
+
         assert.ok(registeredHandler, "Expected a change handler to be registered");
 
         registeredHandler();
@@ -146,10 +153,17 @@ describe("SyncWatcher", () => {
       const originalCreateWatcher = vscode.workspace.createFileSystemWatcher;
       vscode.workspace.createFileSystemWatcher = (() => {
         return {
-          onDidChange: (cb: any) => { registeredHandler = cb; return { dispose: () => {} }; },
-          onDidCreate: (cb: any) => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidChange: (cb: any) => {
+            registeredHandler = cb;
+            return { dispose: () => {} };
+          },
+          onDidCreate: (_cb: any) => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
@@ -160,7 +174,10 @@ describe("SyncWatcher", () => {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         assert.equal(decompileCalls.length, 1, "Should run decompile since timestamp is different");
-        assert.ok((SyncWatcher as any)._ignoreBasChangesUntil > Date.now(), "Should ignore .bas changes");
+        assert.ok(
+          (SyncWatcher as any)._ignoreBasChangesUntil > Date.now(),
+          "Should ignore .bas changes",
+        );
       } finally {
         vscode.workspace.createFileSystemWatcher = originalCreateWatcher;
       }
@@ -188,9 +205,13 @@ describe("SyncWatcher", () => {
             }
             return { dispose: () => {} };
           },
-          onDidCreate: () => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidCreate: () => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
@@ -203,7 +224,11 @@ describe("SyncWatcher", () => {
 
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        assert.equal(buildCalls.length, 0, "Should ignore .bas change because ignore window is active");
+        assert.equal(
+          buildCalls.length,
+          0,
+          "Should ignore .bas change because ignore window is active",
+        );
       } finally {
         vscode.workspace.createFileSystemWatcher = originalCreateWatcher;
       }
@@ -232,9 +257,13 @@ describe("SyncWatcher", () => {
             }
             return { dispose: () => {} };
           },
-          onDidCreate: () => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidCreate: () => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
@@ -282,9 +311,13 @@ describe("SyncWatcher", () => {
             else projHandler = cb;
             return { dispose: () => {} };
           },
-          onDidCreate: () => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidCreate: () => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
@@ -336,9 +369,13 @@ describe("SyncWatcher", () => {
             else projHandler = cb;
             return { dispose: () => {} };
           },
-          onDidCreate: () => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidCreate: () => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
@@ -373,10 +410,10 @@ describe("SyncWatcher", () => {
         JSON.stringify({
           nome: "Test",
           sincronizacao: {
-            modo: "disabled"
-          }
+            modo: "disabled",
+          },
         }),
-        "utf-8"
+        "utf-8",
       );
 
       ProjectService.findProjectPaths = () => ({
@@ -397,9 +434,13 @@ describe("SyncWatcher", () => {
             if (glob.includes(".bas")) basHandler = cb;
             return { dispose: () => {} };
           },
-          onDidCreate: () => { return { dispose: () => {} }; },
-          onDidDelete: () => { return { dispose: () => {} }; },
-          dispose: () => {}
+          onDidCreate: () => {
+            return { dispose: () => {} };
+          },
+          onDidDelete: () => {
+            return { dispose: () => {} };
+          },
+          dispose: () => {},
         };
       }) as any;
 
@@ -411,7 +452,11 @@ describe("SyncWatcher", () => {
 
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        assert.equal(buildCalls.length, 0, "Should respect disabled mode from data7.json over extension setting");
+        assert.equal(
+          buildCalls.length,
+          0,
+          "Should respect disabled mode from data7.json over extension setting",
+        );
       } finally {
         vscode.workspace.createFileSystemWatcher = originalCreateWatcher;
         RepositoryService.getRepoBasPath = originalRepoGet;
