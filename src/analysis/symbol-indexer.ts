@@ -242,9 +242,10 @@ export class SymbolParser {
         trimmed,
       );
       if (classMatch?.[2]) {
-        const modifiers = classMatch[0].toLowerCase();
-        const isPrivate = modifiers.includes("private");
-        const isShared = modifiers.includes("shared");
+        const classIdx = trimmed.toLowerCase().indexOf("class");
+        const modifiersPart = trimmed.substring(0, classIdx);
+        const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isShared = /\bshared\b/i.test(modifiersPart);
         const name = classMatch[2];
 
         const classSymbol: SymbolInfo = {
@@ -284,9 +285,10 @@ export class SymbolParser {
       const structMatch =
         /^(?:(Private|Public|Protected|Shared)\s+)*Structure\s+([a-zA-Z0-9_]+)/i.exec(trimmed);
       if (structMatch?.[2]) {
-        const modifiers = structMatch[0].toLowerCase();
-        const isPrivate = modifiers.includes("private");
-        const isShared = modifiers.includes("shared");
+        const structIdx = trimmed.toLowerCase().indexOf("structure");
+        const modifiersPart = trimmed.substring(0, structIdx);
+        const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isShared = /\bshared\b/i.test(modifiersPart);
         const name = structMatch[2];
 
         const structSymbol: SymbolInfo = {
@@ -328,9 +330,10 @@ export class SymbolParser {
           trimmed,
         );
       if (propMatch?.[2]) {
-        const modifiers = propMatch[0].toLowerCase();
-        const isPrivate = modifiers.includes("private");
-        const isShared = modifiers.includes("shared");
+        const propIdx = trimmed.toLowerCase().indexOf("property");
+        const modifiersPart = trimmed.substring(0, propIdx);
+        const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isShared = /\bshared\b/i.test(modifiersPart);
         const name = propMatch[2];
         const type = propMatch[3] ?? "Variant";
 
@@ -362,9 +365,10 @@ export class SymbolParser {
           trimmed,
         );
       if (delegateMatch?.[3]) {
-        const modifiers = delegateMatch[0].toLowerCase();
-        const isPrivate = modifiers.includes("private");
-        const isShared = modifiers.includes("shared");
+        const delegateIdx = trimmed.toLowerCase().indexOf("delegate");
+        const modifiersPart = trimmed.substring(0, delegateIdx);
+        const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isShared = /\bshared\b/i.test(modifiersPart);
         const name = delegateMatch[3];
         const params = this.parseParameters(delegateMatch[4] ?? "");
         const type =
@@ -400,7 +404,7 @@ export class SymbolParser {
         );
       if (declareMatch?.[3]) {
         const modifiers = declareMatch[1]?.toLowerCase() ?? "";
-        const isPrivate = modifiers.includes("private") || modifiers === "";
+        const isPrivate = /\bprivate\b/i.test(modifiers);
         const isShared = true;
         const subOrFunc = (declareMatch[2] ?? "").toLowerCase();
         const kind = subOrFunc === "sub" ? "declare_sub" : "declare_function";
@@ -447,9 +451,18 @@ export class SymbolParser {
           trimmed,
         );
       if (methodMatch?.[3]) {
-        const modifiers = methodMatch[0].toLowerCase();
-        const isPrivate = modifiers.includes("private");
-        const isShared = modifiers.includes("shared") || (!activeClass && !!activeNamespace);
+        const subIdx = trimmed.toLowerCase().indexOf("sub");
+        const funcIdx = trimmed.toLowerCase().indexOf("function");
+        const keywordIdx =
+          subIdx !== -1 && funcIdx !== -1
+            ? Math.min(subIdx, funcIdx)
+            : subIdx !== -1
+              ? subIdx
+              : funcIdx;
+        const modifiersPart = trimmed.substring(0, keywordIdx);
+        const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isShared =
+          /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
         const name = methodMatch[3];
         const params = this.parseParameters(methodMatch[4] ?? "");
         const type =
@@ -527,11 +540,12 @@ export class SymbolParser {
           ];
 
           if (!reserved.includes(lowerName)) {
-            const modifiers = varMatch[0].toLowerCase();
-            const isPrivate =
-              modifiers.includes("private") ||
-              (!modifiers.includes("public") && !modifiers.includes("shared"));
-            const isShared = modifiers.includes("shared") || (!activeClass && !!activeNamespace);
+            const varName = varMatch[2];
+            const varNameIdx = trimmed.indexOf(varName);
+            const modifiersPart = trimmed.substring(0, varNameIdx);
+            const isPrivate = /\bprivate\b/i.test(modifiersPart);
+            const isShared =
+              /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
             const type = varMatch[3] ?? "Variant";
 
             const varSymbol: SymbolInfo = {

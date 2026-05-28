@@ -318,6 +318,27 @@
           "default": true,
           "description": "Habilitar sincronização automática bidirecional entre os arquivos da IDE e o arquivo .7Proj."
         },
+        "data7.sincronizacao": {
+          "type": "object",
+          "properties": {
+            "modo": {
+              "type": "string",
+              "enum": [
+                "estrutura <> projeto.7proj",
+                "estrutura > projeto.7proj",
+                "projeto.7proj > estrutura",
+                "disabled",
+                "desativado"
+              ],
+              "default": "estrutura <> projeto.7proj",
+              "description": "Define o modo de sincronização: bidirecional (estrutura <> projeto.7proj), apenas compilação (estrutura > projeto.7proj), apenas decompilação (projeto.7proj > estrutura), ou desativado (disabled/desativado)."
+            }
+          },
+          "default": {
+            "modo": "estrutura <> projeto.7proj"
+          },
+          "description": "Configuração da sincronização automática do projeto."
+        },
         "data7.exclude": {
           "type": "array",
           "default": [

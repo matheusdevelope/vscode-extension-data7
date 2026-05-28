@@ -21,22 +21,45 @@ import { debounce } from "../utils/debounce";
  * formatting) trigger at most one rebuild (performance.mdc).
  */
 export class SyncWatcher {
-  private static _isSyncing = false;
+  private static _isBuilding = false;
+  private static _selfBuiltProjMtimes = new Map<string, number>();
+  private static _ignoreBasChangesUntil = 0;
+  private static _ignoreProjChangesUntil = 0;
   private static _externalFileWatcher: vscode.FileSystemWatcher | undefined;
   private static readonly REBUILD_DELAY_MS = 400;
 
-  private static acquireSyncLock(): boolean {
-    if (this._isSyncing) return false;
-    this._isSyncing = true;
-    return true;
-  }
-
-  private static releaseSyncLock(): void {
-    // Brief cooldown to absorb cascading filesystem events triggered by our
-    // own writes before another sync starts.
-    setTimeout(() => {
-      this._isSyncing = false;
-    }, 1000);
+  /**
+     * Resolves the synchronization mode for the project:
+     * 1. Check data7.json's "sincronizacao.modo"
+     * 2. Fall back to VS Code settings "data7.sincronizacao.modo"
+     * 3. Fall back to "data7.enableAutoSync"
+     */
+  private static getSyncMode(projectFilePath?: string): string {
+    if (projectFilePath) {
+      const workspaceDir = path.dirname(projectFilePath);
+      const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
+      try {
+        const cfg = readProjectConfig(configJsonPath);
+        if (
+          cfg &&
+          cfg.raw &&
+          typeof cfg.raw.sincronizacao === "object" &&
+          cfg.raw.sincronizacao !== null
+        ) {
+          const syncBlock = cfg.raw.sincronizacao as Record<string, unknown>;
+          if (typeof syncBlock.modo === "string" && syncBlock.modo) {
+            return syncBlock.modo.toLowerCase();
+          }
+        }
+      } catch {
+        // ignore and fall back to extension settings
+      }
+    }
+    const config = readConfiguration();
+    if (config.sincronizacao && typeof config.sincronizacao.modo === "string") {
+      return config.sincronizacao.modo.toLowerCase();
+    }
+    return config.enableAutoSync ? "estrutura <> projeto.7proj" : "disabled";
   }
 
   /**
@@ -49,7 +72,28 @@ export class SyncWatcher {
     this._externalFileWatcher = watcher;
 
     const handlerImpl = async (): Promise<void> => {
-      if (!this.acquireSyncLock()) return;
+      const syncMode = this.getSyncMode(projectFilePath);
+      const isDecompileEnabled =
+        syncMode === "estrutura <> projeto.7proj" || syncMode === "projeto.7proj > estrutura";
+      if (!isDecompileEnabled) return;
+
+      if (this._isBuilding) return;
+
+      if (Date.now() < this._ignoreProjChangesUntil) {
+        return; // Ignore events triggered by our own builds
+      }
+
+      if (fs.existsSync(projectFilePath)) {
+        const currentMtime = fs.statSync(projectFilePath).mtimeMs;
+        const pathKey = projectFilePath.toLowerCase();
+        const lastSelfMtime = this._selfBuiltProjMtimes.get(pathKey);
+        if (lastSelfMtime !== undefined && Math.abs(currentMtime - lastSelfMtime) < 2000) {
+          // Ignore external file watcher trigger since it matches our own build's timestamp
+          return;
+        }
+      }
+
+      this._isBuilding = true;
       try {
         const repoBasPath = RepositoryService.getRepoBasPath();
         let knownSharedModules: Set<string> | undefined;
@@ -68,6 +112,9 @@ export class SyncWatcher {
             );
           }
         }
+
+        // Set ignore flag to ignore .bas changes triggered by decompiling
+        this._ignoreBasChangesUntil = Date.now() + 5000;
 
         Decompiler.decompileProject(projectFilePath, hiddenFolderDir, knownSharedModules);
 
@@ -99,7 +146,9 @@ export class SyncWatcher {
       } catch (err: unknown) {
         logger.error("Falha ao decompor alteração externa.", err);
       } finally {
-        this.releaseSyncLock();
+        this._isBuilding = false;
+        // Keep ignoring .bas changes for a short cooldown to let pending OS events settle
+        this._ignoreBasChangesUntil = Date.now() + 5000;
       }
     };
 
@@ -114,27 +163,44 @@ export class SyncWatcher {
   }
 
   /**
-   * Starts the bidirectional workspace watcher. Reads the `enableAutoSync`
-   * setting and respects it on initial setup.
+   * Starts the bidirectional workspace watcher.
    */
   public static startAutoSync(context: vscode.ExtensionContext): void {
-    const { enableAutoSync } = readConfiguration();
-    if (!enableAutoSync) return;
-
     const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
     const jsonWatcher = vscode.workspace.createFileSystemWatcher("**/data7.json");
 
     const handleFileChangeImpl = async (uri: vscode.Uri): Promise<void> => {
+      if (Date.now() < this._ignoreBasChangesUntil) {
+        return; // Ignore events triggered by decompilation writes
+      }
+
       const paths = ProjectService.findProjectPaths(uri.fsPath);
       if (!paths) return;
+
+      const syncMode = this.getSyncMode(paths.projectFilePath);
+      const isCompileEnabled =
+        syncMode === "estrutura <> projeto.7proj" || syncMode === "estrutura > projeto.7proj";
+      if (!isCompileEnabled) return;
 
       const repoBasPath = RepositoryService.getRepoBasPath();
       if (!repoBasPath || !fs.existsSync(repoBasPath)) return;
 
-      if (!this.acquireSyncLock()) return;
+      if (this._isBuilding) return;
+      this._isBuilding = true;
       try {
         await DependencyService.detectAndSyncProjectDependencies(paths.workspaceDir);
         Builder.buildProject(paths.workspaceDir, paths.projectFilePath);
+
+        // Record the mtimeMs of the .7Proj file we just compiled
+        if (fs.existsSync(paths.projectFilePath)) {
+          const mtime = fs.statSync(paths.projectFilePath).mtimeMs;
+          this._selfBuiltProjMtimes.set(paths.projectFilePath.toLowerCase(), mtime);
+        }
+
+        // Set ignore flags to prevent loop/cascade events
+        this._ignoreProjChangesUntil = Date.now() + 5000;
+        this._ignoreBasChangesUntil = Date.now() + 5000;
+
         await WorkspaceSymbolIndexer.getInstance().indexWorkspace(
           vscode.workspace.workspaceFolders,
         );
@@ -144,7 +210,7 @@ export class SyncWatcher {
       } catch (err: unknown) {
         logger.error("Falha na recompilação automática.", err);
       } finally {
-        this.releaseSyncLock();
+        this._isBuilding = false;
       }
     };
 

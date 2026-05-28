@@ -172,6 +172,42 @@ End Namespace`;
       );
       expectDiagnostic(diags, DiagnosticCodes.PrivateMemberAccess);
     });
+
+    test("does NOT emit when a member without modifier (public by default) is accessed from outside", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const vault = `Namespace mod_vault
+   Class Vault
+      secret As String
+      PublicSub As String
+      PrivateSecretField As String
+      Public Sub Init()
+         secret = "x"
+         PublicSub = "y"
+         PrivateSecretField = "z"
+      End Sub
+   End Class
+End Namespace`;
+      const user = `Imports mod_vault
+Namespace mod_user
+   Class User
+      Public Sub Access()
+         Dim v As Vault
+         v.secret = "a"
+         v.PublicSub = "b"
+         v.PrivateSecretField = "c"
+      End Sub
+   End Class
+End Namespace`;
+      createMockDoc("file:///vault.bas", vault);
+      indexer.updateFileContent("file:///vault.bas", vault);
+      indexer.updateFileContent("file:///user.bas", user);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///user.bas", user),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.PrivateMemberAccess);
+    });
   });
 
   // -------------------------------------------------------------------------

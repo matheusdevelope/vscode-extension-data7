@@ -17,6 +17,17 @@ export const symbols: SystemSymbolInfo[] = [
 
   // ───────── Properties (TCustomForm) ─────────
   {
+    name: "Caption",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TForm",
+    description: "Título da janela.",
+  },
+  {
     name: "Active",
     kind: "property",
     type: "Boolean",

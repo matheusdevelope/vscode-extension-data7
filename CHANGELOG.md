@@ -7,6 +7,22 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Corrigido (Linter — escopo de membros)
+
+- **Correção da visibilidade padrão de membros**: Alterado o indexador de símbolos para tratar membros de classe sem modificador de visibilidade explícito como `Public` (anteriormente, campos e Win32 `Declare` statements sem modificadores eram assumidos como `Private` por padrão).
+- **Evitado falso-positivo na detecção de modificadores**: Ajustada a verificação de modificadores para utilizar limites de palavra (`/\bprivate\b/i`), evitando que identificadores que iniciam ou contêm a substring "private" (como `privateSecret`) fossem classificados incorretamente como privados.
+- **Testes**: Adicionados testes de unidade correspondentes em [diagnostics.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/diagnostics/diagnostics.test.ts).
+
+### Adicionado (Sincronização)
+
+- **Configuração de Sincronização Opcional**: Adicionado suporte para configurar a sincronização em blocos no VS Code (`data7.sincronizacao.modo`) e diretamente no arquivo `data7.json` do projeto (`sincronizacao.modo`).
+- **Modos de Sincronização**: Suporte aos modos `"estrutura <> projeto.7proj"`, `"estrutura > projeto.7proj"`, `"projeto.7proj > estrutura"`, e `"disabled"` / `"desativado"`.
+
+### Corrigido (Sincronização — SyncWatcher)
+
+- **Correção definitiva de concorrência e reversão**: Preservados os timestamps no cache em vez de removê-los no primeiro match, solucionando a reversão indevida causada por múltiplos eventos rápidos de gravação de arquivos no Windows. Janela temporal de ignoramento aumentada para 5 segundos.
+- **Testes**: Adicionados testes de unidade correspondentes em [sync-watcher.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/services/sync-watcher.test.ts).
+
 ### Adicionado (System Library — namespace `Net`)
 
 - **`Net.TFTP`** — cliente FTP do ERP Data7 documentado em `docs/Documentação Data7/Net/`:
