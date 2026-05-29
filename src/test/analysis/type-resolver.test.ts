@@ -509,5 +509,90 @@ End Namespace`;
         "synthetic class should sit in the same namespace as TList<T>",
       );
     });
+
+    test("resolves generic parameter type to its constraint inside class scope", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_scope_test.bas";
+      const code = `Namespace mod_app
+   Class BaseItem
+      Public Sub DoSomething()
+      End Sub
+   End Class
+
+   Class MyCollection<T As BaseItem>
+      Private item As T
+      Public Sub Execute()
+         Dim localItem As T
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 9, character: 15 } as any;
+
+      assert.equal(TypeResolver.getVariableType("localItem", doc, pos, indexer), "BaseItem");
+
+      assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "BaseItem");
+    });
+
+    test("resolves generic parameter to TObject if no constraint specified", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_no_constraint_test.bas";
+      const code = `Namespace mod_app
+   Class MyCollection<T>
+      Private item As T
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 3, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "TObject");
+    });
+
+    test("resolves generic parameter constraints in nested type arguments (TList<T> -> TList<BaseItem>)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_nested_constraint_test.bas";
+      const code = `Namespace mod_app
+   Class BaseItem
+   End Class
+   Class TList<T>
+   End Class
+   Class MyCollection<T As BaseItem>
+      Private list As TList<T>
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 6, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("list", doc, pos, indexer), "TList<BaseItem>");
+    });
+
+    test("resolves method-level generic parameter constraints over class-level", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_method_constraint_test.bas";
+      const code = `Namespace mod_app
+   Class BaseItem
+   End Class
+   Class SpecificItem
+   End Class
+   Class MyCollection<T As BaseItem>
+      Public Sub Run<T As SpecificItem>()
+         Dim item As T
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 7, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "SpecificItem");
+    });
   });
 });

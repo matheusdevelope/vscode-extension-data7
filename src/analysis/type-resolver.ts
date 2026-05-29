@@ -30,6 +30,18 @@ export class TypeResolver {
     position: vscode.Position,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
+    const rawType = TypeResolver.getRawVariableType(varName, document, position, indexer);
+    if (!rawType) return undefined;
+    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
+    return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+  }
+
+  private static getRawVariableType(
+    varName: string,
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
     const text = document.getText();
     const lines = text.split(/\r?\n/);
     const varLower = varName.toLowerCase();
@@ -39,7 +51,7 @@ export class TypeResolver {
     // (`TList<Product>`); `findMember` later normalises them to their
     // flat form (`TList_Product`).
     const regex = new RegExp(
-      `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\b(?:\\s+As\\s+(?:New\\s+)?([a-zA-Z0-9_.]+(?:\\s*<[^<>]+>)?))?`,
+      `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\b(?:\\s+As\\s+(?:New\\s+)?([a-zA-Z0-9_.]+(?:\\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?`,
       "i",
     );
     // `For Each <name> As <Type> In ...` introduces `<name>` into the enclosing
@@ -47,7 +59,7 @@ export class TypeResolver {
     // hover/completion/signature must already see the variable while the file
     // is still authored in sugared form.
     const forEachRegex = new RegExp(
-      `\\bFor\\s+Each\\s+${varName}\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+(?:\\s*<[^<>]+>)?))?\\s+In\\b`,
+      `\\bFor\\s+Each\\s+${varName}\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+(?:\\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?\\s+In\\b`,
       "i",
     );
     // `Dim name = <expr>` (no As clause) — infer from the right-hand side
@@ -211,6 +223,19 @@ export class TypeResolver {
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
+    const rawType = TypeResolver.inferRawExpressionType(expr, document, lineIdx, indexer);
+    if (!rawType) return undefined;
+    const position = { line: lineIdx, character: 0 } as vscode.Position;
+    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
+    return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+  }
+
+  private static inferRawExpressionType(
+    expr: string,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
     const trimmed = expr.trim();
     if (!trimmed) return undefined;
 
@@ -283,6 +308,12 @@ export class TypeResolver {
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
     const lower = root.toLowerCase();
+    const position = { line: lineIdx, character: 0 } as vscode.Position;
+    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
+    if (genericParams.has(lower)) {
+      return genericParams.get(lower);
+    }
+
     if (lower === "me" || lower === "mybase") {
       const fileSyms = indexer.getFileSymbols(document.uri.toString());
       const currentClass = fileSyms?.symbols.find(
@@ -303,7 +334,6 @@ export class TypeResolver {
     }
 
     // Fallback: resolve as a variable.
-    const position = { line: lineIdx, character: 0 } as vscode.Position;
     return TypeResolver.getVariableType(root, document, position, indexer);
   }
 
@@ -441,11 +471,49 @@ export class TypeResolver {
    * Returns all members (own + inherited) for a given type name. Mirrors the
    * shape used by completion and hover providers.
    */
+  // public static getAllMembersForType(
+  //   typeName: string,
+  //   indexer: WorkspaceSymbolIndexer,
+  // ): SymbolInfo[] {
+  //   const members: SymbolInfo[] = [];
+  //   const visited = new Set<string>();
+  //   typeName = normalizeGenericTypeName(typeName);
+
+  //   const collect = (currentTypeName: string): void => {
+  //     const key = currentTypeName.toLowerCase();
+  //     if (visited.has(key)) return;
+  //     visited.add(key);
+
+  //     const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
+  //     if (!classSymbol) return;
+
+  //     const shortName = currentTypeName.includes(".")
+  //       ? (currentTypeName.split(".").pop() ?? currentTypeName).toLowerCase()
+  //       : currentTypeName.toLowerCase();
+
+  //     const containerMatch = (containerName: string | undefined): boolean => {
+  //       if (containerName === undefined) return false;
+  //       const c = containerName.toLowerCase();
+  //       return c === key || c === shortName || c.endsWith("." + shortName);
+  //     };
+
+  //     members.push(...SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)));
+  //     members.push(...indexer.getAllSymbols().filter((s) => containerMatch(s.containerName)));
+
+  //     const parent = TypeResolver.resolveParent(classSymbol);
+  //     if (parent) collect(parent);
+  //   };
+
+  //   collect(typeName);
+  //   return members;
+  // }
+
   public static getAllMembersForType(
     typeName: string,
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo[] {
-    const members: SymbolInfo[] = [];
+    // Usamos um Map para evitar a duplicação na cadeia de herança.
+    const membersMap = new Map<string, SymbolInfo>();
     const visited = new Set<string>();
     typeName = normalizeGenericTypeName(typeName);
 
@@ -467,15 +535,40 @@ export class TypeResolver {
         return c === key || c === shortName || c.endsWith("." + shortName);
       };
 
-      members.push(...SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)));
-      members.push(...indexer.getAllSymbols().filter((s) => containerMatch(s.containerName)));
+      const addSymbol = (s: SymbolInfo): void => {
+        const namePart = s.name.toLowerCase();
+
+        // Extrai a impressão digital da sobrecarga usando os tipos dos parâmetros.
+        // Ex: para Take(pIndex As Integer), paramsPart será "integer".
+        // Ex: para Take(), paramsPart será "".
+        let paramsPart = "";
+        if (s.parameters && s.parameters.length > 0) {
+          paramsPart = s.parameters.map((p) => p.type.toLowerCase()).join(",");
+        }
+
+        // A chave gerada será algo como "take#" ou "take#integer".
+        const signatureKey = `${namePart}#${paramsPart}`;
+
+        // Se a assinatura (nome + tipos) ainda não existir, adicionamos.
+        // Como o fluxo vai da classe atual (filho) para a classe base (pai),
+        // a implementação do filho sempre ganha se houver override.
+        if (!membersMap.has(signatureKey)) {
+          membersMap.set(signatureKey, s);
+        }
+      };
+
+      SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
+      indexer
+        .getAllSymbols()
+        .filter((s) => containerMatch(s.containerName))
+        .forEach(addSymbol);
 
       const parent = TypeResolver.resolveParent(classSymbol);
       if (parent) collect(parent);
     };
 
     collect(typeName);
-    return members;
+    return Array.from(membersMap.values());
   }
 
   /**
@@ -496,6 +589,99 @@ export class TypeResolver {
   ): boolean {
     const facts = getNonNullVariablesAt(document.getText(), position.line);
     return facts.has(varName.toLowerCase());
+  }
+
+  /**
+   * Parses a `<T As Constraint, U>` declaration into an array of parameter names and constraints.
+   * Defaults constraint to `TObject` if omitted.
+   */
+  public static parseGenericDeclaration(lineText: string): { name: string; constraint: string }[] {
+    const openBracket = lineText.indexOf("<");
+    const closeBracket = lineText.lastIndexOf(">");
+    if (openBracket === -1 || closeBracket === -1 || closeBracket <= openBracket) {
+      return [];
+    }
+    const raw = lineText.substring(openBracket + 1, closeBracket);
+    return raw
+      .split(",")
+      .map((p) => {
+        const parts = p.trim().split(/\s+As\s+/i);
+        const name = parts[0]?.trim() ?? "";
+        const constraint = parts[1]?.trim() ?? "TObject";
+        return { name, constraint };
+      })
+      .filter((item) => item.name.length > 0);
+  }
+
+  /**
+   * Identifies all generic parameters currently in scope at the given position,
+   * resolving them to their constraints.
+   */
+  public static getGenericParametersInScope(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    indexer: WorkspaceSymbolIndexer,
+  ): Map<string, string> {
+    const params = new Map<string, string>();
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    if (!fileSyms) return params;
+
+    const lines = document.getText().split(/\r?\n/);
+
+    const currentMethod = fileSyms.symbols.find(
+      (s) =>
+        s.kind === "method" &&
+        position.line >= s.range.startLine &&
+        position.line <= s.range.endLine,
+    );
+    if (currentMethod) {
+      const methodLine = lines[currentMethod.range.startLine];
+      if (methodLine) {
+        const parsed = TypeResolver.parseGenericDeclaration(methodLine);
+        for (const p of parsed) {
+          params.set(p.name.toLowerCase(), p.constraint);
+        }
+      }
+    }
+
+    const currentClass = fileSyms.symbols.find(
+      (s) =>
+        s.kind === "class" &&
+        position.line >= s.range.startLine &&
+        position.line <= s.range.endLine,
+    );
+    if (currentClass) {
+      const classLine = lines[currentClass.range.startLine];
+      if (classLine) {
+        const parsed = TypeResolver.parseGenericDeclaration(classLine);
+        for (const p of parsed) {
+          if (!params.has(p.name.toLowerCase())) {
+            params.set(p.name.toLowerCase(), p.constraint);
+          }
+        }
+      }
+    }
+
+    return params;
+  }
+
+  /**
+   * Resolves references to generic parameter names within a type string to their constraints.
+   * E.g. "T" -> "BaseItem", "TList<T>" -> "TList<BaseItem>".
+   */
+  public static resolveGenericParametersInType(
+    typeName: string,
+    genericParams: Map<string, string>,
+  ): string {
+    if (!typeName || genericParams.size === 0) return typeName;
+
+    let current = typeName;
+    for (const [paramName, constraint] of genericParams.entries()) {
+      const escaped = paramName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "gi");
+      current = current.replace(regex, constraint);
+    }
+    return current;
   }
 }
 

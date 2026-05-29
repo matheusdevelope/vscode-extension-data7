@@ -53,6 +53,8 @@ export const COMMAND_IDS = {
   generateSystemLibraryDocs: "data7.generateSystemLibraryDocs",
   injectSystemLibraryDocs: "data7.injectSystemLibraryDocs",
   showOutput: "data7.showOutput",
+  previewTranspiledCode: "data7.previewTranspiledCode",
+  previewTranspiledCodeActive: "data7.previewTranspiledCodeActive",
 } as const;
 
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];

@@ -23,6 +23,7 @@ export type {
   NamespaceDeclaration,
   Node,
   ObjectCreationExpression,
+  OpaqueStatement,
   ParameterDeclaration,
   PropertyDeclaration,
   SourceLocation,

@@ -52,13 +52,17 @@ import {
   type DelegateDeclaration,
   type MethodDeclaration,
   type MethodInvocation,
+  type NamespaceDeclaration,
   type Node,
+  type OpaqueStatement,
   type TopLevelMember,
   type TypeReference,
 } from "./ast";
 import { deepClone } from "./clone";
 import { type GenericTemplate, GlobalInstantiatedSet, TemplateRegistry } from "./registry";
 import type { MonomorphizationWarning, MonomorphizationWarningCode } from "./warnings";
+import { substituteTypeParamsInLine } from "../generics-pass";
+import { findInnerMostGenericUsage } from "../../analysis/generics-analyzer";
 
 // ============================================================================
 // Public API
@@ -85,6 +89,7 @@ export interface MonomorphizationResult {
 export class GenericsMonomorphizer {
   monomorphize(unit: CompilationUnit): MonomorphizationResult {
     const ctx: MonoContext = {
+      unit,
       templates: new TemplateRegistry(),
       instantiated: new GlobalInstantiatedSet(),
       enqueued: new Set<string>(),
@@ -168,6 +173,7 @@ export function canonicalNameOf(t: TypeReference): string {
 // ============================================================================
 
 interface MonoContext {
+  readonly unit: CompilationUnit;
   readonly templates: TemplateRegistry;
   readonly instantiated: GlobalInstantiatedSet;
   /** Flat names already pushed to the worklist (avoid re-enqueueing). */
@@ -422,6 +428,46 @@ class GenericUsageRewriter extends ASTWalker {
     node.methodName = flat;
     node.typeArguments = [];
   }
+
+  protected override visitOpaqueStatement(node: OpaqueStatement): void {
+    let current = node.text;
+    const names = new Set(Array.from(this.ctx.templates.names()).map((n) => n.toLowerCase()));
+
+    for (let iter = 0; iter < 100; iter++) {
+      const hit = findInnerMostGenericUsage(current, names);
+      if (!hit) break;
+      if (!hit.known) break;
+
+      const templateName = Array.from(this.ctx.templates.names()).find(
+        (n) => n.toLowerCase() === hit.base.toLowerCase(),
+      );
+      const template = templateName ? this.ctx.templates.get(templateName) : undefined;
+      if (!template) break;
+
+      if (template.typeParameters.length !== hit.typeArgs.length) {
+        warn(
+          this.ctx,
+          "arity-mismatch",
+          `Arity mismatch for '${template.name}': expected ${String(template.typeParameters.length)} type arguments, got ${String(hit.typeArgs.length)}.`,
+          { templateName: template.name },
+        );
+        break;
+      }
+
+      const concreteArgs = hit.typeArgs.map((arg) => {
+        return { kind: "TypeReference" as const, name: arg, typeArguments: [] };
+      });
+
+      const flat = flatNameFromParts(template.name, concreteArgs);
+      const canonical = `${template.name}<${hit.typeArgs.join(",")}>`;
+      detectCollision(this.ctx, flat, canonical);
+
+      enqueue(this.ctx, { templateName: template.name, concreteArgs, flatName: flat });
+
+      current = current.slice(0, hit.start) + flat + current.slice(hit.end);
+    }
+    node.text = current;
+  }
 }
 
 function detectCollision(ctx: MonoContext, flat: string, canonical: string): void {
@@ -506,11 +552,25 @@ function drainWorklist(ctx: MonoContext): void {
       continue;
     }
 
-    const concrete = instantiateTemplate(template, pending.concreteArgs, pending.flatName);
+    const concrete = instantiateTemplate(
+      template,
+      pending.concreteArgs,
+      pending.flatName,
+      ctx.templates,
+    );
 
-    // Inject at the front of the host scope (the same `members[]` array we
-    // pruned the original from, so namespace locality is preserved).
-    template.host.unshift(concrete);
+    // If there is a namespace declaration in the compilation unit,
+    // inject the concrete declaration inside that namespace, at the end of it.
+    // Otherwise, append it to the end of the compilation unit (below imports).
+    const namespaceDecl = ctx.unit.members.find(
+      (m): m is NamespaceDeclaration => m.kind === "NamespaceDeclaration",
+    );
+
+    if (namespaceDecl) {
+      namespaceDecl.members.push(concrete);
+    } else {
+      ctx.unit.members.push(concrete);
+    }
 
     // The freshly instantiated declaration may itself contain generic
     // usages (nested generics) — re-walk so they get scheduled and
@@ -533,6 +593,7 @@ function instantiateTemplate(
   template: GenericTemplate,
   concreteArgs: readonly TypeReference[],
   flatName: string,
+  templates: { has(name: string): boolean },
 ): ClassDeclaration | MethodDeclaration | DelegateDeclaration {
   const clone = deepClone(template.node);
   const substitution = new Map<string, TypeReference>();
@@ -544,7 +605,7 @@ function instantiateTemplate(
     substitution.set(param.name, arg);
   }
 
-  applySubstitution(clone, substitution);
+  applySubstitution(clone, substitution, templates);
 
   clone.name = flatName;
   clone.typeParameters = [];
@@ -563,12 +624,19 @@ function instantiateTemplate(
  * deep-cloned so subsequent substitutions on different occurrences of `T`
  * do not share aliased subtrees.
  */
-function applySubstitution(node: Node, substitution: ReadonlyMap<string, TypeReference>): void {
-  new SubstitutionWalker(substitution).walk(node);
+function applySubstitution(
+  node: Node,
+  substitution: ReadonlyMap<string, TypeReference>,
+  templates: { has(name: string): boolean },
+): void {
+  new SubstitutionWalker(substitution, templates).walk(node);
 }
 
 class SubstitutionWalker extends ASTWalker {
-  constructor(private readonly substitution: ReadonlyMap<string, TypeReference>) {
+  constructor(
+    private readonly substitution: ReadonlyMap<string, TypeReference>,
+    private readonly templates: { has(name: string): boolean },
+  ) {
     super();
   }
 
@@ -578,5 +646,13 @@ class SubstitutionWalker extends ASTWalker {
     if (replacement === undefined) return;
     node.name = replacement.name;
     node.typeArguments = replacement.typeArguments.map(deepClone);
+  }
+
+  protected override visitOpaqueStatement(node: OpaqueStatement): void {
+    const subsStr = new Map<string, string>();
+    for (const [k, v] of this.substitution.entries()) {
+      subsStr.set(k, flatNameOf(v));
+    }
+    node.text = substituteTypeParamsInLine(node.text, subsStr, this.templates);
   }
 }

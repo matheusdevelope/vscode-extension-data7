@@ -41,6 +41,15 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configurationDefaults": {
+      "[d7basic]": {
+        "editor.quickSuggestions": {
+          "other": false,
+          "comments": false,
+          "strings": false
+        }
+      }
+    },
     "languages": [
       {
         "id": "d7basic",
@@ -82,70 +91,93 @@
     "commands": [
       {
         "command": "data7.openProject",
-        "title": "Data7: Abrir Projeto",
+        "title": "Abrir Projeto",
+        "category": "Data7",
         "icon": "$(folder-opened)"
       },
       {
         "command": "data7.newProject",
-        "title": "Data7: Criar Novo Projeto"
+        "title": "Criar Projeto",
+        "category": "Data7"
       },
       {
         "command": "data7.openDevStudio",
-        "title": "Data7: Abrir no Developer Studio"
+        "title": "Abrir no Developer Studio",
+        "category": "Data7"
       },
       {
         "command": "data7.build",
-        "title": "Data7: Compilar/Rebuildar Projeto"
+        "title": "Compilar Projeto",
+        "category": "Data7"
       },
       {
         "command": "data7.runProject",
-        "title": "Data7: Executar Projeto (F5)"
+        "title": "Executar Projeto",
+        "category": "Data7"
       },
       {
         "command": "data7.installModule",
-        "title": "Data7: Instalar Módulo Compartilhado"
+        "title": "Instalar Módulo",
+        "category": "Data7"
       },
       {
         "command": "data7.updateDependencies",
-        "title": "Data7: Atualizar Dependências do Projeto"
+        "title": "Atualizar Dependências",
+        "category": "Data7"
       },
       {
         "command": "data7.importModuleToRepository",
-        "title": "Data7: Adicionar Módulo ao Repositório"
+        "title": "Adicionar Módulo ao Repositório",
+        "category": "Data7"
       },
       {
         "command": "data7.bulkImportToRepository",
-        "title": "Data7: Importar Módulos em Massa para o Repositório"
+        "title": "Importar Módulos em Massa",
+        "category": "Data7"
       },
       {
         "command": "data7.exploreRepository",
-        "title": "Data7: Explorar Repositório de Módulos"
+        "title": "Explorar Repositório",
+        "category": "Data7"
       },
       {
         "command": "data7.decompose",
-        "title": "Data7: Decompor Projeto (.7Proj → .bas)"
+        "title": "Decompor Projeto (.7Proj)",
+        "category": "Data7"
       },
       {
         "command": "data7.openParentFolder",
-        "title": "Data7: Voltar para a Pasta de Repositório"
+        "title": "Voltar para Pasta Pai",
+        "category": "Data7"
       },
       {
         "command": "data7.generateSystemLibraryDocs",
-        "title": "Data7: Gerar Documentação da System Library",
+        "title": "Gerar Documentação da System Library",
         "category": "Data7",
         "icon": "$(book)"
       },
       {
         "command": "data7.injectSystemLibraryDocs",
-        "title": "Data7: Sincronizar Documentação no AGENTS.md",
+        "title": "Sincronizar Documentação no AGENTS.md",
         "category": "Data7",
         "icon": "$(file-add)"
       },
       {
         "command": "data7.showOutput",
-        "title": "Data7: Mostrar Saída",
+        "title": "Mostrar Log de Saída",
         "category": "Data7",
         "icon": "$(output)"
+      },
+      {
+        "command": "data7.previewTranspiledCode",
+        "title": "Ver Código Transpilado ao Lado",
+        "category": "Data7",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "data7.previewTranspiledCodeActive",
+        "title": "Ver Código Transpilado",
+        "category": "Data7"
       }
     ],
     "menus": {
@@ -168,6 +200,23 @@
           "command": "data7.openProject",
           "when": "resourceExtname == .7proj",
           "group": "navigation"
+        },
+        {
+          "command": "data7.previewTranspiledCode",
+          "when": "editorLangId == d7basic",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "data7.previewTranspiledCode",
+          "when": "editorLangId == d7basic",
+          "group": "navigation"
+        },
+        {
+          "command": "data7.previewTranspiledCodeActive",
+          "when": "editorLangId == d7basic",
+          "group": "navigation"
         }
       ]
     },
@@ -181,6 +230,70 @@
         "command": "data7.build",
         "key": "ctrl+shift+b",
         "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.openProject",
+        "key": "ctrl+alt+o"
+      },
+      {
+        "command": "data7.newProject",
+        "key": "ctrl+alt+n"
+      },
+      {
+        "command": "data7.openDevStudio",
+        "key": "ctrl+alt+d"
+      },
+      {
+        "command": "data7.decompose",
+        "key": "ctrl+alt+x",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.previewTranspiledCode",
+        "key": "ctrl+alt+p",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.previewTranspiledCodeActive",
+        "key": "ctrl+alt+shift+p",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.installModule",
+        "key": "ctrl+alt+i"
+      },
+      {
+        "command": "data7.updateDependencies",
+        "key": "ctrl+alt+u"
+      },
+      {
+        "command": "data7.exploreRepository",
+        "key": "ctrl+alt+e"
+      },
+      {
+        "command": "data7.importModuleToRepository",
+        "key": "ctrl+alt+m",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.bulkImportToRepository",
+        "key": "ctrl+alt+shift+m"
+      },
+      {
+        "command": "data7.openParentFolder",
+        "key": "ctrl+alt+left"
+      },
+      {
+        "command": "data7.showOutput",
+        "key": "ctrl+alt+l"
+      },
+      {
+        "command": "data7.generateSystemLibraryDocs",
+        "key": "ctrl+alt+g"
+      },
+      {
+        "command": "data7.injectSystemLibraryDocs",
+        "key": "ctrl+alt+s"
       }
     ],
     "walkthroughs": [
@@ -315,8 +428,9 @@
         },
         "data7.enableAutoSync": {
           "type": "boolean",
-          "default": true,
-          "description": "Habilitar sincronização automática bidirecional entre os arquivos da IDE e o arquivo .7Proj."
+          "default": false,
+          "deprecationMessage": "Desativado em favor de compilação/decomposição manuais. Use os comandos 'Decompor Projeto' e 'Compilar/Rebuildar Projeto'.",
+          "markdownDescription": "**Desativado.** Anteriormente habilitava a sincronização automática bidirecional. A sincronização automática foi desativada para evitar problemas de concorrência."
         },
         "data7.sincronizacao": {
           "type": "object",
@@ -330,14 +444,16 @@
                 "disabled",
                 "desativado"
               ],
-              "default": "estrutura <> projeto.7proj",
-              "description": "Define o modo de sincronização: bidirecional (estrutura <> projeto.7proj), apenas compilação (estrutura > projeto.7proj), apenas decompilação (projeto.7proj > estrutura), ou desativado (disabled/desativado)."
+              "default": "disabled",
+              "deprecationMessage": "Desativado em favor de compilação/decomposição manuais. Use os comandos 'Decompor Projeto' e 'Compilar/Rebuildar Projeto'.",
+              "markdownDescription": "**Desativado.** Define o modo de sincronização. A sincronização automática foi desativada para evitar problemas de concorrência."
             }
           },
           "default": {
-            "modo": "estrutura <> projeto.7proj"
+            "modo": "disabled"
           },
-          "description": "Configuração da sincronização automática do projeto."
+          "deprecationMessage": "Desativado em favor de compilação/decomposição manuais. Use os comandos 'Decompor Projeto' e 'Compilar/Rebuildar Projeto'.",
+          "markdownDescription": "**Desativado.** Configuração da sincronização automática do projeto."
         },
         "data7.exclude": {
           "type": "array",

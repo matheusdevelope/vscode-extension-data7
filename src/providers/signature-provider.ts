@@ -3,6 +3,7 @@ import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { lookupSystemByName, lookupSystemNamespaceOrClassByName } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
+import { getChainPrefix } from "../utils/chain-parser";
 
 export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -55,10 +56,7 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
 
     const prefixStart = idMatch.index || 0;
     if (prefixStart > 0 && lineText[prefixStart - 1] === ".") {
-      const prefixMatch = /([a-zA-Z0-9_]+)$/.exec(lineText.substring(0, prefixStart - 1));
-      if (prefixMatch) {
-        dotPrefix = prefixMatch[1];
-      }
+      dotPrefix = getChainPrefix(lineText, prefixStart - 1);
     }
 
     return {
@@ -100,16 +98,27 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
           }
         }
       } else {
-        let typeName = TypeResolver.getVariableType(
+        let typeName = TypeResolver.inferExpressionType(
           sigCtx.dotPrefix,
           document,
-          position,
+          position.line,
           this.indexer,
         );
-        typeName ??=
-          this.indexer.findSymbolByName(sigCtx.dotPrefix, document.uri.toString())?.name ??
-          (lookupSystemNamespaceOrClassByName(sigCtx.dotPrefix)[0] as { name: string } | undefined)
-            ?.name;
+        if (!typeName) {
+          typeName = TypeResolver.getVariableType(
+            sigCtx.dotPrefix,
+            document,
+            position,
+            this.indexer,
+          );
+          typeName ??=
+            this.indexer.findSymbolByName(sigCtx.dotPrefix, document.uri.toString())?.name ??
+            (
+              lookupSystemNamespaceOrClassByName(sigCtx.dotPrefix)[0] as
+                | { name: string }
+                | undefined
+            )?.name;
+        }
         if (typeName) {
           targetSymbol = this.findClassMember(typeName, sigCtx.name);
         }

@@ -265,14 +265,36 @@ export function runGenericsPass(code: string): GenericsPassResult {
       });
       continue;
     }
-    const monomorphic = instantiateTemplate(template, typeArgs);
+    const monomorphic = instantiateTemplate(template, typeArgs, templates);
     // Re-run pass 2 on the monomorphic body so nested generics
     // (`TList<TList<Integer>>`) are also scheduled.
     const rewrittenMono = rewriteUsages(monomorphic, 0);
     emitted.push(...rewrittenMono);
   }
 
-  const finalLines = [...emitted, "", ...rewritten];
+  // Find if there is an End Namespace line in rewritten code.
+  let endNamespaceIdx = -1;
+  for (let idx = rewritten.length - 1; idx >= 0; idx--) {
+    const line = rewritten[idx] ?? "";
+    if (/^\s*End\s+Namespace\b/i.test(line)) {
+      endNamespaceIdx = idx;
+      break;
+    }
+  }
+
+  let finalLines: string[];
+  if (endNamespaceIdx !== -1) {
+    // Insert inside the namespace, at the end of it (just before End Namespace)
+    finalLines = [
+      ...rewritten.slice(0, endNamespaceIdx),
+      ...emitted,
+      ...rewritten.slice(endNamespaceIdx),
+    ];
+  } else {
+    // No namespace. Append emitted at the end of the file (guaranteed to be below imports).
+    finalLines = [...rewritten, "", ...emitted];
+  }
+
   return {
     code: finalLines.join(eol),
     flatNames: [...seenFlat],
@@ -461,7 +483,11 @@ function rewriteLine(
  * body with the matching concrete type, renames the declaration header to
  * its flat form, and drops constraint clauses on the way.
  */
-function instantiateTemplate(template: TemplateText, typeArgs: readonly string[]): string[] {
+function instantiateTemplate(
+  template: TemplateText,
+  typeArgs: readonly string[],
+  templates: ReadonlyMap<string, TemplateText>,
+): string[] {
   const flatName = flatNameOf(template.name, typeArgs);
   const subs = new Map<string, string>();
   for (let i = 0; i < template.typeParams.length; i++) {
@@ -492,7 +518,7 @@ function instantiateTemplate(template: TemplateText, typeArgs: readonly string[]
     // name, member access, comment, or string literal that happens to
     // share a letter with a type parameter (`T`, `U`) was previously
     // rewritten by the unguarded regex.
-    out = substituteTypeParamsInLine(out, subs);
+    out = substituteTypeParamsInLine(out, subs, templates);
 
     // Rename the template's own name in the body lines so a Basic
     // return-by-name idiom inside a `Function Wrap<T>` (`Wrap = pValue`)
@@ -524,7 +550,18 @@ function substituteTemplateNameInBodyLine(
   const tokens = tokenize(line, { includeWhitespace: true });
   const parts: string[] = [];
   let afterDot = false;
-  for (const t of tokens) {
+
+  const isGenericUsage = (idx: number): boolean => {
+    let nextIdx = idx + 1;
+    while (nextIdx < tokens.length && tokens[nextIdx]?.kind === "whitespace") {
+      nextIdx++;
+    }
+    return tokens[nextIdx]?.kind === "punct" && tokens[nextIdx]?.value === "<";
+  };
+
+  for (let idx = 0; idx < tokens.length; idx++) {
+    const t = tokens[idx];
+    if (t === undefined) continue;
     switch (t.kind) {
       case "whitespace":
       case "comment":
@@ -538,7 +575,7 @@ function substituteTemplateNameInBodyLine(
         continue;
       case "identifier":
       case "keyword":
-        if (!afterDot && t.value === templateName) {
+        if (!afterDot && t.value === templateName && !isGenericUsage(idx)) {
           parts.push(flatName);
         } else {
           parts.push(t.value);
@@ -565,24 +602,47 @@ function substituteTemplateNameInBodyLine(
  * substituting). It is exited on `=`, `(`, `)`, `,` at depth 0, line
  * boundary, or any keyword that resets the position.
  */
-function substituteTypeParamsInLine(line: string, subs: ReadonlyMap<string, string>): string {
+export function substituteTypeParamsInLine(
+  line: string,
+  subs: ReadonlyMap<string, string>,
+  templates: { has(name: string): boolean },
+): string {
   if (subs.size === 0) return line;
   const tokens = tokenize(line, { includeWhitespace: true });
   const parts: string[] = [];
   let typeRefMode = false;
   let angleDepth = 0;
   let afterDot = false;
+  let inCType = false;
+  let cTypeParenDepth = 0;
 
   const resetMode = (): void => {
     typeRefMode = false;
     angleDepth = 0;
   };
 
-  for (const t of tokens) {
+  const isGenericUsage = (idx: number): boolean => {
+    let nextIdx = idx + 1;
+    while (nextIdx < tokens.length && tokens[nextIdx]?.kind === "whitespace") {
+      nextIdx++;
+    }
+    return tokens[nextIdx]?.kind === "punct" && tokens[nextIdx]?.value === "<";
+  };
+
+  const isCTypeCall = (idx: number): boolean => {
+    let nextIdx = idx + 1;
+    while (nextIdx < tokens.length && tokens[nextIdx]?.kind === "whitespace") {
+      nextIdx++;
+    }
+    return tokens[nextIdx]?.kind === "punct" && tokens[nextIdx]?.value === "(";
+  };
+
+  for (let idx = 0; idx < tokens.length; idx++) {
+    const t = tokens[idx];
+    if (t === undefined) continue;
     switch (t.kind) {
       case "whitespace":
         parts.push(t.value);
-        // Whitespace doesn't change mode or the after-dot flag.
         continue;
       case "comment":
         parts.push(t.value);
@@ -615,17 +675,48 @@ function substituteTypeParamsInLine(line: string, subs: ReadonlyMap<string, stri
         } else if (t.value === ".") {
           afterDot = true;
           continue;
-        } else if (
-          t.value === "(" ||
-          t.value === ")" ||
-          t.value === "=" ||
-          (t.value === "," && angleDepth === 0)
-        ) {
+        } else if (t.value === "(") {
+          if (inCType) {
+            cTypeParenDepth++;
+          } else {
+            resetMode();
+          }
+        } else if (t.value === ")") {
+          if (inCType) {
+            cTypeParenDepth--;
+            if (cTypeParenDepth === 0) {
+              inCType = false;
+              typeRefMode = false;
+            }
+          } else {
+            resetMode();
+          }
+        } else if (t.value === "=") {
           resetMode();
+        } else if (t.value === ",") {
+          if (inCType && cTypeParenDepth === 1 && angleDepth === 0) {
+            typeRefMode = true;
+            angleDepth = 0;
+          } else if (angleDepth === 0) {
+            resetMode();
+          }
         }
         afterDot = false;
         continue;
       case "identifier": {
+        const nameLower = t.value.toLowerCase();
+        if (nameLower === "ctype" && isCTypeCall(idx)) {
+          inCType = true;
+          cTypeParenDepth = 0;
+          afterDot = false;
+          parts.push(t.value);
+          continue;
+        }
+
+        if (templates.has(nameLower) && isGenericUsage(idx)) {
+          typeRefMode = true;
+        }
+
         const sub = subs.get(t.value);
         if (sub !== undefined && typeRefMode && !afterDot) {
           parts.push(sub);

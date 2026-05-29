@@ -509,4 +509,184 @@ End Namespace`;
       );
     });
   });
+
+  // -------------------------------------------------------------------------
+  // duplicate-declaration
+  // -------------------------------------------------------------------------
+  describe("duplicate-declaration", () => {
+    test("emits error for duplicate local variable inside the same method", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Sub Run()
+         Dim x As Integer
+         Dim x As String
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_local.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Declaração duplicada: o identificador 'x'",
+      );
+    });
+
+    test("emits error for local variable with same name as parameter inside the same method", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Sub Run(x As Integer)
+         Dim x As String
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_param.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Declaração duplicada: o identificador 'x'",
+      );
+    });
+
+    test("emits error for local variable with same name as class member in the same context", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Private value As Integer
+      Public Sub Run()
+         Dim value As String
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_member.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "conflita com o membro 'value'",
+      );
+    });
+
+    test("does NOT emit error for local variable matching class member of different context (Shared vs Instance)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Private value As Integer
+      Public Shared Sub Run()
+         Dim value As String
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_member_shared.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("emits error for duplicate class members with same signature/kind", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Private field As Integer
+      Private field As String
+   End Class
+End Namespace`;
+      const uri = "file:///dup_fields.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Membro duplicado: o nome 'field'",
+      );
+    });
+
+    test("does NOT emit error for method overloads (same name but different parameter count/types)", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Sub Process(x As Integer)
+      End Sub
+      Public Sub Process(x As String)
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_overload.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("does NOT emit error for method with same name/params but different isShared state", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Sub Process(x As Integer)
+      End Sub
+      Public Shared Sub Process(x As Integer)
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_shared_method.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("emits error for duplicate class name in same namespace", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class MyClass
+   End Class
+   Class MyClass
+   End Class
+End Namespace`;
+      const uri = "file:///dup_class.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Declaração duplicada: o tipo/símbolo 'MyClass'",
+      );
+    });
+
+    test("emits error for class name conflicting with imported symbol or global", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Imports Forms
+Namespace mod_dup
+   Class Grid
+   End Class
+End Namespace`;
+      const uri = "file:///dup_imported.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "conflita com o tipo importado",
+      );
+    });
+  });
+
+  test("returns empty diagnostics array for data7-preview documents", () => {
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const code = `Namespace mod_preview
+   Class TTest
+      Public Sub Run()
+         Dim loader As TNonexistentLoader
+      End Sub
+   End Class
+End Namespace`;
+    const uri = "data7-preview:///dummy/preview_file.bas";
+    const doc = createMockDoc(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+    assert.equal(diags.length, 0);
+  });
 });

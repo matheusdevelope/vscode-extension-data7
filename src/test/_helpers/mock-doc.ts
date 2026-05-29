@@ -37,10 +37,7 @@ export function createMockDoc(uri: string, text: string, opts: MockDocOptions = 
   const register = opts.register ?? true;
 
   const doc = {
-    uri: {
-      toString: () => uri,
-      fsPath: uri.replace("file:///", "").replace(/\//g, "\\"),
-    },
+    uri: vscode.Uri.parse(uri),
     languageId: opts.languageId ?? "d7basic",
     lineCount: lines.length,
     getText: (range?: {
@@ -83,12 +80,9 @@ export function createMockDoc(uri: string, text: string, opts: MockDocOptions = 
  * but without the rich `TextDocument` surface. Useful when the indexer needs
  * to see a file as "open" but no provider will ever read its body.
  */
-export function registerOpenDocument(uri: string, fsPath?: string): void {
+export function registerOpenDocument(uri: string, _fsPath?: string): void {
   mockTextDocuments.push({
-    uri: {
-      toString: () => uri,
-      fsPath: fsPath ?? uri.replace("file:///", "").replace(/\//g, "\\"),
-    },
+    uri: vscode.Uri.parse(uri),
   });
 }
 

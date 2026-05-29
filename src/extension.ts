@@ -14,6 +14,7 @@ import { DiagnosticService } from "./services/diagnostic-service";
 import { ProjectService } from "./services/project-service";
 import { RepositoryService } from "./services/repository-service";
 import { SyncWatcher } from "./services/sync-watcher";
+import { PreviewService } from "./services/preview-service";
 
 import { debounce } from "./utils/debounce";
 
@@ -29,6 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
   DiagnosticService.initialize(context);
   ActivationService.initializeWorkspace(context);
   SyncWatcher.startAutoSync(context);
+  PreviewService.initialize(context);
 
   // Auto-detect .7Proj files in the workspace and offer to open one.
   setTimeout(() => {
@@ -51,9 +53,16 @@ export function deactivate(): void {
 
 function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   const indexer = WorkspaceSymbolIndexer.getInstance();
-  indexer.indexWorkspace(vscode.workspace.workspaceFolders).catch((err) => {
-    logger.error("Erro ao indexar workspace.", err);
-  });
+  indexer
+    .indexWorkspace(vscode.workspace.workspaceFolders)
+    .then(() => {
+      // Quando o cache "esquentar", forçamos o linter a reavaliar os arquivos
+      // que já estavam abertos na tela, revelando os erros que passaram batidos.
+      DiagnosticService.refreshAllActive();
+    })
+    .catch((err) => {
+      logger.error("Erro ao indexar workspace.", err);
+    });
 
   const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
   basWatcher.onDidChange((uri) => {

@@ -1,5 +1,3 @@
-   Delegate Function Pred_Integer(pValue As Integer) As Boolean
-
 ' @example: sugar/generic-tlist/02-delegate
 ' @demonstrates: Delegate Function genérico monomorfizado para tipo concreto
 ' @diagnostics: none
@@ -20,4 +18,5 @@ Namespace mod_demo
       End Sub
    End Class
 
+   Delegate Function Pred_Integer(pValue As Integer) As Boolean
 End Namespace

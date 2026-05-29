@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { DiagnosticService } from "./diagnostic-service";
 import * as path from "path";
 import * as fs from "fs";
 import { Builder } from "../project/builder";
@@ -543,6 +545,111 @@ export class ProjectService {
           const message = err instanceof Error ? err.message : String(err);
           logger.error("Erro ao abrir o projeto.", err);
           vscode.window.showErrorMessage(`Erro ao abrir o projeto: ${message}`);
+        }
+      },
+    );
+  }
+
+  /**
+   * Decompiles/destructures the active project's .7Proj file in place.
+   */
+  public static async decomposeActiveProject(uri?: vscode.Uri): Promise<void> {
+    if (!ensureWorkspaceTrusted("Decompor um projeto Data7 requer um workspace confiável.")) {
+      return;
+    }
+
+    let projectFilePath = uri?.fsPath;
+    let workspaceDir: string | undefined;
+
+    if (!projectFilePath) {
+      const activeProj = ProjectService.getActiveProject();
+      if (activeProj) {
+        projectFilePath = activeProj.projectFilePath;
+        workspaceDir = activeProj.workspaceDir;
+      }
+    } else {
+      workspaceDir = path.dirname(projectFilePath);
+    }
+
+    if (!projectFilePath || !fs.existsSync(projectFilePath)) {
+      const selected = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        filters: { "Data7 Project": ["7Proj", "7proj"] },
+        title: "Selecione o arquivo .7Proj para decompor",
+      });
+      if (selected?.[0]) {
+        projectFilePath = selected[0].fsPath;
+        workspaceDir = path.dirname(projectFilePath);
+      }
+    }
+
+    if (!projectFilePath || !workspaceDir) {
+      vscode.window.showErrorMessage(
+        "Nenhum projeto ativo ou arquivo .7Proj selecionado para decompor.",
+      );
+      return;
+    }
+
+    const projectName = path.basename(projectFilePath, path.extname(projectFilePath));
+    const targetProjFile = projectFilePath;
+    const targetWorkspace = workspaceDir;
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Decompondo projeto '${projectName}'...`,
+        cancellable: false,
+      },
+      async () => {
+        try {
+          const repoBasPath = RepositoryService.getRepoBasPath();
+          let knownSharedModules: Set<string> | undefined;
+          if (repoBasPath && fs.existsSync(repoBasPath)) {
+            try {
+              const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
+              knownSharedModules = new Set(sharedModules.keys());
+            } catch (err) {
+              logger.warn(
+                `Falha ao escanear módulos compartilhados: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
+
+          Decompiler.decompileProject(targetProjFile, targetWorkspace, knownSharedModules);
+
+          let dependencies: Record<string, string> = {};
+          const configJsonPath = path.join(targetWorkspace, PROJECT_CONFIG_FILENAME);
+          try {
+            const cfg = readProjectConfig(configJsonPath);
+            if (cfg) dependencies = { ...cfg.dependencies };
+          } catch (err) {
+            logger.warn(
+              `Falha ao ler data7.json após decompile: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+
+          if (repoBasPath && fs.existsSync(repoBasPath)) {
+            DependencyScanner.syncDependencies(
+              path.join(targetWorkspace, "src"),
+              path.join(targetWorkspace, "data7_modules"),
+              repoBasPath,
+              dependencies,
+            );
+          }
+
+          await WorkspaceSymbolIndexer.getInstance().indexWorkspace(
+            vscode.workspace.workspaceFolders,
+          );
+
+          DiagnosticService.refreshAllActive();
+          logger.info(`Projeto '${projectName}' decomposto com sucesso em: ${targetWorkspace}`);
+          vscode.window.showInformationMessage(`Projeto '${projectName}' decomposto com sucesso!`);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.error("Erro ao decompor o projeto.", err);
+          vscode.window.showErrorMessage(`Erro ao decompor o projeto: ${message}`);
         }
       },
     );

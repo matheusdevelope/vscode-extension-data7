@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
-import type { WorkspaceSymbolIndexer, SymbolInfo } from "../analysis/symbol-indexer";
+import type { WorkspaceSymbolIndexer, SymbolInfo, ParameterInfo } from "../analysis/symbol-indexer";
 import {
   lookupSystemByContainer,
   lookupSystemClassByName,
   lookupSystemByName,
+  SYSTEM_SYMBOLS,
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
@@ -24,6 +25,7 @@ import type {
   UnknownTemplatePayload,
   UnsupportedMemberPayload,
   UnusedImportPayload,
+  DuplicateDeclarationPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
@@ -31,6 +33,8 @@ import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configura
 import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
 import { parseInterpolation } from "../utils/interpolation";
 import { findTopLevelTernary } from "../utils/ternary";
+import { stripCommentsAndStringsLine } from "../utils/code-stripper";
+import { getChainPrefix } from "../utils/chain-parser";
 
 export class DiagnosticsLinter {
   private static resolveClassName(className: string): string {
@@ -261,6 +265,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.ClassGenericMethodUnsupported]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.FlatNameCollision]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.InstantiationLimitExceeded]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.DuplicateDeclaration]: vscode.DiagnosticSeverity.Error,
   };
 
   /** Frozen set of canonical codes accepted by `' data7:disable-line <code>`. */
@@ -272,6 +277,9 @@ export class DiagnosticsLinter {
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
   ): vscode.Diagnostic[] {
+    if (document.uri.scheme === "data7-preview") {
+      return [];
+    }
     const diagnostics: vscode.Diagnostic[] = [];
     const text = document.getText();
     const lines = text.split(/\r?\n/);
@@ -381,21 +389,23 @@ export class DiagnosticsLinter {
     });
 
     // 2. Member accesses (obj.Member, me.Member).
-    const memberAccessRegex = /\b([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\b/gi;
     lines.forEach((lineText, lineIdx) => {
-      const cleanLine = DependencyScanner.stripComments(lineText);
+      const cleanLine = stripCommentsAndStringsLine(lineText);
       if (!cleanLine.trim() || cleanLine.toLowerCase().startsWith("imports ")) return;
 
-      let match;
-      while ((match = memberAccessRegex.exec(cleanLine)) !== null) {
-        const objectName = match[1];
-        const memberName = match[2];
-        if (!objectName || !memberName) continue;
-        const objectLower = objectName.toLowerCase();
+      const dotRegex = /\.([a-zA-Z_][a-zA-Z0-9_]*)\b/gi;
+      let dotMatch;
+      while ((dotMatch = dotRegex.exec(cleanLine)) !== null) {
+        const memberName = dotMatch[1];
+        if (!memberName) continue;
+        const dotIndex = dotMatch.index;
 
-        memberAccessRegex.lastIndex = match.index + objectName.length + 1;
+        const prefix = getChainPrefix(cleanLine, dotIndex);
+        if (!prefix) continue;
 
-        if (objectLower === "me" || objectLower === "mybase") {
+        const prefixLower = prefix.toLowerCase();
+
+        if (prefixLower === "me" || prefixLower === "mybase") {
           const fileSyms = indexer.getFileSymbols(document.uri.toString());
           const currentClass = fileSyms?.symbols.find(
             (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
@@ -403,7 +413,7 @@ export class DiagnosticsLinter {
           if (currentClass) {
             const resolved = TypeResolver.findMember(currentClass.name, memberName, indexer);
             if (!resolved) {
-              const start = match.index + objectName.length + 1;
+              const start = dotIndex + 1;
               const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
               const diag = new vscode.Diagnostic(
                 range,
@@ -421,29 +431,23 @@ export class DiagnosticsLinter {
               this.pushUnsupportedMemberDiagnostic(
                 diagnostics,
                 lineIdx,
-                match.index + objectName.length + 1,
+                dotIndex + 1,
                 memberName,
                 currentClass.name,
               );
             }
-            // me.X always sees Private members; no `private-member-access` check.
           }
           continue;
         }
 
         // Skip VCL and System low-level prefixes to avoid false positives on Delphi internals.
-        if (objectLower.startsWith("vcl") || objectLower.startsWith("system")) {
+        if (prefixLower.startsWith("vcl") || prefixLower.startsWith("system")) {
           continue;
         }
 
-        let typeName = TypeResolver.getVariableType(
-          objectName,
-          document,
-          new vscode.Position(lineIdx, match.index),
-          indexer,
-        );
+        let typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
         if (!typeName) {
-          const staticSymbol = indexer.findSymbolByName(objectName, document.uri.toString());
+          const staticSymbol = indexer.findSymbolByName(prefix, document.uri.toString());
           if (
             staticSymbol &&
             (staticSymbol.kind === "class" ||
@@ -452,7 +456,7 @@ export class DiagnosticsLinter {
           ) {
             typeName = staticSymbol.name;
           } else {
-            const sysStaticSymbol = lookupSystemByName(objectName).find(
+            const sysStaticSymbol = lookupSystemByName(prefix).find(
               (s) => s.kind === "namespace" || s.kind === "class" || s.kind === "structure",
             );
             if (sysStaticSymbol) {
@@ -469,7 +473,7 @@ export class DiagnosticsLinter {
             typeName.toLowerCase() !== "tobject" &&
             typeName.toLowerCase() !== "void"
           ) {
-            const start = match.index + objectName.length + 1;
+            const start = dotIndex + 1;
             const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
             const diag = new vscode.Diagnostic(
               range,
@@ -487,7 +491,7 @@ export class DiagnosticsLinter {
             this.pushUnsupportedMemberDiagnostic(
               diagnostics,
               lineIdx,
-              match.index + objectName.length + 1,
+              dotIndex + 1,
               memberName,
               typeName,
             );
@@ -503,7 +507,7 @@ export class DiagnosticsLinter {
               !!resolved.containerName &&
               enclosingClass.name.toLowerCase() === resolved.containerName.toLowerCase();
             if (!isInsideOwner) {
-              const start = match.index + objectName.length + 1;
+              const start = dotIndex + 1;
               const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
               const diag = new vscode.Diagnostic(
                 range,
@@ -820,7 +824,425 @@ export class DiagnosticsLinter {
       }
     }
 
+    this.validateDuplicateDeclarations(document, indexer, diagnostics);
+
     return this.postProcessDiagnostics(diagnostics, text);
+  }
+
+  private static isSameSignature(
+    params1: ParameterInfo[] | undefined,
+    params2: ParameterInfo[] | undefined,
+  ): boolean {
+    const p1 = params1 ?? [];
+    const p2 = params2 ?? [];
+    if (p1.length !== p2.length) return false;
+    for (let i = 0; i < p1.length; i++) {
+      const type1 = p1[i]?.type.toLowerCase() ?? "variant";
+      const type2 = p2[i]?.type.toLowerCase() ?? "variant";
+      if (type1 !== type2) return false;
+    }
+    return true;
+  }
+
+  private static validateDuplicateDeclarations(
+    document: vscode.TextDocument,
+    indexer: WorkspaceSymbolIndexer,
+    diagnostics: vscode.Diagnostic[],
+  ): void {
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    if (!fileSyms) return;
+
+    const text = document.getText();
+    const lines = text.split(/\r?\n/);
+
+    const activeNamespace = fileSyms.symbols.find((s) => s.kind === "namespace")?.name;
+    const activeNsLower = activeNamespace?.toLowerCase();
+
+    const imports = fileSyms.imports;
+    const importedNs = new Set(imports.map((imp) => imp.toLowerCase()));
+
+    // Collect all outer types/symbols that are visible
+    const outerSymbols = new Map<string, { kind: string; container?: string }>();
+
+    const primitives = ["string", "integer", "boolean", "double", "variant", "tobject", "void"];
+    primitives.forEach((p) => outerSymbols.set(p, { kind: "tipo primitivo" }));
+
+    SYSTEM_SYMBOLS.forEach((s) => {
+      if (
+        !s.containerName ||
+        s.containerName.toLowerCase() === "system" ||
+        s.containerName.toLowerCase() === "globals"
+      ) {
+        outerSymbols.set(s.name.toLowerCase(), {
+          kind: "símbolo global do sistema",
+          container: s.containerName,
+        });
+      }
+    });
+
+    indexer.getAllSymbols().forEach((s) => {
+      if (s.fileUri && s.fileUri === document.uri.toString()) return;
+      if (s.fileUri && /principal\.bas$/i.test(s.fileUri)) {
+        outerSymbols.set(s.name.toLowerCase(), {
+          kind: "símbolo global (Principal.bas)",
+          container: s.containerName,
+        });
+      }
+    });
+
+    const checkTopLevel = (s: SymbolInfo): void => {
+      if (s.kind === "namespace") return;
+      if (!s.containerName) return;
+      if (s.fileUri && s.fileUri === document.uri.toString()) return;
+
+      const containerLower = s.containerName.toLowerCase();
+      if (importedNs.has(containerLower)) {
+        outerSymbols.set(s.name.toLowerCase(), {
+          kind: `tipo importado de ${s.containerName}`,
+          container: s.containerName,
+        });
+      }
+      if (activeNsLower && containerLower === activeNsLower) {
+        outerSymbols.set(s.name.toLowerCase(), {
+          kind: `tipo no namespace ${s.containerName}`,
+          container: s.containerName,
+        });
+      }
+    };
+    SYSTEM_SYMBOLS.forEach((s) => {
+      checkTopLevel(s);
+    });
+    indexer.getAllSymbols().forEach((s) => {
+      checkTopLevel(s);
+    });
+
+    const createConflictDiag = (
+      range: vscode.Range,
+      message: string,
+      payload: DuplicateDeclarationPayload,
+    ): void => {
+      const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+      diag.code = DiagnosticCodes.DuplicateDeclaration;
+      setDiagnosticPayload(diag, payload);
+      diagnostics.push(diag);
+    };
+
+    // Keep track of names declared at the top-level of this file
+    const fileTopLevel = new Map<string, SymbolInfo>();
+
+    // LEVEL 3: File / Namespace level declarations
+    fileSyms.symbols.forEach((s) => {
+      if (s.kind === "namespace") return;
+      // We only validate top-level declarations (containerName is the active namespace or undefined/global)
+      const isTopLevel =
+        !s.containerName || (activeNamespace && s.containerName === activeNamespace);
+      if (!isTopLevel) return;
+
+      const nameLower = s.name.toLowerCase();
+
+      // Check duplicates in the same file
+      const existing = fileTopLevel.get(nameLower);
+      if (existing) {
+        createConflictDiag(
+          new vscode.Range(
+            s.range.startLine,
+            s.range.startChar,
+            s.range.startLine,
+            s.range.endChar,
+          ),
+          `Declaração duplicada: o tipo/símbolo '${s.name}' já foi declarado neste arquivo.`,
+          {
+            code: DiagnosticCodes.DuplicateDeclaration,
+            name: s.name,
+            scope: "namespace",
+            conflictingWithName: existing.name,
+          },
+        );
+        return;
+      }
+      fileTopLevel.set(nameLower, s);
+
+      // Check duplicates in the same namespace across the workspace
+      const otherFileSymbol = indexer
+        .getAllSymbols()
+        .find(
+          (other) =>
+            other.name.toLowerCase() === nameLower &&
+            other.kind === s.kind &&
+            other.containerName?.toLowerCase() === s.containerName?.toLowerCase() &&
+            other.fileUri !== s.fileUri,
+        );
+      if (otherFileSymbol) {
+        createConflictDiag(
+          new vscode.Range(
+            s.range.startLine,
+            s.range.startChar,
+            s.range.startLine,
+            s.range.endChar,
+          ),
+          `Declaração duplicada: o tipo/símbolo '${s.name}' já foi declarado no namespace '${s.containerName}' no arquivo '${otherFileSymbol.fileUri}'.`,
+          {
+            code: DiagnosticCodes.DuplicateDeclaration,
+            name: s.name,
+            scope: "namespace",
+            conflictingWithName: otherFileSymbol.name,
+          },
+        );
+        return;
+      }
+
+      // Check conflict with imported symbols or global symbols
+      const outerSym = outerSymbols.get(nameLower);
+      if (outerSym) {
+        createConflictDiag(
+          new vscode.Range(
+            s.range.startLine,
+            s.range.startChar,
+            s.range.startLine,
+            s.range.endChar,
+          ),
+          `O tipo/símbolo '${s.name}' conflita com o ${outerSym.kind} '${s.name}'.`,
+          {
+            code: DiagnosticCodes.DuplicateDeclaration,
+            name: s.name,
+            scope: "imported",
+            conflictingWithName: s.name,
+          },
+        );
+      }
+    });
+
+    // LEVEL 2: Class/Structure level declarations
+    const classes = fileSyms.symbols.filter((s) => s.kind === "class" || s.kind === "structure");
+    classes.forEach((C) => {
+      const members = fileSyms.symbols.filter(
+        (s) => s.containerName?.toLowerCase() === C.name.toLowerCase(),
+      );
+
+      const sharedMembers = members.filter((m) => m.isShared);
+      const instanceMembers = members.filter((m) => !m.isShared);
+
+      const validateMemberGroup = (group: SymbolInfo[]): void => {
+        const declaredInGroup = new Map<string, SymbolInfo[]>();
+
+        group.forEach((m) => {
+          const nameLower = m.name.toLowerCase();
+
+          // Check against the class/structure name itself (excluding constructor 'New')
+          if (nameLower === C.name.toLowerCase() && nameLower !== "new") {
+            createConflictDiag(
+              new vscode.Range(
+                m.range.startLine,
+                m.range.startChar,
+                m.range.startLine,
+                m.range.endChar,
+              ),
+              `O membro '${m.name}' conflita com o nome da classe/estrutura '${C.name}'.`,
+              {
+                code: DiagnosticCodes.DuplicateDeclaration,
+                name: m.name,
+                scope: "class",
+                conflictingWithName: C.name,
+              },
+            );
+            return;
+          }
+
+          // Check duplicates inside the same class context group
+          const existingList = declaredInGroup.get(nameLower);
+          if (existingList) {
+            for (const existing of existingList) {
+              const bothMethods = m.kind === "method" && existing.kind === "method";
+              if (bothMethods) {
+                if (DiagnosticsLinter.isSameSignature(m.parameters, existing.parameters)) {
+                  createConflictDiag(
+                    new vscode.Range(
+                      m.range.startLine,
+                      m.range.startChar,
+                      m.range.startLine,
+                      m.range.endChar,
+                    ),
+                    `Membro duplicado: a classe '${C.name}' já declara um método '${m.name}' com a mesma assinatura (tipo e ordem de parâmetros).`,
+                    {
+                      code: DiagnosticCodes.DuplicateDeclaration,
+                      name: m.name,
+                      scope: "class",
+                      conflictingWithName: existing.name,
+                    },
+                  );
+                  return;
+                }
+              } else {
+                // At least one is not a method -> absolute name collision
+                createConflictDiag(
+                  new vscode.Range(
+                    m.range.startLine,
+                    m.range.startChar,
+                    m.range.startLine,
+                    m.range.endChar,
+                  ),
+                  `Membro duplicado: o nome '${m.name}' já é utilizado por outro membro na classe '${C.name}'.`,
+                  {
+                    code: DiagnosticCodes.DuplicateDeclaration,
+                    name: m.name,
+                    scope: "class",
+                    conflictingWithName: existing.name,
+                  },
+                );
+                return;
+              }
+            }
+            existingList.push(m);
+          } else {
+            declaredInGroup.set(nameLower, [m]);
+          }
+        });
+      };
+
+      validateMemberGroup(sharedMembers);
+      validateMemberGroup(instanceMembers);
+    });
+
+    // LEVEL 1: Local / Method level declarations
+    const methods = fileSyms.symbols.filter((s) => s.kind === "method");
+    methods.forEach((M) => {
+      const C = classes.find((c) => c.name.toLowerCase() === M.containerName?.toLowerCase());
+
+      const methodScopeDecls: { name: string; range: vscode.Range; isParameter: boolean }[] = [];
+
+      // Add parameters
+      if (M.parameters) {
+        const methodDeclLine = lines[M.range.startLine] ?? "";
+        M.parameters.forEach((p) => {
+          const start = methodDeclLine.indexOf(p.name);
+          const range =
+            start >= 0
+              ? new vscode.Range(M.range.startLine, start, M.range.startLine, start + p.name.length)
+              : new vscode.Range(
+                  M.range.startLine,
+                  M.range.startChar,
+                  M.range.startLine,
+                  M.range.endChar,
+                );
+          methodScopeDecls.push({ name: p.name, range, isParameter: true });
+        });
+      }
+
+      // Scan local variables in method body
+      for (let lineIdx = M.range.startLine + 1; lineIdx < M.range.endLine; lineIdx++) {
+        const lineRaw = lines[lineIdx];
+        if (lineRaw === undefined) continue;
+        const cleanLine = stripCommentsAndStringsLine(lineRaw);
+        const trimmedClean = cleanLine.trim();
+        if (!trimmedClean) continue;
+
+        let name: string | undefined;
+
+        // Check Dim
+        const dimMatch = /^\s*Dim\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+        if (dimMatch?.[1]) {
+          name = dimMatch[1];
+        }
+
+        // Check For Each
+        if (!name) {
+          const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+          if (forEachMatch?.[1]) {
+            name = forEachMatch[1];
+          }
+        }
+
+        // Check Using
+        if (!name) {
+          const usingMatch = /\bUsing\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+          if (usingMatch?.[1]) {
+            name = usingMatch[1];
+          }
+        }
+
+        // Check Catch
+        if (!name) {
+          const catchMatch = /\bCatch\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+          if (catchMatch?.[1]) {
+            name = catchMatch[1];
+          }
+        }
+
+        if (name) {
+          const start = cleanLine.indexOf(name);
+          methodScopeDecls.push({
+            name,
+            range: new vscode.Range(lineIdx, start, lineIdx, start + name.length),
+            isParameter: false,
+          });
+        }
+      }
+
+      // Validate method declarations
+      const declaredInMethod = new Map<string, vscode.Range>();
+
+      methodScopeDecls.forEach((v) => {
+        const nameLower = v.name.toLowerCase();
+
+        // 1. Check duplicate inside the method itself
+        const existingRange = declaredInMethod.get(nameLower);
+        if (existingRange) {
+          createConflictDiag(
+            v.range,
+            `Declaração duplicada: o identificador '${v.name}' já foi declarado neste método.`,
+            {
+              code: DiagnosticCodes.DuplicateDeclaration,
+              name: v.name,
+              scope: "method",
+              conflictingWithName: v.name,
+            },
+          );
+          return;
+        }
+        declaredInMethod.set(nameLower, v.range);
+
+        // 2. Check conflict with class members (dependent on static/instance context)
+        if (C) {
+          const members = fileSyms.symbols.filter(
+            (s) => s.containerName?.toLowerCase() === C.name.toLowerCase(),
+          );
+
+          // Shared method only conflicts with Shared members.
+          // Instance method conflicts with BOTH Shared and instance members.
+          const visibleMembers = M.isShared ? members.filter((m) => m.isShared) : members;
+
+          const conflictingMember = visibleMembers.find((m) => m.name.toLowerCase() === nameLower);
+          if (conflictingMember) {
+            createConflictDiag(
+              v.range,
+              `O identificador '${v.name}' conflita com o membro '${conflictingMember.name}' da classe '${C.name}'.`,
+              {
+                code: DiagnosticCodes.DuplicateDeclaration,
+                name: v.name,
+                scope: "class",
+                conflictingWithName: conflictingMember.name,
+              },
+            );
+            return;
+          }
+
+          // 3. Check conflict with enclosing class name itself
+          if (nameLower === C.name.toLowerCase()) {
+            createConflictDiag(
+              v.range,
+              `O identificador '${v.name}' conflita com o nome da classe envolvente '${C.name}'.`,
+              {
+                code: DiagnosticCodes.DuplicateDeclaration,
+                name: v.name,
+                scope: "class",
+                conflictingWithName: C.name,
+              },
+            );
+            return;
+          }
+        }
+      });
+    });
   }
 
   /**

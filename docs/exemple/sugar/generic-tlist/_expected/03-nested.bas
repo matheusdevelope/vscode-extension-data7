@@ -1,10 +1,3 @@
-   Class TList_Integer
-      Public x As Integer
-   End Class
-   Class TList_TList_Integer
-      Public x As TList_Integer
-   End Class
-
 ' @example: sugar/generic-tlist/03-nested
 ' @demonstrates: generics aninhados — TList<TList<Integer>> vira TList_TList_Integer
 ' @diagnostics: none
@@ -19,4 +12,10 @@ Namespace mod_demo
       End Sub
    End Class
 
+   Class TList_Integer
+      Public x As Integer
+   End Class
+   Class TList_TList_Integer
+      Public x As TList_Integer
+   End Class
 End Namespace

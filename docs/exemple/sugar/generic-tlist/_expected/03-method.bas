@@ -1,7 +1,3 @@
-   Public Function Wrap_Integer(pValue As Integer) As Integer
-      Wrap_Integer = pValue
-   End Function
-
 ' @example: sugar/generic-tlist/03-method
 ' @demonstrates: Sub/Function generico livre (nivel namespace) monomorfizado para forma concreta
 ' @diagnostics: none
@@ -16,4 +12,7 @@ Namespace mod_demo
       End Sub
    End Class
 
+   Public Function Wrap_Integer(pValue As Integer) As Integer
+      Wrap_Integer = pValue
+   End Function
 End Namespace

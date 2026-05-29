@@ -37,15 +37,15 @@ export class TemplateRegistry {
   private readonly map = new Map<string, GenericTemplate>();
 
   register(template: GenericTemplate): void {
-    this.map.set(template.name, template);
+    this.map.set(template.name.toLowerCase(), template);
   }
 
   get(name: string): GenericTemplate | undefined {
-    return this.map.get(name);
+    return this.map.get(name.toLowerCase());
   }
 
   has(name: string): boolean {
-    return this.map.has(name);
+    return this.map.has(name.toLowerCase());
   }
 
   get size(): number {

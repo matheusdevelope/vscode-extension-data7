@@ -1,11 +1,3 @@
-   Class TList_Product
-      Public Count As Integer
-
-      Sub Add(pValue As Product)
-         me.Count = me.Count + 1
-      End Sub
-   End Class
-
 ' @example: sugar/generic-tlist/01-basic
 ' @demonstrates: Class TList<T> monomorfizada para TList_Product
 ' @diagnostics: none
@@ -21,4 +13,11 @@ Namespace mod_demo
       End Sub
    End Class
 
+   Class TList_Product
+      Public Count As Integer
+
+      Sub Add(pValue As Product)
+         me.Count = me.Count + 1
+      End Sub
+   End Class
 End Namespace

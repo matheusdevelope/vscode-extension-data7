@@ -7,6 +7,7 @@ import {
   lookupSystemNamespaceOrClassByName,
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
+import { getChainPrefix } from "../utils/chain-parser";
 
 const KEYWORDS = [
   "Imports",
@@ -126,36 +127,51 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       dotIndex !== -1 &&
       textBeforeCursor.substring(dotIndex + 1).trim() === textBeforeCursor.substring(dotIndex + 1)
     ) {
-      const prefix = textBeforeCursor.substring(0, dotIndex).trim();
+      const prefix = getChainPrefix(textBeforeCursor, dotIndex);
+      const prefixLower = prefix.toLowerCase();
+
+      if (prefixLower === "me" || prefixLower === "mybase") {
+        const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
+        if (fileSyms) {
+          const currentClass = fileSyms.symbols.find(
+            (s) =>
+              s.kind === "class" &&
+              position.line >= s.range.startLine &&
+              position.line <= s.range.endLine,
+          );
+
+          if (currentClass) {
+            if (prefixLower === "me") {
+              const locals = fileSyms.symbols.filter(
+                (s) => s.containerName?.toLowerCase() === currentClass.name.toLowerCase(),
+              );
+              locals.forEach((s) => items.push(this.createCompletionItem(s, document)));
+            }
+            const inherited = TypeResolver.getInheritedMembers(currentClass.name, this.indexer);
+            inherited.forEach((s) => items.push(this.createCompletionItem(s, document)));
+          }
+        }
+        return items;
+      }
+
+      // Try resolving the type of the entire prefix expression (supports complex/nested chains)
+      const typeName = TypeResolver.inferExpressionType(
+        prefix,
+        document,
+        position.line,
+        this.indexer,
+      );
+      if (typeName) {
+        const allMembers = TypeResolver.getAllMembersForType(typeName, this.indexer);
+        allMembers.forEach((s) => items.push(this.createCompletionItem(s, document)));
+        return items;
+      }
+
       const lastWordMatch = /([a-zA-Z0-9_]+)$/.exec(prefix);
 
       if (lastWordMatch?.[1]) {
         const triggerWord = lastWordMatch[1];
         const triggerLower = triggerWord.toLowerCase();
-
-        if (triggerLower === "me" || triggerLower === "mybase") {
-          const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
-          if (fileSyms) {
-            const currentClass = fileSyms.symbols.find(
-              (s) =>
-                s.kind === "class" &&
-                position.line >= s.range.startLine &&
-                position.line <= s.range.endLine,
-            );
-
-            if (currentClass) {
-              if (triggerLower === "me") {
-                const locals = fileSyms.symbols.filter(
-                  (s) => s.containerName?.toLowerCase() === currentClass.name.toLowerCase(),
-                );
-                locals.forEach((s) => items.push(this.createCompletionItem(s, document)));
-              }
-              const inherited = TypeResolver.getInheritedMembers(currentClass.name, this.indexer);
-              inherited.forEach((s) => items.push(this.createCompletionItem(s, document)));
-            }
-          }
-          return items;
-        }
 
         const isNamespaceOrStaticClass =
           lookupSystemNamespaceOrClassByName(triggerWord).length > 0 ||
@@ -180,14 +196,14 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
           return items;
         }
 
-        const typeName = TypeResolver.getVariableType(
+        const fallbackTypeName = TypeResolver.getVariableType(
           triggerWord,
           document,
           position,
           this.indexer,
         );
-        if (typeName) {
-          const allMembers = TypeResolver.getAllMembersForType(typeName, this.indexer);
+        if (fallbackTypeName) {
+          const allMembers = TypeResolver.getAllMembersForType(fallbackTypeName, this.indexer);
           allMembers.forEach((s) => items.push(this.createCompletionItem(s, document)));
         }
       }

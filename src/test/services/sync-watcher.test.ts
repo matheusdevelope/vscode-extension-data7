@@ -29,6 +29,7 @@ describe("SyncWatcher", () => {
 
   beforeEach(() => {
     // Reset private fields
+    SyncWatcher.isAutoSyncEnabled = true;
     (SyncWatcher as any)._isBuilding = false;
     (SyncWatcher as any)._selfBuiltProjMtimes.clear();
     (SyncWatcher as any)._ignoreBasChangesUntil = 0;
@@ -85,6 +86,7 @@ describe("SyncWatcher", () => {
   });
 
   afterEach(() => {
+    SyncWatcher.isAutoSyncEnabled = false;
     Decompiler.decompileProject = originalDecompile;
     Builder.buildProject = originalBuild;
     DependencyService.detectAndSyncProjectDependencies = originalDetect;

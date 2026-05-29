@@ -177,6 +177,8 @@ export const DiagnosticCodes = {
    * parser errors).
    */
   InstantiationLimitExceeded: "instantiation-limit-exceeded",
+  /** An identifier's name conflicts with another declaration in the same or an outer/imported/global scope. */
+  DuplicateDeclaration: "duplicate-declaration",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -365,6 +367,13 @@ export interface InstantiationLimitExceededPayload {
   limit: number;
 }
 
+export interface DuplicateDeclarationPayload {
+  code: typeof DiagnosticCodes.DuplicateDeclaration;
+  name: string;
+  scope: "method" | "class" | "namespace" | "imported" | "global";
+  conflictingWithName: string;
+}
+
 export type DiagnosticPayload =
   | MissingImportPayload
   | ModuleNotDeclaredPayload
@@ -384,7 +393,8 @@ export type DiagnosticPayload =
   | DuplicateTemplatePayload
   | ClassGenericMethodUnsupportedPayload
   | FlatNameCollisionPayload
-  | InstantiationLimitExceededPayload;
+  | InstantiationLimitExceededPayload
+  | DuplicateDeclarationPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

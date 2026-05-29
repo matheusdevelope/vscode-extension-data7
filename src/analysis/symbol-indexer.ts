@@ -67,6 +67,8 @@ export interface SymbolInfo {
    * completion/hover para exibirem o item como deprecated.
    */
   isUnsupported?: boolean;
+  isGenericParam?: boolean;
+  constraintName?: string;
 }
 
 export interface FileSymbols {
@@ -331,7 +333,7 @@ export class SymbolParser {
 
       // 11. Property start
       const propMatch =
-        /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*Property\s+([a-zA-Z0-9_]+)(?:\s+As\s+([a-zA-Z0-9_.]+))?/i.exec(
+        /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*Property\s+([a-zA-Z0-9_]+)(?:\((.*?)\))?(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
           trimmed,
         );
       if (propMatch?.[2]) {
@@ -340,11 +342,12 @@ export class SymbolParser {
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
         const isShared = /\bshared\b/i.test(modifiersPart);
         const name = propMatch[2];
-        const type = propMatch[3] ?? "Variant";
+        const hasParams = propMatch[3] !== undefined;
+        const type = propMatch[4] ?? "Variant";
 
         const propSymbol: SymbolInfo = {
           name,
-          kind: "property",
+          kind: hasParams ? "indexed-property" : "property",
           type,
           isShared,
           isPrivate,
@@ -358,6 +361,9 @@ export class SymbolParser {
           containerName: activeClass?.name ?? activeNamespace,
           description: pendingDescription || undefined,
         };
+        if (hasParams && propMatch[3]) {
+          propSymbol.parameters = SymbolParser.parseParameters(propMatch[3]);
+        }
         fileSymbols.symbols.push(propSymbol);
         activeProperty = propSymbol;
         pendingDescription = "";
@@ -366,7 +372,7 @@ export class SymbolParser {
 
       // 12. Delegate
       const delegateMatch =
-        /^(?:(Private|Public|Protected|Shared)\s+)*Delegate\s+(Sub|Function)\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)(?:\s+As\s+([a-zA-Z0-9_.]+))?/i.exec(
+        /^(?:(Private|Public|Protected|Shared)\s+)*Delegate\s+(Sub|Function)\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
           trimmed,
         );
       if (delegateMatch?.[3]) {
@@ -404,7 +410,7 @@ export class SymbolParser {
 
       // 13. Declare Function / Sub
       const declareMatch =
-        /^(?:(Private|Public|Protected|Shared)\s+)*Declare\s+(Sub|Function)\s+([a-zA-Z0-9_]+)\s+Lib\s+"([^"]+)"(?:\s+Alias\s+"([^"]+)")?\s*\(([^)]*)\)(?:\s+As\s+([a-zA-Z0-9_.]+))?/i.exec(
+        /^(?:(Private|Public|Protected|Shared)\s+)*Declare\s+(Sub|Function)\s+([a-zA-Z0-9_]+)\s+Lib\s+"([^"]+)"(?:\s+Alias\s+"([^"]+)")?\s*\(([^)]*)\)(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
           trimmed,
         );
       if (declareMatch?.[3]) {
@@ -452,7 +458,7 @@ export class SymbolParser {
 
       // 15. Sub / Function start
       const methodMatch =
-        /^(?:(Private|Public|Protected|Shared|Overridable|Overrides)\s+)*(Sub|Function)\s+([a-zA-Z0-9_]+)(?:\s*\(([^)]*)\))?(?:\s+As\s+([a-zA-Z0-9_.]+))?/i.exec(
+        /^(?:(Private|Public|Protected|Shared|Overridable|Overrides)\s+)*(Sub|Function)\s+([a-zA-Z0-9_]+)(?:\s*\(([^)]*)\))?(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
           trimmed,
         );
       if (methodMatch?.[3]) {
@@ -500,7 +506,7 @@ export class SymbolParser {
       // 16. Fields / Variables (Dim)
       if (!activeMethod && !activeProperty) {
         const varMatch =
-          /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*(?:Dim\s+)?([a-zA-Z0-9_]+)(?:\s+As\s+(?:New\s+)?([a-zA-Z0-9_.]+))?/i.exec(
+          /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*(?:Dim\s+)?([a-zA-Z0-9_]+)(?:\s+As\s+(?:New\s+)?([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
             trimmed,
           );
         if (varMatch?.[2] && (activeClass || activeStructure || activeNamespace)) {

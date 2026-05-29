@@ -251,6 +251,26 @@ class SignatureHelp {
   activeParameter = 0;
 }
 
+class EventEmitter<T> {
+  private listeners: ((e: T) => any)[] = [];
+  get event() {
+    const eventFunc = (listener: (e: T) => any) => {
+      this.listeners.push(listener);
+      return {
+        dispose: () => {
+          this.listeners = this.listeners.filter((l) => l !== listener);
+        },
+      };
+    };
+    return eventFunc;
+  }
+  fire(data: T): void {
+    for (const listener of this.listeners) {
+      listener(data);
+    }
+  }
+}
+
 // ===========================================================================
 // Cancellation token
 // ===========================================================================
@@ -263,6 +283,125 @@ const noopCancellationToken = {
 /** Re-exported as a convenience for tests; equivalent to `vscode.CancellationToken`. */
 export const noopToken = noopCancellationToken;
 
+class MockUri {
+  constructor(
+    public readonly scheme: string,
+    public readonly authority: string,
+    public readonly path: string,
+    public readonly query: string,
+    public readonly fragment: string,
+  ) {}
+
+  get fsPath(): string {
+    const decodedPath = decodeURIComponent(this.path);
+    if (process.platform === "win32") {
+      if (/^\/[a-zA-Z]:/.test(decodedPath)) {
+        return decodedPath.substring(1).replace(/\//g, "\\");
+      }
+      return decodedPath.replace(/\//g, "\\");
+    } else {
+      return decodedPath;
+    }
+  }
+
+  with(change: {
+    scheme?: string;
+    authority?: string;
+    path?: string;
+    query?: string;
+    fragment?: string;
+  }): MockUri {
+    return new MockUri(
+      change.scheme ?? this.scheme,
+      change.authority ?? this.authority,
+      change.path ?? this.path,
+      change.query ?? this.query,
+      change.fragment ?? this.fragment,
+    );
+  }
+
+  toString(): string {
+    if (this.path.startsWith("/") || this.authority) {
+      let result = this.scheme + "://";
+      if (this.authority) {
+        result += this.authority;
+      }
+      result += this.path;
+      if (this.query) {
+        result += "?" + this.query;
+      }
+      if (this.fragment) {
+        result += "#" + this.fragment;
+      }
+      return result;
+    } else {
+      let result = this.scheme + ":" + this.path;
+      if (this.query) {
+        result += "?" + this.query;
+      }
+      if (this.fragment) {
+        result += "#" + this.fragment;
+      }
+      return result;
+    }
+  }
+
+  static file(p: string): MockUri {
+    let normalizedPath = p.replace(/\\/g, "/");
+    if (!normalizedPath.startsWith("/")) {
+      normalizedPath = "/" + normalizedPath;
+    }
+    return new MockUri("file", "", normalizedPath, "", "");
+  }
+
+  static parse(s: string): MockUri {
+    try {
+      const url = new URL(s);
+      return new MockUri(
+        url.protocol.replace(/:$/, ""),
+        url.host,
+        url.pathname,
+        url.search.replace(/^\?/, ""),
+        url.hash.replace(/^#/, ""),
+      );
+    } catch {
+      const colonIdx = s.indexOf(":");
+      const scheme = colonIdx >= 0 ? s.substring(0, colonIdx) : "file";
+      const rest = colonIdx >= 0 ? s.substring(colonIdx + 1) : s;
+
+      let query = "";
+      let fragment = "";
+      let path = rest;
+
+      const hashIdx = path.indexOf("#");
+      if (hashIdx >= 0) {
+        fragment = path.substring(hashIdx + 1);
+        path = path.substring(0, hashIdx);
+      }
+
+      const qIdx = path.indexOf("?");
+      if (qIdx >= 0) {
+        query = path.substring(qIdx + 1);
+        path = path.substring(0, qIdx);
+      }
+
+      let authority = "";
+      if (path.startsWith("//")) {
+        const nextSlash = path.indexOf("/", 2);
+        if (nextSlash >= 0) {
+          authority = path.substring(2, nextSlash);
+          path = path.substring(nextSlash);
+        } else {
+          authority = path.substring(2);
+          path = "";
+        }
+      }
+
+      return new MockUri(scheme, authority, path, query, fragment);
+    }
+  }
+}
+
 // ===========================================================================
 // Namespace mock
 // ===========================================================================
@@ -270,35 +409,13 @@ export const noopToken = noopCancellationToken;
 const diagnosticListeners: ((e: unknown) => void)[] = [];
 
 const mockVsCode = {
+  EventEmitter,
   Range,
   Position,
   Diagnostic,
   DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
-  Uri: {
-    file: (p: string) => ({
-      toString: () => "file:///" + p.replace(/\\/g, "/"),
-      fsPath: p,
-    }),
-    /**
-     * Cross-platform mock of `vscode.Uri.parse(...).fsPath`:
-     *   - Windows: returns a backslash-separated path (e.g. `D:\foo\bar.bas`).
-     *   - POSIX:   returns a slash-separated path (e.g. `/home/x/bar.bas`).
-     * The previous implementation hardcoded `/` -> `\` substitution and broke
-     * every test on Linux CI runners.
-     */
-    parse: (s: string) => {
-      const decoded = decodeURIComponent(s);
-      const stripped = decoded.replace(/^file:\/+/, "");
-      const fsPath =
-        process.platform === "win32"
-          ? stripped.replace(/\//g, "\\")
-          : "/" + stripped.replace(/\\/g, "/");
-      return {
-        toString: () => s,
-        fsPath,
-      };
-    },
-  },
+  ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2, Three: 3 },
+  Uri: MockUri,
   Location,
   MarkdownString,
   Hover,
@@ -447,6 +564,7 @@ const mockVsCode = {
       clear: (): void => undefined,
       dispose: (): void => undefined,
     }),
+    setTextDocumentLanguage: async (doc: unknown, _languageId: string): Promise<unknown> => doc,
   },
   commands: {
     registerCommand: () => ({ dispose: () => undefined }),

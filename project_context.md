@@ -225,6 +225,7 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `class-generic-method-unsupported` — um método genérico (`Sub Foo<T>(...)`) foi declarado _dentro_ de uma classe. O pipeline textual não reescreve esse caso com segurança (falta análise de escopo) e a engine AST ainda não cobre. A declaração é mantida verbatim e o Builder falha quando o método for chamado. Workaround: extrair para função livre no namespace. Emite _Warning_.
 - `flat-name-collision` — dois templates diferentes produziriam o mesmo flat name após monomorfização (ex.: `Sub Foo<T>` + `Sub Foo_Integer` declarado manualmente). Emite _Warning_.
 - `instantiation-limit-exceeded` — o pipeline gerou ≥ 10.000 instanciações monomórficas distintas (geralmente um caso de recursão infinita como `TList<TList<TList<...>>>`). A expansão aborta para evitar explosão de memória. Emite _Warning_.
+- `duplicate-declaration` — um identificador foi declarado mais de uma vez no mesmo escopo ou conflita com uma declaração em outro escopo público e acessível (membro da classe do mesmo contexto, tipo do namespace, namespaces importados ou globais do sistema). Emite _Error_.
 
 Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 
@@ -237,7 +238,7 @@ Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 - `unknown-suppression-code` → sem Quick Fix (o usuário pode ter digitado errado ou copiado de um release antigo). Apenas o warning é exibido.
 - `invalid-interpolation` → sem Quick Fix (depende de qual chave/escape o usuário esqueceu). Apenas o warning é exibido.
 - `ternary-context-unsupported` → sem Quick Fix (a refatoração depende da semântica do código circundante — converter para `If/Then/Else` separado, materializar em variável, etc.). Apenas o warning é exibido.
-- `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded` → sem Quick Fix (correções dependem da estrutura do template/uso; o usuário ajusta manualmente).
+- `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`, `duplicate-declaration` → sem Quick Fix (correções dependem da estrutura do template/uso; o usuário ajusta manualmente).
 
 ### 4.2. Compilação (`Builder`)
 

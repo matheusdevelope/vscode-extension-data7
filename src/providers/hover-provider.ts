@@ -6,6 +6,7 @@ import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { formatParameterList } from "../utils/format-helpers";
 import { LANGUAGE_IDS } from "../infra/constants";
+import { getChainPrefix } from "../utils/chain-parser";
 
 export class D7BasicHoverProvider implements vscode.HoverProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -69,48 +70,62 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     if (forEachHover) return forEachHover;
 
     let targetSymbol: SymbolInfo | undefined;
+    let isMemberAccess = false; // <-- ADICIONE ESTA FLAG
 
     // Case A: Hovering on a member of an object (e.g. `obj.Member`)
     if (textBeforeCursor.endsWith(".")) {
+      isMemberAccess = true; // <-- MARQUE COMO TRUE
       const dotIndex = lineText.lastIndexOf(".", range.start.character);
       if (dotIndex !== -1) {
-        const prefix = lineText.substring(0, dotIndex).trim();
-        const lastWordMatch = /([a-zA-Z0-9_]+)$/.exec(prefix);
+        const prefix = getChainPrefix(lineText, dotIndex);
+        const prefixLower = prefix.toLowerCase();
 
-        if (lastWordMatch?.[1]) {
-          const triggerWord = lastWordMatch[1];
-          const triggerLower = triggerWord.toLowerCase();
-
-          if (triggerLower === "me" || triggerLower === "mybase") {
-            const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
-            if (fileSyms) {
-              const currentClass = fileSyms.symbols.find(
-                (s) =>
-                  s.kind === "class" &&
-                  position.line >= s.range.startLine &&
-                  position.line <= s.range.endLine,
-              );
-              if (currentClass) {
-                targetSymbol = this.findClassMember(currentClass.name, word);
-              }
-            }
-          } else {
-            // Resolve variable type or namespace/class name
-            let typeName = TypeResolver.getVariableType(
-              triggerWord,
-              document,
-              position,
-              this.indexer,
+        if (prefixLower === "me" || prefixLower === "mybase") {
+          const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
+          if (fileSyms) {
+            const currentClass = fileSyms.symbols.find(
+              (s) =>
+                s.kind === "class" &&
+                position.line >= s.range.startLine &&
+                position.line <= s.range.endLine,
             );
-            typeName ??=
-              this.indexer.findSymbolByName(triggerWord, document.uri.toString())?.name ??
-              // `lookupSystemNamespaceOrClassByName(...)[0]` may legitimately be
-              // undefined; the cast keeps that runtime fact in the type system.
-              (lookupSystemNamespaceOrClassByName(triggerWord)[0] as { name: string } | undefined)
-                ?.name;
+            if (currentClass) {
+              targetSymbol = this.findClassMember(currentClass.name, word);
+            }
+          }
+        } else {
+          // Try resolving the type of the entire prefix expression (supports complex/nested chains)
+          const typeName = TypeResolver.inferExpressionType(
+            prefix,
+            document,
+            position.line,
+            this.indexer,
+          );
+          if (typeName) {
+            targetSymbol = this.findClassMember(typeName, word);
+          } else {
+            const lastWordMatch = /([a-zA-Z0-9_]+)$/.exec(prefix);
 
-            if (typeName) {
-              targetSymbol = this.findClassMember(typeName, word);
+            if (lastWordMatch?.[1]) {
+              const triggerWord = lastWordMatch[1];
+
+              // Resolve variable type or namespace/class name
+              let typeName = TypeResolver.getVariableType(
+                triggerWord,
+                document,
+                position,
+                this.indexer,
+              );
+              typeName ??=
+                this.indexer.findSymbolByName(triggerWord, document.uri.toString())?.name ??
+                // `lookupSystemNamespaceOrClassByName(...)[0]` may legitimately be
+                // undefined; the cast keeps that runtime fact in the type system.
+                (lookupSystemNamespaceOrClassByName(triggerWord)[0] as { name: string } | undefined)
+                  ?.name;
+
+              if (typeName) {
+                targetSymbol = this.findClassMember(typeName, word);
+              }
             }
           }
         }
@@ -118,11 +133,96 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     }
 
     // Case B: Hovering on a global or direct identifier
-    targetSymbol ??=
-      this.indexer.findSymbolByName(word, document.uri.toString()) ??
-      lookupSystemByName(word).find(
-        (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
-      );
+    if (!isMemberAccess) {
+      targetSymbol ??=
+        this.indexer.findSymbolByName(word, document.uri.toString()) ??
+        lookupSystemByName(word).find(
+          (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
+        );
+
+      if (!targetSymbol) {
+        // --- 1. CHECAR SE É UM PARÂMETRO DO MÉTODO ATUAL ---
+        const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
+        const currentMethod = fileSyms?.symbols.find(
+          (s) =>
+            s.kind === "method" &&
+            position.line >= s.range.startLine &&
+            position.line <= s.range.endLine,
+        );
+
+        if (currentMethod?.parameters) {
+          const param = currentMethod.parameters.find(
+            (p) => p.name.toLowerCase() === word.toLowerCase(),
+          );
+          if (param) {
+            // Criamos um "SymbolInfo" sintético só para o Hover exibir a caixa de informação
+            targetSymbol = {
+              name: param.name,
+              kind: "variable", // Tratamos como variável para o formatação padrão
+              type: param.type,
+              isShared: false,
+              isPrivate: false,
+              fileUri: document.uri.toString(),
+              range: currentMethod.range,
+              description: `Parâmetro de \`${currentMethod.name}\``,
+            };
+          }
+        }
+
+        // --- 2. CHECAR SE É UMA VARIÁVEL LOCAL (DIM) ---
+        if (!targetSymbol) {
+          // O seu TypeResolver já sabe fazer o regex reverso para achar Dims!
+          const localType = TypeResolver.getVariableType(word, document, position, this.indexer);
+          if (localType) {
+            targetSymbol = {
+              name: word,
+              kind: "variable",
+              type: localType,
+              isShared: false,
+              isPrivate: false,
+              fileUri: document.uri.toString(),
+              // range: new vscode.Range(position.line, 0, position.line, 0),
+              range: {
+                startLine: position.line,
+                startChar: 0,
+                endLine: position.line,
+                endChar: 0,
+              },
+              description: "Variável local",
+            };
+          }
+        }
+
+        // --- 3. CÓDIGO EXISTENTE DOS PARÂMETROS GENÉRICOS (<T>) ---
+        if (!targetSymbol) {
+          const genericParams = TypeResolver.getGenericParametersInScope(
+            document,
+            position,
+            this.indexer,
+          );
+          const constraint = genericParams.get(word.toLowerCase());
+          if (constraint) {
+            const constraintSymbol =
+              this.indexer.findSymbolByName(constraint, document.uri.toString()) ??
+              lookupSystemByName(constraint).find(
+                (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
+              );
+            if (constraintSymbol) {
+              targetSymbol = {
+                ...constraintSymbol,
+                name: word,
+                inheritsFrom: constraint,
+                description:
+                  `Parâmetro de tipo genérico com restrição a \`${constraint}\`.` +
+                  (constraintSymbol.description ? `\n\n${constraintSymbol.description}` : ""),
+                isGenericParam: true,
+                constraintName: constraint,
+              };
+            }
+          }
+        }
+      }
+    }
 
     if (targetSymbol) {
       const signature = D7BasicHoverProvider.getSymbolSignature(targetSymbol);
@@ -147,7 +247,11 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
         targetSymbol.kind === "structure" ||
         targetSymbol.kind === "namespace"
       ) {
-        const members = TypeResolver.getAllMembersForType(targetSymbol.name, this.indexer);
+        const memberLookupName =
+          targetSymbol.isGenericParam && targetSymbol.constraintName
+            ? targetSymbol.constraintName
+            : targetSymbol.name;
+        const members = TypeResolver.getAllMembersForType(memberLookupName, this.indexer);
 
         if (members.length > 0) {
           markdown.appendMarkdown("\n---\n**Membros:**\n");

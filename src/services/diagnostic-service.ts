@@ -43,6 +43,10 @@ export class DiagnosticService {
     context.subscriptions.push(this._collection);
 
     const handleDocument = (doc: vscode.TextDocument): void => {
+      if (doc.uri.scheme === "data7-preview") {
+        this._collection?.delete(doc.uri);
+        return;
+      }
       if (doc.languageId !== LANGUAGE_IDS.d7basic && !doc.fileName.endsWith(".bas")) return;
       // Only feed the workspace indexer with documents that actually belong
       // to the open workspace. Files opened from outside (e.g. inspecting a
@@ -126,6 +130,10 @@ export class DiagnosticService {
   }
 
   private static refreshDiagnosticsNow(document: vscode.TextDocument): void {
+    if (document.uri.scheme === "data7-preview") {
+      this._collection?.delete(document.uri);
+      return;
+    }
     if (document.languageId !== LANGUAGE_IDS.d7basic && !document.fileName.endsWith(".bas")) {
       return;
     }

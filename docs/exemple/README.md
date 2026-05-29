@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (107 arquivos)
+## Índice de exemplos (108 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -159,11 +159,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/for-each/04-not-enumerable.bas`](./sugar/for-each/04-not-enumerable.bas) | For Each sobre tipo sem propriedade Count + indexer — emite not-enumerable e Builder mantém a linha intacta | `not-enumerable@12` | — |
 | [`sugar/for-each/05-method-call-operand.bas`](./sugar/for-each/05-method-call-operand.bas) | For Each sobre expressão complexa (chamada de método) — exige materialização em variável local antes | `not-enumerable@10` | — |
 | [`sugar/function-ref/01-basic.bas`](./sugar/function-ref/01-basic.bas) | function reference convencional (sem `@`) — handler nomeado | `none` | — |
-| [`sugar/generic-tlist/_expected/01-basic.bas`](./sugar/generic-tlist/_expected/01-basic.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
-| [`sugar/generic-tlist/_expected/02-delegate.bas`](./sugar/generic-tlist/_expected/02-delegate.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
-| [`sugar/generic-tlist/_expected/03-method.bas`](./sugar/generic-tlist/_expected/03-method.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
-| [`sugar/generic-tlist/_expected/03-nested.bas`](./sugar/generic-tlist/_expected/03-nested.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
-| [`sugar/generic-tlist/_expected/04-shadowing.bas`](./sugar/generic-tlist/_expected/04-shadowing.bas) | (sem @demonstrates) | `(sem @diagnostics)` | — |
+| [`sugar/generic-tlist/_expected/01-basic.bas`](./sugar/generic-tlist/_expected/01-basic.bas) | Class TList<T> monomorfizada para TList_Product | `none` | — |
+| [`sugar/generic-tlist/_expected/02-delegate.bas`](./sugar/generic-tlist/_expected/02-delegate.bas) | Delegate Function genérico monomorfizado para tipo concreto | `none` | — |
+| [`sugar/generic-tlist/_expected/03-method.bas`](./sugar/generic-tlist/_expected/03-method.bas) | Sub/Function generico livre (nivel namespace) monomorfizado para forma concreta | `none` | — |
+| [`sugar/generic-tlist/_expected/03-nested.bas`](./sugar/generic-tlist/_expected/03-nested.bas) | generics aninhados — TList<TList<Integer>> vira TList_TList_Integer | `none` | — |
+| [`sugar/generic-tlist/_expected/04-shadowing.bas`](./sugar/generic-tlist/_expected/04-shadowing.bas) | Bug 1 — variavel local nomeada `T` dentro do template NAO e | `none` | — |
 | [`sugar/generic-tlist/01-basic.bas`](./sugar/generic-tlist/01-basic.bas) | Class TList<T> monomorfizada para TList_Product | `none` | — |
 | [`sugar/generic-tlist/02-delegate.bas`](./sugar/generic-tlist/02-delegate.bas) | Delegate Function genérico monomorfizado para tipo concreto | `none` | — |
 | [`sugar/generic-tlist/03-method.bas`](./sugar/generic-tlist/03-method.bas) | Sub/Function generico livre (nivel namespace) monomorfizado para forma concreta | `none` | — |
@@ -205,7 +205,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/type-alias/01-basic.bas`](./sugar/type-alias/01-basic.bas) | Type ProductId = String — alias só design-time | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (35)
+### diagnostics (36)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -216,6 +216,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/destructure-non-array/trigger.bas`](./diagnostics/destructure-non-array/trigger.bas) | destructure array [a, b] aplicado a tipo não indexável | `destructure-non-array@6` | `classe TPessoa sem Item(Integer) no workspace` |
 | [`diagnostics/destructure-too-deep/trigger.bas`](./diagnostics/destructure-too-deep/trigger.bas) | destructure aninhado profundamente — não suportado pelo parser line-based | `destructure-too-deep@6` | `emissão futura do linter quando o parser de destructure detectar aninhamento profundo` |
 | [`diagnostics/destructure-unknown-member/trigger.bas`](./diagnostics/destructure-unknown-member/trigger.bas) | destructure faz referência a membro inexistente | `destructure-unknown-member@6` | `classe TPessoa que NÃO tem campo Endereco no workspace` |
+| [`diagnostics/duplicate-declaration/trigger.bas`](./diagnostics/duplicate-declaration/trigger.bas) | declaração de duas variáveis locais com o mesmo nome no mesmo método | `duplicate-declaration@7` | — |
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
 | [`diagnostics/event-signature-mismatch/trigger.bas`](./diagnostics/event-signature-mismatch/trigger.bas) | handler atribuído a OnClick (TNotifyEvent espera 1 parâmetro Sender) mas o handler tem 0 | `event-signature-mismatch@11` | — |

@@ -33,12 +33,7 @@ export function registerLanguageProviders(context: vscode.ExtensionContext): voi
   const selector: vscode.DocumentSelector = LANGUAGE_IDS.d7basic;
 
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(
-      selector,
-      new D7BasicCompletionProvider(),
-      ".",
-      " ",
-    ),
+    vscode.languages.registerCompletionItemProvider(selector, new D7BasicCompletionProvider()),
     vscode.languages.registerDefinitionProvider(selector, new D7BasicDefinitionProvider()),
     vscode.languages.registerHoverProvider(selector, new D7BasicHoverProvider()),
     vscode.languages.registerSignatureHelpProvider(

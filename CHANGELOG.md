@@ -7,6 +7,63 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Corrigido (Generics — Substituição de Parâmetros Genéricos em Níveis Profundos)
+
+- **Substituição de Tipos em Níveis Profundos**: Corrigido o lookup de templates no `TemplateRegistry` para ser case-insensitive (`toLowerCase()`), permitindo que a substituição de tipos genéricos em method bodies e instruções (`OpaqueStatement`) funcione corretamente para quaisquer variações de caixa de caracteres. Isso evita que templates referenciados profundamente (como `TListSugarPrimitive<T, K>` dentro de `TListSugar<T, K>`) sejam instanciados incorretamente como templates crus `T` e `K` (ex: `TListSugarPrimitive_T_K`), garantindo que os tipos concretos sejam propagados corretamente por todas as assinaturas e níveis de aninhamento.
+
+### Adicionado (Validação de Declarações Duplicadas e Conflitos de Escopo)
+
+- **Validação de Identificadores Duplicados**: Implementada validação detalhada (linter) que detecta e relata erros (`vscode.DiagnosticSeverity.Error`) para nomes duplicados ou em conflito de escopo, cobrindo do escopo mais profundo (local) ao mais global:
+  - **Método (Local)**: Bloqueia identificadores declarados mais de uma vez (ex: `Dim x` duplicado, ou variável com mesmo nome de um parâmetro do método).
+  - **Classe (Membros)**: Valida membros de classe redundantes com o mesmo nome e assinatura/tipo de parâmetro, respeitando sobrecargas de método válidas (parâmetros de tipos/quantidades diferentes) e contextos diferenciados (`Shared` vs instância).
+  - **Isolamento de Escopo (Prevenção de Falso-Positivos)**: Garante que membros de classe e variáveis/parâmetros locais não entrem em conflito falso-positivo com símbolos externos (tais como funções globais da biblioteca do sistema como `Copy`, `Dispose` e `Length`, ou classes de namespaces importados), uma vez que estes pertencem a namespaces ou contextos de execução isolados.
+  - **Conflito de Contexto (Shared vs Instância)**: Garante que variáveis locais em métodos `Shared` conflitem apenas com membros estáticos (`Shared`) da classe, enquanto variáveis em métodos de instância conflitam com todos os membros da classe.
+  - **Namespace e Globais**: Impede colisões de nomes entre classes/estruturas e outros símbolos locais, importados via `Imports` ou globais do sistema (`SYSTEM_SYMBOLS` e `Principal.bas`).
+- **Exemplo de Teste de Diagnóstico**: Adicionado o exemplo de cobertura `docs/exemple/diagnostics/duplicate-declaration/trigger.bas` e atualizado o índice de exemplos da extensão.
+- **Suíte de Testes**: Implementada uma ampla suíte de testes unitários cobrindo todos os cenários de conflitos e não-conflitos no linter.
+
+### Alterado (Melhoria no Comportamento do Autocomplete)
+
+- **Remoção de Gatilhos Automáticos de Digitação**: Removidos os caracteres de gatilho automático (`.` e `" "`) do `CompletionItemProvider` para evitar que a lista de sugestões pop-up apareça inoportunamente enquanto o usuário digita espaços ou acessa membros.
+- **Configuração de Sugestão Manual por Padrão**: Adicionada a seção `configurationDefaults` em `package.json` desabilitando `editor.quickSuggestions` para arquivos `d7basic`. Com isso, sugestões de autocomplete serão exibidas apenas de forma explícita através do atalho padrão do editor (`Ctrl+Space`), liberando o fluxo do teclado para trabalhar harmoniosamente com sugestões inline do GitHub Copilot (tecla `Tab`).
+
+### Refatorado (Padronização Semântica de Comandos e Atalhos)
+
+- **Padronização Global de Categoria**: Adicionada a propriedade `"category": "Data7"` em todos os comandos no manifesto `package.json`, resultando em um prefixo uniforme `Data7: ` no Command Palette do VS Code.
+- **Simplificação de Títulos**: Removido o prefixo redundante `"Data7: "` dos títulos individuais dos comandos e refinado os textos de descrição para torná-los mais objetivos e semânticos.
+- **Atalhos de Teclado (Keybindings)**: Mapeados atalhos de teclado intuitivos sob o padrão `ctrl+alt` (com cláusulas `when` de contexto de idioma `editorLangId == d7basic` onde apropriado) para todos os comandos da extensão, otimizando o fluxo de trabalho sem conflitar com atalhos padrão do VS Code.
+
+### Alterado (Desativação de Sincronização em Tempo Real)
+
+- **Desativação de Sincronização Automática**: Desativado por completo o monitoramento em tempo real (SyncWatcher) do workspace e do arquivo de projeto final. Salvamentos de arquivos `.bas` ou modificações no `.7Proj` não dispararão mais rebuilds ou decompilações automáticas de forma a evitar concorrências e perdas de alterações locais indesejadas.
+- **Decomposição Manual In-place**: Atualizado o comando `data7.decompose` ("Data7: Decompor Projeto (.7Proj → .bas)") para executar a decomposição in-place de forma manual e segura sobre o projeto ativo atual, sincronizando as dependências locais e os símbolos na sequência.
+- **Depreciação de Configurações**: Marcadas as propriedades `data7.enableAutoSync` e `data7.sincronizacao` como desativadas/depreciadas no manifesto `package.json`, orientando os usuários a utilizar as ações manuais.
+
+### Adicionado (Inferência de Tipos Genéricos com Constraints)
+
+- **Inferência de Tipos Genéricos**: Adicionado suporte para resolver tipos genéricos baseados em restrições no `TypeResolver`, permitindo que o IntelliSense e o linter identifiquem a tipagem correta de variáveis, parâmetros, campos e expressões baseadas em parâmetros genéricos (ex: `T` em `Class MyClass<T As BaseItem>`).
+  - **Mapeamento de Restrições**: Parâmetros genéricos com cláusula `As` (ex: `T As BaseItem`) resolvem para sua classe restritiva (`BaseItem`). Parâmetros sem restrição explícita (ex: `<T>`) resolvem para a classe padrão `TObject`.
+  - **Suporte a Tipos Aninhados**: Substitui referências genéricas aninhadas (ex: `TList<T>` resolve para `TList<BaseItem>`, que normaliza para `TList_BaseItem`).
+  - **Precedência de Escopo**: Parâmetros definidos no nível do método genérico têm precedência de resolução sobre parâmetros homônimos da classe genérica envolvente.
+  - **Suporte a Hover e Definição**: Ao fazer hover sobre `T`, o editor exibe o tipo genérico, descrição e membros públicos herdados da restrição. O comando "Go to Definition" (F12) sobre o tipo `T` redireciona o usuário para a declaração da classe restritiva (ex: `BaseItem`).
+  - **Testes**: Adicionados testes unitários correspondentes no arquivo [type-resolver.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/analysis/type-resolver.test.ts).
+
+### Adicionado (Pré-visualização)
+
+- **Pré-visualização do Código Transpilado em Tempo Real**: Adicionado recurso de visualização do código final transpilado de arquivos `.bas` em tempo real.
+  - Oferece duas opções: abrir ao lado (`data7.previewTranspiledCode`, exibido via ícone `$(split-horizontal)` na barra de título do editor ou menu de contexto) ou abrir na aba ativa (`data7.previewTranspiledCodeActive`).
+  - Atualização automática em tempo real: edições feitas no editor original atualizam instantaneamente a visualização sem necessidade de salvar o arquivo.
+  - Coloração de Sintaxe: o documento virtual de visualização é associado ao language ID `d7basic` para realce de sintaxe correto.
+  - **Correção de URIs de Visualização no Windows**: Alterada a estrutura de URIs customizadas do formato opaco (`data7-preview:file%3A...`) para o formato hierárquico padrão (`data7-preview:///...path...?originalScheme=file`), resolvendo uma falha crítica no Windows onde o VS Code não conseguia resolver URIs com caracteres de protocolo e colons codificados no path. Mantido o suporte a parsing legado para retrocompatibilidade com fixtures de testes.
+  - **Testes**: Adicionados testes correspondentes no arquivo [preview-service.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/services/preview-service.test.ts).
+
+### Corrigido (Generics — Injeção de Materialização)
+
+- **Posicionamento de classes materializadas**: Corrigido o bug em ambas as pipelines de genéricos (AST-based e textual) onde as classes materializadas eram inseridas no topo da unidade de compilação (acima dos `Imports`). Agora:
+  - Se houver um `Namespace` na unidade de compilação, as classes materializadas são adicionadas ao final desse namespace.
+  - Caso contrário, elas são adicionadas ao final da unidade de compilação (ficando sempre abaixo de todos os `Imports`).
+- **Testes**: Adicionados testes de unidade correspondentes em [generics-monomorphizer.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/project/generics-monomorphizer.test.ts) e atualizados os arquivos esperados dos testes golden em `docs/exemple/sugar/generic-tlist/_expected/`.
+
 ### Corrigido (Linter — escopo de membros)
 
 - **Correção da visibilidade padrão de membros**: Alterado o indexador de símbolos para tratar membros de classe sem modificador de visibilidade explícito como `Public` (anteriormente, campos e Win32 `Declare` statements sem modificadores eram assumidos como `Private` por padrão).

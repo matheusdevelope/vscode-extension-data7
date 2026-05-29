@@ -22,6 +22,7 @@ import {
   type MonomorphizationWarningCode,
   type NamespaceDeclaration,
   type ObjectCreationExpression,
+  type OpaqueStatement,
   type ParameterDeclaration,
   type Statement,
   type TopLevelMember,
@@ -137,6 +138,9 @@ function memberAccess(target: Expression, member: string): MemberAccess {
 }
 function assign(target: Expression, value: Expression): Assignment {
   return { kind: "Assignment", target, value };
+}
+function opaque(text: string): OpaqueStatement {
+  return { kind: "OpaqueStatement", text };
 }
 function unit(members: TopLevelMember[]): CompilationUnit {
   return { kind: "CompilationUnit", members };
@@ -505,7 +509,7 @@ describe("GenericsMonomorphizer — inheritance with generic base type", () => {
 });
 
 describe("GenericsMonomorphizer — namespace scoping", () => {
-  test("a generic declared inside a namespace is injected back into that namespace", () => {
+  test("a generic declared inside a namespace is injected back into that namespace at the end", () => {
     const T = typeParam("T");
     const box = classDecl("Box", {
       typeParameters: [T],
@@ -519,10 +523,42 @@ describe("GenericsMonomorphizer — namespace scoping", () => {
     const lib = findNamespace(u, "Lib");
     assert.ok(lib);
     assert.ok(findClass(lib.members, "Box_Integer"));
+
+    // Assert that the injected class is at the end of the namespace members
+    const lastMember = lib.members[lib.members.length - 1];
+    assert.equal(lastMember?.kind, "ClassDeclaration");
+    assert.equal(lastMember?.name, "Box_Integer");
+
     // Top level must NOT have received the concrete declaration.
     assert.equal(findClass(u.members, "Box_Integer"), undefined);
     // And the original generic Class must be gone from the namespace.
     assert.equal(findClass(lib.members, "Box"), undefined);
+  });
+
+  test("a generic is injected below imports (at the end of the file) when no namespace is present", () => {
+    const T = typeParam("T");
+    const box = classDecl("Box", {
+      typeParameters: [T],
+      members: [field("Value", typeRef("T"))],
+    });
+    // Imports is an OpaqueStatement at the top
+    const imp: OpaqueStatement = { kind: "OpaqueStatement", text: "Imports System" };
+    const v = dim("v", typeRef("Box", [typeRef("Integer")]));
+    const u = unit([imp, box, v]);
+
+    new GenericsMonomorphizer().monomorphize(u);
+
+    // Assert that the imports statement is still first
+    const firstMember = u.members[0];
+    assert.equal(firstMember?.kind, "OpaqueStatement");
+    if (firstMember && firstMember.kind === "OpaqueStatement") {
+      assert.equal(firstMember.text, "Imports System");
+    }
+
+    // Assert that Box_Integer is appended at the very end
+    const lastMember = u.members[u.members.length - 1];
+    assert.equal(lastMember?.kind, "ClassDeclaration");
+    assert.equal(lastMember?.name, "Box_Integer");
   });
 });
 
@@ -733,5 +769,71 @@ describe("GenericsMonomorphizer — robustness", () => {
     const concrete = findClass(u.members, "Box_Integer");
     assert.ok(concrete);
     assert.deepEqual(concrete.loc, { startLine: 1, startChar: 0, endLine: 5, endChar: 10 });
+  });
+
+  test("substitutes type parameters inside OpaqueStatements in template bodies", () => {
+    const T = typeParam("T");
+    const K = typeParam("K");
+
+    // Class TListSugarPrimitive<T, K>
+    const subClass = classDecl("TListSugarPrimitive", {
+      typeParameters: [T, K],
+      members: [
+        field("Value", typeRef("T")),
+        method("GetValue", {
+          returnType: typeRef("K"),
+          body: [opaque("GetValue = me.Value")],
+        }),
+      ],
+    });
+
+    // Class TListSugar<T, K>
+    //   Function Push(pValue As T) As TListSugar
+    //      Push = me.Push(TListSugarPrimitive<T, K>.Create(pValue))
+    //   End Function
+    // End Class
+    const listClass = classDecl("TListSugar", {
+      typeParameters: [T, K],
+      members: [
+        method("Push", {
+          parameters: [param("pValue", typeRef("T"))],
+          returnType: typeRef("TListSugar"),
+          body: [
+            opaque("Push = me.Push(TListSugarPrimitive<T, K>.Create(pValue))"),
+            opaque("PushCType = CType(pValue, TListSugar<T, K>)"),
+          ],
+        }),
+      ],
+    });
+
+    const u = unit([
+      subClass,
+      listClass,
+      dim("_list", typeRef("TListSugar", [typeRef("Integer"), typeRef("String")])),
+    ]);
+
+    new GenericsMonomorphizer().monomorphize(u);
+
+    // Verify both templates are monomorphized
+    const concreteList = findClass(u.members, "TListSugar_Integer_String");
+    assert.ok(concreteList);
+
+    const concreteSub = findClass(u.members, "TListSugarPrimitive_Integer_String");
+    assert.ok(concreteSub);
+
+    // Verify body statements inside TListSugar_Integer_String have been substituted
+    const pushMethod = classMethod(concreteList, "Push");
+    assert.ok(pushMethod);
+    if (!pushMethod) throw new Error("pushMethod not found");
+
+    const stmt0 = pushMethod.body[0];
+    const stmt1 = pushMethod.body[1];
+    assert.ok(stmt0 && stmt0.kind === "OpaqueStatement");
+    assert.ok(stmt1 && stmt1.kind === "OpaqueStatement");
+    if (!stmt0 || stmt0.kind !== "OpaqueStatement") throw new Error("stmt0 not OpaqueStatement");
+    if (!stmt1 || stmt1.kind !== "OpaqueStatement") throw new Error("stmt1 not OpaqueStatement");
+
+    assert.equal(stmt0.text, "Push = me.Push(TListSugarPrimitive_Integer_String.Create(pValue))");
+    assert.equal(stmt1.text, "PushCType = CType(pValue, TListSugar_Integer_String)");
   });
 });

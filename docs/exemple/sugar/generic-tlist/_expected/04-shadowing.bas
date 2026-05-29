@@ -1,13 +1,3 @@
-   Class TList_Product
-      Public Count As Integer
-
-      ' Comentario que menciona T deve ficar exato apos a monomorfizacao.
-      Sub Add(pValue As Product)
-         Dim T As String = "valor de T"
-         me.Count = me.Count + 1
-      End Sub
-   End Class
-
 ' @example: sugar/generic-tlist/04-shadowing
 ' @demonstrates: Bug 1 — variavel local nomeada `T` dentro do template NAO e
 '                substituida pelo argumento de tipo; comentarios e strings
@@ -27,4 +17,13 @@ Namespace mod_demo
       End Sub
    End Class
 
+   Class TList_Product
+      Public Count As Integer
+
+      ' Comentario que menciona T deve ficar exato apos a monomorfizacao.
+      Sub Add(pValue As Product)
+         Dim T As String = "valor de T"
+         me.Count = me.Count + 1
+      End Sub
+   End Class
 End Namespace

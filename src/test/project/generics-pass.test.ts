@@ -379,6 +379,38 @@ describe("analyzeGenericsPass", () => {
       `expected duplicate-template; got: ${JSON.stringify(w)}`,
     );
   });
+
+  test("substitutes types in deeper generic instantiations inside template bodies", () => {
+    const code = [
+      "Class TListSugarPrimitive<T, K>",
+      "   Value As T",
+      "   Function GetValue() As K",
+      "      GetValue = me.Value",
+      "   End Function",
+      "   Shared Function Create(pValue As T) As TListSugarPrimitive",
+      "      Create = New TListSugarPrimitive(pValue)",
+      "   End Function",
+      "End Class",
+      "",
+      "Class TListSugar<T, K>",
+      "   Function Push(pValue As T) As TListSugar",
+      "      Push = me.Push(TListSugarPrimitive<T, K>.Create(pValue))",
+      "   End Function",
+      "   Function PushCType(pValue As TObject) As TListSugar",
+      "      PushCType = CType(pValue, TListSugar<T, K>)",
+      "   End Function",
+      "End Class",
+      "",
+      "Dim _list As TListSugar<Integer, String> = New TListSugar<Integer, String>()",
+    ].join("\n");
+
+    const r = runGenericsPass(code);
+    assert.ok(r.flatNames.includes("TListSugar_Integer_String"));
+    assert.ok(r.flatNames.includes("TListSugarPrimitive_Integer_String"));
+    assert.match(r.code, /TListSugarPrimitive_Integer_String\.Create\(pValue\)/);
+    assert.match(r.code, /CType\(pValue, TListSugar_Integer_String\)/);
+    assert.doesNotMatch(r.code, /TListSugarPrimitive_T_K/);
+  });
 });
 
 describe("runGenericsPass — golden tests against docs/exemple/sugar/generic-tlist/", () => {

@@ -21,6 +21,7 @@ import { debounce } from "../utils/debounce";
  * formatting) trigger at most one rebuild (performance.mdc).
  */
 export class SyncWatcher {
+  public static isAutoSyncEnabled = false;
   private static _isBuilding = false;
   private static _selfBuiltProjMtimes = new Map<string, number>();
   private static _ignoreBasChangesUntil = 0;
@@ -66,6 +67,7 @@ export class SyncWatcher {
    * outside the IDE (e.g. when the user edits it in the Data7 Developer Studio).
    */
   public static watchExternalProjectFile(projectFilePath: string, hiddenFolderDir: string): void {
+    if (!this.isAutoSyncEnabled) return;
     this.disposeExternalWatcher();
     const watcher = vscode.workspace.createFileSystemWatcher(projectFilePath);
     this._externalFileWatcher = watcher;
@@ -165,6 +167,7 @@ export class SyncWatcher {
    * Starts the bidirectional workspace watcher.
    */
   public static startAutoSync(context: vscode.ExtensionContext): void {
+    if (!this.isAutoSyncEnabled) return;
     const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
     const jsonWatcher = vscode.workspace.createFileSystemWatcher("**/data7.json");
 
