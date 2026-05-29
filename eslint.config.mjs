@@ -393,6 +393,31 @@ export default tseslint.config(
     },
   },
 
+  // governance.mdc + MCP-001: `@modelcontextprotocol/sdk` and `zod` are
+  // consumed exclusively by `src/mcp/`. Production sources outside that
+  // folder must not import them, or the runtime dep whitelist in
+  // project_stack.mdc loses meaning.
+  {
+    name: "data7/mcp-deps-isolation",
+    files: ["src/**/*.ts"],
+    ignores: ["src/mcp/**/*.ts", "src/test/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@modelcontextprotocol/sdk", "@modelcontextprotocol/sdk/**", "zod"],
+              message:
+                "@modelcontextprotocol/sdk and zod are reserved for src/mcp/ (project_stack.mdc + MCP-001).",
+            },
+            DOCS_EXEMPLE_BAN,
+          ],
+        },
+      ],
+    },
+  },
+
   // governance.mdc: infra/ (logger, configuration) is a leaf — it must not
   // depend on any other src/ folder.
   {
@@ -415,6 +440,42 @@ export default tseslint.config(
               ],
               message:
                 "infra/ is a leaf and must not import from other src/ folders (governance.mdc).",
+            },
+            DOCS_EXEMPLE_BAN,
+          ],
+        },
+      ],
+    },
+  },
+
+  // governance.mdc + MCP-001: src/mcp/ is the external MCP server that runs
+  // OUTSIDE the extension host as a stdio child process. It must not import
+  // VS Code or extension-host glue directly — the only sanctioned bridge to
+  // VS Code API surface is `src/mcp/runtime/vscode-shim.ts` (runtime override
+  // of Module.prototype.require for "vscode").
+  {
+    name: "data7/mcp-isolation",
+    files: ["src/mcp/**/*.ts"],
+    ignores: ["src/mcp/runtime/vscode-shim.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/providers/**",
+                "**/services/**",
+                "**/extension",
+                "**/infra/configuration",
+              ],
+              message:
+                "src/mcp/ runs outside the extension host; consume infra via runtime/vscode-shim only (MCP-001).",
+            },
+            {
+              group: ["vscode"],
+              message:
+                "src/mcp/ must not import 'vscode' directly; use src/mcp/runtime/vscode-shim instead (MCP-001).",
             },
             DOCS_EXEMPLE_BAN,
           ],

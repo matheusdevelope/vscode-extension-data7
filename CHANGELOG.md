@@ -7,6 +7,26 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado (Servidor MCP embutido — contexto para IA)
+
+- **Servidor MCP (Model Context Protocol)** em `src/mcp/`, compilado por `tsc` e empacotado por `esbuild` em `out/mcp/server.bundled.js`. Copiado de forma idempotente para `context.globalStorageUri/mcp/` na ativação (`src/services/mcp-service.ts`), para que clientes externos (Cursor / Claude Desktop / Continue) o lancem via stdio. Decisão arquitetural em `docs/rfcs/MCP-001-mcp-server.md`; manual do usuário em `docs/mcp/`.
+- **10 famílias de Resources**: `data7://language/<chapter>`, `data7://system-library/<ns>`, `data7://examples/<path>`, `data7://diagnostics/codes`, `data7://idioms`, `data7://real-project/<file>`, `data7://official/<qualifiedName>`, `data7://guide/<slug>`, `data7://meta/snapshot`.
+- **12 Tools**: `data7_search_symbol`, `data7_describe_symbol`, `data7_list_controls`, `data7_search_examples`, `data7_get_canonical_example`, `data7_get_official_example`, `data7_list_diagnostic_codes`, `data7_list_sugar`, `data7_transpile_bas`, `data7_lint_bas`, `data7_lint_project`, `data7_suggest_import`. Os tools executáveis reusam `SugarTranspiler` e `DiagnosticsLinter` (via `src/mcp/runtime/vscode-shim.ts`, que intercepta `require("vscode")` em runtime).
+- **4 Prompts**: `data7_module_skeleton`, `data7_baseenum_pattern`, `data7_typed_recordlist`, `data7_form_skeleton` (este com layouts `simple` / `header-content-footer` / `list`).
+- **167 exemplos oficiais do ERP** extraídos de `docs/Documentação Data7/**/*.html` por `scripts/extract-official-articles.js` → `out/mcp/data/articles.json`, consultáveis via `data7_get_official_example` e mesclados em `data7_describe_symbol`.
+- **2 comandos novos**: `data7.installMcpServer` (re-instalação manual) e `data7.previewMcpClientConfig` (gera JSON pronto para Cursor/Claude/Continue). Walkthrough ganhou o passo 6 "Configurar MCP para sua IA".
+- **Dependências runtime**: `@modelcontextprotocol/sdk` + `zod` (peer), restritas a `src/mcp/` pela fence `data7/mcp-deps-isolation`. `esbuild` como devDependency. `project_stack.mdc` atualizado.
+
+### Adicionado (Criar telas — orientação de Forms)
+
+- **Capítulo `docs/linguagem-basic/14-construindo-telas.md`** — idioma de composição de telas extraído do framework real (`mod_card_grouper`): layout por `Align`, hierarquia de pais, eventos + `extra As Variant`, ciclo `Show`/`Free`, e padrões de controles ricos (Grid `Cells`, editores `.Text`/`OnChange`, `PageControl`/`TabSheet`). Exposto como `data7://language/construindo-telas`.
+- **7 exemplos canônicos** em `docs/exemple/forms/` (formulário mínimo, layout header/content/footer, eventos, grid básico, grid com dados, validação de TextBox, abas) + 1 mini-projeto buildável `docs/exemple/builder/tela-cadastro/` (Principal + módulo de tela). Todos passam no linter e no transpiler.
+- **Tool `data7_list_controls`** — lista os controles instanciáveis de `Forms` (separando os abstratos VCL `T*` via flag `isBase`), para a IA descobrir o que existe sem carregar o namespace inteiro (~71 k tokens).
+- **`data7_describe_symbol` enriquecido** — para controles `Forms`, devolve `formUsageHint` com instanciação, posicionamento por `Align` e os eventos (`On*`) resolvidos pela cadeia de herança.
+
+### Corrigido (Linter — generics)
+
+- **Falso-positivo `unknown-template` no operador `<>`**: `If me.OnXEvent <> NULL Then ...` (idioma de disparo de evento, onipresente em código de tela) era lido pelo analisador de generics como uso genérico `OnXEvent<>` e gerava `unknown-template` espúrio. O detector (`src/analysis/generics-analyzer.ts`) agora rejeita listas de argumentos vazias e argumentos que não começam como tipo (cobre `<>`, `<=`, `< N ...`). Regressões adicionadas em `generics-pass.test.ts`.
 ### Corrigido (Generics — Substituição de Parâmetros Genéricos em Níveis Profundos)
 
 - **Substituição de Tipos em Níveis Profundos**: Corrigido o lookup de templates no `TemplateRegistry` para ser case-insensitive (`toLowerCase()`), permitindo que a substituição de tipos genéricos em method bodies e instruções (`OpaqueStatement`) funcione corretamente para quaisquer variações de caixa de caracteres. Isso evita que templates referenciados profundamente (como `TListSugarPrimitive<T, K>` dentro de `TListSugar<T, K>`) sejam instanciados incorretamente como templates crus `T` e `K` (ex: `TListSugarPrimitive_T_K`), garantindo que os tipos concretos sejam propagados corretamente por todas as assinaturas e níveis de aninhamento.

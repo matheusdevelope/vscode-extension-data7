@@ -23,7 +23,14 @@ The repository is organized by **VS Code capability** (Pattern B, mirroring `mic
 - `src/services/` — long-lived collaborators that orchestrate analysis, diagnostics and project tooling: `project-service.ts`, `sync-watcher.ts`, `repository-service.ts`, `dependency-service.ts`, `diagnostic-service.ts`, `activation-service.ts`, `build-service.ts`, `docs-service.ts`, `docs-generator.ts`. Each file should expose one focused class or namespace.
 - `src/system-library/` — native ERP symbol definitions (`Forms/`, `SQL/`, `Drawing/`, `IO/`, `Collections/`, `System.Classes/`, `Environment/`, `XML/`, `Globals/`, `Primitives/`, `Data7/`, `System/`). The aggregate `src/system-library/index.ts` re-exports the catalog; `src/system-library/types.ts` is the single source of truth for the `SystemContainer` union; `src/system-library/symbol-helpers.ts` owns the boilerplate helpers (`buildClassSymbols`, `buildNamespaceSymbols`, `SYSTEM_RANGE`, `SYSTEM_URI`).
 - `src/utils/` — small pure helpers reused across folders (XML, GUID, path-safety, debounce, regex, symbol-kind mapping, formatter helpers, code stripping). Must not depend on any other `src/` folder.
-- `src/test/` — automated tests run by `node --test`. Test layout mirrors the source layout (`test/providers/`, `test/services/`, `test/system-library/`, `test/util/`). Fixtures and the `vscode` mock are owned by `testing.mdc`.
+- `src/mcp/` — external MCP (Model Context Protocol) server that exposes the language to AI agents. It is compiled by `tsc` and then bundled by `esbuild` into a single-file binary at `out/mcp/server.bundled.js`, which is copied to `context.globalStorageUri/mcp/` on extension activation by `src/services/mcp-service.ts` so external clients (Cursor / Claude Desktop / Continue) can launch it via stdio. Internal layout:
+  - `src/mcp/server.ts` — entry point: wires the `@modelcontextprotocol/sdk` stdio transport, parses `--standalone` / `--workspace=<path>` flags, and registers Resources / Tools / Prompts.
+  - `src/mcp/resources/` — one file per Resource family (`data7://language/…`, `data7://system-library/…`, `data7://examples/…`, etc.).
+  - `src/mcp/tools/` — one file per Tool (`search_symbol`, `describe_symbol`, `transpile_bas`, `lint_bas`, …).
+  - `src/mcp/prompts/` — Prompt templates (`module_skeleton`, `baseenum_pattern`, `typed_recordlist`).
+  - `src/mcp/runtime/` — runtime shims used only by the MCP binary, never by the extension host: `vscode-shim.ts` (cópia adaptada de `src/test/_setup/vscode-mock.ts` para satisfazer `import "vscode"` em módulos reaproveitados como `DiagnosticsLinter`) e `workspace-loader.ts` (carrega `.bas` de `--workspace=<path>` num `WorkspaceSymbolIndexer.createDetached()`).
+  - Architectural fence: see `governance.mdc#Architectural enforcement`. Reference RFC: [`docs/rfcs/MCP-001-mcp-server.md`](../../docs/rfcs/MCP-001-mcp-server.md).
+- `src/test/` — automated tests run by `node --test`. Test layout mirrors the source layout (`test/providers/`, `test/services/`, `test/system-library/`, `test/mcp/`, `test/util/`). Fixtures and the `vscode` mock are owned by `testing.mdc`.
 
 ## Placement rules
 
@@ -34,6 +41,7 @@ The repository is organized by **VS Code capability** (Pattern B, mirroring `mic
 - Add new long-lived services or workspace-aware state holders under `src/services/<name>-service.ts` with a single exported class.
 - Add new native ERP symbols under the appropriate `src/system-library/<Container>/<Symbol>.ts` and re-export them through the container's index file (e.g. `Forms/Forms.ts`). Update `src/system-library/types.ts` if a new container is introduced.
 - Add new pure helpers (no `vscode` import and no other `src/` import beyond `analysis/symbol-indexer` type imports) under `src/utils/<name>.ts`.
+- Add new MCP capabilities under the appropriate `src/mcp/<resources|tools|prompts>/<name>.ts` and register them in `src/mcp/server.ts`. Do not place MCP-specific logic under `src/services/` even when it consumes `vscode` types — MCP runs outside the extension host and uses `src/mcp/runtime/vscode-shim.ts` instead.
 - Do not introduce parallel layered folders such as `domain/`, `application/`, `presentation/`, or `infrastructure/`. The folders above already cover the capability surface of a VS Code extension; new files must fit into one of them.
 
 ## Files outside `src/`
@@ -41,6 +49,8 @@ The repository is organized by **VS Code capability** (Pattern B, mirroring `mic
 - Language grammars and configuration: `syntaxes/` and `language-configuration.json` at the repository root. Their paths are referenced from `package.json#contributes`.
 - Built JavaScript output: `out/` (generated).
 - Project context and design notes: `project_context.md` at the repository root is the single conceptual source of truth — update it instead of forking new documentation files (see `coding_standards.mdc` for the documentation policy).
+- `docs/rfcs/` — Architecture Decision Records for changes that touch multiple files, rules (`.mdc`), or introduce a new runtime dependency. Convention and lifecycle are owned by [`docs/rfcs/README.md`](../../docs/rfcs/README.md). Each RFC is referenced by commits and rule files so the "why" of an architectural decision stays traceable. Sanctioned exception to the "no proactive docs" rule in `coding_standards.mdc`.
+- `docs/mcp/` — End-user manual for the embedded MCP server. Installation instructions for Cursor / Claude Desktop / Continue, usage examples, Resources/Tools/Prompts reference, troubleshooting. Excluded from the `.vsix` like the rest of `docs/`. Written by humans (not auto-generated) and complementary to the architectural RFC in `docs/rfcs/MCP-001-mcp-server.md`.
 - `docs/exemple/` — canonical Data7 Basic examples, versioned to double as human reference and as test fixtures. Layout is feature-oriented:
   - `docs/exemple/sugar/<sugar-name>/` — one file per scenario of a sugar transpiled by `src/project/transpiler.ts` (e.g. `for-each/01-stringlist-explicit-type.bas`). Pair with `_expected/<scenario>.bas` when the file documents the native expansion.
   - `docs/exemple/diagnostics/<code>/` — one file per `DiagnosticCode` (`missing-import/`, `not-enumerable/`, …). Each folder contains the trigger `.bas` plus optional `after-quickfix.bas` when a Code Action exists.

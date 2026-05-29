@@ -39,3 +39,15 @@ Documentacao Classes Form Delphi/**
 # Test artefacts
 **/*.test.js
 out/test/**
+
+# MCP server: only the bundled binary + the articles data file ship in the VSIX.
+# The unbundled out/mcp/server.js + per-module files are excluded; the single
+# self-contained out/mcp/server.bundled.js is what external clients launch.
+out/mcp/server.js
+out/mcp/server.js.map
+out/mcp/resources/**
+out/mcp/tools/**
+out/mcp/prompts/**
+out/mcp/runtime/**
+!out/mcp/server.bundled.js
+!out/mcp/data/**

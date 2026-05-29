@@ -33,6 +33,7 @@ Data7 Basic é um dialeto **VB.NET-like** com herança Delphi:
 | [11](./11-limitacoes-conhecidas.md) | Limitações da linguagem (essencial para escolher arquitetura) |
 | [12](./12-convencoes-idiomaticas.md) | Padrões idiomáticos usados nos projetos reais |
 | [13](./13-diagnostic-codes.md) | Códigos de diagnóstico emitidos pelo linter |
+| [14](./14-construindo-telas.md) | Construindo telas (Forms): layout `Align`, hierarquia de pais, eventos, ciclo `Show`/`Free` |
 
 ### Quero ver um projeto real
 

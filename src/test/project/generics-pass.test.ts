@@ -333,6 +333,49 @@ describe("analyzeGenericsPass", () => {
     );
   });
 
+  // Regression: the not-equal operator `<>` after a member (the idiomatic
+  // event-dispatch guard `If me.OnXEvent <> NULL Then ...` used throughout
+  // Forms code) was being misread as an empty generic usage `OnXEvent<>`
+  // and tripped a spurious `unknown-template`.
+  test("does NOT emit unknown-template for the `<> NULL` event-dispatch guard", () => {
+    const code = [
+      "Namespace m",
+      "   Class T",
+      "      OnSalvarEvent As TNotifyEvent",
+      "      Sub Run()",
+      "         If me.OnSalvarEvent <> NULL Then me.OnSalvarEvent(me)",
+      "      End Sub",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const w = [...analyzeGenericsPass(code)];
+    assert.deepEqual(
+      w.filter((x) => x.code === "unknown-template"),
+      [],
+      `expected no unknown-template; got: ${JSON.stringify(w)}`,
+    );
+  });
+
+  // Regression: comparison operators `<=` / `<` followed by a numeric or
+  // expression operand must not be parsed as generic type arguments.
+  test("does NOT emit unknown-template for `<=` / `<` numeric comparisons", () => {
+    const code = [
+      "Namespace m",
+      "   Class T",
+      "      Sub Run(Count As Integer)",
+      "         If Count <= 5 And Count > 0 Then Print Count",
+      "      End Sub",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const w = [...analyzeGenericsPass(code)];
+    assert.deepEqual(
+      w.filter((x) => x.code === "unknown-template"),
+      [],
+      `expected no unknown-template; got: ${JSON.stringify(w)}`,
+    );
+  });
+
   test("emits unknown-template for usage referencing a missing template", () => {
     const code = [
       "Class Box<T>",

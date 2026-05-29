@@ -11,6 +11,7 @@ import { registerLanguageProviders } from "./providers/registration";
 import { ActivationService } from "./services/activation-service";
 import { DependencyService } from "./services/dependency-service";
 import { DiagnosticService } from "./services/diagnostic-service";
+import { MCPService } from "./services/mcp-service";
 import { ProjectService } from "./services/project-service";
 import { RepositoryService } from "./services/repository-service";
 import { SyncWatcher } from "./services/sync-watcher";
@@ -31,6 +32,15 @@ export function activate(context: vscode.ExtensionContext): void {
   ActivationService.initializeWorkspace(context);
   SyncWatcher.startAutoSync(context);
   PreviewService.initialize(context);
+
+  // Auto-install (idempotente) o binário MCP em globalStorage para que
+  // clientes externos (Cursor / Claude Desktop / Continue) possam
+  // apontar para um caminho estável. A operação compara hashes e
+  // ignora se já está em dia, então o custo em ativações subsequentes
+  // é apenas uma leitura de arquivo.
+  void MCPService.installMcpServer(context).catch((err: unknown) => {
+    logger.error("MCP: falha na auto-instalação durante activate.", err);
+  });
 
   // Auto-detect .7Proj files in the workspace and offer to open one.
   setTimeout(() => {

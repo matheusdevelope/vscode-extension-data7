@@ -169,6 +169,16 @@
         "icon": "$(output)"
       },
       {
+        "command": "data7.installMcpServer",
+        "title": "Data7: Instalar/Atualizar Servidor MCP",
+        "category": "Data7",
+        "icon": "$(extensions)"
+      },
+      {
+        "command": "data7.previewMcpClientConfig",
+        "title": "Data7: Mostrar Configuração MCP (Cursor / Claude / Continue)",
+        "category": "Data7",
+        "icon": "$(json)"
         "command": "data7.previewTranspiledCode",
         "title": "Ver Código Transpilado ao Lado",
         "category": "Data7",
@@ -339,10 +349,18 @@
           },
           {
             "id": "sync-agents-md",
-            "title": "5. Sincronizar contexto para IA",
-            "description": "Se você usa Cursor / Copilot Chat, sincronize a documentação da System Library no `AGENTS.md` — agentes leem automaticamente.\n[Sincronizar AGENTS.md](command:data7.injectSystemLibraryDocs)",
+            "title": "5. Sincronizar contexto para IA (legado)",
+            "description": "Se você usa Cursor / Copilot Chat, sincronize a documentação da System Library no `AGENTS.md` — agentes leem automaticamente.\n[Sincronizar AGENTS.md](command:data7.injectSystemLibraryDocs)\n\n_Esta etapa permanece como fallback; prefira o passo 6 (MCP) para entregar contexto rico sem inflar o arquivo._",
             "completionEvents": [
               "onCommand:data7.injectSystemLibraryDocs"
+            ]
+          },
+          {
+            "id": "install-mcp",
+            "title": "6. Configurar MCP para sua IA (recomendado)",
+            "description": "Instale o servidor MCP do Data7 no Cursor / Claude Desktop / Continue. Em vez de injetar 60+ k tokens em `AGENTS.md`, o MCP entrega contexto sob demanda + ferramentas executáveis (linter, transpilador) ao agente.\n[Ver instruções de instalação](command:data7.previewMcpClientConfig)\n[Re-instalar binário](command:data7.installMcpServer)",
+            "completionEvents": [
+              "onCommand:data7.previewMcpClientConfig"
             ]
           }
         ]
@@ -504,7 +522,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && npm run mcp:articles && npm run mcp:bundle",
     "watch": "tsc -watch -p ./",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -517,12 +535,15 @@
     "docs:system-library": "npm run compile && node scripts/generate-system-library-docs.js",
     "docs:examples": "node scripts/generate-examples-index.js",
     "docs:examples:check": "node scripts/generate-examples-index.js --check",
+    "mcp:articles": "node scripts/extract-official-articles.js",
+    "mcp:bundle": "esbuild out/mcp/server.js --bundle --minify --platform=node --target=node22 --outfile=out/mcp/server.bundled.js --external:vscode",
     "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node scripts/audit-system-library.js && node scripts/generate-examples-index.js --check"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.80.0",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.3.3",
@@ -530,6 +551,8 @@
     "typescript-eslint": "^8.60.0"
   },
   "dependencies": {
-    "fast-xml-parser": "^5.8.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "fast-xml-parser": "^5.8.0",
+    "zod": "^3.25.0 || ^4.0.0"
   }
 }

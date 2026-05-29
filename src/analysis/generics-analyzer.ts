@@ -343,6 +343,15 @@ export function findInnerMostGenericUsage(
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
+    // Reject things that look like generics but are actually comparison
+    // operators. The not-equal operator `<>` produces empty args, and
+    // `<=` / `< <number/expr>` produce args that do not start like a
+    // type name. Without this guard, the idiomatic event-dispatch guard
+    // `If me.OnXEvent <> NULL Then ...` (ubiquitous in Forms code) is
+    // misread as a generic usage `OnXEvent<>` and trips `unknown-template`.
+    if (typeArgs.length === 0) continue;
+    if (!typeArgs.every((t) => /^[A-Za-z_]/.test(t))) continue;
+
     return {
       start: nameStart,
       end: j + 1,

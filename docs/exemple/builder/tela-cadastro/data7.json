@@ -1,0 +1,23 @@
+{
+  "Id": "{TEST-GUID-TELA-CADASTRO}",
+  "Nome": "TelaCadastro",
+  "Descricao": "Mini-projeto de tela: Principal cria e exibe um formulário de cadastro",
+  "version": "1.0.0",
+  "language": "d7basic",
+  "targetPlatform": "Win32",
+  "opcoes": {
+    "autor": "Data7",
+    "versao": "1.0.0",
+    "informacoes": "",
+    "codEmpresa": 1,
+    "codFilial": 1,
+    "nomeUsuario": "Administrador",
+    "preScript": "",
+    "identificacaoBancoDados": "",
+    "minify": false,
+    "stripComments": false
+  },
+  "virtualFolders": [],
+  "modulesMetadata": {},
+  "dependencies": {}
+}

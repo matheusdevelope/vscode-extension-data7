@@ -125,6 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
+## Índice de exemplos (116 arquivos)
 ## Índice de exemplos (108 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
@@ -246,8 +247,22 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/unused-import/trigger.bas`](./diagnostics/unused-import/trigger.bas) | diretiva Imports declarada mas nenhum símbolo do namespace é referenciado | `unused-import@5` | — |
 | [`diagnostics/using-non-disposable/trigger.bas`](./diagnostics/using-non-disposable/trigger.bas) | Using sobre tipo sem Free na cadeia — Builder gera .Free() mesmo assim | `using-non-disposable@5` | `classe TNotDisposable sem Free no workspace` |
 
-### builder (1)
+### builder (3)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
 | [`builder/round-trip-minimal/src/Principal.bas`](./builder/round-trip-minimal/src/Principal.bas) | projeto Data7 mínimo válido para exercitar Builder → Decompiler → Builder | `none` | — |
+| [`builder/tela-cadastro/src/mod_form_cliente.bas`](./builder/tela-cadastro/src/mod_form_cliente.bas) | módulo de tela de cadastro (Form + TextBox + botão com evento) consumido pelo Principal | `none` | `projeto tela-cadastro (indexado junto com Principal.bas)` |
+| [`builder/tela-cadastro/src/Principal.bas`](./builder/tela-cadastro/src/Principal.bas) | entrada do projeto — importa o módulo de tela, instancia, exibe e libera o formulário | `none` | `projeto tela-cadastro (indexado junto com mod_form_cliente.bas)` |
+
+### forms (7)
+
+| Caminho | Demonstra | Diagnósticos | Requer |
+|---|---|---|---|
+| [`forms/01-formulario-minimo.bas`](./forms/01-formulario-minimo.bas) | tela mínima — classe que possui um Forms.Form privado, monta no _build e expõe Show/Free | `none` | — |
+| [`forms/02-layout-header-content-footer.bas`](./forms/02-layout-header-content-footer.bas) | layout de 3 regiões (header alTop / content alClient / footer alBottom) com Line divisória | `none` | — |
+| [`forms/03-form-com-eventos.bas`](./forms/03-form-com-eventos.bas) | botão com OnClick ligado a um handler + evento próprio OnSalvarEvent disparado com guarda <> NULL | `none` | — |
+| [`forms/04-grid-basico.bas`](./forms/04-grid-basico.bas) | colocação de um Forms.Grid preenchendo o conteúdo da tela (alClient) | `none` | — |
+| [`forms/05-grid-com-dados.bas`](./forms/05-grid-com-dados.bas) | Grid com cabeçalho fixo + preenchimento de células via Cells(col, row), ColCount/RowCount/FixedRows | `none` | — |
+| [`forms/06-textbox-validacao.bas`](./forms/06-textbox-validacao.bas) | TextBox + NumberTextBox com OnChange ligado a um handler que lê .Text e valida | `none` | — |
+| [`forms/07-abas-pagecontrol.bas`](./forms/07-abas-pagecontrol.bas) | PageControl com abas (TabSheet) — cada aba é criada com o PageControl como pai e recebe Caption | `none` | — |

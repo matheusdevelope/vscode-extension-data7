@@ -7,6 +7,7 @@ import { ActivationService } from "./services/activation-service";
 import { BuildService } from "./services/build-service";
 import { DependencyService } from "./services/dependency-service";
 import { DocsService } from "./services/docs-service";
+import { MCPService } from "./services/mcp-service";
 import { ProjectService } from "./services/project-service";
 import { RepositoryService } from "./services/repository-service";
 import { PreviewService } from "./services/preview-service";
@@ -48,6 +49,8 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     [COMMAND_IDS.openParentFolder, () => ActivationService.openParentFolder()],
     [COMMAND_IDS.generateSystemLibraryDocs, () => DocsService.generateDocs()],
     [COMMAND_IDS.injectSystemLibraryDocs, () => DocsService.injectIntoAgentsMd()],
+    [COMMAND_IDS.installMcpServer, () => MCPService.installMcpServer(context)],
+    [COMMAND_IDS.previewMcpClientConfig, () => MCPService.previewClientConfig(context)],
     [
       COMMAND_IDS.showOutput,
       () => {
