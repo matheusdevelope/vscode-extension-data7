@@ -30,7 +30,7 @@ function buildSkeleton(
     "      Private _initialized As Boolean",
     "",
     `      Sub New()`,
-    baseClass ? "         MyBase.New()" : "         ' construtor padrão",
+    "         MyBase.New()",
     "         me._initialized = True",
     "      End Sub",
     "",

@@ -7,6 +7,23 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado (Pipeline AST Completo: Parser, Transpilador, Serializador e Linter)
+
+- **Conversão Automática de Tipos na Concatenção de Strings**: Implementada a conversão automática de tipos não-string em concatenações de string (`&` e `+`) e na interpolação de strings (`$"..."`).
+  - Variáveis e literais do tipo `String` permanecem inalterados.
+  - Primitivos (`Integer`, `Double`, `Boolean`, `Single`, `Extended`, `TDateTime`) e classes/estruturas (prefixo `T`) invocam o método `.ToString()`.
+  - Tipos não resolvidos e `Variant` utilizam a função global `CStr()`.
+  - No caso do operador `+`, a conversão é ativada apenas se pelo menos um dos operandos for estaticamente inferido como `String`, prevenindo conversão indesejada em operações aritméticas de adição (ex: `idade + preco`).
+
+- **Transição para Pipeline de AST Completa**: Implementação de pipeline estruturada de nós sintáticos (Statements e Expressions) substituindo processamento baseado em regex e strings opacas dentro de corpos de métodos.
+- **Parser de Expressões por Pratt Parsing**: Implementação de parser recursivo de precedência de operadores para tratar adequadamente prioridades de operadores matemáticos, lógicos, ternários e coalescência nula.
+- **Suporte a Instruções If em Linha Única**: Adicionado suporte para analisar sintaticamente e serializar instruções condicionais `If` estruturadas em linha única (incluindo ramificações `Else` inline separadas por colons).
+- **Rastreamento e Preservação de Parênteses em Assinaturas**: Modificada a análise de cabeçalhos de métodos e delegates para identificar se a assinatura foi escrita sem parênteses (por exemplo, `Shared Function Stone As CardAdm`), preservando essa formatação na serialização através da propriedade `noParentheses`.
+- **Propagação de Contexto de Cadeias Opcionais (`?.`)**: Ajustada a verificação do transpiler de optional chaining para propagar recursivamente o contexto de atribuição ou chamada, corrigindo falsos diagnósticos de contexto não suportado em ExpressionStatements.
+- **Alternância de Argumentos para Tagged Templates (`sql$"..."`)**: Transpilação de interpolação SQL ajustada para gerar uma lista de argumentos estritamente alternada entre literais de string e expressões de código, iniciando e finalizando sempre com literais de string para conformidade de aridade.
+- **Serialização de Literais Booleanos**: Casing padrão ajustado na etapa de serialização para converter booleanos em conformidade com as regras do VB6/VBA (`True` e `False`).
+- **Resolução de Conflitos no Parser de Construtores (`New`)**: Corrigido bug no analisador sintático de referências de tipo onde parênteses de construtores de classe vazios eram engolidos como marcadores de arrays, permitindo o correto parsing de instruções encadeadas como blocos `With` ou loops `For`.
+
 ### Adicionado (Servidor MCP embutido — contexto para IA)
 
 - **Servidor MCP (Model Context Protocol)** em `src/mcp/`, compilado por `tsc` e empacotado por `esbuild` em `out/mcp/server.bundled.js`. Copiado de forma idempotente para `context.globalStorageUri/mcp/` na ativação (`src/services/mcp-service.ts`), para que clientes externos (Cursor / Claude Desktop / Continue) o lancem via stdio. Decisão arquitetural em `docs/rfcs/MCP-001-mcp-server.md`; manual do usuário em `docs/mcp/`.

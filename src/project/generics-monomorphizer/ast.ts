@@ -41,6 +41,10 @@ export interface SourceLocation {
 interface BaseNode {
   /** Optional source position; preserved by the engine when present. */
   loc?: SourceLocation;
+  comment?: string;
+  parenthesized?: boolean;
+  noParentheses?: boolean;
+  singleLine?: boolean;
 }
 
 export type Node =
@@ -62,7 +66,24 @@ export type Node =
   | Literal
   | Assignment
   | ExpressionStatement
-  | OpaqueStatement;
+  | OpaqueStatement
+  | IfStatement
+  | ForStatement
+  | ForEachStatement
+  | WhileStatement
+  | TryCatchStatement
+  | UsingStatement
+  | MatchStatement
+  | ReturnStatement
+  | Block
+  | WithStatement
+  | BinaryExpression
+  | UnaryExpression
+  | TernaryExpression
+  | NullCoalescingExpression
+  | OptionalChainingExpression
+  | PipeExpression
+  | TaggedTemplateExpression;
 
 export interface CompilationUnit extends BaseNode {
   readonly kind: "CompilationUnit";
@@ -89,6 +110,7 @@ export interface ClassDeclaration extends BaseNode {
   typeParameters: TypeParameter[];
   baseType?: TypeReference;
   members: ClassMember[];
+  readonly modifiers?: string[];
 }
 
 export type ClassMember = MethodDeclaration | FieldDeclaration | PropertyDeclaration;
@@ -96,10 +118,14 @@ export type ClassMember = MethodDeclaration | FieldDeclaration | PropertyDeclara
 export interface MethodDeclaration extends BaseNode {
   readonly kind: "MethodDeclaration";
   name: string;
+  /** `true` when the method is a constructor (`Sub New`). */
+  isConstructor?: boolean;
   typeParameters: TypeParameter[];
   parameters: ParameterDeclaration[];
   returnType?: TypeReference;
   body: Statement[];
+  readonly modifiers?: string[];
+  readonly noParentheses?: boolean;
 }
 
 export interface DelegateDeclaration extends BaseNode {
@@ -108,6 +134,8 @@ export interface DelegateDeclaration extends BaseNode {
   typeParameters: TypeParameter[];
   parameters: ParameterDeclaration[];
   returnType?: TypeReference;
+  readonly modifiers?: string[];
+  readonly noParentheses?: boolean;
 }
 
 export interface FieldDeclaration extends BaseNode {
@@ -115,12 +143,17 @@ export interface FieldDeclaration extends BaseNode {
   name: string;
   type: TypeReference;
   initializer?: Expression;
+  readonly modifiers?: string[];
 }
 
 export interface PropertyDeclaration extends BaseNode {
   readonly kind: "PropertyDeclaration";
   name: string;
   type: TypeReference;
+  getter?: MethodDeclaration;
+  setter?: MethodDeclaration;
+  hasBlock: boolean;
+  readonly modifiers?: string[];
 }
 
 export interface ParameterDeclaration extends BaseNode {
@@ -148,6 +181,7 @@ export interface VariableDeclaration extends BaseNode {
   name: string;
   type?: TypeReference;
   initializer?: Expression;
+  isConst?: boolean;
 }
 
 export type Expression =
@@ -155,7 +189,14 @@ export type Expression =
   | MethodInvocation
   | MemberAccess
   | Identifier
-  | Literal;
+  | Literal
+  | BinaryExpression
+  | UnaryExpression
+  | TernaryExpression
+  | NullCoalescingExpression
+  | OptionalChainingExpression
+  | PipeExpression
+  | TaggedTemplateExpression;
 
 export interface ObjectCreationExpression extends BaseNode {
   readonly kind: "ObjectCreationExpression";
@@ -188,7 +229,21 @@ export interface Literal extends BaseNode {
   value: string | number | boolean | null;
 }
 
-export type Statement = ExpressionStatement | Assignment | VariableDeclaration | OpaqueStatement;
+export type Statement =
+  | ExpressionStatement
+  | Assignment
+  | VariableDeclaration
+  | OpaqueStatement
+  | IfStatement
+  | ForStatement
+  | ForEachStatement
+  | WhileStatement
+  | TryCatchStatement
+  | UsingStatement
+  | MatchStatement
+  | ReturnStatement
+  | Block
+  | WithStatement;
 
 export interface ExpressionStatement extends BaseNode {
   readonly kind: "ExpressionStatement";
@@ -199,35 +254,133 @@ export interface Assignment extends BaseNode {
   readonly kind: "Assignment";
   target: Expression;
   value: Expression;
+  operator?: string;
 }
 
-/**
- * Catch-all node for body lines the parser does not structurally
- * understand. Stores the verbatim source `text` so the serializer can
- * emit it unchanged, and so the monomorphizer's substitution walker can
- * apply lexical-aware type-parameter substitution to it (preserving the
- * textual pass's behaviour for body lines).
- */
 export interface OpaqueStatement extends BaseNode {
   readonly kind: "OpaqueStatement";
   /** Verbatim line text (without trailing EOL). */
   text: string;
 }
 
+export interface IfStatement extends BaseNode {
+  readonly kind: "IfStatement";
+  condition: Expression;
+  thenBranch: Statement[];
+  elseIfBranches: { condition: Expression; body: Statement[] }[];
+  elseBranch?: Statement[];
+}
+
+export interface ForStatement extends BaseNode {
+  readonly kind: "ForStatement";
+  counter: Identifier;
+  start: Expression;
+  end: Expression;
+  step?: Expression;
+  body: Statement[];
+}
+
+export interface ForEachStatement extends BaseNode {
+  readonly kind: "ForEachStatement";
+  elementVar: Identifier;
+  elementType?: TypeReference;
+  enumerable: Expression;
+  body: Statement[];
+}
+
+export interface WhileStatement extends BaseNode {
+  readonly kind: "WhileStatement";
+  condition: Expression;
+  body: Statement[];
+}
+
+export interface TryCatchStatement extends BaseNode {
+  readonly kind: "TryCatchStatement";
+  tryBody: Statement[];
+  catchVar?: Identifier;
+  catchType?: TypeReference;
+  catchBody: Statement[];
+  finallyBody?: Statement[];
+}
+
+export interface UsingStatement extends BaseNode {
+  readonly kind: "UsingStatement";
+  resourceVar: Identifier;
+  resourceType: TypeReference;
+  resourceArgs: Expression[];
+  body: Statement[];
+}
+
+export interface MatchStatement extends BaseNode {
+  readonly kind: "MatchStatement";
+  subject: Expression;
+  cases: { typeName?: string; isElse: boolean; body: Statement[] }[];
+}
+
+export interface ReturnStatement extends BaseNode {
+  readonly kind: "ReturnStatement";
+  expression?: Expression;
+}
+
+export interface Block extends BaseNode {
+  readonly kind: "Block";
+  statements: Statement[];
+}
+
+export interface WithStatement extends BaseNode {
+  readonly kind: "WithStatement";
+  expression: Expression;
+  body: Statement[];
+}
+
+export interface BinaryExpression extends BaseNode {
+  readonly kind: "BinaryExpression";
+  left: Expression;
+  operator: string;
+  right: Expression;
+}
+
+export interface UnaryExpression extends BaseNode {
+  readonly kind: "UnaryExpression";
+  operator: string;
+  argument: Expression;
+}
+
+export interface TernaryExpression extends BaseNode {
+  readonly kind: "TernaryExpression";
+  condition: Expression;
+  trueExpr: Expression;
+  falseExpr: Expression;
+}
+
+export interface NullCoalescingExpression extends BaseNode {
+  readonly kind: "NullCoalescingExpression";
+  left: Expression;
+  right: Expression;
+}
+
+export interface OptionalChainingExpression extends BaseNode {
+  readonly kind: "OptionalChainingExpression";
+  target: Expression;
+  member: Expression;
+}
+
+export interface PipeExpression extends BaseNode {
+  readonly kind: "PipeExpression";
+  left: Expression;
+  right: Expression;
+}
+
+export interface TaggedTemplateExpression extends BaseNode {
+  readonly kind: "TaggedTemplateExpression";
+  tag: string;
+  body: string;
+}
+
 // ============================================================================
 // Visitor / Walker
 // ============================================================================
 
-/**
- * Read-only depth-first walker. Subclasses override the `visit*` hooks they
- * care about; structural recursion is handled here. Hooks fire **after**
- * children have been visited (post-order) so subclasses can rely on inner
- * type arguments having already been processed.
- *
- * Mutating the AST during traversal (e.g. renaming a TypeReference in the
- * `visitTypeReference` hook) is supported — the walker does not memoize
- * children.
- */
 export abstract class ASTWalker {
   walk(node: Node): void {
     switch (node.kind) {
@@ -290,9 +443,6 @@ export abstract class ASTWalker {
       case "Identifier":
       case "Literal":
       case "OpaqueStatement":
-        // OpaqueStatement is a leaf. Subclasses that need to inspect its
-        // verbatim text (e.g. the monomorphizer's substitution walker)
-        // can override a dedicated hook.
         if (node.kind === "OpaqueStatement") this.visitOpaqueStatement(node);
         return;
       case "ExpressionStatement":
@@ -302,9 +452,92 @@ export abstract class ASTWalker {
         this.walk(node.target);
         this.walk(node.value);
         return;
+      case "IfStatement":
+        this.walk(node.condition);
+        for (const s of node.thenBranch) this.walk(s);
+        for (const branch of node.elseIfBranches) {
+          this.walk(branch.condition);
+          for (const s of branch.body) this.walk(s);
+        }
+        if (node.elseBranch) {
+          for (const s of node.elseBranch) this.walk(s);
+        }
+        return;
+      case "ForStatement":
+        this.walk(node.counter);
+        this.walk(node.start);
+        this.walk(node.end);
+        if (node.step) this.walk(node.step);
+        for (const s of node.body) this.walk(s);
+        return;
+      case "ForEachStatement":
+        this.walk(node.elementVar);
+        if (node.elementType) this.walk(node.elementType);
+        this.walk(node.enumerable);
+        for (const s of node.body) this.walk(s);
+        return;
+      case "WhileStatement":
+        this.walk(node.condition);
+        for (const s of node.body) this.walk(s);
+        return;
+      case "TryCatchStatement":
+        for (const s of node.tryBody) this.walk(s);
+        if (node.catchVar) this.walk(node.catchVar);
+        if (node.catchType) this.walk(node.catchType);
+        for (const s of node.catchBody) this.walk(s);
+        if (node.finallyBody) {
+          for (const s of node.finallyBody) this.walk(s);
+        }
+        return;
+      case "UsingStatement":
+        this.walk(node.resourceVar);
+        this.walk(node.resourceType);
+        for (const a of node.resourceArgs) this.walk(a);
+        for (const s of node.body) this.walk(s);
+        return;
+      case "MatchStatement":
+        this.walk(node.subject);
+        for (const c of node.cases) {
+          for (const s of c.body) this.walk(s);
+        }
+        return;
+      case "ReturnStatement":
+        if (node.expression) this.walk(node.expression);
+        return;
+      case "Block":
+        for (const s of node.statements) this.walk(s);
+        return;
+      case "WithStatement":
+        this.walk(node.expression);
+        for (const s of node.body) this.walk(s);
+        return;
+      case "BinaryExpression":
+        this.walk(node.left);
+        this.walk(node.right);
+        return;
+      case "UnaryExpression":
+        this.walk(node.argument);
+        return;
+      case "TernaryExpression":
+        this.walk(node.condition);
+        this.walk(node.trueExpr);
+        this.walk(node.falseExpr);
+        return;
+      case "NullCoalescingExpression":
+        this.walk(node.left);
+        this.walk(node.right);
+        return;
+      case "OptionalChainingExpression":
+        this.walk(node.target);
+        this.walk(node.member);
+        return;
+      case "PipeExpression":
+        this.walk(node.left);
+        this.walk(node.right);
+        return;
+      case "TaggedTemplateExpression":
+        return;
       default: {
-        // Exhaustiveness: if a new node kind is added to `Node`, this branch
-        // must be updated. The `never` widening enforces that statically.
         const _exhaustive: never = node;
         return _exhaustive;
       }

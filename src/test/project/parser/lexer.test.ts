@@ -40,10 +40,10 @@ describe("parser/lexer", () => {
     assert.equal(x?.loc.column, 4);
   });
 
-  test("drops comment tokens entirely", () => {
+  test("preserves comment tokens", () => {
     const t = tokenize("Dim x ' commentary");
-    const hasComment = t.some((x) => x.value.startsWith("'"));
-    assert.equal(hasComment, false);
+    const hasComment = t.some((x) => x.kind === "comment" && x.value.startsWith("'"));
+    assert.equal(hasComment, true);
   });
 
   test("handles a multi-line source with blank lines", () => {

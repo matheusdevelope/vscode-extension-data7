@@ -14,6 +14,7 @@ Namespace mod_tela_abas
       Private _abaConfig As Forms.TabSheet
 
       Sub New(pTitle As String = "Configurações")
+            MyBase.New()
          me._build(pTitle)
       End Sub
 

@@ -16,6 +16,7 @@ Namespace mod_tela_eventos
       Private _salvar As Forms.CommandButton
 
       Sub New(pTitle As String = "Cadastro")
+            MyBase.New()
          me._build(pTitle)
       End Sub
 

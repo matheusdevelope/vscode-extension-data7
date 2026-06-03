@@ -40,5 +40,8 @@
 
   // Explorer / debug niceties.
   "explorer.compactFolders": false,
-  "debug.toolBarLocation": "commandCenter"
+  "debug.toolBarLocation": "commandCenter",
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  }
 }

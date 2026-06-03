@@ -13,6 +13,7 @@ Namespace mod_tela_grid_dados
       Private _grid As Forms.Grid
 
       Sub New(pTitle As String = "Clientes")
+            MyBase.New()
          me._build(pTitle)
          me._popular()
       End Sub

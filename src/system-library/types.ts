@@ -43,6 +43,7 @@ export type SystemContainer =
   | "TJSONArray"
   | "TPoint"
   | "TRect"
+  | "Exception"
 
   // ───────── Globals — delegates / event types VCL ─────────
   | "TMethod"

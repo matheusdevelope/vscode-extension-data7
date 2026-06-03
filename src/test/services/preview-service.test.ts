@@ -8,6 +8,7 @@ import { createMockDoc, resetMockWorkspace } from "../_helpers/mock-doc";
 describe("PreviewService and D7PreviewContentProvider", () => {
   let registeredProviders: { scheme: string; provider: vscode.TextDocumentContentProvider }[] = [];
   let documentChangeListeners: ((e: vscode.TextDocumentChangeEvent) => void)[] = [];
+  let selectionChangeListeners: ((e: vscode.TextEditorSelectionChangeEvent) => void)[] = [];
   let registeredCommands: { id: string; handler: (...args: any[]) => any }[] = [];
   let shownDocuments: { doc: any; showOptions?: any }[] = [];
   let openedDocuments: string[] = [];
@@ -16,6 +17,7 @@ describe("PreviewService and D7PreviewContentProvider", () => {
   beforeEach(() => {
     registeredProviders = [];
     documentChangeListeners = [];
+    selectionChangeListeners = [];
     registeredCommands = [];
     shownDocuments = [];
     openedDocuments = [];
@@ -37,6 +39,15 @@ describe("PreviewService and D7PreviewContentProvider", () => {
       documentChangeListeners.push(listener);
       return { dispose: () => {} };
     };
+
+    (vscode.window as any).onDidChangeTextEditorSelection = (
+      listener: (e: vscode.TextEditorSelectionChangeEvent) => void,
+    ) => {
+      selectionChangeListeners.push(listener);
+      return { dispose: () => {} };
+    };
+
+    (vscode.window as any).visibleTextEditors = [];
 
     (vscode.workspace as any).openTextDocument = async (uri: string | vscode.Uri) => {
       const uriStr = typeof uri === "string" ? uri : uri.toString();
@@ -197,14 +208,15 @@ describe("PreviewService and D7PreviewContentProvider", () => {
   });
 
   describe("PreviewService", () => {
-    test("initialize registers text document provider and workspace change listener", () => {
+    test("initialize registers text document provider, workspace change listener, and selection listener", () => {
       const context = { subscriptions: [] as any[] } as vscode.ExtensionContext;
       PreviewService.initialize(context);
 
       assert.equal(registeredProviders.length, 1);
       assert.equal(registeredProviders[0]?.scheme, D7PreviewContentProvider.scheme);
       assert.equal(documentChangeListeners.length, 1);
-      assert.equal(context.subscriptions.length, 2);
+      assert.equal(selectionChangeListeners.length, 1);
+      assert.equal(context.subscriptions.length, 3);
     });
 
     test("workspace change listener fires triggerUpdate on preview provider for d7basic documents", () => {
@@ -299,6 +311,87 @@ describe("PreviewService and D7PreviewContentProvider", () => {
       assert.equal(openedDocuments[0], "data7-preview:///path/to/my.bas?originalScheme=file");
       assert.equal(shownDocuments.length, 1);
       assert.equal(shownDocuments[0]!.showOptions?.viewColumn, vscode.ViewColumn.Active);
+    });
+
+    test("getLineMap returns undefined before first transpilation", () => {
+      const provider = new D7PreviewContentProvider();
+      assert.equal(provider.getLineMap("file:///some/file.bas"), undefined);
+    });
+
+    test("getLineMap stores lineMap after transpilation", async () => {
+      const provider = new D7PreviewContentProvider();
+      const originalUri = "file:///path/to/lm.bas";
+      createMockDoc(originalUri, "Dim z = (a > b) ? a : b");
+
+      const previewUri = vscode.Uri.parse(`data7-preview:${encodeURIComponent(originalUri)}`);
+      const cancelToken: vscode.CancellationToken = {
+        isCancellationRequested: false,
+        onCancellationRequested: () => ({ dispose: () => {} }),
+      };
+
+      await provider.provideTextDocumentContent(previewUri, cancelToken);
+
+      const lineMap = provider.getLineMap(originalUri);
+      assert.ok(Array.isArray(lineMap), "lineMap should be an array after transpilation");
+      assert.ok(lineMap!.length > 0, "lineMap should have entries");
+    });
+
+    test("cursor sync: selection change listener is registered and fires without error", () => {
+      const context = { subscriptions: [] as any[] } as vscode.ExtensionContext;
+      PreviewService.initialize(context);
+
+      // Make sure listener was registered.
+      assert.equal(selectionChangeListeners.length, 1);
+
+      // Fire it with a non-.bas editor — should be a no-op.
+      const htmlDoc = createMockDoc("file:///some/file.html", "<html/>", { languageId: "html" });
+      const htmlEditor = {
+        document: htmlDoc,
+        // Plain object matching the shape the sync listener needs
+        selection: { active: { line: 5, character: 0 } },
+        revealRange: () => {},
+      };
+      // Should not throw.
+      selectionChangeListeners[0]!({ textEditor: htmlEditor, selections: [], kind: undefined } as any);
+    });
+
+    test("cursor sync: scrolls preview editor when source cursor moves", () => {
+      const context = { subscriptions: [] as any[] } as vscode.ExtensionContext;
+      PreviewService.initialize(context);
+
+      // Simulate a source document already transpiled with a known lineMap.
+      const provider = (PreviewService as any).provider as D7PreviewContentProvider;
+      const sourceUriStr = "file:///path/to/sync.bas";
+      // lineMap[outputLine] = sourceLine: [0,0,1,2,2,3]
+      (provider as any)._lineMaps.set(sourceUriStr, [0, 0, 1, 2, 2, 3]);
+
+      // Create the source doc.
+      const sourceDoc = createMockDoc(sourceUriStr, "some source");
+      const previewUriStr = `data7-preview:///path/to/sync.bas?originalScheme=file`;
+      const previewDoc = createMockDoc(previewUriStr, "some transpiled");
+      previewDoc.uri.scheme = "data7-preview";
+
+      let revealedRange: vscode.Range | undefined;
+      const previewEditor = {
+        document: previewDoc,
+        selection: { active: { line: 0, character: 0 } },
+        revealRange: (range: vscode.Range) => { revealedRange = range; },
+      };
+
+      // Mock visibleTextEditors so the sync listener finds the preview editor.
+      (vscode.window as any).visibleTextEditors = [previewEditor];
+
+      // Move cursor to source line 3 (0-based).
+      const sourceEditor = {
+        document: sourceDoc,
+        selection: { active: { line: 3, character: 0 } },
+        revealRange: () => {},
+      };
+      selectionChangeListeners[0]!({ textEditor: sourceEditor, selections: [], kind: undefined } as any);
+
+      // lineMap[5] = 3, so outputLine 5 is the first line mapping to sourceLine 3.
+      assert.ok(revealedRange, "preview editor revealRange should have been called");
+      assert.equal(revealedRange!.start.line, 5);
     });
   });
 });

@@ -180,17 +180,19 @@ export class BuildService {
 
     // spawn with explicit argument array avoids shell-injection from user-controlled
     // executorPath / connectionId values (security.mdc).
+
+    const quote = (s: string): string => `"${s.replace(/"/g, '\\"')}"`;
     const args = [
-      "-p",
-      projectFilePath,
-      "-U",
-      String(config.userCode),
-      "-E",
+      "-c",
+      quote(connectionId),
+      "-e",
       String(config.companyCode),
-      "-F",
+      "-f",
       String(config.branchCode),
-      "-C",
-      connectionId,
+      "-u",
+      String(config.userCode),
+      "-p",
+      quote(projectFilePath),
     ];
 
     const terminalName = "Data7 Executor";
@@ -302,7 +304,7 @@ export class BuildService {
    * routed through the integrated terminal so the user can see the output.
    */
   private static formatCommandForTerminal(executablePath: string, args: string[]): string {
-    const quote = (s: string): string => `"${s.replace(/"/g, '\\"')}"`;
-    return [quote(executablePath), ...args.map(quote)].join(" ");
+    // const quote = (s: string): string => `"${s.replace(/"/g, '\\"')}"`;
+    return [executablePath, ...args].join(" ");
   }
 }

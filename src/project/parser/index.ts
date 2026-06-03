@@ -7,12 +7,12 @@
  */
 
 export { tokenize } from "./lexer";
-export { parse } from "./parser";
+export { parse, parseExpr } from "./parser";
 export type { ParseResult } from "./parser";
 export { makeError } from "./parser-errors";
 export type { ParseError, ParseErrorCode } from "./parser-errors";
-export { serializeUnit } from "./serializer";
-export type { SerializeOptions } from "./serializer";
+export { serializeUnit, serializeUnitWithMap, obfuscateLocalVariables } from "./serializer";
+export type { SerializeOptions, SerializeResult } from "./serializer";
 export type { Token, TokenKind, TokenLocation } from "./token-types";
 
 /**

@@ -226,6 +226,16 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `flat-name-collision` — dois templates diferentes produziriam o mesmo flat name após monomorfização (ex.: `Sub Foo<T>` + `Sub Foo_Integer` declarado manualmente). Emite _Warning_.
 - `instantiation-limit-exceeded` — o pipeline gerou ≥ 10.000 instanciações monomórficas distintas (geralmente um caso de recursão infinita como `TList<TList<TList<...>>>`). A expansão aborta para evitar explosão de memória. Emite _Warning_.
 - `duplicate-declaration` — um identificador foi declarado mais de uma vez no mesmo escopo ou conflita com uma declaração em outro escopo público e acessível (membro da classe do mesmo contexto, tipo do namespace, namespaces importados ou globais do sistema). Emite _Error_.
+- `instance-member-access-on-type` — tentativa de acessar um membro não estático/shared diretamente no tipo (classe/estrutura). Emite _Error_.
+- `sub-used-as-function` — um método `Sub` (ou procedimento sem retorno) foi usado em uma expressão ou atribuição que espera um valor. Emite _Error_.
+- `unknown-symbol` — referência a um símbolo (variável, constante, método) inexistente no escopo atual. Emite _Error_.
+- `loose-type-statement` — declaração de nome de tipo solto/avulso sozinho em uma linha de código. Emite _Error_.
+- `call-parentheses-mismatch` — chamada de método/procedimento violando as regras estritas de parênteses (por exemplo, chamar funções com parâmetros ou subs com >1 parâmetro sem parênteses). Emite _Error_.
+- `function-read-self` — tentativa de ler o valor de retorno usando o nome da própria função dentro de seu escopo. Emite _Error_.
+- `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função). Emite _Error_.
+- `missing-return-value` — a função pode retornar ou sair sem que um valor de retorno tenha sido definido em todas as ramificações de controle. Emite _Warning_.
+- `dead-code` — código inacessível após um `Return` ou `Exit` garantido, ou dentro de blocos condicionais constantes sempre falsos. Emite _Warning_.
+
 
 Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 

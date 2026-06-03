@@ -86,5 +86,32 @@ End Sub
       assert.equal(regionFold.start, 0);
       assert.equal(regionFold.end, 5);
     });
+
+    test("folds block correctly when there are comments and single quotes inside string literals", async () => {
+      const text = `Namespace mod_z
+   Class Demo
+      ' Some comment on line 2
+      Public Sub A()
+         Dim name = "O'Connor"
+      End Sub
+   End Class
+End Namespace`;
+      const provider = new D7BasicFoldingRangeProvider();
+      const ranges = (await Promise.resolve(
+        provider.provideFoldingRanges(
+          createMockDoc("file:///comments_fold.bas", text),
+          foldingContext(),
+          noopToken,
+        ),
+      )) as FoldArr;
+
+      assert.ok(Array.isArray(ranges));
+      // Should fold Namespace (0 to 7), Class (1 to 6), Sub (3 to 5).
+      assert.equal(ranges.length, 3);
+      assert.ok(ranges.some((r) => r.start === 0 && r.end === 7));
+      assert.ok(ranges.some((r) => r.start === 1 && r.end === 6));
+      assert.ok(ranges.some((r) => r.start === 3 && r.end === 5));
+    });
   });
 });
+

@@ -1,29 +1,3 @@
-/**
- * AST -> source serializer for the Data7 Basic parser.
- *
- * The serializer is the structural inverse of `parser.ts`. Given a
- * possibly mutated {@link CompilationUnit} (typically the output of
- * {@link GenericsMonomorphizer.monomorphize}), it emits an equivalent
- * `.bas` source string the downstream Data7 compiler can consume.
- *
- * Conventions:
- *
- *  - Indentation: 3 spaces per nesting level (matches the formatter and
- *    the canonical examples in `docs/exemple/`).
- *  - End-of-line: `\n` (lossy with respect to the original CR/LF, but
- *    consistent with how the rest of the pipeline emits source).
- *  - Headers (Class, Sub, Function, Delegate, Property, Field) are
- *    regenerated from their AST shape. The `<T>` parameter list is
- *    re-emitted only when the AST still carries `typeParameters` (the
- *    monomorphizer clears these on instantiated copies).
- *  - {@link OpaqueStatement} bodies are emitted verbatim and indented
- *    to the surrounding method depth.
- *
- * Out of scope: pretty-printing of expressions (we have no expression
- * AST for body statements yet). When the body parser grows past
- * OpaqueStatement, extend the helpers below to print those new shapes.
- */
-
 import type {
   ClassDeclaration,
   CompilationUnit,
@@ -36,45 +10,130 @@ import type {
   TopLevelMember,
   TypeParameter,
   TypeReference,
+  IfStatement,
+  ForStatement,
+  ForEachStatement,
+  WhileStatement,
+  TryCatchStatement,
+  UsingStatement,
+  MatchStatement,
+  OpaqueStatement,
+  WithStatement,
+  Expression,
+  SourceLocation,
+  Assignment,
+  VariableDeclaration,
+  Node,
 } from "../generics-monomorphizer/ast";
+import { deepClone } from "../generics-monomorphizer/clone";
+import { ASTWalker } from "../generics-monomorphizer/ast";
 
 const INDENT_UNIT = "   ";
 
 export interface SerializeOptions {
   /** Newline character to use. Defaults to `"\n"`. */
   readonly eol?: string;
+  /** Strip indentation and comments. */
+  readonly minify?: boolean;
+  /** Obfuscate method-local variables. */
+  readonly obfuscate?: boolean;
+}
+
+export interface SerializeResult {
+  readonly code: string;
+  readonly lineMap: number[];
+}
+
+export interface OutputBuffer {
+  push(text: string): void;
+  setLine(loc?: SourceLocation): void;
+}
+
+// class SimpleBuffer implements OutputBuffer {
+//   constructor(public readonly lines: string[] = []) {}
+//   push(text: string) {
+//     this.lines.push(text);
+//   }
+//   setLine(loc?: SourceLocation) {}
+// }
+
+class MappedBuffer implements OutputBuffer {
+  public readonly lines: string[] = [];
+  public readonly lineMap: number[] = [];
+  private currentLine = 0;
+
+  push(text: string): void {
+    this.lines.push(text);
+    this.lineMap.push(this.currentLine);
+  }
+
+  setLine(loc?: SourceLocation): void {
+    if (loc) {
+      this.currentLine = loc.startLine - 1;
+    }
+  }
 }
 
 export function serializeUnit(unit: CompilationUnit, options: SerializeOptions = {}): string {
-  const lines: string[] = [];
-  for (const m of unit.members) {
-    serializeMember(m, 0, lines);
-  }
-  return lines.join(options.eol ?? "\n");
+  return serializeUnitWithMap(unit, options).code;
 }
 
-function serializeMember(member: TopLevelMember, depth: number, out: string[]): void {
+export function serializeUnitWithMap(
+  unit: CompilationUnit,
+  options: SerializeOptions = {},
+): SerializeResult {
+  let targetUnit = unit;
+  if (options.obfuscate) {
+    targetUnit = deepClone(unit);
+    obfuscateLocalVariables(targetUnit);
+  }
+
+  const buffer = new MappedBuffer();
+  for (const m of targetUnit.members) {
+    serializeMember(m, 0, buffer, options);
+  }
+
+  const eol = options.eol ?? "\n";
+  return {
+    code: buffer.lines.join(eol),
+    lineMap: buffer.lineMap,
+  };
+}
+
+function serializeMember(
+  member: TopLevelMember,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
   switch (member.kind) {
     case "NamespaceDeclaration":
-      serializeNamespace(member, depth, out);
+      serializeNamespace(member, depth, out, options);
       return;
     case "ClassDeclaration":
-      serializeClass(member, depth, out);
+      serializeClass(member, depth, out, options);
       return;
     case "MethodDeclaration":
-      serializeMethod(member, depth, out);
+      serializeMethod(member, depth, out, options);
       return;
     case "DelegateDeclaration":
-      serializeDelegate(member, depth, out);
+      serializeDelegate(member, depth, out, options);
       return;
     case "VariableDeclaration":
-      // Top-level Dim statements are extremely rare; emit verbatim.
-      out.push(indent(depth) + emitVariableDeclaration(member));
-      return;
     case "ExpressionStatement":
     case "Assignment":
     case "OpaqueStatement":
-      out.push(indent(depth) + emitStatement(member));
+    case "IfStatement":
+    case "ForStatement":
+    case "ForEachStatement":
+    case "WhileStatement":
+    case "TryCatchStatement":
+    case "UsingStatement":
+    case "MatchStatement":
+    case "ReturnStatement":
+    case "Block":
+    case "WithStatement":
+      serializeStatement(member, depth, out, options);
       return;
     default: {
       const exhaustive: never = member;
@@ -84,93 +143,536 @@ function serializeMember(member: TopLevelMember, depth: number, out: string[]): 
   }
 }
 
-function serializeNamespace(ns: NamespaceDeclaration, depth: number, out: string[]): void {
-  out.push(indent(depth) + `Namespace ${ns.name}`);
+function emitModifiers(mods?: string[]): string {
+  if (mods && mods.length > 0) {
+    return mods.join(" ") + " ";
+  }
+  return "";
+}
+
+function emitFieldModifiers(mods?: string[]): string {
+  if (mods && mods.length > 0) {
+    return mods.join(" ") + " ";
+  }
+  return "Public ";
+}
+
+function serializeNamespace(
+  ns: NamespaceDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(ns.loc);
+  out.push(
+    indent(depth, options) +
+      `Namespace ${ns.name}` +
+      (ns.comment && !options.minify ? " " + ns.comment : ""),
+  );
   for (const m of ns.members) {
-    serializeMember(m, depth + 1, out);
+    serializeMember(m, depth + 1, out, options);
   }
-  out.push(indent(depth) + "End Namespace");
+  out.push(indent(depth, options) + "End Namespace");
 }
 
-function serializeClass(klass: ClassDeclaration, depth: number, out: string[]): void {
-  const header = `Class ${klass.name}${emitTypeParams(klass.typeParameters)}${
-    klass.baseType ? " Inherits " + emitTypeRef(klass.baseType) : ""
+function serializeClass(
+  klass: ClassDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(klass.loc);
+  const header = `${emitModifiers(klass.modifiers)}Class ${klass.name}${emitTypeParams(klass.typeParameters)}${
+    klass.baseType
+      ? "\n" + indent(depth + 1, options) + "Inherits " + emitTypeRef(klass.baseType)
+      : ""
   }`;
-  out.push(indent(depth) + header);
+  out.push(
+    indent(depth, options) + header + (klass.comment && !options.minify ? " " + klass.comment : ""),
+  );
   for (const member of klass.members) {
-    if (member.kind === "MethodDeclaration") serializeMethod(member, depth + 1, out);
-    else if (member.kind === "PropertyDeclaration") serializeProperty(member, depth + 1, out);
-    else serializeField(member, depth + 1, out);
+    if (member.kind === "MethodDeclaration") serializeMethod(member, depth + 1, out, options);
+    else if (member.kind === "PropertyDeclaration") {
+      serializeProperty(member, depth + 1, out, options);
+    } else serializeField(member, depth + 1, out, options);
   }
-  out.push(indent(depth) + "End Class");
+  out.push(indent(depth, options) + "End Class");
 }
 
-function serializeMethod(m: MethodDeclaration, depth: number, out: string[]): void {
+function serializeMethod(
+  m: MethodDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(m.loc);
   const keyword = m.returnType !== undefined ? "Function" : "Sub";
   const params = m.parameters
     .map((p) => `${p.isByRef === true ? "ByRef " : ""}${p.name} As ${emitTypeRef(p.type)}`.trim())
     .join(", ");
   const ret = m.returnType !== undefined ? ` As ${emitTypeRef(m.returnType)}` : "";
+  const paramsStr = m.noParentheses ? "" : `(${params})`;
   out.push(
-    indent(depth) + `${keyword} ${m.name}${emitTypeParams(m.typeParameters)}(${params})${ret}`,
+    indent(depth, options) +
+      `${emitModifiers(m.modifiers)}${keyword} ${m.name}${emitTypeParams(m.typeParameters)}${paramsStr}${ret}` +
+      (m.comment && !options.minify ? " " + m.comment : ""),
   );
   for (const s of m.body) {
-    out.push(emitBodyStatement(s, depth + 1));
+    serializeStatement(s, depth + 1, out, options);
   }
-  out.push(indent(depth) + `End ${keyword}`);
+  out.push(indent(depth, options) + `End ${keyword}`);
 }
 
-function serializeDelegate(d: DelegateDeclaration, depth: number, out: string[]): void {
+function serializeDelegate(
+  d: DelegateDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(d.loc);
   const keyword = d.returnType !== undefined ? "Function" : "Sub";
   const params = d.parameters
     .map((p) => `${p.isByRef === true ? "ByRef " : ""}${p.name} As ${emitTypeRef(p.type)}`.trim())
     .join(", ");
   const ret = d.returnType !== undefined ? ` As ${emitTypeRef(d.returnType)}` : "";
+  const paramsStr = d.noParentheses ? "" : `(${params})`;
   out.push(
-    indent(depth) +
-      `Delegate ${keyword} ${d.name}${emitTypeParams(d.typeParameters)}(${params})${ret}`,
+    indent(depth, options) +
+      `${emitModifiers(d.modifiers)}Delegate ${keyword} ${d.name}${emitTypeParams(d.typeParameters)}${paramsStr}${ret}` +
+      (d.comment && !options.minify ? " " + d.comment : ""),
   );
 }
 
-function serializeProperty(p: PropertyDeclaration, depth: number, out: string[]): void {
-  out.push(indent(depth) + `Public Property ${p.name} As ${emitTypeRef(p.type)}`);
-}
+// Substitua a função serializeProperty por esta:
+function serializeProperty(
+  pDecl: PropertyDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  const p = pDecl;
+  out.setLine(p.loc);
+  const isBlock = p.hasBlock || (p.getter ?? p.setter);
 
-function serializeField(f: FieldDeclaration, depth: number, out: string[]): void {
-  out.push(indent(depth) + `Public ${f.name} As ${emitTypeRef(f.type)}`);
-}
+  out.push(
+    indent(depth, options) +
+      `${emitFieldModifiers(p.modifiers)}Property ${p.name} As ${emitTypeRef(p.type)}` +
+      (p.comment && !options.minify ? " " + p.comment : ""),
+  );
 
-function emitBodyStatement(s: Statement, depth: number): string {
-  if (s.kind === "OpaqueStatement") {
-    // Preserve original indentation only when the source line is empty;
-    // otherwise re-indent at the target depth so monomorphized clones
-    // align with the surrounding scope.
-    const trimmed = s.text.replace(/^\s+/, "");
-    return indent(depth) + trimmed;
+  if (isBlock) {
+    if (p.getter) {
+      out.setLine(p.getter.loc);
+      out.push(indent(depth + 1, options) + `${emitModifiers(p.getter.modifiers)}Get`);
+      for (const s of p.getter.body) {
+        serializeStatement(s, depth + 2, out, options);
+      }
+      out.push(indent(depth + 1, options) + "End Get");
+    }
+    if (p.setter) {
+      out.setLine(p.setter.loc);
+      const params = p.setter.parameters
+        .map((param) =>
+          `${param.isByRef === true ? "ByRef " : ""}${param.name} As ${emitTypeRef(param.type)}`.trim(),
+        )
+        .join(", ");
+      const paramsStr = p.setter.noParentheses ? "" : `(${params})`;
+      out.push(indent(depth + 1, options) + `${emitModifiers(p.setter.modifiers)}Set${paramsStr}`);
+      for (const s of p.setter.body) {
+        serializeStatement(s, depth + 2, out, options);
+      }
+      out.push(indent(depth + 1, options) + "End Set");
+    }
+    out.push(indent(depth, options) + "End Property");
   }
-  return indent(depth) + emitStatement(s);
 }
 
-function emitStatement(s: Statement): string {
+// function serializeProperty(
+//   p: PropertyDeclaration,
+//   depth: number,
+//   out: OutputBuffer,
+//   options: SerializeOptions,
+// ): void {
+//   out.setLine(p.loc);
+//   out.push(
+//     indent(depth, options) +
+//       `${emitFieldModifiers(p.modifiers)}Property ${p.name} As ${emitTypeRef(p.type)}` +
+//       (p.comment && !options.minify ? " " + p.comment : ""),
+//   );
+// }
+
+function serializeField(
+  f: FieldDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(f.loc);
+  out.push(
+    indent(depth, options) +
+      `${emitFieldModifiers(f.modifiers)}${f.name} As ${emitTypeRef(f.type)}` +
+      (f.comment && !options.minify ? " " + f.comment : ""),
+  );
+}
+
+function serializeStatement(
+  s: Statement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(s.loc);
   switch (s.kind) {
     case "OpaqueStatement":
-      return s.text;
+      // In minified mode, skip comment-only opaque lines
+      if (options.minify && s.text.trim().startsWith("'")) return;
+      out.push(emitBodyStatement(s, depth, options));
+      return;
     case "VariableDeclaration":
-      return emitVariableDeclaration(s);
+      out.push(
+        indent(depth, options) +
+          emitVariableDeclaration(s) +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
     case "Assignment":
-      return "<assignment>"; // Body assignments are not produced by the current parser.
+      out.push(
+        indent(depth, options) +
+          emitAssignment(s) +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
     case "ExpressionStatement":
-      return "<expr>"; // Body expressions are not produced by the current parser.
+      out.push(
+        indent(depth, options) +
+          emitExpression(s.expression) +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
+    case "IfStatement":
+      serializeIfStatement(s, depth, out, options);
+      return;
+    case "ForStatement":
+      serializeForStatement(s, depth, out, options);
+      return;
+    case "ForEachStatement":
+      serializeForEachStatement(s, depth, out, options);
+      return;
+    case "WhileStatement":
+      serializeWhileStatement(s, depth, out, options);
+      return;
+    case "TryCatchStatement":
+      serializeTryCatchStatement(s, depth, out, options);
+      return;
+    case "UsingStatement":
+      serializeUsingStatement(s, depth, out, options);
+      return;
+    case "MatchStatement":
+      serializeMatchStatement(s, depth, out, options);
+      return;
+    case "WithStatement":
+      serializeWithStatement(s, depth, out, options);
+      return;
+    case "ReturnStatement":
+      out.push(
+        indent(depth, options) +
+          `Return${s.expression ? " " + emitExpression(s.expression) : ""}` +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
+    case "Block":
+      for (const stmt of s.statements) {
+        serializeStatement(stmt, depth, out, options);
+      }
+      return;
     default: {
       const exhaustive: never = s;
+      void exhaustive;
+      return;
+    }
+  }
+}
+
+function emitBodyStatement(s: OpaqueStatement, depth: number, options: SerializeOptions): string {
+  const trimmed = s.text.replace(/^\s+/, "");
+  return indent(depth, options) + trimmed;
+}
+
+function emitVariableDeclaration(v: VariableDeclaration): string {
+  const typeStr = v.type !== undefined ? " As " + emitTypeRef(v.type) : "";
+  const initStr = v.initializer !== undefined ? " = " + emitExpression(v.initializer) : "";
+  return `${v.isConst ? "Const " : "Dim "}${v.name}${typeStr}${initStr}`;
+}
+
+function emitAssignment(s: Assignment): string {
+  const op = s.operator ?? "=";
+  return `${emitExpression(s.target)} ${op} ${emitExpression(s.value)}`;
+}
+
+function emitExpression(expr: Expression): string {
+  const raw = emitExpressionRaw(expr);
+  if (expr.parenthesized) return `(${raw})`;
+  return raw;
+}
+
+function emitExpressionRaw(expr: Expression): string {
+  switch (expr.kind) {
+    case "Literal":
+      if (expr.value === null) return "NULL";
+      if (typeof expr.value === "string") {
+        return expr.value;
+      }
+      if (typeof expr.value === "boolean") {
+        return expr.value ? "True" : "False";
+      }
+      return String(expr.value);
+    case "Identifier":
+      return expr.name;
+    case "ObjectCreationExpression": {
+      const newArgs = expr.arguments.map(emitExpression).join(", ");
+      return `New ${emitTypeRef(expr.type)}(${newArgs})`;
+    }
+    case "MethodInvocation": {
+      const callArgs = expr.arguments.map(emitExpression).join(", ");
+      const typeArgs =
+        expr.typeArguments.length > 0 ? `<${expr.typeArguments.map(emitTypeRef).join(", ")}>` : "";
+      const receiver = expr.callee ? emitExpression(expr.callee) + "." : "";
+      if (expr.noParentheses) {
+        return `${receiver}${expr.methodName}${typeArgs} ${callArgs}`;
+      }
+      return `${receiver}${expr.methodName}${typeArgs}(${callArgs})`;
+    }
+    case "MemberAccess":
+      return `${emitExpression(expr.target)}.${expr.member}`;
+    case "BinaryExpression":
+      return `${emitExpression(expr.left)} ${expr.operator} ${emitExpression(expr.right)}`;
+    case "UnaryExpression": {
+      const op = expr.operator.toLowerCase() === "not" ? "Not " : expr.operator;
+      return `${op}${emitExpression(expr.argument)}`;
+    }
+    case "TernaryExpression":
+      return `${emitExpression(expr.condition)} ? ${emitExpression(expr.trueExpr)} : ${emitExpression(expr.falseExpr)}`;
+    case "NullCoalescingExpression":
+      return `${emitExpression(expr.left)} ?? ${emitExpression(expr.right)}`;
+    case "OptionalChainingExpression": {
+      if (expr.member.kind === "MethodInvocation") {
+        // const callee = expr.member.callee ? "." + emitExpression(expr.member.callee) : "";
+        const callArgs = expr.member.arguments.map(emitExpression).join(", ");
+        const typeArgs =
+          expr.member.typeArguments.length > 0
+            ? `<${expr.member.typeArguments.map(emitTypeRef).join(", ")}>`
+            : "";
+        return `${emitExpression(expr.target)}?.${expr.member.methodName}${typeArgs}(${callArgs})`;
+      } else {
+        const memberName = expr.member.kind === "MemberAccess" ? expr.member.member : "";
+        return `${emitExpression(expr.target)}?.${memberName}`;
+      }
+    }
+    case "PipeExpression":
+      return `${emitExpression(expr.left)} |> ${emitExpression(expr.right)}`;
+    case "TaggedTemplateExpression":
+      return `${expr.tag}$"${expr.body}"`;
+    default: {
+      const exhaustive: never = expr;
       void exhaustive;
       return "";
     }
   }
 }
 
-function emitVariableDeclaration(v: { name: string; type?: TypeReference }): string {
-  return `Dim ${v.name}${v.type !== undefined ? " As " + emitTypeRef(v.type) : ""}`;
+function emitStatementInline(s: Statement): string {
+  switch (s.kind) {
+    case "ReturnStatement":
+      return `Return${s.expression ? " " + emitExpression(s.expression) : ""}`;
+    case "Assignment":
+      return emitAssignment(s);
+    case "ExpressionStatement":
+      return emitExpression(s.expression);
+    case "VariableDeclaration":
+      return emitVariableDeclaration(s);
+    default:
+      return "";
+  }
+}
+
+function serializeIfStatement(
+  s: IfStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  if (s.singleLine) {
+    const thenStr = s.thenBranch.map(emitStatementInline).join(" : ");
+    const elseStr =
+      s.elseBranch && s.elseBranch.length > 0
+        ? " Else " + s.elseBranch.map(emitStatementInline).join(" : ")
+        : "";
+    out.push(
+      indent(depth, options) +
+        `If ${emitExpression(s.condition)} Then ${thenStr}${elseStr}` +
+        (s.comment && !options.minify ? " " + s.comment : ""),
+    );
+    return;
+  }
+  out.push(
+    indent(depth, options) +
+      `If ${emitExpression(s.condition)} Then` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const stmt of s.thenBranch) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  for (const branch of s.elseIfBranches) {
+    out.push(indent(depth, options) + `ElseIf ${emitExpression(branch.condition)} Then`);
+    for (const stmt of branch.body) {
+      serializeStatement(stmt, depth + 1, out, options);
+    }
+  }
+  if (s.elseBranch) {
+    out.push(indent(depth, options) + "Else");
+    for (const stmt of s.elseBranch) {
+      serializeStatement(stmt, depth + 1, out, options);
+    }
+  }
+  out.push(indent(depth, options) + "End If");
+}
+
+function serializeForStatement(
+  s: ForStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  const stepStr = s.step ? ` Step ${emitExpression(s.step)}` : "";
+  out.push(
+    indent(depth, options) +
+      `For ${emitExpression(s.counter)} = ${emitExpression(s.start)} To ${emitExpression(s.end)}${stepStr}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const stmt of s.body) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  out.push(indent(depth, options) + `Next`);
+}
+
+function serializeForEachStatement(
+  s: ForEachStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  const typeStr = s.elementType ? ` As ${emitTypeRef(s.elementType)}` : "";
+  out.push(
+    indent(depth, options) +
+      `For Each ${emitExpression(s.elementVar)}${typeStr} In ${emitExpression(s.enumerable)}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const stmt of s.body) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  out.push(indent(depth, options) + `Next`);
+}
+
+function serializeWhileStatement(
+  s: WhileStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.push(
+    indent(depth, options) +
+      `While ${emitExpression(s.condition)}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const stmt of s.body) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  out.push(indent(depth, options) + `End While`);
+}
+
+function serializeTryCatchStatement(
+  s: TryCatchStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.push(indent(depth, options) + "Try" + (s.comment && !options.minify ? " " + s.comment : ""));
+  for (const stmt of s.tryBody) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  const varStr = s.catchVar ? ` ${s.catchVar.name}` : "";
+  const typeStr = s.catchType ? ` As ${emitTypeRef(s.catchType)}` : "";
+  out.push(indent(depth, options) + `Catch${varStr}${typeStr}`);
+  for (const stmt of s.catchBody) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  if (s.finallyBody) {
+    out.push(indent(depth, options) + "Finally");
+    for (const stmt of s.finallyBody) {
+      serializeStatement(stmt, depth + 1, out, options);
+    }
+  }
+  out.push(indent(depth, options) + "End Try");
+}
+
+function serializeUsingStatement(
+  s: UsingStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  const argsStr =
+    s.resourceArgs.length > 0 ? `(${s.resourceArgs.map(emitExpression).join(", ")})` : "";
+  out.push(
+    indent(depth, options) +
+      `Using ${s.resourceVar.name} As ${emitTypeRef(s.resourceType)}${argsStr}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const stmt of s.body) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  out.push(indent(depth, options) + "End Using");
+}
+
+function serializeMatchStatement(
+  s: MatchStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.push(
+    indent(depth, options) +
+      `Match ${emitExpression(s.subject)}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const c of s.cases) {
+    if (c.isElse) {
+      out.push(indent(depth + 1, options) + "Case Else:");
+    } else {
+      out.push(indent(depth + 1, options) + `Case Is ${c.typeName ?? ""}:`);
+    }
+    for (const stmt of c.body) {
+      serializeStatement(stmt, depth + 2, out, options);
+    }
+  }
+  out.push(indent(depth, options) + "End Match");
+}
+
+function serializeWithStatement(
+  s: WithStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.push(
+    indent(depth, options) +
+      `With ${emitExpression(s.expression)}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+  for (const stmt of s.body) {
+    serializeStatement(stmt, depth + 1, out, options);
+  }
+  out.push(indent(depth, options) + "End With");
 }
 
 function emitTypeParams(params: readonly TypeParameter[]): string {
@@ -183,8 +685,132 @@ function emitTypeRef(t: TypeReference): string {
   return `${t.name}<${t.typeArguments.map(emitTypeRef).join(", ")}>`;
 }
 
-function indent(depth: number): string {
+function indent(depth: number, options: SerializeOptions): string {
+  if (options.minify) return "";
   let s = "";
   for (let i = 0; i < depth; i++) s += INDENT_UNIT;
   return s;
 }
+
+class LocalObfuscator {
+  private renameMap = new Map<string, string>();
+  private counter = 0;
+
+  obfuscate(method: MethodDeclaration): void {
+    this.renameMap.clear();
+    this.counter = 0;
+
+    for (const p of method.parameters) {
+      const newName = `__v${this.counter++}`;
+      this.renameMap.set(p.name, newName);
+      p.name = newName;
+    }
+
+    this.collectLocalVars(method.body);
+
+    const refRenamer = new (class extends ASTWalker {
+      constructor(private readonly renameMap: Map<string, string>) {
+        super();
+      }
+      protected override visitTypeReference(_: TypeReference): void {
+        //to nothing
+      }
+      override walk(node: Node): void {
+        if (node.kind === "Identifier") {
+          const renamed = this.renameMap.get(node.name);
+          if (renamed !== undefined) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+            (node as any).name = renamed;
+          }
+          return;
+        }
+        super.walk(node);
+      }
+    })(this.renameMap);
+
+    for (const s of method.body) {
+      refRenamer.walk(s);
+    }
+  }
+
+  private collectLocalVars(stmts: Statement[]): void {
+    for (const s of stmts) {
+      if (s.kind === "VariableDeclaration") {
+        const newName = `__v${this.counter++}`;
+        this.renameMap.set(s.name, newName);
+        s.name = newName;
+      } else if (s.kind === "IfStatement") {
+        this.collectLocalVars(s.thenBranch);
+        for (const b of s.elseIfBranches) this.collectLocalVars(b.body);
+        if (s.elseBranch) this.collectLocalVars(s.elseBranch);
+      } else if (s.kind === "ForStatement") {
+        const newName = `__v${this.counter++}`;
+        this.renameMap.set(s.counter.name, newName);
+        s.counter.name = newName;
+        this.collectLocalVars(s.body);
+      } else if (s.kind === "ForEachStatement") {
+        const newName = `__v${this.counter++}`;
+        this.renameMap.set(s.elementVar.name, newName);
+        s.elementVar.name = newName;
+        this.collectLocalVars(s.body);
+      } else if (s.kind === "WhileStatement") {
+        this.collectLocalVars(s.body);
+      } else if (s.kind === "TryCatchStatement") {
+        if (s.catchVar) {
+          const newName = `__v${this.counter++}`;
+          this.renameMap.set(s.catchVar.name, newName);
+          s.catchVar.name = newName;
+        }
+        this.collectLocalVars(s.tryBody);
+        this.collectLocalVars(s.catchBody);
+        if (s.finallyBody) this.collectLocalVars(s.finallyBody);
+      } else if (s.kind === "UsingStatement") {
+        const newName = `__v${this.counter++}`;
+        this.renameMap.set(s.resourceVar.name, newName);
+        s.resourceVar.name = newName;
+        this.collectLocalVars(s.body);
+      } else if (s.kind === "MatchStatement") {
+        for (const c of s.cases) this.collectLocalVars(c.body);
+      } else if (s.kind === "Block") {
+        this.collectLocalVars(s.statements);
+      }
+    }
+  }
+}
+
+// Atualize a função obfuscateLocalVariables:
+export function obfuscateLocalVariables(unit: CompilationUnit): void {
+  const walker = new (class extends ASTWalker {
+    protected override visitTypeReference(_: TypeReference): void {
+      //do nothing
+    }
+    override walk(node: Node): void {
+      if (node.kind === "MethodDeclaration") {
+        new LocalObfuscator().obfuscate(node);
+        return;
+      }
+      if (node.kind === "PropertyDeclaration") {
+        if (node.getter) new LocalObfuscator().obfuscate(node.getter);
+        if (node.setter) new LocalObfuscator().obfuscate(node.setter);
+      }
+      super.walk(node);
+    }
+  })();
+  walker.walk(unit);
+}
+
+// export function obfuscateLocalVariables(unit: CompilationUnit): void {
+//   const walker = new (class extends ASTWalker {
+//     protected override visitTypeReference(_: TypeReference): void {
+//       //do nothing
+//     }
+//     override walk(node: Node): void {
+//       if (node.kind === "MethodDeclaration") {
+//         new LocalObfuscator().obfuscate(node);
+//         return;
+//       }
+//       super.walk(node);
+//     }
+//   })();
+//   walker.walk(unit);
+// }

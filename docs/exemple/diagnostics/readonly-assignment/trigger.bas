@@ -8,6 +8,7 @@ Namespace mod_demo
       ReadOnly _id As Integer
 
       Sub New(pId As Integer)
+            MyBase.New()
          me._id = pId
       End Sub
 

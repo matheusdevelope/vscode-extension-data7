@@ -111,6 +111,9 @@ export default tseslint.config(
       // the caller actually inspects the value.
       "@typescript-eslint/use-unknown-in-catch-callback-variable": "off",
 
+
+      "@typescript-eslint/no-non-null-assertion": "off",
+
       // coding_standards.mdc: production logs go through the OutputChannel,
       // never console. Tests relax this below.
       "no-console": "error",

@@ -36,6 +36,8 @@
     "theme": "dark"
   },
   "activationEvents": [
+    "onLanguage:data7project",
+    "onLanguage:vba",
     "workspaceContains:**/*.7proj",
     "workspaceContains:**/*.7Proj"
   ],
@@ -170,15 +172,17 @@
       },
       {
         "command": "data7.installMcpServer",
-        "title": "Data7: Instalar/Atualizar Servidor MCP",
+        "title": "Instalar/Atualizar Servidor MCP",
         "category": "Data7",
         "icon": "$(extensions)"
       },
       {
         "command": "data7.previewMcpClientConfig",
-        "title": "Data7: Mostrar Configuração MCP (Cursor / Claude / Continue)",
+        "title": "Mostrar Configuração MCP (Cursor / Claude / Continue)",
         "category": "Data7",
         "icon": "$(json)"
+      },
+      {
         "command": "data7.previewTranspiledCode",
         "title": "Ver Código Transpilado ao Lado",
         "category": "Data7",
@@ -327,6 +331,9 @@
             "id": "open-project",
             "title": "2. Abrir um projeto .7Proj",
             "description": "Abra um `.7Proj` existente — a extensão oferece decompor a árvore para edição confortável no VS Code.\n[Abrir projeto…](command:data7.openProject)",
+            "media": {
+              "markdown": ""
+            },
             "completionEvents": [
               "onCommand:data7.openProject"
             ]
@@ -335,6 +342,9 @@
             "id": "build-run",
             "title": "3. Compilar e executar",
             "description": "Use `Ctrl+Shift+B` para compilar e `F5` para rodar no Executor.\n[Compilar agora](command:data7.build)\n[Rodar agora](command:data7.runProject)",
+            "media": {
+              "markdown": ""
+            },
             "completionEvents": [
               "onCommand:data7.build"
             ]
@@ -343,6 +353,9 @@
             "id": "intellisense",
             "title": "4. Use o IntelliSense",
             "description": "Hover, Go to Definition (F12), Find All References (Shift+F12), Rename (F2) e quick fixes para erros de import já estão ativos para arquivos `.bas`. Comece digitando `Imports ` para ver a lista de namespaces disponíveis.",
+            "media": {
+              "markdown": ""
+            },
             "completionEvents": [
               "onLanguage:d7basic"
             ]
@@ -351,6 +364,9 @@
             "id": "sync-agents-md",
             "title": "5. Sincronizar contexto para IA (legado)",
             "description": "Se você usa Cursor / Copilot Chat, sincronize a documentação da System Library no `AGENTS.md` — agentes leem automaticamente.\n[Sincronizar AGENTS.md](command:data7.injectSystemLibraryDocs)\n\n_Esta etapa permanece como fallback; prefira o passo 6 (MCP) para entregar contexto rico sem inflar o arquivo._",
+            "media": {
+              "markdown": ""
+            },
             "completionEvents": [
               "onCommand:data7.injectSystemLibraryDocs"
             ]
@@ -359,6 +375,9 @@
             "id": "install-mcp",
             "title": "6. Configurar MCP para sua IA (recomendado)",
             "description": "Instale o servidor MCP do Data7 no Cursor / Claude Desktop / Continue. Em vez de injetar 60+ k tokens em `AGENTS.md`, o MCP entrega contexto sob demanda + ferramentas executáveis (linter, transpilador) ao agente.\n[Ver instruções de instalação](command:data7.previewMcpClientConfig)\n[Re-instalar binário](command:data7.installMcpServer)",
+            "media": {
+              "markdown": ""
+            },
             "completionEvents": [
               "onCommand:data7.previewMcpClientConfig"
             ]
@@ -498,7 +517,7 @@
               "off"
             ]
           },
-          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported, unknown-template, generic-arity-mismatch, duplicate-template, class-generic-method-unsupported, flat-name-collision, instantiation-limit-exceeded."
+          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported, unknown-template, generic-arity-mismatch, duplicate-template, class-generic-method-unsupported, flat-name-collision, instantiation-limit-exceeded, unknown-type, duplicate-declaration."
         },
         "data7.autoFormatOnSave": {
           "type": "boolean",
@@ -541,7 +560,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.19.19",
     "@types/vscode": "^1.80.0",
     "esbuild": "^0.28.0",
     "eslint": "^9.39.4",

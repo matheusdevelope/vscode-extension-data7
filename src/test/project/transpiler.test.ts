@@ -292,21 +292,21 @@ describe('SugarTranspiler — string interpolation (`$"..."`)', () => {
     const code = `Dim s = $"Hello {name}"`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, `Dim s = "Hello " & (name)`);
+    assert.equal(out, `Dim s = "Hello " & CStr((name))`);
   });
 
   test("expands multiple expressions concatenated with `&`", () => {
     const code = `Dim s = $"Olá, {nome}! Você tem {idade} anos."`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, `Dim s = "Olá, " & (nome) & "! Você tem " & (idade) & " anos."`);
+    assert.equal(out, `Dim s = "Olá, " & CStr((nome)) & "! Você tem " & CStr((idade)) & " anos."`);
   });
 
   test("preserves escaped braces `{{` and `}}` as literal characters", () => {
     const code = `Dim s = $"obj = {{ value: {v} }}"`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, `Dim s = "obj = { value: " & (v) & " }"`);
+    assert.equal(out, `Dim s = "obj = { value: " & CStr((v)) & " }"`);
   });
 
   test("produces just a string literal when there are no interpolations", () => {
@@ -359,7 +359,41 @@ describe('SugarTranspiler — string interpolation (`$"..."`)', () => {
     const code = `Dim s = $"a{x}" & " - " & $"b{y}"`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, `Dim s = "a" & (x) & " - " & "b" & (y)`);
+    assert.equal(out, `Dim s = "a" & CStr((x)) & " - " & "b" & CStr((y))`);
+  });
+
+  test("applies type-aware string conversion in interpolation and concatenation", () => {
+    const code = [
+      "Dim nome As String",
+      "Dim idade As Integer",
+      "Dim preco As Double",
+      "Dim ativo As Boolean",
+      "Dim obj As TProduto",
+      "Dim v As Variant",
+      "Dim s1 = $\"Nome: {nome}, Idade: {idade}, Ativo: {ativo}\"",
+      "Dim s2 = $\"Preco: {preco}, Obj: {obj}, Variant: {v}\"",
+      "Dim s3 = nome & idade & preco & ativo & obj & v",
+      "Dim s4 = nome + idade + preco + ativo + obj + v",
+      "Dim sum = idade + preco",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    
+    const expected = [
+      "Dim nome As String",
+      "Dim idade As Integer",
+      "Dim preco As Double",
+      "Dim ativo As Boolean",
+      "Dim obj As TProduto",
+      "Dim v As Variant",
+      "Dim s1 = \"Nome: \" & (nome) & \", Idade: \" & (idade).ToString() & \", Ativo: \" & (ativo).ToString()",
+      "Dim s2 = \"Preco: \" & (preco).ToString() & \", Obj: \" & (obj).ToString() & \", Variant: \" & CStr((v))",
+      "Dim s3 = nome & idade.ToString() & preco.ToString() & ativo.ToString() & obj.ToString() & CStr(v)",
+      "Dim s4 = nome + idade.ToString() + preco.ToString() + ativo.ToString() + obj.ToString() + CStr(v)",
+      "Dim sum = idade + preco",
+    ].join("\n");
+    
+    assert.equal(out, expected);
   });
 });
 

@@ -675,6 +675,151 @@ End Namespace`;
     });
   });
 
+  // -------------------------------------------------------------------------
+  // unknown-type
+  // -------------------------------------------------------------------------
+  describe("unknown-type", () => {
+    const setupResources = (): WorkspaceSymbolIndexer => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const resourcesUri = "file:///dummy/mod_resources_unknown.bas";
+      const resourcesCode = `Namespace mod_resources_unknown
+   Class TResourceLoader
+   End Class
+End Namespace`;
+      indexer.updateFileContent(resourcesUri, resourcesCode);
+      registerOpenDocument(resourcesUri, "dummy/mod_resources_unknown.bas");
+
+      registerOpenDocument("file:///dummy/test_file_unknown.bas", "dummy/test_file_unknown.bas");
+      return indexer;
+    };
+
+    const runLinter = (code: string) => {
+      const indexer = setupResources();
+      const uri = "file:///dummy/test_file_unknown.bas";
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code, { register: false });
+      return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+    };
+
+    test("emits unknown-type diagnostic for completely unknown types", () => {
+      const diags = runLinter(`Namespace my_app
+   Class TTest
+      Public Codigo As StringTipoNaoExiste
+      Public Nome As Stringjdk
+      Public Function GetVal() As DoublesssTipoNaoExiste
+      End Function
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.UnknownType, "StringTipoNaoExiste");
+      expectDiagnostic(diags, DiagnosticCodes.UnknownType, "Stringjdk");
+      expectDiagnostic(diags, DiagnosticCodes.UnknownType, "DoublesssTipoNaoExiste");
+    });
+
+    test("emits unknown-type diagnostic for qualified unknown types", () => {
+      const diags = runLinter(`Namespace my_app
+   Class TTest
+      Private _form As Forms.Form.naoexiste
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.UnknownType, "Forms.Form.naoexiste");
+    });
+
+    test("does NOT emit unknown-type diagnostic for valid qualified types", () => {
+      const diags = runLinter(`Namespace my_app
+   Class TTest
+      Private _form As Forms.Form
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // missing-mybase-new
+  // -------------------------------------------------------------------------
+  describe("missing-mybase-new", () => {
+    const runLinter = (code: string) => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const uri = "file:///mybase_new_test.bas";
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code, { register: false });
+      return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+    };
+
+    test("emits warning when Sub New does not call MyBase.New()", () => {
+      const diags = runLinter(`Namespace mod_ctor
+   Class TProduto
+      Public Codigo As String
+
+      Sub New(pCodigo As String)
+         me.Codigo = pCodigo
+      End Sub
+   End Class
+End Namespace`);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+      assert.match(diag.message, /MyBase\.New/i);
+      assert.match(diag.message, /TProduto/);
+      const payload = (diag as { data?: { className?: string } }).data;
+      assert.equal(payload?.className, "TProduto");
+    });
+
+    test("does NOT emit when Sub New calls MyBase.New()", () => {
+      const diags = runLinter(`Namespace mod_ctor_ok
+   Class TProduto
+      Public Codigo As String
+
+      Sub New(pCodigo As String)
+         MyBase.New()
+         me.Codigo = pCodigo
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+    });
+
+    test("does NOT emit for regular Subs without 'New' name", () => {
+      const diags = runLinter(`Namespace mod_ctor_sub
+   Class THelper
+      Sub Initialize()
+         me.Ready = True
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+    });
+
+    test("emits for inheriting class Sub New without MyBase.New(args)", () => {
+      const diags = runLinter(`Namespace mod_ctor_inherit
+   Class TAnimal
+      Public Nome As String
+
+      Sub New(pNome As String)
+         me.Nome = pNome
+      End Sub
+   End Class
+End Namespace`);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+      // Message should mention how to pass args to MyBase.New for inherited classes
+      assert.match(diag.message, /MyBase\.New/i);
+    });
+
+    test("does NOT emit when MyBase.New() is called inside an If block within Sub New", () => {
+      const diags = runLinter(`Namespace mod_ctor_if
+   Class TConditional
+      Sub New(pFlag As Boolean)
+         If pFlag Then
+            MyBase.New()
+         Else
+            MyBase.New()
+         End If
+         me.Flag = pFlag
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+    });
+  });
+
   test("returns empty diagnostics array for data7-preview documents", () => {
     const indexer = WorkspaceSymbolIndexer.getInstance();
     const code = `Namespace mod_preview

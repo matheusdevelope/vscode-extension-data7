@@ -18,6 +18,7 @@ Namespace mod_form_cliente
       Private _salvar As Forms.CommandButton
 
       Sub New(pTitle As String = "Cadastro de Cliente")
+            MyBase.New()
          me._build(pTitle)
       End Sub
 

@@ -250,7 +250,7 @@ export function tokenize(
         while (i < n && isHexDigit(line[i] ?? "")) i++;
       } else {
         while (i < n && isDigit(line[i] ?? "")) i++;
-        if (line[i] === ".") {
+        if (line[i] === "." && line[i + 1] !== ".") {
           i++;
           while (i < n && isDigit(line[i] ?? "")) i++;
         }
@@ -289,7 +289,8 @@ export function tokenize(
       two === "<>" ||
       two === "??" ||
       two === "?." ||
-      two === "|>"
+      two === "|>" ||
+      two === ".."
     ) {
       tokens.push({ kind: "punct", value: two, col: i });
       i += 2;

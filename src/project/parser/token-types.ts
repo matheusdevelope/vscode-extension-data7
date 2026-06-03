@@ -21,6 +21,7 @@ export type TokenKind =
   | "string"
   | "punct"
   | "newline"
+  | "comment"
   | "eof";
 
 /**
@@ -37,4 +38,5 @@ export interface Token {
   readonly kind: TokenKind;
   readonly value: string;
   readonly loc: TokenLocation;
+  readonly prefix?: "" | "$";
 }

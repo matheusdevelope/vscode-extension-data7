@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Projeto_Data7 xmlns="http://www.se7esistemas.com.br/developer/2024" Version="1.0.0.0" Language="Basic" Type="Plugin" TargetPlataform="Default">
+  <Opcoes>
+    <Autor>Matheus</Autor>
+    <Versao>1.0.0.0</Versao>
+    <Informacoes>Projeto mod_exemplo criado no VS Code</Informacoes>
+    <CodEmpresa>1</CodEmpresa>
+    <CodFilial>1</CodFilial>
+    <NomeUsuario>Matheus</NomeUsuario>
+    <PreScript></PreScript>
+    <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
+  </Opcoes>
+  <Nome>Principal</Nome>
+  <Data>2026-06-02T21:05:59.040Z</Data>
+  <Codigo>Imports mod_demo_forms
+Dim _tela As TFormDemo
+_tela.Load(&quot;Teste&quot;)
+_tela.Show()
+_tela.Free()</Codigo>
+  <Aberto>true</Aberto>
+  <OrdemAbertura>0</OrdemAbertura>
+  <ItemAberto>0</ItemAberto>
+  <Pastas>
+    <Pasta>
+      <Nome>Unidades (1)</Nome>
+      <ID>{1487A0BB-275C-4A0A-BADD-C17ED2AF8D48}</ID>
+      <PastaID></PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+  </Pastas>
+  <Modulos>
+    <mod_demo_forms>
+      <Codigo>&apos; @example: mod_demo_forms
+&apos; @demonstrates: Visual and Form Controls demo with Grid, Buttons, TextBox and dynamic Layouts
+&apos; @diagnostics: none
+&apos;
+Imports Forms
+Imports Collections
+Namespace mod_demo_forms
+   Class TProduto
+      Public Codigo As String
+      Public Nome As String
+      Public Preco As Double
+      Public PrecoOriginal As Double
+      Public Estoque As Integer
+      Sub New(pCodigo As String, pNome As String, pPreco As Double, pEstoque As Integer)
+         MyBase.New()
+         me.Codigo = pCodigo
+         me.Nome = pNome
+         me.Preco = pPreco
+         me.PrecoOriginal = pPreco
+         me.Estoque = pEstoque
+      End Sub
+      Function GetValorTotal() As Double
+         GetValorTotal = me.Preco * me.Estoque
+      End Function
+   End Class
+   Class TFormDemo
+      Private _form As Forms.Form
+      Private _headerPanel As Forms.Panel
+      Private _contentPanel As Forms.Panel
+      Private _footerPanel As Forms.Panel
+      Private _grid As Forms.Grid
+      Private _lblSearch As Forms.StaticText
+      Private _txtSearch As Forms.TextBox
+      Private _btnSearch As Forms.CommandButton
+      Private _lblSummary As Forms.StaticText
+      Private _btnDiscount As Forms.CommandButton
+      Private _btnReset As Forms.CommandButton
+      Private _produtos As StringList
+      Private _filtroAtivo As Boolean
+      Private _termoFiltro As String
+      Sub New(pTitle As String)
+         MyBase.New()
+         me._inicializarProdutos()
+         me._build(pTitle)
+         me._popularGrid()
+      End Sub
+      Shared Function Load(pTitle As String) As TFormDemo
+         Load = New TFormDemo(pTitle)
+      End Function
+      Shared Sub ShowMessage(pMessage As String)
+         Forms.MessageBox.Show(pMessage)
+      End Sub
+      Private Sub _inicializarProdutos()
+         me._produtos = New StringList()
+         &apos; Adicionar alguns produtos de teste
+         me._addProduto(New TProduto(&quot;P001&quot;, &quot;Notebook Gamer&quot;, 5499.9, 12))
+         me._addProduto(New TProduto(&quot;P002&quot;, &quot;Monitor UltraWide 29&quot;, 1299, 25))
+         me._addProduto(New TProduto(&quot;P003&quot;, &quot;Teclado Mecânico RGB&quot;, 349.9, 50))
+         me._addProduto(New TProduto(&quot;P004&quot;, &quot;Mouse Wireless Ergonômico&quot;, 249, 40))
+         me._addProduto(New TProduto(&quot;P005&quot;, &quot;Headset Surround 7.1&quot;, 450, 15))
+      End Sub
+      Private Sub _addProduto(pProd As TProduto)
+         me._produtos.AddObject(pProd.Nome, pProd)
+      End Sub
+      Private Sub _build(pTitle As String)
+         &apos; Criação do Formulário
+         me._form = New Forms.Form()
+         me._form.Caption = pTitle
+         me._form.Width = 800
+         me._form.Height = 500
+         &apos; Painel de Cabeçalho (Filtro)
+         me._headerPanel = New Forms.Panel(me._form)
+         me._headerPanel.Align = alTop
+         me._headerPanel.Height = 60
+         &apos; Label de Pesquisa
+         me._lblSearch = New Forms.StaticText(me._headerPanel)
+         me._lblSearch.Caption = &quot;Filtrar por Nome:&quot;
+         me._lblSearch.Left = 15
+         me._lblSearch.Top = 20
+         me._lblSearch.Width = 110
+         me._lblSearch.Height = 20
+         &apos; Campo de Texto de Pesquisa
+         me._txtSearch = New Forms.TextBox(me._headerPanel)
+         me._txtSearch.Left = 130
+         me._txtSearch.Top = 16
+         me._txtSearch.Width = 250
+         me._txtSearch.Height = 24
+         me._txtSearch.OnChange = me._handleSearchChange
+         &apos; Botão de Pesquisa (Filtro manual/forçado)
+         me._btnSearch = New Forms.CommandButton(me._headerPanel)
+         me._btnSearch.Caption = &quot;Filtrar&quot;
+         me._btnSearch.Left = 390
+         me._btnSearch.Top = 15
+         me._btnSearch.Width = 80
+         me._btnSearch.Height = 28
+         me._btnSearch.OnClick = me._handleSearchClick
+         &apos; Painel de Rodapé (Resumo e Ações)
+         me._footerPanel = New Forms.Panel(me._form)
+         me._footerPanel.Align = alBottom
+         me._footerPanel.Height = 60
+         &apos; Label com Resumo
+         me._lblSummary = New Forms.StaticText(me._footerPanel)
+         me._lblSummary.Left = 15
+         me._lblSummary.Top = 20
+         me._lblSummary.Width = 350
+         me._lblSummary.Height = 20
+         &apos; Botão Aplicar Desconto
+         me._btnDiscount = New Forms.CommandButton(me._footerPanel)
+         me._btnDiscount.Caption = &quot;Aplicar Desconto (-10%)&quot;
+         me._btnDiscount.Left = 380
+         me._btnDiscount.Top = 15
+         me._btnDiscount.Width = 180
+         me._btnDiscount.Height = 30
+         me._btnDiscount.OnClick = me._handleDiscountClick
+         &apos; Botão Restaurar Preços
+         me._btnReset = New Forms.CommandButton(me._footerPanel)
+         me._btnReset.Caption = &quot;Restaurar Preços&quot;
+         me._btnReset.Left = 570
+         me._btnReset.Top = 15
+         me._btnReset.Width = 140
+         me._btnReset.Height = 30
+         me._btnReset.OnClick = me._handleResetClick
+         &apos; Painel de Conteúdo Principal
+         me._contentPanel = New Forms.Panel(me._form)
+         me._contentPanel.Align = alClient
+         &apos; Grid de Dados
+         me._grid = New Forms.Grid(me._contentPanel)
+         me._grid.Align = alClient
+         me._grid.FixedRows = 1
+         me._grid.ColCount = 6
+         me._grid.FitCellsInGrid = True
+         &apos; Configurar cabeçalhos do Grid
+         me._grid.Cells(0, 0) = &quot;Código&quot;
+         me._grid.Cells(1, 0) = &quot;Produto&quot;
+         me._grid.Cells(2, 0) = &quot;Preço Original&quot;
+         me._grid.Cells(3, 0) = &quot;Preço Atual&quot;
+         me._grid.Cells(4, 0) = &quot;Estoque&quot;
+         me._grid.Cells(5, 0) = &quot;Valor Total&quot;
+         &apos; Assinar Eventos do Grid para Pesquisa/Editor Customizado
+         me._grid.OnGetEditorType = me._handleGetEditorType
+         me._grid.OnCellValidate = me._handleCellValidate
+      End Sub
+      Private Sub _popularGrid()
+         Dim count As Integer = me._produtos.Count
+         Dim row As Integer = 1
+         Dim prod As TProduto
+         Dim i As Integer
+         &apos; Primeiro conta quantas linhas de dados teremos no grid
+         &apos; para redimensionar o RowCount adequadamente.
+         Dim totalLinhas As Integer = 1 &apos; 1 para o cabeçalho
+         For i = 0 To count - 1
+            prod = CType(me._produtos.Objects(i), TProduto)
+            If me._passaFiltro(prod) Then
+               totalLinhas = totalLinhas + 1
+            End If
+         Next
+         me._grid.RowCount = totalLinhas
+         &apos; Preenche as linhas do Grid
+         For i = 0 To count - 1
+            prod = CType(me._produtos.Objects(i), TProduto)
+            If me._passaFiltro(prod) Then
+               me._grid.Cells(0, row) = prod.Codigo
+               me._grid.Cells(1, row) = prod.Nome
+               me._grid.Cells(2, row) = &quot;R$ &quot; &amp; CStr(prod.PrecoOriginal)
+               me._grid.Cells(3, row) = &quot;R$ &quot; + CStr(prod.Preco)
+               me._grid.Cells(4, row) = CStr(prod.Estoque)
+               me._grid.Cells(5, row) = &quot;R$ &quot; &amp; CStr(prod.GetValorTotal())
+               row = row + 1
+            End If
+         Next
+         &apos; Atualizar Resumo no Rodapé
+         me._atualizarResumoFooter()
+      End Sub
+      Private Sub _atualizarResumoFooter()
+         Dim totalGeral As Double = 0
+         Dim count As Integer = me._grid.RowCount
+         Dim i As Integer
+         For i = 1 To count - 1
+            Dim cod As String = me._grid.Cells(0, i)
+            Dim prod As TProduto = me._findProdutoPorCodigo(cod)
+            If prod &lt;&gt; NULL Then
+               totalGeral = totalGeral + prod.GetValorTotal()
+            End If
+         Next
+         me._lblSummary.Caption = &quot;Total Geral em Estoque: R$ &quot; &amp; CStr(CStr(totalGeral))
+      End Sub
+      Private Function _findProdutoPorCodigo(pCod As String) As TProduto
+         Dim count As Integer = me._produtos.Count
+         Dim i As Integer
+         Dim prod As TProduto
+         For i = 0 To count - 1
+            prod = CType(me._produtos.Objects(i), TProduto)
+            If UCase(prod.Codigo) = UCase(pCod) Then
+               _findProdutoPorCodigo = prod
+               Return
+            End If
+         Next
+         _findProdutoPorCodigo = NULL
+      End Function
+      Private Function _passaFiltro(pProd As TProduto) As Boolean
+         If Not me._filtroAtivo Then
+            _passaFiltro = True
+            Return
+         End If
+         If InStr(UCase(pProd.Nome), UCase(me._termoFiltro)) &gt; 0 Then
+            _passaFiltro = True
+         ElseIf InStr(UCase(pProd.Codigo), UCase(me._termoFiltro)) &gt; 0 Then
+            _passaFiltro = True
+         Else
+            _passaFiltro = False
+         End If
+      End Function
+      Private Sub _handleGetEditorType(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AEditor As Forms.TEditorType)
+         If ACol = 0 And ARow &gt; 0 Then
+            AEditor = Forms.edNormal
+         End If
+      End Sub
+      Private Sub _handleCellValidate(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)
+         If ACol = 0 Then
+            Dim prod As TProduto = me._findProdutoPorCodigo(AValue)
+            If prod &lt;&gt; NULL Then
+               AValid = True
+               me._grid.Cells(1, ARow) = prod.Nome
+               me._grid.Cells(2, ARow) = &quot;R$ &quot; &amp; CStr(CStr(prod.PrecoOriginal))
+               me._grid.Cells(3, ARow) = &quot;R$ &quot; &amp; CStr(CStr(prod.Preco))
+               me._grid.Cells(4, ARow) = CStr(prod.Estoque)
+               me._grid.Cells(5, ARow) = &quot;R$ &quot; &amp; CStr(CStr(prod.GetValorTotal()))
+               me._atualizarResumoFooter()
+            Else
+               AValid = False
+               Forms.MessageBox.Show(&quot;Produto não encontrado! Códigos válidos: P001, P002, P003, P004, P005&quot;)
+            End If
+         End If
+      End Sub
+      Private Sub _handleSearchChange(pSender As TObject)
+         me._termoFiltro = me._txtSearch.Text
+         me._filtroAtivo = (me._termoFiltro &lt;&gt; &quot;&quot;)
+         me._popularGrid()
+      End Sub
+      Private Sub _handleSearchClick(pSender As TObject)
+         me._termoFiltro = me._txtSearch.Text
+         me._filtroAtivo = (me._termoFiltro &lt;&gt; &quot;&quot;)
+         me._popularGrid()
+      End Sub
+      Private Sub _handleDiscountClick(pSender As TObject)
+         Dim count As Integer = me._produtos.Count
+         Dim prod As TProduto
+         Dim i As Integer
+         For i = 0 To count - 1
+            prod = CType(me._produtos.Objects(i), TProduto)
+            &apos; Aplicar 10% de desconto
+            prod.Preco = prod.PrecoOriginal * 0.9
+         Next
+         me._popularGrid()
+         Forms.MessageBox.Show(&quot;Desconto de 10% aplicado com sucesso a todos os produtos!&quot;)
+      End Sub
+      Private Sub _handleResetClick(pSender As TObject)
+         Dim count As Integer = me._produtos.Count
+         Dim prod As TProduto
+         Dim i As Integer
+         For i = 0 To count - 1
+            prod = CType(me._produtos.Objects(i), TProduto)
+            prod.Preco = prod.PrecoOriginal
+         Next
+         me._popularGrid()
+         Forms.MessageBox.Show(&quot;Preços originais restaurados!&quot;)
+      End Sub
+      Function Show() As Boolean
+         me._form.Show()
+         Show = True
+      End Function
+      Sub Free()
+         &apos; Libera os produtos
+         Dim count As Integer = me._produtos.Count
+         Dim prod As TProduto
+         Dim i As Integer
+         For i = 0 To count - 1
+            prod = CType(me._produtos.Objects(i), TProduto)
+            prod.Free()
+         Next
+         me._produtos.Free()
+         &apos; Libera o form
+         me._form.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+      <PastaID>{1487A0BB-275C-4A0A-BADD-C17ED2AF8D48}</PastaID>
+    </mod_demo_forms>
+  </Modulos>
+</Projeto_Data7>

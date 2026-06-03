@@ -317,7 +317,7 @@ export class ProjectService {
       return;
     }
 
-    const language = await vscode.window.showQuickPick(["Basic", "C#"], {
+    const language = await vscode.window.showQuickPick(["Basic"], {
       placeHolder: "Selecione a linguagem do projeto:",
       ignoreFocusOut: true,
     });

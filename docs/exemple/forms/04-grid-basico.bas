@@ -13,6 +13,7 @@ Namespace mod_tela_grid
       Private _grid As Forms.Grid
 
       Sub New(pTitle As String = "Listagem")
+            MyBase.New()
          me._build(pTitle)
       End Sub
 

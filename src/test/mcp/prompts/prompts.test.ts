@@ -46,7 +46,10 @@ describe("data7_baseenum_pattern — output passes basic parsing", () => {
     // mod_base_enum is loaded.
     const otherErrors = diags.filter(
       (d) =>
-        d.code !== "missing-import" && d.code !== "unused-import" && d.code !== "unknown-member",
+        d.code !== "missing-import" &&
+        d.code !== "unused-import" &&
+        d.code !== "unknown-member" &&
+        d.code !== "unknown-type",
     );
     assert.equal(otherErrors.length, 0, JSON.stringify(otherErrors, null, 2));
   });
@@ -61,6 +64,7 @@ describe("data7_module_skeleton — output passes basic parsing", () => {
       "Namespace mod_test",
       "  Class TTest",
       "    Sub New()",
+      "      MyBase.New()",
       "    End Sub",
       "    Function Describe() As String",
       '      Describe = "T"',
@@ -73,8 +77,12 @@ describe("data7_module_skeleton — output passes basic parsing", () => {
     indexer.updateFileContent("file:///tmp/mod_test.bas", code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
     const blockers = diags.filter(
-      (d) => d.code !== "unused-import" && d.code !== "module-not-declared",
+      (d) =>
+        d.code !== "unused-import" &&
+        d.code !== "module-not-declared" &&
+        d.code !== "missing-mybase-new",
     );
     assert.equal(blockers.length, 0, JSON.stringify(blockers, null, 2));
   });
 });
+

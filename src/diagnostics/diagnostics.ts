@@ -18,6 +18,7 @@ import type {
   InstantiationLimitExceededPayload,
   InvalidInterpolationPayload,
   MissingImportPayload,
+  MissingMyBaseNewPayload,
   NotEnumerablePayload,
   TernaryContextUnsupportedPayload,
   UnknownMemberPayload,
@@ -35,6 +36,82 @@ import { parseInterpolation } from "../utils/interpolation";
 import { findTopLevelTernary } from "../utils/ternary";
 import { stripCommentsAndStringsLine } from "../utils/code-stripper";
 import { getChainPrefix } from "../utils/chain-parser";
+
+const KEYWORDS = [
+  "imports",
+  "namespace",
+  "class",
+  "structure",
+  "delegate",
+  "property",
+  "get",
+  "set",
+  "shared",
+  "sub",
+  "function",
+  "dim",
+  "as",
+  "if",
+  "then",
+  "else",
+  "elseif",
+  "end",
+  "select",
+  "case",
+  "for",
+  "to",
+  "step",
+  "next",
+  "each",
+  "in",
+  "do",
+  "loop",
+  "while",
+  "until",
+  "try",
+  "catch",
+  "finally",
+  "return",
+  "new",
+  "inherits",
+  "mybase",
+  "me",
+  "null",
+  "exit",
+  "overrides",
+  "overridable",
+  "private",
+  "public",
+  "protected",
+  "declare",
+  "lib",
+  "alias",
+  "addressof",
+  "throw",
+  "const",
+  "value",
+  "with",
+  "using",
+  "match",
+  "and",
+  "or",
+  "not",
+  "xor",
+  "andalso",
+  "orelse",
+  "mod",
+  "is",
+  "isnot",
+  "like",
+  "byref",
+  "byval",
+  "enum",
+  "let",
+  "nothing",
+  "readonly",
+  "when",
+  "ctype",
+];
 
 export class DiagnosticsLinter {
   private static resolveClassName(className: string): string {
@@ -137,8 +214,19 @@ export class DiagnosticsLinter {
     const typeLower = typeName.toLowerCase();
     if (PRIMITIVE_TYPES.has(typeLower)) return;
 
-    // Qualified types (Forms.TWinControl) resolve directly; no Imports needed.
-    if (typeName.includes(".")) return;
+    // Parse simple or qualified type reference
+    const lastDotIdx = typeName.lastIndexOf(".");
+    let name: string;
+    let container: string | undefined;
+    const isQualified = lastDotIdx !== -1;
+    if (isQualified) {
+      name = typeName.substring(lastDotIdx + 1);
+      container = typeName.substring(0, lastDotIdx);
+    } else {
+      name = typeName;
+    }
+
+    const nameLower = name.toLowerCase();
 
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     const activeNamespace = fileSyms?.symbols.find((s) => s.kind === "namespace")?.name;
@@ -147,51 +235,67 @@ export class DiagnosticsLinter {
       .getAllSymbols()
       .filter(
         (s) =>
-          s.name.toLowerCase() === typeLower &&
+          s.name.toLowerCase() === nameLower &&
           (s.kind === "class" ||
             s.kind === "structure" ||
             s.kind === "delegate" ||
-            s.kind === "namespace"),
+            s.kind === "namespace") &&
+          (!container || s.containerName?.toLowerCase() === container.toLowerCase()),
       );
 
-    const systemMatches = lookupSystemByName(typeName).filter(
+    const systemMatches = lookupSystemByName(name).filter(
       (s) =>
-        s.kind === "class" ||
-        s.kind === "structure" ||
-        s.kind === "delegate" ||
-        s.kind === "namespace",
+        (s.kind === "class" ||
+          s.kind === "structure" ||
+          s.kind === "delegate" ||
+          s.kind === "namespace") &&
+        (!container || s.containerName?.toLowerCase() === container.toLowerCase()),
     );
 
     const allMatches = [...workspaceMatches, ...systemMatches];
 
-    // Unknown types fall through silently to avoid false positives on Delphi/VCL externals.
-    if (allMatches.length === 0) return;
+    if (allMatches.length === 0) {
+      const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + typeName.length);
+      const diag = new vscode.Diagnostic(
+        range,
+        `O tipo "${typeName}" não foi encontrado no workspace ou na biblioteca do sistema.`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.UnknownType;
+      diagnostics.push(diag);
+      return;
+    }
 
     let isValid = false;
     let matchingNamespace: string | undefined;
 
-    for (const sym of allMatches) {
-      const ns = sym.containerName;
-      if (!ns) {
-        isValid = true;
-        break;
-      }
-      const nsLower = ns.toLowerCase();
+    // For qualified types, if we found matches, it resolves directly.
+    if (isQualified) {
+      isValid = true;
+    } else {
+      for (const sym of allMatches) {
+        const ns = sym.containerName;
+        if (!ns) {
+          isValid = true;
+          break;
+        }
+        const nsLower = ns.toLowerCase();
 
-      if (activeNamespace?.toLowerCase() === nsLower) {
-        isValid = true;
-        break;
+        if (activeNamespace?.toLowerCase() === nsLower) {
+          isValid = true;
+          break;
+        }
+        if (fileSyms?.imports.some((imp) => imp.toLowerCase() === nsLower)) {
+          isValid = true;
+          break;
+        }
+        // Declarations in Principal.bas live in the implicit global scope.
+        if (sym.fileUri && /principal\.bas$/i.test(sym.fileUri)) {
+          isValid = true;
+          break;
+        }
+        matchingNamespace = ns;
       }
-      if (fileSyms?.imports.some((imp) => imp.toLowerCase() === nsLower)) {
-        isValid = true;
-        break;
-      }
-      // Declarations in Principal.bas live in the implicit global scope.
-      if (sym.fileUri && /principal\.bas$/i.test(sym.fileUri)) {
-        isValid = true;
-        break;
-      }
-      matchingNamespace = ns;
     }
 
     if (!isValid && matchingNamespace) {
@@ -266,6 +370,17 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.FlatNameCollision]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.InstantiationLimitExceeded]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.DuplicateDeclaration]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.UnknownType]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.MissingMyBaseNew]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.InstanceMemberAccessOnType]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.SubUsedAsFunction]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.UnknownSymbol]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.LooseTypeStatement]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.CallParenthesesMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.FunctionReadSelf]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.InvalidAssignmentTarget]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.MissingReturnValue]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.DeadCode]: vscode.DiagnosticSeverity.Warning,
   };
 
   /** Frozen set of canonical codes accepted by `' data7:disable-line <code>`. */
@@ -446,6 +561,7 @@ export class DiagnosticsLinter {
         }
 
         let typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
+        let isStaticAccess = false;
         if (!typeName) {
           const staticSymbol = indexer.findSymbolByName(prefix, document.uri.toString());
           if (
@@ -455,12 +571,15 @@ export class DiagnosticsLinter {
               staticSymbol.kind === "namespace")
           ) {
             typeName = staticSymbol.name;
+            isStaticAccess = staticSymbol.kind === "class" || staticSymbol.kind === "structure";
           } else {
             const sysStaticSymbol = lookupSystemByName(prefix).find(
               (s) => s.kind === "namespace" || s.kind === "class" || s.kind === "structure",
             );
             if (sysStaticSymbol) {
               typeName = sysStaticSymbol.name;
+              isStaticAccess =
+                sysStaticSymbol.kind === "class" || sysStaticSymbol.kind === "structure";
             }
           }
         }
@@ -495,23 +614,51 @@ export class DiagnosticsLinter {
               memberName,
               typeName,
             );
-          } else if (resolved?.isPrivate) {
-            // Member exists but is Private — accessing from outside its declaring scope.
+          } else if (
+            resolved &&
+            isStaticAccess &&
+            !resolved.isShared &&
+            resolved.kind !== "class" &&
+            resolved.kind !== "structure" &&
+            resolved.kind !== "delegate"
+          ) {
+            const start = dotIndex + 1;
+            const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
+            const diag = new vscode.Diagnostic(
+              range,
+              `Acesso a membro de instância "${memberName}" diretamente no tipo "${typeName}".`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.InstanceMemberAccessOnType;
+            diagnostics.push(diag);
+          } else if (resolved?.isPrivate || resolved?.isProtected) {
+            // Member exists but is Private or Protected — check scope visibility
             const fileSyms = indexer.getFileSymbols(document.uri.toString());
             const enclosingClass = fileSyms?.symbols.find(
               (s) =>
                 s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
             );
-            const isInsideOwner =
-              !!enclosingClass &&
-              !!resolved.containerName &&
-              enclosingClass.name.toLowerCase() === resolved.containerName.toLowerCase();
-            if (!isInsideOwner) {
+
+            let hasAccess = false;
+            if (enclosingClass && resolved.containerName) {
+              const ownerLower = resolved.containerName.toLowerCase();
+              const enclosingLower = enclosingClass.name.toLowerCase();
+              if (ownerLower === enclosingLower) {
+                hasAccess = true;
+              } else if (resolved.isProtected) {
+                if (inheritsFromClass(enclosingClass.name, resolved.containerName, indexer)) {
+                  hasAccess = true;
+                }
+              }
+            }
+            if (!hasAccess) {
               const start = dotIndex + 1;
               const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
               const diag = new vscode.Diagnostic(
                 range,
-                `O membro "${memberName}" de "${typeName}" é Private e não pode ser acessado fora da classe.`,
+                resolved.isPrivate
+                  ? `O membro "${memberName}" de "${typeName}" é Private e não pode ser acessado fora da classe.`
+                  : `O membro "${memberName}" de "${typeName}" é Protected e só pode ser acessado na classe declarante ou suas subclasses.`,
                 vscode.DiagnosticSeverity.Error,
               );
               diag.code = DiagnosticCodes.PrivateMemberAccess;
@@ -529,7 +676,9 @@ export class DiagnosticsLinter {
     const implementsRegex = /\bImplements\s+([a-zA-Z0-9_.]+)/gi;
 
     lines.forEach((lineText, lineIdx) => {
-      const cleanLine = DependencyScanner.stripComments(lineText);
+      // ANTES: const cleanLine = DependencyScanner.stripComments(lineText);
+      // DEPOIS:
+      const cleanLine = stripCommentsAndStringsLine(lineText);
       if (!cleanLine.trim() || cleanLine.toLowerCase().startsWith("imports ")) return;
 
       const runTypeRefScan = (regex: RegExp, skipAsPrefix = false): void => {
@@ -824,9 +973,1273 @@ export class DiagnosticsLinter {
       }
     }
 
+    this.validateAdvancedRules(document, indexer, lines, diagnostics);
     this.validateDuplicateDeclarations(document, indexer, diagnostics);
 
+    // 8. `Sub New` without `MyBase.New()`. Every Data7 constructor must call
+    //    `MyBase.New(...)` so the runtime can properly initialise the base
+    //    object. We track state across lines to find `Sub New` / `End Sub`
+    //    pairs and then check that the body contains at least one call.
+    this.validateMyBaseNewCalls(lines, diagnostics);
+
     return this.postProcessDiagnostics(diagnostics, text);
+  }
+
+  private static validateAdvancedRules(
+    document: vscode.TextDocument,
+    indexer: WorkspaceSymbolIndexer,
+    lines: string[],
+    diagnostics: vscode.Diagnostic[],
+  ): void {
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+
+    const getActiveContext = (
+      lineIdx: number,
+    ): {
+      activeClass: SymbolInfo | undefined;
+      activeMethod: SymbolInfo | undefined;
+      activeProperty: SymbolInfo | undefined;
+    } => {
+      let activeClass: SymbolInfo | undefined;
+      let activeMethod: SymbolInfo | undefined;
+      let activeProperty: SymbolInfo | undefined;
+      if (fileSyms) {
+        activeClass = fileSyms.symbols.find(
+          (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
+        );
+        activeMethod = fileSyms.symbols.find(
+          (s) =>
+            (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function") &&
+            lineIdx >= s.range.startLine &&
+            lineIdx <= s.range.endLine,
+        );
+        activeProperty = fileSyms.symbols.find(
+          (s) =>
+            (s.kind === "property" || s.kind === "indexed-property") &&
+            lineIdx >= s.range.startLine &&
+            lineIdx <= s.range.endLine,
+        );
+      }
+      return { activeClass, activeMethod, activeProperty };
+    };
+
+    // const getActiveContext = (
+    //   lineIdx: number,
+    // ): {
+    //   activeClass: SymbolInfo | undefined;
+    //   activeMethod: SymbolInfo | undefined;
+    // } => {
+    //   let activeClass: SymbolInfo | undefined;
+    //   let activeMethod: SymbolInfo | undefined;
+    //   if (fileSyms) {
+    //     activeClass = fileSyms.symbols.find(
+    //       (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
+    //     );
+    //     activeMethod = fileSyms.symbols.find(
+    //       (s) =>
+    //         (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function") &&
+    //         lineIdx >= s.range.startLine &&
+    //         lineIdx <= s.range.endLine,
+    //     );
+    //   }
+    //   return { activeClass, activeMethod };
+    // };
+
+    const isKnownSymbol = (
+      name: string,
+      lineIdx: number,
+      activeClass: SymbolInfo | undefined,
+      activeMethod: SymbolInfo | undefined,
+      activeProperty: SymbolInfo | undefined,
+    ): boolean => {
+      const nameLower = name.toLowerCase();
+      if (nameLower === "me" || nameLower === "mybase" || nameLower === "value") {
+        return true;
+      }
+
+      if (activeMethod?.parameters) {
+        if (activeMethod.parameters.some((p) => p.name.toLowerCase() === nameLower)) {
+          return true;
+        }
+      }
+
+      if (activeProperty?.parameters) {
+        if (activeProperty.parameters.some((p) => p.name.toLowerCase() === nameLower)) {
+          return true;
+        }
+      }
+
+      // O scan recua até o início do bloco em que o cursor está contido
+      let scanStart = 0;
+      if (activeMethod) scanStart = activeMethod.range.startLine;
+      else if (activeProperty) scanStart = activeProperty.range.startLine;
+
+      for (let i = scanStart; i <= lineIdx; i++) {
+        const lineText = lines[i];
+        if (lineText === undefined) continue;
+        const cleanLine = stripCommentsAndStringsLine(lineText);
+
+        const dimMatches = cleanLine.matchAll(/\b(Dim|Const)\s+([a-zA-Z0-9_]+)\b/gi);
+        for (const m of dimMatches) {
+          if (m[2]?.toLowerCase() === nameLower) {
+            return true;
+          }
+        }
+
+        const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+        if (forEachMatch?.[1]?.toLowerCase() === nameLower) {
+          return true;
+        }
+
+        const usingMatch = /\bUsing\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+        if (usingMatch?.[1]?.toLowerCase() === nameLower) {
+          return true;
+        }
+
+        const catchMatch = /\bCatch\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+        if (catchMatch?.[1]?.toLowerCase() === nameLower) {
+          return true;
+        }
+
+        // NOVO: Captura parâmetros de assinatura do Set (ex: Set(pValue As Integer))
+        const setMatch = /^\s*Set\s*\(\s*(?:ByVal\s+|ByRef\s+)?([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+        if (setMatch?.[1]?.toLowerCase() === nameLower) {
+          return true;
+        }
+
+        // NOVO: Captura parâmetros implícitos do cabeçalho da propriedade em si
+        // Ex: Property Item(pIndex As Integer)
+        const propMatch =
+          /^\s*(?:Public\s+|Private\s+|Protected\s+|Shared\s+|Default\s+)*Property\s+[a-zA-Z0-9_]+\s*\(([^)]+)\)/i.exec(
+            cleanLine,
+          );
+        if (propMatch?.[1]) {
+          const paramsStr = propMatch[1];
+          const params = paramsStr.split(",");
+          for (const param of params) {
+            const paramMatch = /(?:ByVal\s+|ByRef\s+)?([a-zA-Z0-9_]+)\b/i.exec(param.trim());
+            if (paramMatch?.[1]?.toLowerCase() === nameLower) {
+              return true;
+            }
+          }
+        }
+      }
+
+      if (activeClass) {
+        const member = fileSyms?.symbols.find(
+          (s) =>
+            s.containerName?.toLowerCase() === activeClass.name.toLowerCase() &&
+            s.name.toLowerCase() === nameLower,
+        );
+        if (member) return true;
+
+        const inherited = TypeResolver.getInheritedMembers(activeClass.name, indexer);
+        if (inherited.some((s) => s.name.toLowerCase() === nameLower)) {
+          return true;
+        }
+      }
+
+      const hasGlobal = indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower);
+      if (hasGlobal) return true;
+
+      const hasSystem = SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
+      if (hasSystem) return true;
+
+      return false;
+    };
+
+    // const isKnownSymbol = (
+    //   name: string,
+    //   lineIdx: number,
+    //   activeClass: SymbolInfo | undefined,
+    //   activeMethod: SymbolInfo | undefined,
+    // ): boolean => {
+    //   const nameLower = name.toLowerCase();
+    //   if (nameLower === "me" || nameLower === "mybase" || nameLower === "value") {
+    //     return true;
+    //   }
+
+    //   if (activeMethod?.parameters) {
+    //     if (activeMethod.parameters.some((p) => p.name.toLowerCase() === nameLower)) {
+    //       return true;
+    //     }
+    //   }
+
+    //   for (let i = activeMethod ? activeMethod.range.startLine : 0; i <= lineIdx; i++) {
+    //     const lineText = lines[i];
+    //     if (lineText === undefined) continue;
+    //     const cleanLine = stripCommentsAndStringsLine(lineText);
+
+    //     const dimMatches = cleanLine.matchAll(/\b(Dim|Const)\s+([a-zA-Z0-9_]+)\b/gi);
+    //     for (const m of dimMatches) {
+    //       if (m[2]?.toLowerCase() === nameLower) {
+    //         return true;
+    //       }
+    //     }
+
+    //     const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+    //     if (forEachMatch?.[1]?.toLowerCase() === nameLower) {
+    //       return true;
+    //     }
+
+    //     const usingMatch = /\bUsing\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+    //     if (usingMatch?.[1]?.toLowerCase() === nameLower) {
+    //       return true;
+    //     }
+
+    //     const catchMatch = /\bCatch\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+    //     if (catchMatch?.[1]?.toLowerCase() === nameLower) {
+    //       return true;
+    //     }
+    //   }
+
+    //   if (activeClass) {
+    //     const member = fileSyms?.symbols.find(
+    //       (s) =>
+    //         s.containerName?.toLowerCase() === activeClass.name.toLowerCase() &&
+    //         s.name.toLowerCase() === nameLower,
+    //     );
+    //     if (member) return true;
+
+    //     const inherited = TypeResolver.getInheritedMembers(activeClass.name, indexer);
+    //     if (inherited.some((s) => s.name.toLowerCase() === nameLower)) {
+    //       return true;
+    //     }
+    //   }
+
+    //   const hasGlobal = indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower);
+    //   if (hasGlobal) return true;
+
+    //   const hasSystem = SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
+    //   if (hasSystem) return true;
+
+    //   return false;
+    // };
+
+    // const resolveLhsSymbol = (
+    //   lhsStr: string,
+    //   lineIdx: number,
+    //   activeClass: SymbolInfo | undefined,
+    //   activeMethod: SymbolInfo | undefined,
+    // ): SymbolInfo | undefined => {
+    //   const cleanLhs = lhsStr.trim();
+    //   if (!cleanLhs) return undefined;
+
+    //   const dotIdx = cleanLhs.lastIndexOf(".");
+    //   if (dotIdx !== -1) {
+    //     const prefix = getChainPrefix(cleanLhs, dotIdx);
+    //     // Strip any argument list from the raw member token so that
+    //     // `obj.Round(2)` resolves symbol `Round`, not the literal `Round(2)`.
+    //     const rawMember = cleanLhs.substring(dotIdx + 1).trim();
+    //     const memberName = rawMember.replace(/\(.*\)$/, "").trim();
+    //     if (prefix && memberName) {
+    //       const prefixLower = prefix.toLowerCase();
+    //       let typeName: string | undefined;
+    //       if (prefixLower === "me" || prefixLower === "mybase") {
+    //         typeName = activeClass?.name;
+    //       } else {
+    //         typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
+    //       }
+    //       if (typeName) {
+    //         const resolved = TypeResolver.findMember(typeName, memberName, indexer);
+    //         // When the LHS had args (rawMember !== memberName), we need to
+    //         // check if the symbol is an indexed-property (assignment is valid)
+    //         // or a function/sub (invalid assignment target).
+    //         if (resolved && rawMember !== memberName) {
+    //           const isAssignableWithArgs =
+    //             resolved.kind === "indexed-property" || resolved.kind === "property";
+    //           if (!isAssignableWithArgs) {
+    //             // Return a synthetic entry typed as "method" so the caller
+    //             // emits InvalidAssignmentTarget.
+    //             return { ...resolved, kind: "method" };
+    //           }
+    //           // Indexed property — assigning is valid; no diagnostic needed.
+    //           return undefined;
+    //         }
+    //         return resolved;
+    //       }
+    //     }
+    //     return undefined;
+    //   }
+
+    //   const nameLower = cleanLhs.toLowerCase();
+
+    //   for (let i = activeMethod ? activeMethod.range.startLine : 0; i < lineIdx; i++) {
+
+    const resolveLhsSymbol = (
+      lhsStr: string,
+      lineIdx: number,
+      activeClass: SymbolInfo | undefined,
+      activeMethod: SymbolInfo | undefined,
+      activeProperty: SymbolInfo | undefined,
+    ): SymbolInfo | undefined => {
+      const cleanLhs = lhsStr.trim();
+      if (!cleanLhs) return undefined;
+
+      const dotIdx = cleanLhs.lastIndexOf(".");
+      if (dotIdx !== -1) {
+        // ... a lógica de dotIdx não muda ...
+      }
+
+      const nameLower = cleanLhs.toLowerCase();
+
+      let scanStart = 0;
+      if (activeMethod) scanStart = activeMethod.range.startLine;
+      else if (activeProperty) scanStart = activeProperty.range.startLine;
+
+      for (let i = scanStart; i < lineIdx; i++) {
+        const lineText = lines[i];
+        if (lineText === undefined) continue;
+        const cleanLine = stripCommentsAndStringsLine(lineText);
+        const constMatch = /^\s*Const\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
+        if (constMatch?.[1]?.toLowerCase() === nameLower) {
+          return {
+            name: constMatch[1],
+            kind: "variable",
+            type: "Variant",
+            isShared: true,
+            isPrivate: true,
+            isConst: true,
+            range: { startLine: i, startChar: 0, endLine: i, endChar: 0 },
+            fileUri: document.uri.toString(),
+          };
+        }
+      }
+
+      if (activeClass) {
+        const member = fileSyms?.symbols.find(
+          (s) =>
+            s.containerName?.toLowerCase() === activeClass.name.toLowerCase() &&
+            s.name.toLowerCase() === nameLower,
+        );
+        if (member) return member;
+
+        const inherited = TypeResolver.getInheritedMembers(activeClass.name, indexer);
+        const inhMember = inherited.find((s) => s.name.toLowerCase() === nameLower);
+        if (inhMember) return inhMember;
+      }
+
+      const globalSym = indexer
+        .getAllSymbols()
+        .find((s) => !s.containerName && s.name.toLowerCase() === nameLower);
+      if (globalSym) return globalSym;
+
+      const sysGlobal = SYSTEM_SYMBOLS.find(
+        (s) => !s.containerName && s.name.toLowerCase() === nameLower,
+      );
+      if (sysGlobal) return sysGlobal;
+
+      return undefined;
+    };
+
+    interface ParsedLine {
+      lineIdx: number;
+      text: string;
+      type:
+        | "normal"
+        | "return"
+        | "exit"
+        | "throw"
+        | "if"
+        | "elseif"
+        | "else"
+        | "endif"
+        | "select"
+        | "case"
+        | "endselect"
+        | "assign-ret"
+        | "single-line-if";
+      cond?: string;
+      condValue?: boolean;
+      actionType?: "return" | "exit" | "throw" | "assign-ret" | "normal";
+    }
+
+    interface IfBranch {
+      headerIdx: number;
+      bodyStartIdx: number;
+      bodyEndIdx: number;
+      condValue?: boolean;
+      isElse: boolean;
+    }
+
+    interface SelectCaseBranch {
+      bodyStartIdx: number;
+      bodyEndIdx: number;
+      isElse: boolean;
+    }
+
+    interface JumpFrame {
+      exitIdx: number;
+      targetIdx: number;
+    }
+
+    const evaluateStaticCondition = (cond: string): boolean | undefined => {
+      const c = cond.trim().toLowerCase();
+      if (c === "true" || c === "1 = 1" || c === "1=1") return true;
+      if (c === "false" || c === "1 = 2" || c === "1=2") return false;
+      return undefined;
+    };
+
+    const runFlowAnalysis = (methodSymbol: SymbolInfo): void => {
+      const isFunction = methodSymbol.type.toLowerCase() !== "void";
+      const startLine = methodSymbol.range.startLine;
+      const endLine = methodSymbol.range.endLine;
+
+      const parsedLines: ParsedLine[] = [];
+      const lineMap = new Map<number, number>();
+
+      for (let i = startLine + 1; i < endLine; i++) {
+        const raw = lines[i] ?? "";
+        const clean = stripCommentsAndStringsLine(raw).trim();
+        if (!clean) continue;
+
+        const idx = parsedLines.length;
+        lineMap.set(i, idx);
+
+        const lower = clean.toLowerCase();
+
+        const eqIdx = clean.indexOf("=");
+        let isAssignRet = false;
+        if (eqIdx !== -1) {
+          const lhs = clean.substring(0, eqIdx).trim().toLowerCase();
+          if (
+            lhs === methodSymbol.name.toLowerCase() ||
+            lhs === "me." + methodSymbol.name.toLowerCase()
+          ) {
+            isAssignRet = true;
+          }
+        }
+
+        if (isAssignRet) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "assign-ret" });
+        } else if (lower.startsWith("return")) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "return" });
+        } else if (/^exit\s+(sub|function|property)\b/i.test(lower)) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "exit" });
+        } else if (/^exit\s+(for|while|do)\b/i.test(lower)) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
+        } else if (lower.startsWith("throw")) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "throw" });
+        } else if (/^elseif\b/i.test(lower)) {
+          const thenIdx = lower.lastIndexOf("then");
+          const cond = thenIdx !== -1 ? clean.substring(8, thenIdx).trim() : "";
+          parsedLines.push({
+            lineIdx: i,
+            text: clean,
+            type: "elseif",
+            cond,
+            condValue: evaluateStaticCondition(cond),
+          });
+        } else if (lower === "else") {
+          parsedLines.push({ lineIdx: i, text: clean, type: "else" });
+        } else if (lower === "end if") {
+          parsedLines.push({ lineIdx: i, text: clean, type: "endif" });
+        } else if (/^if\s+/i.test(lower)) {
+          const thenIdx = lower.lastIndexOf("then");
+          if (thenIdx !== -1) {
+            const afterThen = clean.substring(thenIdx + 4).trim();
+            if (afterThen) {
+              const cond = clean.substring(3, thenIdx).trim();
+              let actionType: ParsedLine["actionType"] = "normal";
+              if (afterThen.toLowerCase().startsWith("return")) {
+                actionType = "return";
+              } else if (/^exit\s+(sub|function|property)\b/i.test(afterThen)) {
+                actionType = "exit";
+              } else if (afterThen.toLowerCase().startsWith("throw")) {
+                actionType = "throw";
+              } else {
+                const eq = afterThen.indexOf("=");
+                if (eq !== -1) {
+                  const lhs = afterThen.substring(0, eq).trim().toLowerCase();
+                  if (
+                    lhs === methodSymbol.name.toLowerCase() ||
+                    lhs === "me." + methodSymbol.name.toLowerCase()
+                  ) {
+                    actionType = "assign-ret";
+                  }
+                }
+              }
+              parsedLines.push({
+                lineIdx: i,
+                text: clean,
+                type: "single-line-if",
+                cond,
+                condValue: evaluateStaticCondition(cond),
+                actionType,
+              });
+            } else {
+              const cond = clean.substring(3, thenIdx).trim();
+              parsedLines.push({
+                lineIdx: i,
+                text: clean,
+                type: "if",
+                cond,
+                condValue: evaluateStaticCondition(cond),
+              });
+            }
+          } else {
+            parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
+          }
+        } else if (lower.startsWith("select case")) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "select" });
+        } else if (lower.startsWith("case")) {
+          parsedLines.push({ lineIdx: i, text: clean, type: "case" });
+        } else if (lower === "end select") {
+          parsedLines.push({ lineIdx: i, text: clean, type: "endselect" });
+        } else {
+          parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
+        }
+      }
+
+      const findMatchingEndIf = (fromIdx: number): number => {
+        let depth = 0;
+        for (let i = fromIdx; i < parsedLines.length; i++) {
+          const type = parsedLines[i]!.type;
+          if (type === "if") depth++;
+          else if (type === "endif") {
+            if (depth === 0) return i;
+            depth--;
+          }
+        }
+        return parsedLines.length;
+      };
+
+      const collectIfStructure = (
+        ifIdx: number,
+      ): {
+        branches: IfBranch[];
+        endIfIdx: number;
+      } => {
+        const branches: IfBranch[] = [];
+        let depth = 0;
+        let currentHeader = ifIdx;
+
+        for (let i = ifIdx + 1; i < parsedLines.length; i++) {
+          const type = parsedLines[i]!.type;
+          if (type === "if") {
+            depth++;
+          } else if (type === "endif") {
+            if (depth === 0) {
+              branches.push({
+                headerIdx: currentHeader,
+                bodyStartIdx: currentHeader + 1,
+                bodyEndIdx: i,
+                condValue: parsedLines[currentHeader]!.condValue,
+                isElse: parsedLines[currentHeader]!.type === "else",
+              });
+              return { branches, endIfIdx: i };
+            }
+            depth--;
+          } else if ((type === "elseif" || type === "else") && depth === 0) {
+            branches.push({
+              headerIdx: currentHeader,
+              bodyStartIdx: currentHeader + 1,
+              bodyEndIdx: i,
+              condValue: parsedLines[currentHeader]!.condValue,
+              isElse: parsedLines[currentHeader]!.type === "else",
+            });
+            currentHeader = i;
+          }
+        }
+        return { branches, endIfIdx: parsedLines.length };
+      };
+
+      const collectSelectStructure = (
+        selectIdx: number,
+      ): {
+        cases: SelectCaseBranch[];
+        endSelectIdx: number;
+        hasCaseElse: boolean;
+      } => {
+        const cases: SelectCaseBranch[] = [];
+        let depth = 0;
+        let currentHeader = -1;
+        let hasCaseElse = false;
+
+        for (let i = selectIdx + 1; i < parsedLines.length; i++) {
+          const type = parsedLines[i]!.type;
+          if (type === "select") {
+            depth++;
+          } else if (type === "endselect") {
+            if (depth === 0) {
+              if (currentHeader !== -1) {
+                cases.push({
+                  bodyStartIdx: currentHeader + 1,
+                  bodyEndIdx: i,
+                  isElse: parsedLines[currentHeader]!.text.toLowerCase().includes("case else"),
+                });
+              }
+              return { cases, endSelectIdx: i, hasCaseElse };
+            }
+            depth--;
+          } else if (type === "case" && depth === 0) {
+            if (currentHeader !== -1) {
+              cases.push({
+                bodyStartIdx: currentHeader + 1,
+                bodyEndIdx: i,
+                isElse: parsedLines[currentHeader]!.text.toLowerCase().includes("case else"),
+              });
+            }
+            currentHeader = i;
+            if (parsedLines[i]!.text.toLowerCase().includes("case else")) {
+              hasCaseElse = true;
+            }
+          }
+        }
+        return { cases, endSelectIdx: parsedLines.length, hasCaseElse };
+      };
+
+      const reachableLines = new Set<number>();
+      const visited = new Set<string>();
+      let hasMissingReturnPath = false;
+
+      const walk = (stepIdx: number, retValSet: boolean, jumpStack: JumpFrame[] = []): void => {
+        if (jumpStack.length > 0) {
+          const top = jumpStack[jumpStack.length - 1]!;
+          if (stepIdx === top.exitIdx) {
+            walk(top.targetIdx, retValSet, jumpStack.slice(0, -1));
+            return;
+          }
+        }
+
+        const stateKey = `${stepIdx},${retValSet}`;
+        if (visited.has(stateKey)) return;
+        visited.add(stateKey);
+
+        if (stepIdx >= parsedLines.length) {
+          if (isFunction && !retValSet) {
+            hasMissingReturnPath = true;
+          }
+          return;
+        }
+
+        const pLine = parsedLines[stepIdx]!;
+        reachableLines.add(pLine.lineIdx);
+
+        const simulateIf = (
+          branches: IfBranch[],
+          branchIdx: number,
+          endIfIdx: number,
+          currentRetVal: boolean,
+          currentStack: JumpFrame[],
+        ): void => {
+          if (branchIdx >= branches.length) {
+            walk(endIfIdx, currentRetVal, currentStack);
+            return;
+          }
+          const branch = branches[branchIdx]!;
+          reachableLines.add(parsedLines[branch.headerIdx]!.lineIdx);
+          if (branch.isElse) {
+            const nextStack = [
+              ...currentStack,
+              { exitIdx: branch.bodyEndIdx, targetIdx: endIfIdx },
+            ];
+            walk(branch.bodyStartIdx, currentRetVal, nextStack);
+            return;
+          }
+          if (branch.condValue === true) {
+            const nextStack = [
+              ...currentStack,
+              { exitIdx: branch.bodyEndIdx, targetIdx: endIfIdx },
+            ];
+            walk(branch.bodyStartIdx, currentRetVal, nextStack);
+          } else if (branch.condValue === false) {
+            simulateIf(branches, branchIdx + 1, endIfIdx, currentRetVal, currentStack);
+          } else {
+            const nextStack = [
+              ...currentStack,
+              { exitIdx: branch.bodyEndIdx, targetIdx: endIfIdx },
+            ];
+            walk(branch.bodyStartIdx, currentRetVal, nextStack);
+            simulateIf(branches, branchIdx + 1, endIfIdx, currentRetVal, currentStack);
+          }
+        };
+
+        switch (pLine.type) {
+          case "normal":
+            walk(stepIdx + 1, retValSet, jumpStack);
+            break;
+
+          case "assign-ret":
+            walk(stepIdx + 1, true, jumpStack);
+            break;
+
+          case "return":
+            break;
+
+          case "exit":
+            if (isFunction && !retValSet) {
+              hasMissingReturnPath = true;
+            }
+            break;
+
+          case "throw":
+            break;
+
+          case "single-line-if":
+            if (pLine.condValue === true) {
+              if (pLine.actionType === "return") {
+                // terminates
+              } else if (pLine.actionType === "exit") {
+                if (isFunction && !retValSet) hasMissingReturnPath = true;
+              } else if (pLine.actionType === "throw") {
+                // terminates
+              } else if (pLine.actionType === "assign-ret") {
+                walk(stepIdx + 1, true, jumpStack);
+              } else {
+                walk(stepIdx + 1, retValSet, jumpStack);
+              }
+            } else if (pLine.condValue === false) {
+              walk(stepIdx + 1, retValSet, jumpStack);
+            } else {
+              if (pLine.actionType === "return") {
+                // terminates
+              } else if (pLine.actionType === "exit") {
+                if (isFunction && !retValSet) hasMissingReturnPath = true;
+              } else if (pLine.actionType === "throw") {
+                // terminates
+              } else if (pLine.actionType === "assign-ret") {
+                walk(stepIdx + 1, true, jumpStack);
+              } else {
+                walk(stepIdx + 1, retValSet, jumpStack);
+              }
+              walk(stepIdx + 1, retValSet, jumpStack);
+            }
+            break;
+
+          case "if": {
+            const { branches, endIfIdx } = collectIfStructure(stepIdx);
+            simulateIf(branches, 0, endIfIdx, retValSet, jumpStack);
+            break;
+          }
+
+          case "select": {
+            const { cases, endSelectIdx, hasCaseElse } = collectSelectStructure(stepIdx);
+            cases.forEach((c) => {
+              reachableLines.add(parsedLines[c.bodyStartIdx - 1]!.lineIdx);
+              const nextStack = [...jumpStack, { exitIdx: c.bodyEndIdx, targetIdx: endSelectIdx }];
+              walk(c.bodyStartIdx, retValSet, nextStack);
+            });
+            if (!hasCaseElse) {
+              walk(endSelectIdx, retValSet, jumpStack);
+            }
+            break;
+          }
+
+          case "elseif":
+          case "else": {
+            const endIfIdx = findMatchingEndIf(stepIdx);
+            walk(endIfIdx, retValSet, jumpStack);
+            break;
+          }
+
+          case "case": {
+            let depth = 0;
+            let endSelectIdx = parsedLines.length;
+            for (let i = stepIdx; i < parsedLines.length; i++) {
+              const type = parsedLines[i]!.type;
+              if (type === "select") depth++;
+              else if (type === "endselect") {
+                if (depth === 0) {
+                  endSelectIdx = i;
+                  break;
+                }
+                depth--;
+              }
+            }
+            walk(endSelectIdx, retValSet, jumpStack);
+            break;
+          }
+
+          case "endselect":
+          case "endif":
+            walk(stepIdx + 1, retValSet, jumpStack);
+            break;
+        }
+      };
+
+      walk(0, false);
+
+      parsedLines.forEach((pLine) => {
+        // Structural flow-control nodes (End If, Else, ElseIf, End Select, Case)
+        // are convergence points — they are never "executable" statements in the
+        // business-logic sense.  Flagging them as dead code is misleading: the
+        // interesting warning is for the real statements that follow the block,
+        // not the closing keyword itself.
+        const isStructuralNode =
+          pLine.type === "endif" ||
+          pLine.type === "endselect" ||
+          pLine.type === "else" ||
+          pLine.type === "elseif" ||
+          pLine.type === "case";
+
+        if (!reachableLines.has(pLine.lineIdx) && !isStructuralNode) {
+          const rawLine = lines[pLine.lineIdx] ?? "";
+          const start = rawLine.length - rawLine.trimStart().length;
+          const end = rawLine.trimEnd().length;
+          const range = new vscode.Range(pLine.lineIdx, start, pLine.lineIdx, end);
+
+          const diag = new vscode.Diagnostic(
+            range,
+            `Código inalcançável detectado (dead-code).`,
+            vscode.DiagnosticSeverity.Warning,
+          );
+          diag.code = DiagnosticCodes.DeadCode;
+          diag.tags = [vscode.DiagnosticTag.Unnecessary];
+          diagnostics.push(diag);
+        }
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (isFunction && hasMissingReturnPath) {
+        const rawLine = lines[startLine] ?? "";
+        const funcIdx = rawLine.search(/\bFunction\b/i);
+        const start = funcIdx >= 0 ? funcIdx : 0;
+        const end = rawLine.trimEnd().length;
+        const range = new vscode.Range(startLine, start, startLine, end);
+
+        const diag = new vscode.Diagnostic(
+          range,
+          `O método Function "${methodSymbol.name}" pode retornar sem definir um valor de retorno explícito em todas as ramificações de fluxo de controle.`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.MissingReturnValue;
+        diagnostics.push(diag);
+      }
+    };
+
+    lines.forEach((lineText, lineIdx) => {
+      const cleanLine = stripCommentsAndStringsLine(lineText);
+      const trimmedClean = cleanLine.trim();
+      if (!trimmedClean || cleanLine.toLowerCase().startsWith("imports ")) return;
+
+      const { activeClass, activeMethod, activeProperty } = getActiveContext(lineIdx);
+
+      const isPrimitive =
+        PRIMITIVE_TYPES.has(trimmedClean.toLowerCase()) ||
+        trimmedClean.toLowerCase() === "variant" ||
+        trimmedClean.toLowerCase() === "tobject" ||
+        trimmedClean.toLowerCase() === "void";
+      const isKnownClassOrStruct = this.isKnownType(trimmedClean, indexer);
+
+      if (isPrimitive || isKnownClassOrStruct) {
+        const start = lineText.indexOf(trimmedClean);
+        const range = new vscode.Range(
+          lineIdx,
+          start >= 0 ? start : 0,
+          lineIdx,
+          (start >= 0 ? start : 0) + trimmedClean.length,
+        );
+        const diag = new vscode.Diagnostic(
+          range,
+          `Nome de tipo avulso "${trimmedClean}" não é permitido como instrução standalone.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.LooseTypeStatement;
+        diagnostics.push(diag);
+      }
+
+      // BUG-6: Detect member access on primitive types (e.g. `Integer.ToString()`).
+      // Primitive types have no static accessible members — such access is always
+      // an error and the linter must report it explicitly.
+      {
+        const dotAccessRegex = /([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)/g;
+        let dotMatch: RegExpExecArray | null;
+        while ((dotMatch = dotAccessRegex.exec(trimmedClean)) !== null) {
+          const typePart = dotMatch[1] ?? "";
+          const memberPart = dotMatch[2] ?? "";
+          if (PRIMITIVE_TYPES.has(typePart.toLowerCase())) {
+            const startCol = lineText.indexOf(dotMatch[0]);
+            const range = new vscode.Range(
+              lineIdx,
+              startCol >= 0 ? startCol : 0,
+              lineIdx,
+              startCol >= 0 ? startCol + dotMatch[0].length : dotMatch[0].length,
+            );
+            const diag = new vscode.Diagnostic(
+              range,
+              `O tipo primitivo "${typePart}" não possui membros estáticos acessíveis. Acesso ".${memberPart}" é inválido.`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.LooseTypeStatement;
+            diagnostics.push(diag);
+          }
+        }
+      }
+
+      const assignRegex = /^([^=+\-*/&?|]+)(?:\+|-|\*|\/|&|\?\?|\|\||&&)?=\s*(.+)$/i;
+      const match = assignRegex.exec(trimmedClean);
+      if (match) {
+        const lhs = match[1];
+        if (lhs && !/^(?:dim|const)\b/i.test(lhs.trim())) {
+          const resolvedLhs = resolveLhsSymbol(
+            lhs,
+            lineIdx,
+            activeClass,
+            activeMethod,
+            activeProperty,
+          );
+          if (resolvedLhs) {
+            const isAssignToConst = resolvedLhs.isConst === true;
+            const isAssignToReadOnly = resolvedLhs.isReadOnly === true;
+
+            if (isAssignToConst || isAssignToReadOnly) {
+              let isAllowed = false;
+              if (isAssignToReadOnly && activeClass && activeMethod?.name.toLowerCase() === "new") {
+                const declaringClass = resolvedLhs.containerName?.toLowerCase();
+                if (declaringClass === activeClass.name.toLowerCase()) {
+                  const cleanLhs = lhs.trim().toLowerCase();
+                  if (!cleanLhs.includes(".") || cleanLhs.startsWith("me.")) {
+                    isAllowed = true;
+                  }
+                }
+              }
+              if (!isAllowed) {
+                const start = lineText.indexOf(lhs);
+                const range = new vscode.Range(
+                  lineIdx,
+                  start >= 0 ? start : 0,
+                  lineIdx,
+                  (start >= 0 ? start : 0) + lhs.length,
+                );
+                const diag = new vscode.Diagnostic(
+                  range,
+                  isAssignToConst
+                    ? `Tentativa de atribuir valor à constante "${resolvedLhs.name}".`
+                    : `Tentativa de atribuir valor ao campo ReadOnly "${resolvedLhs.name}" fora do construtor.`,
+                  vscode.DiagnosticSeverity.Error,
+                );
+                diag.code = DiagnosticCodes.ReadOnlyAssignment;
+                diagnostics.push(diag);
+              }
+            }
+
+            const isMethod =
+              resolvedLhs.kind === "method" ||
+              resolvedLhs.kind === "declare_function" ||
+              resolvedLhs.kind === "declare_sub";
+            if (isMethod) {
+              const isCurrentFunction =
+                resolvedLhs.name.toLowerCase() === activeMethod?.name.toLowerCase();
+              const isSub = resolvedLhs.type.toLowerCase() === "void";
+
+              if (!isCurrentFunction || isSub) {
+                const start = lineText.indexOf(lhs);
+                const range = new vscode.Range(
+                  lineIdx,
+                  start >= 0 ? start : 0,
+                  lineIdx,
+                  (start >= 0 ? start : 0) + lhs.length,
+                );
+                const diag = new vscode.Diagnostic(
+                  range,
+                  `Tentativa de atribuir valor a um símbolo inválido (nome de outro método/função "${resolvedLhs.name}").`,
+                  vscode.DiagnosticSeverity.Error,
+                );
+                diag.code = DiagnosticCodes.InvalidAssignmentTarget;
+                diagnostics.push(diag);
+              }
+            }
+          }
+        }
+      }
+
+      if (activeMethod && activeMethod.type.toLowerCase() !== "void") {
+        const funcName = activeMethod.name;
+        const funcNameLower = funcName.toLowerCase();
+
+        const wordRegex = new RegExp(`\\b${funcName}\\b`, "g");
+        let match;
+        while ((match = wordRegex.exec(cleanLine)) !== null) {
+          const matchIndex = match.index;
+
+          const remainingText = cleanLine.substring(matchIndex + funcName.length).trimStart();
+          if (remainingText.startsWith("(")) {
+            continue;
+          }
+
+          const eqIdx = cleanLine.indexOf("=");
+          const plusEqIdx = cleanLine.indexOf("+=");
+          const minusEqIdx = cleanLine.indexOf("-=");
+
+          let isPlainAssignment = false;
+          if (
+            eqIdx !== -1 &&
+            (plusEqIdx === -1 || plusEqIdx > eqIdx) &&
+            (minusEqIdx === -1 || minusEqIdx > eqIdx)
+          ) {
+            if (matchIndex < eqIdx) {
+              const lhsPart = cleanLine.substring(0, eqIdx).trim().toLowerCase();
+              if (lhsPart === funcNameLower || lhsPart === "me." + funcNameLower) {
+                isPlainAssignment = true;
+              }
+            }
+          }
+
+          if (!isPlainAssignment) {
+            const range = new vscode.Range(
+              lineIdx,
+              matchIndex,
+              lineIdx,
+              matchIndex + funcName.length,
+            );
+            const diag = new vscode.Diagnostic(
+              range,
+              `Leitura do nome da função "${funcName}" dentro de seu próprio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.FunctionReadSelf;
+            diagnostics.push(diag);
+          }
+        }
+      }
+
+      const wordRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
+      let symbolMatch;
+      while ((symbolMatch = wordRegex.exec(cleanLine)) !== null) {
+        const name = symbolMatch[1];
+        if (!name) continue;
+        const nameLower = name.toLowerCase();
+
+        if (KEYWORDS.some((kw) => kw.toLowerCase() === nameLower)) continue;
+        if (
+          PRIMITIVE_TYPES.has(nameLower) ||
+          nameLower === "variant" ||
+          nameLower === "tobject" ||
+          nameLower === "void"
+        ) {
+          continue;
+        }
+        if (nameLower === "true" || nameLower === "false" || nameLower === "null") continue;
+
+        const charBefore = cleanLine.substring(0, symbolMatch.index).trimEnd().slice(-1);
+        if (charBefore === ".") continue;
+
+        const precedingText = cleanLine.substring(0, symbolMatch.index).trimEnd().toLowerCase();
+        if (
+          precedingText.endsWith("class") ||
+          precedingText.endsWith("structure") ||
+          precedingText.endsWith("namespace") ||
+          precedingText.endsWith("delegate") ||
+          precedingText.endsWith("sub") ||
+          precedingText.endsWith("function") ||
+          precedingText.endsWith("property") ||
+          precedingText.endsWith("dim") ||
+          precedingText.endsWith("const") ||
+          precedingText.endsWith("catch") ||
+          precedingText.endsWith("using") ||
+          precedingText.endsWith("each") ||
+          precedingText.endsWith("as") ||
+          precedingText.endsWith("new") ||
+          precedingText.endsWith("inherits") ||
+          precedingText.endsWith("implements")
+        ) {
+          continue;
+        }
+
+        if (!isKnownSymbol(name, lineIdx, activeClass, activeMethod, activeProperty)) {
+          const range = new vscode.Range(
+            lineIdx,
+            symbolMatch.index,
+            lineIdx,
+            symbolMatch.index + name.length,
+          );
+          const diag = new vscode.Diagnostic(
+            range,
+            `O símbolo "${name}" não foi encontrado no escopo atual.`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.UnknownSymbol;
+          diagnostics.push(diag);
+        }
+      }
+
+      const callWordRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
+      let callMatch;
+      while ((callMatch = callWordRegex.exec(cleanLine)) !== null) {
+        const name = callMatch[1];
+        if (!name) continue;
+        const nameLower = name.toLowerCase();
+
+        if (KEYWORDS.some((kw) => kw.toLowerCase() === nameLower)) continue;
+        if (
+          PRIMITIVE_TYPES.has(nameLower) ||
+          nameLower === "variant" ||
+          nameLower === "tobject" ||
+          nameLower === "void"
+        ) {
+          continue;
+        }
+
+        const precedingText = cleanLine.substring(0, callMatch.index).trimEnd().toLowerCase();
+        if (
+          precedingText.endsWith("sub") ||
+          precedingText.endsWith("function") ||
+          precedingText.endsWith("class") ||
+          precedingText.endsWith("structure") ||
+          precedingText.endsWith("delegate") ||
+          precedingText.endsWith("addressof") ||
+          precedingText.endsWith("property")
+        ) {
+          continue;
+        }
+
+        let isLhsOfPlainAssignment = false;
+        const eqIdx = cleanLine.indexOf("=");
+        if (eqIdx !== -1 && callMatch.index < eqIdx) {
+          const lhsPart = cleanLine.substring(0, eqIdx).trim().toLowerCase();
+          if (lhsPart === nameLower || lhsPart === "me." + nameLower) {
+            isLhsOfPlainAssignment = true;
+          }
+        }
+        if (isLhsOfPlainAssignment) continue;
+
+        let resolvedMethod: SymbolInfo | undefined;
+        const charBefore = cleanLine.substring(0, callMatch.index).trimEnd().slice(-1);
+        if (charBefore === ".") {
+          const dotIdx = cleanLine.substring(0, callMatch.index + 1).lastIndexOf(".");
+          if (dotIdx !== -1) {
+            const prefix = getChainPrefix(cleanLine, dotIdx);
+            if (prefix) {
+              const prefixLower = prefix.toLowerCase();
+              let typeName: string | undefined;
+              if (prefixLower === "me" || prefixLower === "mybase") {
+                typeName = activeClass?.name;
+              } else {
+                typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
+              }
+              if (typeName) {
+                resolvedMethod = TypeResolver.findMember(typeName, name, indexer);
+              }
+            }
+          }
+        } else {
+          const localSym = fileSyms?.symbols.find(
+            (s) =>
+              s.name.toLowerCase() === nameLower &&
+              (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
+          );
+          if (localSym) {
+            resolvedMethod = localSym;
+          } else {
+            resolvedMethod =
+              SYSTEM_SYMBOLS.find(
+                (s) =>
+                  s.name.toLowerCase() === nameLower &&
+                  (s.kind === "method" ||
+                    s.kind === "declare_sub" ||
+                    s.kind === "declare_function"),
+              ) ??
+              indexer
+                .getAllSymbols()
+                .find(
+                  (s) =>
+                    s.name.toLowerCase() === nameLower &&
+                    (s.kind === "method" ||
+                      s.kind === "declare_sub" ||
+                      s.kind === "declare_function"),
+                );
+          }
+        }
+
+        if (
+          resolvedMethod &&
+          (resolvedMethod.kind === "method" ||
+            resolvedMethod.kind === "declare_sub" ||
+            resolvedMethod.kind === "declare_function")
+        ) {
+          const paramCount = resolvedMethod.parameters ? resolvedMethod.parameters.length : 0;
+          const remainingText = cleanLine.substring(callMatch.index + name.length).trimStart();
+          const usesParens = remainingText.startsWith("(");
+          const isSub = resolvedMethod.type.toLowerCase() === "void";
+
+          let isDelegateAssignment = false;
+          const assignIdx = cleanLine.indexOf("=");
+          if (assignIdx !== -1 && callMatch.index > assignIdx) {
+            const lhsPart = cleanLine.substring(0, assignIdx).trim().toLowerCase();
+            const lastDot = lhsPart.lastIndexOf(".");
+            const lastSegment = lastDot !== -1 ? lhsPart.substring(lastDot + 1) : lhsPart;
+            if (
+              lastSegment.startsWith("on") ||
+              lastSegment.endsWith("event") ||
+              lastSegment.endsWith("handler")
+            ) {
+              isDelegateAssignment = true;
+            }
+          }
+
+          if (!isDelegateAssignment) {
+            let hasMismatch = false;
+            if (!usesParens) {
+              if (isSub) {
+                if (paramCount > 1) {
+                  hasMismatch = true;
+                }
+              } else {
+                if (paramCount >= 1) {
+                  hasMismatch = true;
+                }
+              }
+            }
+
+            if (hasMismatch) {
+              const range = new vscode.Range(
+                lineIdx,
+                callMatch.index,
+                lineIdx,
+                callMatch.index + name.length,
+              );
+              const diag = new vscode.Diagnostic(
+                range,
+                `Chamada do método "${name}" viola as regras de parênteses. Métodos ${isSub ? "Sub (Void) com mais de 1 parâmetro" : "Function (com retorno) com 1 ou mais parâmetros"} exigem o uso de parênteses.`,
+                vscode.DiagnosticSeverity.Error,
+              );
+              diag.code = DiagnosticCodes.CallParenthesesMismatch;
+              diagnostics.push(diag);
+            }
+
+            if (isSub) {
+              const trimmedPreceding = precedingText.trim();
+              const isExprContext =
+                /[+\-*/&=,(]$/.test(trimmedPreceding) ||
+                /\b(?:return|if|elseif)$/i.test(trimmedPreceding);
+
+              // Also detect when the Sub is the RHS of an assignment or Dim:
+              //   `Dim x As T = obj.SubMethod(...)` — trimmedPreceding ends with "."
+              //   `x = obj.SubMethod(...)` — there is a "=" before the dot in the line
+              const fullLineUpToCall = cleanLine.substring(0, callMatch.index).trim();
+              const isAssignmentRhs =
+                /(?:^|\s)dim\s+\w+(?:\s+as\s+[\w.]+)?\s*=\s*[\w.]*$/i.test(fullLineUpToCall) ||
+                /^\s*[\w.]+\s*(?:\+|-|\*|\/|&)?\s*=\s*[\w.]*$/i.test(fullLineUpToCall);
+
+              if (isExprContext || isAssignmentRhs) {
+                const range = new vscode.Range(
+                  lineIdx,
+                  callMatch.index,
+                  lineIdx,
+                  callMatch.index + name.length,
+                );
+                const diag = new vscode.Diagnostic(
+                  range,
+                  `O método Sub "${name}" retorna Void e não pode ser usado em uma expressão ou atribuição.`,
+                  vscode.DiagnosticSeverity.Error,
+                );
+                diag.code = DiagnosticCodes.SubUsedAsFunction;
+                diagnostics.push(diag);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (fileSyms) {
+      fileSyms.symbols.forEach((s) => {
+        if (s.kind === "method") {
+          runFlowAnalysis(s);
+        }
+      });
+    }
   }
 
   private static isSameSignature(
@@ -1246,6 +2659,101 @@ export class DiagnosticsLinter {
   }
 
   /**
+   * Walks the raw source lines looking for `Sub New` constructor declarations
+   * and verifies that each body contains at least one `MyBase.New(` call.
+   *
+   * Uses a lightweight state-machine approach (tracking open/close of Sub/End
+   * Sub blocks) consistent with the rest of the linter. Nested blocks inside
+   * the constructor body (If/For/While/Try …) are handled via a depth counter
+   * so `End Sub` is only matched at depth 0.
+   */
+  private static validateMyBaseNewCalls(
+    lines: readonly string[],
+    diagnostics: vscode.Diagnostic[],
+  ): void {
+    // Patterns (case-insensitive):
+    const subNewHeaderRe = /^\s*(?:public\s+|private\s+|protected\s+)*Sub\s+New\s*\(/i;
+    const myBaseNewCallRe = /\bMyBase\s*\.\s*New\s*\(/i;
+    // Keywords that open a new block depth (not Sub — Sub is handled
+    // separately since we detect Sub New explicitly).
+    const blockOpenRe = /^\s*(?:If|For|While|Do|Try|With|Using|Match)\b/i;
+    // Patterns for End <block> that reduce depth but are NOT End Sub.
+    const blockEndRe = /^\s*End\s+(?:If|For|While|Do|Try|With|Using|Match)\b/i;
+    const endSubRe = /^\s*End\s+Sub\b/i;
+    // Detect an enclosing class declaration.
+    const classHeaderRe = /^\s*(?:public\s+|private\s+|protected\s+)*Class\s+([A-Za-z_]\w*)/i;
+    const endClassRe = /^\s*End\s+Class\b/i;
+
+    let inConstructor = false;
+    let constructorLine = 0;
+    let constructorDepth = 0; // nesting depth inside the constructor body
+    let hasMyBaseNew = false;
+    let enclosingClass = "";
+
+    for (let i = 0; i < lines.length; i++) {
+      const rawLine = lines[i] ?? "";
+      const cleanLine = stripCommentsAndStringsLine(rawLine);
+
+      // Track enclosing class name (last seen Class declaration).
+      const classMatch = classHeaderRe.exec(cleanLine);
+      if (classMatch) {
+        enclosingClass = classMatch[1] ?? "";
+        continue;
+      }
+      if (endClassRe.test(cleanLine)) {
+        enclosingClass = "";
+        continue;
+      }
+
+      if (!inConstructor) {
+        // Look for Sub New header.
+        if (subNewHeaderRe.test(cleanLine)) {
+          inConstructor = true;
+          constructorLine = i;
+          constructorDepth = 0;
+          hasMyBaseNew = false;
+        }
+      } else {
+        // We are inside a Sub New body.
+        if (myBaseNewCallRe.test(cleanLine)) {
+          hasMyBaseNew = true;
+        }
+
+        if (endSubRe.test(cleanLine) && constructorDepth === 0) {
+          // Constructor closed.
+          if (!hasMyBaseNew) {
+            const lineText = lines[constructorLine] ?? "";
+            const subIdx = lineText.search(/\bSub\b/i);
+            const startChar = subIdx >= 0 ? subIdx : 0;
+            const endChar = lineText.trimEnd().length;
+            const range = new vscode.Range(constructorLine, startChar, constructorLine, endChar);
+            const msg =
+              `Construtor 'Sub New' da classe '${enclosingClass || "desconhecida"}' não chama ` +
+              `'MyBase.New()'. Toda classe Data7 deve inicializar o objeto base no construtor. ` +
+              `Se a classe herda de outra, passe os argumentos necessários: 'MyBase.New(pParam As String)'.`;
+            const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+            diag.code = DiagnosticCodes.MissingMyBaseNew;
+            const payload: MissingMyBaseNewPayload = {
+              code: DiagnosticCodes.MissingMyBaseNew,
+              className: enclosingClass || "",
+            };
+            setDiagnosticPayload(diag, payload);
+            diagnostics.push(diag);
+          }
+          inConstructor = false;
+        } else if (endSubRe.test(cleanLine)) {
+          // End Sub closes a nested Sub, reduce depth.
+          constructorDepth = Math.max(0, constructorDepth - 1);
+        } else if (blockOpenRe.test(cleanLine)) {
+          constructorDepth++;
+        } else if (blockEndRe.test(cleanLine)) {
+          constructorDepth = Math.max(0, constructorDepth - 1);
+        }
+      }
+    }
+  }
+
+  /**
    * Applies cross-cutting concerns to every diagnostic emitted by the linter:
    *
    *   1. Drops diagnostics whose line carries a `' data7:disable-line` directive
@@ -1460,4 +2968,22 @@ function levenshtein(a: string, b: string): number {
     prev[b.length] = curr;
   }
   return prev[b.length] ?? 0;
+}
+
+function inheritsFromClass(
+  subClassName: string,
+  baseClassName: string,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  let current = subClassName.toLowerCase();
+  const target = baseClassName.toLowerCase();
+  const visited = new Set<string>();
+  while (current && current !== target && !visited.has(current)) {
+    visited.add(current);
+    const cls = TypeResolver.findClassSymbol(current, indexer);
+    if (!cls) break;
+    const parent = TypeResolver.resolveParent(cls);
+    current = parent ? parent.toLowerCase() : "";
+  }
+  return current === target;
 }

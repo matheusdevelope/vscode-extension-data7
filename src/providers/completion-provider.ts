@@ -8,6 +8,7 @@ import {
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
 import { getChainPrefix } from "../utils/chain-parser";
+import { inferLiteralType } from "../utils/literal-type-infer";
 
 const KEYWORDS = [
   "Imports",
@@ -22,6 +23,7 @@ const KEYWORDS = [
   "Sub",
   "Function",
   "Dim",
+  "Const",
   "As",
   "If",
   "Then",
@@ -60,11 +62,68 @@ const KEYWORDS = [
   "Declare",
   "Lib",
   "Alias",
+  "And",
+  "Or",
+  "Not",
+  "Xor",
+  "AndAlso",
+  "OrElse",
+  "Mod",
+  "Is",
+  "IsNot",
+  "Like",
+  "ByRef",
+  "ByVal",
+  "Enum",
+  "Let",
+  "Nothing",
+  "ReadOnly",
+  "When",
+  "CType",
 ];
 
 // Re-export for backwards compatibility with code that imports `TypeResolver`
 // from `./completion-provider`. New code should import directly from `./type-resolver`.
 export { TypeResolver };
+
+function inheritsFromClass(
+  subClassName: string,
+  baseClassName: string,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  let current = subClassName.toLowerCase();
+  const target = baseClassName.toLowerCase();
+  const visited = new Set<string>();
+  while (current && current !== target && !visited.has(current)) {
+    visited.add(current);
+    const cls = TypeResolver.findClassSymbol(current, indexer);
+    if (!cls) break;
+    const parent = TypeResolver.resolveParent(cls);
+    current = parent ? parent.toLowerCase() : "";
+  }
+  return current === target;
+}
+
+function isSymbolVisible(
+  s: SymbolInfo,
+  activeClass: SymbolInfo | undefined,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  if (!s.containerName) {
+    return true;
+  }
+  const declaringClassLower = s.containerName.toLowerCase();
+  if (activeClass) {
+    const activeClassLower = activeClass.name.toLowerCase();
+    if (declaringClassLower === activeClassLower) {
+      return true;
+    }
+    if (inheritsFromClass(activeClass.name, s.containerName, indexer)) {
+      return !s.isPrivate;
+    }
+  }
+  return !s.isPrivate && !s.isProtected;
+}
 
 /**
  * Detects `Imports <maybe-partial-name>` typing context. Returns the partial
@@ -122,34 +181,54 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       return items;
     }
 
+    const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
+    let activeClass: SymbolInfo | undefined;
+    let activeMethod: SymbolInfo | undefined;
+    let activeProperty: SymbolInfo | undefined;
+
+    if (fileSyms) {
+      activeClass = fileSyms.symbols.find(
+        (s) =>
+          s.kind === "class" &&
+          position.line >= s.range.startLine &&
+          position.line <= s.range.endLine,
+      );
+      activeMethod = fileSyms.symbols.find(
+        (s) =>
+          (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function") &&
+          position.line >= s.range.startLine &&
+          position.line <= s.range.endLine,
+      );
+      activeProperty = fileSyms.symbols.find(
+        (s) =>
+          (s.kind === "property" || s.kind === "indexed-property") &&
+          position.line >= s.range.startLine &&
+          position.line <= s.range.endLine,
+      );
+    }
+
     // Case A: cursor is positioned after a dot (e.g. `obj.`, `me.`, `Forms.`).
-    if (
-      dotIndex !== -1 &&
-      textBeforeCursor.substring(dotIndex + 1).trim() === textBeforeCursor.substring(dotIndex + 1)
-    ) {
+    // We check that there is a dot AND that whatever comes after the dot
+    // contains no whitespace (i.e., the cursor is either right at the dot or
+    // typing a member fragment with no space). An empty fragment (cursor at dot)
+    // is explicitly handled so that Ctrl+Space right after `ClassName.` shows
+    // all available members.
+    const afterDot = textBeforeCursor.substring(dotIndex + 1);
+    if (dotIndex !== -1 && afterDot === afterDot.trimStart()) {
       const prefix = getChainPrefix(textBeforeCursor, dotIndex);
       const prefixLower = prefix.toLowerCase();
 
       if (prefixLower === "me" || prefixLower === "mybase") {
-        const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
-        if (fileSyms) {
-          const currentClass = fileSyms.symbols.find(
-            (s) =>
-              s.kind === "class" &&
-              position.line >= s.range.startLine &&
-              position.line <= s.range.endLine,
-          );
-
-          if (currentClass) {
-            if (prefixLower === "me") {
-              const locals = fileSyms.symbols.filter(
-                (s) => s.containerName?.toLowerCase() === currentClass.name.toLowerCase(),
-              );
-              locals.forEach((s) => items.push(this.createCompletionItem(s, document)));
-            }
-            const inherited = TypeResolver.getInheritedMembers(currentClass.name, this.indexer);
-            inherited.forEach((s) => items.push(this.createCompletionItem(s, document)));
+        if (activeClass) {
+          if (prefixLower === "me") {
+            const locals = fileSyms!.symbols.filter(
+              (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase(),
+            );
+            locals.forEach((s) => items.push(this.createCompletionItem(s, document)));
           }
+          const inherited = TypeResolver.getInheritedMembers(activeClass.name, this.indexer);
+          const filteredInherited = inherited.filter((s) => !s.isPrivate);
+          filteredInherited.forEach((s) => items.push(this.createCompletionItem(s, document)));
         }
         return items;
       }
@@ -163,7 +242,11 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       );
       if (typeName) {
         const allMembers = TypeResolver.getAllMembersForType(typeName, this.indexer);
-        allMembers.forEach((s) => items.push(this.createCompletionItem(s, document)));
+        allMembers.forEach((s) => {
+          if (isSymbolVisible(s, activeClass, this.indexer)) {
+            items.push(this.createCompletionItem(s, document));
+          }
+        });
         return items;
       }
 
@@ -173,26 +256,50 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         const triggerWord = lastWordMatch[1];
         const triggerLower = triggerWord.toLowerCase();
 
+        const targetClass = TypeResolver.findClassSymbol(triggerWord, this.indexer);
+        const isClassOrStruct =
+          targetClass && (targetClass.kind === "class" || targetClass.kind === "structure");
+
         const isNamespaceOrStaticClass =
-          lookupSystemNamespaceOrClassByName(triggerWord).length > 0 ||
-          lookupSystemByContainer(triggerWord).length > 0 ||
-          this.indexer
-            .getAllSymbols()
-            .some(
-              (s) =>
-                (s.name.toLowerCase() === triggerLower &&
-                  (s.kind === "namespace" || s.kind === "class")) ||
-                s.containerName?.toLowerCase() === triggerLower,
-            );
+          isClassOrStruct ??
+          (lookupSystemNamespaceOrClassByName(triggerWord).length > 0 ||
+            lookupSystemByContainer(triggerWord).length > 0 ||
+            this.indexer
+              .getAllSymbols()
+              .some(
+                (s) =>
+                  (s.name.toLowerCase() === triggerLower &&
+                    (s.kind === "namespace" || s.kind === "class")) ||
+                  s.containerName?.toLowerCase() === triggerLower,
+              ));
 
         if (isNamespaceOrStaticClass) {
-          lookupSystemByContainer(triggerWord).forEach((s) =>
-            items.push(this.createCompletionItem(s, document)),
-          );
+          const isNamespace =
+            !isClassOrStruct &&
+            (this.indexer
+              .getAllSymbols()
+              .some((s) => s.name.toLowerCase() === triggerLower && s.kind === "namespace") ||
+              SYSTEM_SYMBOLS.some(
+                (s) => s.name.toLowerCase() === triggerLower && s.kind === "namespace",
+              ));
+
+          lookupSystemByContainer(triggerWord).forEach((s) => {
+            if (isSymbolVisible(s, activeClass, this.indexer)) {
+              if (isNamespace || s.isShared) {
+                items.push(this.createCompletionItem(s, document));
+              }
+            }
+          });
           const workspaceMembers = this.indexer
             .getAllSymbols()
             .filter((s) => s.containerName?.toLowerCase() === triggerLower);
-          workspaceMembers.forEach((s) => items.push(this.createCompletionItem(s, document)));
+          workspaceMembers.forEach((s) => {
+            if (isSymbolVisible(s, activeClass, this.indexer)) {
+              if (isNamespace || s.isShared) {
+                items.push(this.createCompletionItem(s, document));
+              }
+            }
+          });
           return items;
         }
 
@@ -204,13 +311,207 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         );
         if (fallbackTypeName) {
           const allMembers = TypeResolver.getAllMembersForType(fallbackTypeName, this.indexer);
-          allMembers.forEach((s) => items.push(this.createCompletionItem(s, document)));
+          allMembers.forEach((s) => {
+            if (isSymbolVisible(s, activeClass, this.indexer)) {
+              items.push(this.createCompletionItem(s, document));
+            }
+          });
         }
       }
       return items;
     }
 
-    // Case B: general context completion (Keywords, Snippets, Globals).
+    // Case B: general context completion (Keywords, Snippets, Globals, and Local Scope inside Class).
+    const seenNames = new Set<string>();
+
+    // if (activeMethod) {
+    //   // 1. Parameters of the active method
+    //   if (activeMethod.parameters) {
+    //     activeMethod.parameters.forEach((p) => {
+    //       const lowerName = p.name.toLowerCase();
+    //       if (!seenNames.has(lowerName)) {
+    //         seenNames.add(lowerName);
+    //         const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Variable);
+    //         item.detail = `PARAMETER: ${p.type}`;
+    //         items.push(item);
+    //       }
+    //     });
+    //   }
+
+    // <-- ATUALIZADO: Agrupa Method e Property no mesmo bloco de varredura
+    if (activeMethod || activeProperty) {
+      // 1. Parameters of the active method or property
+      if (activeMethod?.parameters) {
+        activeMethod.parameters.forEach((p) => {
+          const lowerName = p.name.toLowerCase();
+          if (!seenNames.has(lowerName)) {
+            seenNames.add(lowerName);
+            const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Variable);
+            item.detail = `PARAMETER: ${p.type}`;
+            items.push(item);
+          }
+        });
+      }
+
+      if (activeProperty?.parameters) {
+        activeProperty.parameters.forEach((p) => {
+          const lowerName = p.name.toLowerCase();
+          if (!seenNames.has(lowerName)) {
+            seenNames.add(lowerName);
+            const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Variable);
+            item.detail = `PARAMETER: ${p.type}`;
+            items.push(item);
+          }
+        });
+      }
+
+      // 2. Local variables, constants, and Set parameters
+      const startLine = activeMethod
+        ? activeMethod.range.startLine
+        : activeProperty!.range.startLine;
+      const lines = document.getText().split(/\r?\n/);
+
+      for (let i = startLine; i <= position.line; i++) {
+        const lineText = lines[i];
+        if (lineText === undefined) continue;
+        const textToSearch =
+          i === position.line ? lineText.substring(0, position.character) : lineText;
+        const trimmed = textToSearch.trim();
+        if (trimmed.startsWith("'") || trimmed.toLowerCase().startsWith("rem ")) continue;
+
+        // Dim x As Integer or Dim x = 123
+        const dimMatches = trimmed.matchAll(
+          /\b(Dim|Const)\s+([a-zA-Z0-9_]+)\b(?:(?:\s+As\s+([a-zA-Z0-9_.]+))|(?:\s*=\s*([^']+)))?/gi,
+        );
+        for (const match of dimMatches) {
+          const isConst = (match[1] ?? "").toLowerCase() === "const";
+          const name = match[2];
+          let type = match[3] ?? "Variant";
+          const expr = match[4];
+          if (!match[3] && expr) {
+            type = inferLiteralType(expr.trim()) ?? "Variant";
+          }
+          if (name && !seenNames.has(name.toLowerCase())) {
+            seenNames.add(name.toLowerCase());
+            const item = new vscode.CompletionItem(
+              name,
+              isConst ? vscode.CompletionItemKind.Constant : vscode.CompletionItemKind.Variable,
+            );
+            item.detail = `${isConst ? "CONSTANT" : "LOCAL"}: ${type}`;
+            items.push(item);
+          }
+        }
+
+        // For Each item As T In ...
+        const forEachMatches = trimmed.matchAll(
+          /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b(?:\s+As\s+([a-zA-Z0-9_.]+))?/gi,
+        );
+        for (const match of forEachMatches) {
+          const name = match[1];
+          const type = match[2] ?? "Variant";
+          if (name && !seenNames.has(name.toLowerCase())) {
+            seenNames.add(name.toLowerCase());
+            const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Variable);
+            item.detail = `LOCAL: ${type}`;
+            items.push(item);
+          }
+        }
+
+        // <-- NOVO: Captura o parâmetro do Set(pValue As ...)
+        const setMatch =
+          /^\s*Set\s*\(\s*(?:ByVal\s+|ByRef\s+)?([a-zA-Z0-9_]+)\b(?:\s+As\s+([a-zA-Z0-9_.]+))?/i.exec(
+            trimmed,
+          );
+        if (setMatch) {
+          const name = setMatch[1];
+          const type = setMatch[2] ?? "Variant";
+          if (name && !seenNames.has(name.toLowerCase())) {
+            seenNames.add(name.toLowerCase());
+            const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Variable);
+            item.detail = `PARAMETER (Set): ${type}`;
+            items.push(item);
+          }
+        }
+      }
+    }
+
+    //   // 2. Local variables and constants
+    //   const lines = document.getText().split(/\r?\n/);
+    //   for (let i = activeMethod.range.startLine; i <= position.line; i++) {
+    //     const lineText = lines[i];
+    //     if (lineText === undefined) continue;
+    //     const textToSearch =
+    //       i === position.line ? lineText.substring(0, position.character) : lineText;
+    //     const trimmed = textToSearch.trim();
+    //     if (trimmed.startsWith("'") || trimmed.toLowerCase().startsWith("rem ")) continue;
+
+    //     // Dim x As Integer or Dim x = 123
+    //     const dimMatches = trimmed.matchAll(
+    //       /\b(Dim|Const)\s+([a-zA-Z0-9_]+)\b(?:(?:\s+As\s+([a-zA-Z0-9_.]+))|(?:\s*=\s*([^']+)))?/gi,
+    //     );
+    //     for (const match of dimMatches) {
+    //       const isConst = (match[1] ?? "").toLowerCase() === "const";
+    //       const name = match[2];
+    //       let type = match[3] ?? "Variant";
+    //       const expr = match[4];
+    //       if (!match[3] && expr) {
+    //         type = inferLiteralType(expr.trim()) ?? "Variant";
+    //       }
+    //       if (name && !seenNames.has(name.toLowerCase())) {
+    //         seenNames.add(name.toLowerCase());
+    //         const item = new vscode.CompletionItem(
+    //           name,
+    //           isConst ? vscode.CompletionItemKind.Constant : vscode.CompletionItemKind.Variable,
+    //         );
+    //         item.detail = `${isConst ? "CONSTANT" : "LOCAL"}: ${type}`;
+    //         items.push(item);
+    //       }
+    //     }
+
+    //     // For Each item As T In ...
+    //     const forEachMatches = trimmed.matchAll(
+    //       /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b(?:\s+As\s+([a-zA-Z0-9_.]+))?/gi,
+    //     );
+    //     for (const match of forEachMatches) {
+    //       const name = match[1];
+    //       const type = match[2] ?? "Variant";
+    //       if (name && !seenNames.has(name.toLowerCase())) {
+    //         seenNames.add(name.toLowerCase());
+    //         const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Variable);
+    //         item.detail = `LOCAL: ${type}`;
+    //         items.push(item);
+    //       }
+    //     }
+    //   }
+    // }
+
+    if (activeClass) {
+      // 3. Members of the active class
+      const classMembers = fileSyms!.symbols.filter(
+        (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase(),
+      );
+      classMembers.forEach((s) => {
+        const lowerName = s.name.toLowerCase();
+        if (!seenNames.has(lowerName)) {
+          seenNames.add(lowerName);
+          items.push(this.createCompletionItem(s, document));
+        }
+      });
+
+      // 4. Inherited members of the active class (public/protected, i.e., not private)
+      const inherited = TypeResolver.getInheritedMembers(activeClass.name, this.indexer);
+      inherited.forEach((s) => {
+        if (!s.isPrivate) {
+          const lowerName = s.name.toLowerCase();
+          if (!seenNames.has(lowerName)) {
+            seenNames.add(lowerName);
+            items.push(this.createCompletionItem(s, document));
+          }
+        }
+      });
+    }
+
+    // Keywords, Snippets, Globals
     KEYWORDS.forEach((kw) => {
       items.push(new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword));
     });
@@ -224,13 +525,21 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         s.kind === "declare_function" ||
         s.kind === "declare_sub"
       ) {
-        items.push(this.createCompletionItem(s, document));
+        const lowerName = s.name.toLowerCase();
+        if (!seenNames.has(lowerName)) {
+          seenNames.add(lowerName);
+          items.push(this.createCompletionItem(s, document));
+        }
       }
     });
 
     this.indexer.getAllSymbols().forEach((s) => {
       if (!s.containerName || s.kind === "namespace" || s.kind === "class") {
-        items.push(this.createCompletionItem(s, document));
+        const lowerName = s.name.toLowerCase();
+        if (!seenNames.has(lowerName)) {
+          seenNames.add(lowerName);
+          items.push(this.createCompletionItem(s, document));
+        }
       }
     });
 

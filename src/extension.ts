@@ -130,7 +130,9 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
   // Optional: format `.bas` files on save when the user opts in via `data7.autoFormatOnSave`.
   const formatOnSaveListener = vscode.workspace.onWillSaveTextDocument((e) => {
-    if (e.document.languageId !== LANGUAGE_IDS.d7basic) return;
+    if (e.document.languageId !== LANGUAGE_IDS.d7basic && !e.document.fileName.endsWith(".bas")) {
+      return;
+    }
     const cfg = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
     if (!cfg.get<boolean>("autoFormatOnSave")) return;
     e.waitUntil(

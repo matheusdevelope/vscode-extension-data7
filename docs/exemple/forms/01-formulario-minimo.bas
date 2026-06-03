@@ -12,6 +12,7 @@ Namespace mod_minha_tela
       Private _content As Forms.PageControl
 
       Sub New(pTitle As String = "Minha Tela")
+         MyBase.New()
          me._build(pTitle)
       End Sub
 

@@ -18,6 +18,7 @@ Namespace mod_tela_validacao
       Private _valido As Boolean
 
       Sub New(pTitle As String = "Cadastro")
+            MyBase.New()
          me._build(pTitle)
       End Sub
 

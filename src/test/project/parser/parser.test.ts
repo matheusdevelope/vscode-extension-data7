@@ -7,6 +7,7 @@ import type {
   DelegateDeclaration,
   MethodDeclaration,
   NamespaceDeclaration,
+  VariableDeclaration,
 } from "../../../project/generics-monomorphizer/ast";
 
 describe("parser/parser", () => {
@@ -60,7 +61,7 @@ describe("parser/parser", () => {
     assert.equal(klass.baseType?.typeArguments[0]?.name, "Integer");
   });
 
-  test("parses a Sub with parameters and an opaque body", () => {
+  test("parses a Sub with parameters and a structural body", () => {
     const src = ["Sub Add(pValue As Integer)", "   me.Count = me.Count + 1", "End Sub"].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
@@ -70,12 +71,20 @@ describe("parser/parser", () => {
     assert.equal(m.parameters.length, 1);
     assert.equal(m.parameters[0]?.name, "pValue");
     assert.equal(m.parameters[0]?.type.name, "Integer");
-    // Body is preserved as a single OpaqueStatement carrying the source text.
     assert.equal(m.body.length, 1);
     const stmt = m.body[0];
-    assert.equal(stmt?.kind, "OpaqueStatement");
-    if (stmt?.kind === "OpaqueStatement") {
-      assert.match(stmt.text, /me\.Count/);
+    assert.equal(stmt?.kind, "Assignment");
+    if (stmt?.kind === "Assignment") {
+      assert.equal(stmt.operator, "=");
+      assert.equal(stmt.target.kind, "MemberAccess");
+      if (stmt.target.kind === "MemberAccess") {
+        assert.equal(stmt.target.member, "Count");
+        assert.equal(stmt.target.target.kind, "Identifier");
+        if (stmt.target.target.kind === "Identifier") {
+          assert.equal(stmt.target.target.name, "me");
+        }
+      }
+      assert.equal(stmt.value.kind, "BinaryExpression");
     }
   });
 
@@ -156,4 +165,227 @@ describe("parser/parser", () => {
     const klasses = r.unit.members.filter((m) => m.kind === "ClassDeclaration");
     assert.equal(klasses.length, 2);
   });
+
+  test("parses If-ElseIf-Else statements structurally", () => {
+    const src = [
+      "Sub TestIf()",
+      "   If x = 1 Then",
+      "      y = 10",
+      "   ElseIf x = 2 Then",
+      "      y = 20",
+      "   Else",
+      "      y = 30",
+      "   End If",
+      "End Sub"
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const iff = m.body[0];
+    assert.equal(iff?.kind, "IfStatement");
+    if (iff?.kind === "IfStatement") {
+      assert.equal(iff.condition.kind, "BinaryExpression");
+      assert.equal(iff.thenBranch.length, 1);
+      assert.equal(iff.elseIfBranches.length, 1);
+      assert.equal(iff.elseIfBranches[0]?.condition.kind, "BinaryExpression");
+      assert.equal(iff.elseIfBranches[0]?.body.length, 1);
+      assert.ok(iff.elseBranch);
+      assert.equal(iff.elseBranch.length, 1);
+    }
+  });
+
+  test("parses For and For Each loops structurally", () => {
+    const src = [
+      "Sub TestLoops()",
+      "   For i = 0 To 10 Step 2",
+      "      x = i",
+      "   Next i",
+      "   For Each element As Integer In list",
+      "      y = element",
+      "   Next",
+      "End Sub"
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.body[0]?.kind, "ForStatement");
+    assert.equal(m.body[1]?.kind, "ForEachStatement");
+  });
+
+  test("parses Try-Catch-Finally statements structurally", () => {
+    const src = [
+      "Sub TestTry()",
+      "   Try",
+      "      DoSomething()",
+      "   Catch ex As Exception",
+      "      LogError(ex)",
+      "   Finally",
+      "      Cleanup()",
+      "   End Try",
+      "End Sub"
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const tryStmt = m.body[0];
+    assert.equal(tryStmt?.kind, "TryCatchStatement");
+    if (tryStmt?.kind === "TryCatchStatement") {
+      assert.equal(tryStmt.tryBody.length, 1);
+      assert.equal(tryStmt.catchVar?.name, "ex");
+      assert.equal(tryStmt.catchType?.name, "Exception");
+      assert.equal(tryStmt.catchBody.length, 1);
+      assert.ok(tryStmt.finallyBody);
+      assert.equal(tryStmt.finallyBody.length, 1);
+    }
+  });
+
+  test("parses Using statements structurally", () => {
+    const src = [
+      "Sub TestUsing()",
+      "   Using conn As New Connection(connString)",
+      "      conn.Open()",
+      "   End Using",
+      "End Sub"
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const usingStmt = m.body[0];
+    assert.equal(usingStmt?.kind, "UsingStatement");
+    if (usingStmt?.kind === "UsingStatement") {
+      assert.equal(usingStmt.resourceVar.name, "conn");
+      assert.equal(usingStmt.resourceType.name, "Connection");
+      assert.equal(usingStmt.resourceArgs.length, 1);
+      assert.equal(usingStmt.body.length, 1);
+    }
+  });
+
+  test("parses Match statements structurally", () => {
+    const src = [
+      "Sub TestMatch()",
+      "   Match obj",
+      "      Case Is TButton:",
+      "         Click()",
+      "      Case Else:",
+      "         Noop()",
+      "   End Match",
+      "End Sub"
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const matchStmt = m.body[0];
+    assert.equal(matchStmt?.kind, "MatchStatement");
+    if (matchStmt?.kind === "MatchStatement") {
+      assert.equal(matchStmt.subject.kind, "Identifier");
+      assert.equal(matchStmt.cases.length, 2);
+      assert.equal(matchStmt.cases[0]?.typeName, "TButton");
+      assert.equal(matchStmt.cases[0]?.body.length, 1);
+      assert.equal(matchStmt.cases[1]?.isElse, true);
+      assert.equal(matchStmt.cases[1]?.body.length, 1);
+    }
+  });
+
+  test("parses ternary, null-coalescing, pipe and tagged template expressions", () => {
+    const src = [
+      "Sub TestExprs()",
+      "   Dim a = cond ? x : y",
+      "   Dim b = first ?? fallback",
+      "   Dim c = data |> Trim |> UCase",
+      "   Dim d = sql$\"select * from {tbl}\"",
+      "End Sub"
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    
+    const d1 = m.body[0] as VariableDeclaration;
+    assert.equal(d1.initializer?.kind, "TernaryExpression");
+    
+    const d2 = m.body[1] as VariableDeclaration;
+    assert.equal(d2.initializer?.kind, "NullCoalescingExpression");
+    
+    const d3 = m.body[2] as VariableDeclaration;
+    assert.equal(d3.initializer?.kind, "PipeExpression");
+    
+    const d4 = m.body[3] as VariableDeclaration;
+    assert.equal(d4.initializer?.kind, "TaggedTemplateExpression");
+  });
+
+  // -------------------------------------------------------------------------
+  // Sub New / constructor support
+  // -------------------------------------------------------------------------
+
+  test("parses Sub New with parameters — name is preserved as 'New'", () => {
+    const src = [
+      "Sub New(pCode As String, pName As String)",
+      "   MyBase.New()",
+      "   me.Code = pCode",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], [], "Sub New should parse without errors");
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.kind, "MethodDeclaration");
+    assert.equal(m.name, "New", "constructor name must be 'New'");
+    assert.equal(m.isConstructor, true, "isConstructor flag must be set");
+    assert.equal(m.parameters.length, 2);
+    assert.equal(m.parameters[0]?.name, "pCode");
+    assert.equal(m.parameters[0]?.type.name, "String");
+    assert.equal(m.parameters[1]?.name, "pName");
+  });
+
+  test("parses Sub New inside a Class and marks it as constructor", () => {
+    const src = [
+      "Class TProduto",
+      "   Public Codigo As String",
+      "   Sub New(pCodigo As String, pPreco As Double)",
+      "      MyBase.New()",
+      "      me.Codigo = pCodigo",
+      "   End Sub",
+      "   Function GetPreco() As Double",
+      "      GetPreco = 0.0",
+      "   End Function",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], [], "Class with Sub New should parse without errors");
+    const klass = r.unit.members[0] as ClassDeclaration;
+    assert.equal(klass.kind, "ClassDeclaration");
+    assert.equal(klass.name, "TProduto");
+    // Sub New is the second member (after the field)
+    const ctor = klass.members.find(
+      (m) => m.kind === "MethodDeclaration" && m.name.toLowerCase() === "new",
+    ) as MethodDeclaration | undefined;
+    assert.ok(ctor, "Should find a constructor method");
+    assert.equal(ctor?.isConstructor, true);
+    assert.equal(ctor?.parameters.length, 2);
+    assert.equal(ctor?.parameters[0]?.name, "pCodigo");
+    assert.equal(ctor?.parameters[1]?.name, "pPreco");
+    // Regular method should NOT be marked as constructor
+    const getPreco = klass.members.find(
+      (m) => m.kind === "MethodDeclaration" && m.name === "GetPreco",
+    ) as MethodDeclaration | undefined;
+    assert.ok(getPreco, "Should find GetPreco method");
+    assert.ok(!getPreco?.isConstructor, "Regular method must NOT have isConstructor set");
+  });
+
+  test("Sub New round-trips through serializer correctly", () => {
+    const { serializeUnit } = require("../../../project/parser/serializer");
+    const src = [
+      "Class TItem",
+      "   Sub New(pVal As Integer)",
+      "      MyBase.New()",
+      "      me.Val = pVal",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out: string = serializeUnit(r.unit);
+    assert.ok(out.includes("Sub New("), `Expected 'Sub New(' in serialized output, got:\n${out}`);
+    assert.ok(out.includes("pVal As Integer"), `Expected parameter in serialized output`);
+    assert.ok(!out.includes("Sub ("), "Serializer must not emit 'Sub (' (lost name)");
+  });
 });
+

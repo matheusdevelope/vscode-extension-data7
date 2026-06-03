@@ -69,6 +69,11 @@ export class TypeResolver {
       `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\s*=\\s*(.+?)\\s*(?:'.*)?$`,
       "i",
     );
+    const setRegex = new RegExp(
+      `^\\s*Set\\s*\\(\\s*(?:ByVal\\s+|ByRef\\s+)?([a-zA-Z0-9_]+)\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+))?`,
+      "i",
+    );
+
     for (let i = position.line; i >= 0; i--) {
       const lineRaw = lines[i];
       if (lineRaw === undefined) continue;
@@ -78,6 +83,11 @@ export class TypeResolver {
       const forEachMatch = lineText.match(forEachRegex);
       if (forEachMatch) {
         return forEachMatch[1] ?? "Variant";
+      }
+
+      const setMatch = setRegex.exec(lineText);
+      if (setMatch?.[1]?.toLowerCase() === varLower) {
+        return setMatch[2] ?? "Variant";
       }
 
       const match = lineText.match(regex);
@@ -105,6 +115,18 @@ export class TypeResolver {
     );
     if (currentMethod?.parameters) {
       const param = currentMethod.parameters.find((p) => p.name.toLowerCase() === varLower);
+      if (param) return param.type;
+    }
+
+    // NOVO: Verifica os parâmetros do Property ativo (ex: propriedades indexadas como Item(pIndex As Integer))
+    const currentProperty = fileSyms.symbols.find(
+      (s) =>
+        (s.kind === "property" || s.kind === "indexed-property") &&
+        position.line >= s.range.startLine &&
+        position.line <= s.range.endLine,
+    );
+    if (currentProperty?.parameters) {
+      const param = currentProperty.parameters.find((p) => p.name.toLowerCase() === varLower);
       if (param) return param.type;
     }
 

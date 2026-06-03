@@ -65,11 +65,12 @@ export function tokenize(source: string): Token[] {
  * comments).
  */
 function mapLineToken(t: LineToken, line: number): Token | null {
-  if (t.kind === "whitespace" || t.kind === "comment") return null;
+  if (t.kind === "whitespace") return null;
   const kind: TokenKind = t.kind === "identifier" ? "identifier" : t.kind;
   return {
     kind,
     value: t.value,
     loc: { line, column: t.col },
+    prefix: t.kind === "string" ? t.prefix : undefined,
   };
 }

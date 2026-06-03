@@ -179,6 +179,7 @@ import { symbols as sym_Globals_TryStrToInt } from "./Globals/TryStrToInt";
 import { symbols as sym_Globals_UCase } from "./Globals/UCase";
 import { symbols as sym_Globals_ZipFile } from "./Globals/ZipFile";
 // Globals — tipos comuns Delphi (TColor, TCursor, TPoint, TRect, TFontStyle, TMouseButton + event delegates)
+import { symbols as sym_Globals_Exception } from "./Globals/Exception";
 import { symbols as sym_Globals_TColor } from "./Globals/TColor";
 import { symbols as sym_Globals_TCursor } from "./Globals/TCursor";
 import { symbols as sym_Globals_TPoint } from "./Globals/TPoint";
@@ -402,6 +403,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_UCase,
   ...sym_Globals_ZipFile,
   // Globals — tipos comuns Delphi
+  ...sym_Globals_Exception,
   ...sym_Globals_TColor,
   ...sym_Globals_TCursor,
   ...sym_Globals_TPoint,

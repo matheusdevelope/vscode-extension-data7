@@ -9,6 +9,8 @@ import {
   type GenericTemplateInfo,
   type GenericUsageOccurrence,
 } from "./generics-analyzer";
+import { PRIMITIVE_TYPES } from "../utils/primitive-types";
+import { inferLiteralType } from "../utils/literal-type-infer";
 
 // Parameter info
 export interface ParameterInfo {
@@ -42,6 +44,9 @@ export interface SymbolInfo {
   type: string;
   isShared: boolean;
   isPrivate: boolean;
+  isProtected?: boolean;
+  isConst?: boolean;
+  isReadOnly?: boolean;
   parameters?: ParameterInfo[];
   /**
    * Overloads adicionais do mesmo método/property indexada — quando preenchido,
@@ -91,14 +96,17 @@ export class SymbolParser {
       if (!trimmed) continue;
 
       let isByRef = false;
+      let isExplicitByVal = false;
+      let isExplicitByRef = false;
       let isOptional = false;
       let pText = trimmed;
 
       // Check ByVal / ByRef
       if (pText.toLowerCase().startsWith("byref ")) {
-        isByRef = true;
+        isExplicitByRef = true;
         pText = pText.substring(6).trim();
       } else if (pText.toLowerCase().startsWith("byval ")) {
+        isExplicitByVal = true;
         pText = pText.substring(6).trim();
       }
 
@@ -125,6 +133,17 @@ export class SymbolParser {
         type = pText.substring(asIdx + 4).trim();
       } else {
         name = pText;
+      }
+
+      if (isExplicitByRef) {
+        isByRef = true;
+      } else if (isExplicitByVal) {
+        isByRef = false;
+      } else {
+        const typeLower = type.toLowerCase();
+        const isPrimitive =
+          PRIMITIVE_TYPES.has(typeLower) || typeLower === "variant" || typeLower === "void";
+        isByRef = !isPrimitive;
       }
 
       result.push({
@@ -252,6 +271,7 @@ export class SymbolParser {
         const classIdx = trimmed.toLowerCase().indexOf("class");
         const modifiersPart = trimmed.substring(0, classIdx);
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isProtected = /\bprotected\b/i.test(modifiersPart);
         const isShared = /\bshared\b/i.test(modifiersPart);
         const name = classMatch[2];
 
@@ -261,6 +281,7 @@ export class SymbolParser {
           type: name,
           isShared,
           isPrivate,
+          isProtected,
           range: {
             startLine: lineIdx,
             startChar: line.indexOf(name),
@@ -295,6 +316,7 @@ export class SymbolParser {
         const structIdx = trimmed.toLowerCase().indexOf("structure");
         const modifiersPart = trimmed.substring(0, structIdx);
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isProtected = /\bprotected\b/i.test(modifiersPart);
         const isShared = /\bshared\b/i.test(modifiersPart);
         const name = structMatch[2];
 
@@ -304,6 +326,7 @@ export class SymbolParser {
           type: name,
           isShared,
           isPrivate,
+          isProtected,
           range: {
             startLine: lineIdx,
             startChar: line.indexOf(name),
@@ -340,6 +363,7 @@ export class SymbolParser {
         const propIdx = trimmed.toLowerCase().indexOf("property");
         const modifiersPart = trimmed.substring(0, propIdx);
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isProtected = /\bprotected\b/i.test(modifiersPart);
         const isShared = /\bshared\b/i.test(modifiersPart);
         const name = propMatch[2];
         const hasParams = propMatch[3] !== undefined;
@@ -351,6 +375,7 @@ export class SymbolParser {
           type,
           isShared,
           isPrivate,
+          isProtected,
           range: {
             startLine: lineIdx,
             startChar: line.indexOf(name),
@@ -379,6 +404,7 @@ export class SymbolParser {
         const delegateIdx = trimmed.toLowerCase().indexOf("delegate");
         const modifiersPart = trimmed.substring(0, delegateIdx);
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isProtected = /\bprotected\b/i.test(modifiersPart);
         const isShared = /\bshared\b/i.test(modifiersPart);
         const name = delegateMatch[3];
         const params = this.parseParameters(delegateMatch[4] ?? "");
@@ -392,6 +418,7 @@ export class SymbolParser {
           type,
           isShared,
           isPrivate,
+          isProtected,
           parameters: params,
           range: {
             startLine: lineIdx,
@@ -416,6 +443,7 @@ export class SymbolParser {
       if (declareMatch?.[3]) {
         const modifiers = declareMatch[1]?.toLowerCase() ?? "";
         const isPrivate = /\bprivate\b/i.test(modifiers);
+        const isProtected = /\bprotected\b/i.test(modifiers);
         const isShared = true;
         const subOrFunc = (declareMatch[2] ?? "").toLowerCase();
         const kind = subOrFunc === "sub" ? "declare_sub" : "declare_function";
@@ -429,6 +457,7 @@ export class SymbolParser {
           type,
           isShared,
           isPrivate,
+          isProtected,
           parameters: params,
           range: {
             startLine: lineIdx,
@@ -472,6 +501,7 @@ export class SymbolParser {
               : funcIdx;
         const modifiersPart = trimmed.substring(0, keywordIdx);
         const isPrivate = /\bprivate\b/i.test(modifiersPart);
+        const isProtected = /\bprotected\b/i.test(modifiersPart);
         const isShared = /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
         const name = methodMatch[3];
         const params = this.parseParameters(methodMatch[4] ?? "");
@@ -485,6 +515,7 @@ export class SymbolParser {
             type,
             isShared,
             isPrivate,
+            isProtected,
             parameters: params,
             range: {
               startLine: lineIdx,
@@ -503,8 +534,54 @@ export class SymbolParser {
         continue;
       }
 
-      // 16. Fields / Variables (Dim)
+      // 16. Fields / Variables (Dim / Const)
       if (!activeMethod && !activeProperty) {
+        const constMatch =
+          /^(?:(Private|Public|Protected|Shared)\s+)*Const\s+([a-zA-Z0-9_]+)(?:\s+As\s+([a-zA-Z0-9_.]+))?(?:\s*=\s*(.+))?/i.exec(
+            trimmed,
+          );
+        if (constMatch) {
+          const modifiers = constMatch[1]?.toLowerCase() ?? "";
+          const name = constMatch[2]!;
+          const explicitType = constMatch[3];
+          const valueExpr = constMatch[4];
+
+          let type = explicitType ?? "Variant";
+          if (!explicitType && valueExpr) {
+            type = inferLiteralType(valueExpr.trim()) ?? "Variant";
+          }
+
+          const isPrivate =
+            /\bprivate\b/i.test(modifiers) ||
+            ((!!activeClass || !!activeStructure) &&
+              !/\bpublic\b/i.test(modifiers) &&
+              !/\bprotected\b/i.test(modifiers));
+          const isProtected = /\bprotected\b/i.test(modifiers);
+          const isShared = true; // Consts are static/shared by definition
+
+          const constSymbol: SymbolInfo = {
+            name,
+            kind: "variable",
+            type,
+            isShared,
+            isPrivate,
+            isProtected,
+            isConst: true,
+            range: {
+              startLine: lineIdx,
+              startChar: line.indexOf(name),
+              endLine: lineIdx,
+              endChar: line.length,
+            },
+            fileUri,
+            containerName: activeClass?.name ?? activeStructure?.name ?? activeNamespace,
+            description: pendingDescription || undefined,
+          };
+          fileSymbols.symbols.push(constSymbol);
+          pendingDescription = "";
+          continue;
+        }
+
         const varMatch =
           /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*(?:Dim\s+)?([a-zA-Z0-9_]+)(?:\s+As\s+(?:New\s+)?([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
             trimmed,
@@ -553,7 +630,14 @@ export class SymbolParser {
             const varName = varMatch[2];
             const varNameIdx = trimmed.indexOf(varName);
             const modifiersPart = trimmed.substring(0, varNameIdx);
-            const isPrivate = /\bprivate\b/i.test(modifiersPart);
+
+            // In VB.Net/Data7, fields declared with Dim or Private are Private by default inside classes/structures.
+            // At the namespace/global level, they are public by default.
+            const isPrivate =
+              /\bprivate\b/i.test(modifiersPart) ||
+              (/\bdim\b/i.test(modifiersPart) && (!!activeClass || !!activeStructure));
+            const isProtected = /\bprotected\b/i.test(modifiersPart);
+            const isReadOnly = /\breadonly\b/i.test(modifiersPart);
             const isShared =
               /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
             const type = varMatch[3] ?? "Variant";
@@ -564,6 +648,8 @@ export class SymbolParser {
               type,
               isShared,
               isPrivate,
+              isProtected,
+              isReadOnly,
               range: {
                 startLine: lineIdx,
                 startChar: line.indexOf(name),

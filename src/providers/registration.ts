@@ -30,7 +30,11 @@ import { D7BasicWorkspaceSymbolProvider } from "./workspace-symbol-provider";
  * `register*Provider` API (see governance.mdc).
  */
 export function registerLanguageProviders(context: vscode.ExtensionContext): void {
-  const selector: vscode.DocumentSelector = LANGUAGE_IDS.d7basic;
+  const selector: vscode.DocumentSelector = [
+    { language: LANGUAGE_IDS.d7basic },
+    { scheme: "file", pattern: "**/*.bas" },
+    { scheme: "untitled", pattern: "**/*.bas" },
+  ];
 
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(selector, new D7BasicCompletionProvider()),

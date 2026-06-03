@@ -48,6 +48,7 @@ function buildSkeleton(opts: BuildOptions): string {
   }
   lines.push("");
   lines.push(`      Sub New(pTitle As String = "${opts.title}")`);
+  lines.push("         MyBase.New()");
   lines.push("         me._build(pTitle)");
   lines.push("      End Sub");
   lines.push("");
@@ -124,6 +125,7 @@ function buildListSkeleton(opts: BuildOptions): string {
   lines.push("      Private _grid As Forms.Grid");
   lines.push("");
   lines.push(`      Sub New(pTitle As String = "${opts.title}")`);
+  lines.push("         MyBase.New()");
   lines.push("         me._build(pTitle)");
   lines.push("         me._carregar()");
   lines.push("      End Sub");

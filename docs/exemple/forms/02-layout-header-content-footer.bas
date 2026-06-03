@@ -15,6 +15,7 @@ Namespace mod_tela_layout
       Private _footer As Forms.PageControl
 
       Sub New(pTitle As String = "Tela com layout")
+            MyBase.New()
          me._build(pTitle)
       End Sub
 

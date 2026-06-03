@@ -49,6 +49,28 @@ class Location {
   ) {}
 }
 
+class Selection {
+  anchor: { line: number; character: number };
+  active: { line: number; character: number };
+  readonly isEmpty = false;
+  readonly isReversed = false;
+  constructor(
+    anchorLineOrAnchor: number | { line: number; character: number },
+    anchorCharOrActive: number | { line: number; character: number },
+    activeLine?: number,
+    activeChar?: number,
+  ) {
+    if (typeof anchorLineOrAnchor === "number") {
+      this.anchor = { line: anchorLineOrAnchor, character: anchorCharOrActive as number };
+      this.active = { line: activeLine ?? anchorLineOrAnchor, character: activeChar ?? (anchorCharOrActive as number) };
+    } else {
+      this.anchor = { line: anchorLineOrAnchor.line, character: anchorLineOrAnchor.character };
+      const a = anchorCharOrActive as { line: number; character: number };
+      this.active = { line: a.line, character: a.character };
+    }
+  }
+}
+
 class Diagnostic {
   code?: string | number;
   data?: unknown;
@@ -488,9 +510,11 @@ const mockVsCode = {
   SignatureHelp,
   SemanticTokensLegend,
   SemanticTokensBuilder,
+  Selection,
   StatusBarAlignment: { Left: 1, Right: 2 },
   ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
   QuickPickItemKind: { Separator: -1, Default: 0 },
+  TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
   workspace: {
     isTrusted: true,
     textDocuments: [] as unknown[],
@@ -551,6 +575,8 @@ const mockVsCode = {
       return task({ report: () => undefined });
     },
     activeTextEditor: undefined as unknown,
+    visibleTextEditors: [] as unknown[],
+    onDidChangeTextEditorSelection: (_listener: unknown) => ({ dispose: () => undefined }),
   },
   languages: {
     getDiagnostics: (): [unknown, unknown[]][] => [],

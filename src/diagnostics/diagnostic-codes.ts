@@ -179,6 +179,33 @@ export const DiagnosticCodes = {
   InstantiationLimitExceeded: "instantiation-limit-exceeded",
   /** An identifier's name conflicts with another declaration in the same or an outer/imported/global scope. */
   DuplicateDeclaration: "duplicate-declaration",
+  /** A type reference targets a type that cannot be resolved in the workspace or system library. */
+  UnknownType: "unknown-type",
+  /**
+   * A `Sub New` constructor does not call `MyBase.New()`. Every Data7 class
+   * must initialise its base object so the runtime can set up the object
+   * correctly. When the class inherits from another, arguments must also be
+   * forwarded: `MyBase.New(pParam As String)`.
+   */
+  MissingMyBaseNew: "missing-mybase-new",
+  /** A member access of an instance member is done statically directly on the type. */
+  InstanceMemberAccessOnType: "instance-member-access-on-type",
+  /** A Sub procedure (returning Void) was used as a function in an expression context. */
+  SubUsedAsFunction: "sub-used-as-function",
+  /** A reference to a symbol (variable, constant, method) that does not exist in the scope. */
+  UnknownSymbol: "unknown-symbol",
+  /** A loose type name sitting on its own on a line. */
+  LooseTypeStatement: "loose-type-statement",
+  /** A method call violating the parentheses requirements. */
+  CallParenthesesMismatch: "call-parentheses-mismatch",
+  /** Reading from the function name inside its own body is not allowed. */
+  FunctionReadSelf: "function-read-self",
+  /** Assigning a value to an invalid target (like another function name). */
+  InvalidAssignmentTarget: "invalid-assignment-target",
+  /** The function can reach the end of its body or an Exit Function without setting a return value. */
+  MissingReturnValue: "missing-return-value",
+  /** Unreachable/dead code following a return/exit or inside always-false constant conditionals. */
+  DeadCode: "dead-code",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -374,6 +401,15 @@ export interface DuplicateDeclarationPayload {
   conflictingWithName: string;
 }
 
+/**
+ * Payload for `MissingMyBaseNew`: identifies which class's constructor is missing the call.
+ */
+export interface MissingMyBaseNewPayload {
+  code: typeof DiagnosticCodes.MissingMyBaseNew;
+  /** Name of the class whose `Sub New` is missing `MyBase.New()`. */
+  className: string;
+}
+
 export type DiagnosticPayload =
   | MissingImportPayload
   | ModuleNotDeclaredPayload
@@ -394,7 +430,8 @@ export type DiagnosticPayload =
   | ClassGenericMethodUnsupportedPayload
   | FlatNameCollisionPayload
   | InstantiationLimitExceededPayload
-  | DuplicateDeclarationPayload;
+  | DuplicateDeclarationPayload
+  | MissingMyBaseNewPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

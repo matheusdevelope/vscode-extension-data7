@@ -7,6 +7,7 @@ import { detectEnumerable } from "../analysis/enumerable-detector";
 import { formatParameterList } from "../utils/format-helpers";
 import { LANGUAGE_IDS } from "../infra/constants";
 import { getChainPrefix } from "../utils/chain-parser";
+import { inferLiteralType } from "../utils/literal-type-infer";
 
 export class D7BasicHoverProvider implements vscode.HoverProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -43,6 +44,17 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       case "indexed-property":
         return `${modPart}Property ${s.name}${paramsPart} As ${s.type}`;
       case "variable":
+        if (s.isConst) {
+          const isClassMember =
+            s.containerName &&
+            !s.containerName.toLowerCase().startsWith("mod_") &&
+            !s.containerName.toLowerCase().includes("namespace");
+          if (isClassMember) {
+            const vis = s.isPrivate ? "Private " : s.isProtected ? "Protected " : "Public ";
+            return `${vis}Const ${s.name} As ${s.type}`;
+          }
+          return `Const ${s.name} As ${s.type}`;
+        }
         return `${modPart}Dim ${s.name} As ${s.type}`;
       default:
         return s.name;
@@ -68,6 +80,15 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     // needing to peek at docs/exemple/.
     const forEachHover = this.tryForEachHover(document, position, range);
     if (forEachHover) return forEachHover;
+
+    // Case: hovering over a literal value (number, boolean, string snippet).
+    // `inferLiteralType` already covers integer/float/boolean/string detection.
+    const literalType = inferLiteralType(word);
+    if (literalType) {
+      const md = new vscode.MarkdownString();
+      md.appendCodeblock(`(literal) ${word} As ${literalType}`, LANGUAGE_IDS.d7basic);
+      return new vscode.Hover(md, range);
+    }
 
     let targetSymbol: SymbolInfo | undefined;
     let isMemberAccess = false; // <-- ADICIONE ESTA FLAG
@@ -150,6 +171,13 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
             position.line <= s.range.endLine,
         );
 
+        const currentProperty = fileSyms?.symbols.find(
+          (s) =>
+            (s.kind === "property" || s.kind === "indexed-property") &&
+            position.line >= s.range.startLine &&
+            position.line <= s.range.endLine,
+        );
+
         if (currentMethod?.parameters) {
           const param = currentMethod.parameters.find(
             (p) => p.name.toLowerCase() === word.toLowerCase(),
@@ -166,6 +194,52 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
               range: currentMethod.range,
               description: `Parâmetro de \`${currentMethod.name}\``,
             };
+          }
+        }
+        // --- 1.b. NOVO: CHECAR SE É UM PARÂMETRO DA PROPRIEDADE INDEXADA OU DO SET ---
+        if (!targetSymbol && currentProperty) {
+          // A. Checa se é parâmetro do cabeçalho da propriedade (ex: Item(pIndex As Integer))
+          if (currentProperty.parameters) {
+            const param = currentProperty.parameters.find(
+              (p) => p.name.toLowerCase() === word.toLowerCase(),
+            );
+            if (param) {
+              targetSymbol = {
+                name: param.name,
+                kind: "variable",
+                type: param.type,
+                isShared: false,
+                isPrivate: false,
+                fileUri: document.uri.toString(),
+                range: currentProperty.range,
+                description: `Parâmetro de \`${currentProperty.name}\``,
+              };
+            }
+          }
+
+          // B. Checa se o texto sob o hover é o parâmetro declarado em um bloco Set(pValue As...)
+          if (!targetSymbol) {
+            // Retorna linha a linha até o começo da property procurando o 'Set(X)'
+            for (let i = position.line; i >= currentProperty.range.startLine; i--) {
+              const lineStr = document.lineAt(i).text.trim();
+              const setMatch =
+                /^\s*Set\s*\(\s*(?:ByVal\s+|ByRef\s+)?([a-zA-Z0-9_]+)\b(?:\s+As\s+([a-zA-Z0-9_.]+))?/i.exec(
+                  lineStr,
+                );
+              if (setMatch?.[1]?.toLowerCase() === word.toLowerCase()) {
+                targetSymbol = {
+                  name: setMatch[1],
+                  kind: "variable",
+                  type: setMatch[2] ?? "Variant",
+                  isShared: false,
+                  isPrivate: false,
+                  fileUri: document.uri.toString(),
+                  range: currentProperty.range,
+                  description: `Parâmetro de atribuição do bloco \`Set\``,
+                };
+                break;
+              }
+            }
           }
         }
 

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { DependencyScanner } from "../analysis/dependency-scanner";
+import { stripCommentsAndStrings } from "../utils/code-stripper";
 
 interface OpenBlock {
   startLine: number;
@@ -61,7 +61,7 @@ export class D7BasicFoldingRangeProvider implements vscode.FoldingRangeProvider 
   ): vscode.ProviderResult<vscode.FoldingRange[]> {
     if (token.isCancellationRequested) return undefined;
 
-    const cleaned = DependencyScanner.stripComments(document.getText()).split(/\r?\n/);
+    const cleaned = stripCommentsAndStrings(document.getText()).split("\n");
     const ranges: vscode.FoldingRange[] = [];
     const stack: OpenBlock[] = [];
 

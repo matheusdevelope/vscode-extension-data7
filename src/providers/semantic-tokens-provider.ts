@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { SYSTEM_SYMBOLS } from "../system-library";
+import { stripCommentsAndStringsLine } from "../utils/code-stripper";
 
 /**
  * Token types we declare to VS Code. Order matters — index = `legend.tokenTypes.indexOf(type)`.
@@ -49,9 +50,10 @@ export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTok
       // Skip comment lines wholesale.
       if (/^\s*('|Rem\s)/i.test(lineText)) continue;
 
+      const cleanedLine = stripCommentsAndStringsLine(lineText);
       wordRegex.lastIndex = 0;
       let m: RegExpExecArray | null;
-      while ((m = wordRegex.exec(lineText)) !== null) {
+      while ((m = wordRegex.exec(cleanedLine)) !== null) {
         const kind = lookup.get(m[0].toLowerCase());
         if (!kind) continue;
         const tokenTypeIdx = TOKEN_TYPES.indexOf(kind);
