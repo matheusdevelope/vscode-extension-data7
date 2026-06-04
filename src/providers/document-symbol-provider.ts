@@ -1,114 +1,190 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { mapSystemKindToVsCode } from "../utils/symbol-kind";
+import { LanguageProcessor } from "../analysis/language-processor";
+import type {
+  TopLevelMember,
+  ClassMember,
+  SourceLocation,
+} from "../project/generics-monomorphizer/ast";
 
 /**
  * Provides hierarchical symbols (Namespace > Class > Method/Property/Field)
- * for the Outline view, breadcrumbs, sticky scroll and `Ctrl+Shift+O`.
- *
- * Hierarchy is derived from each symbol's `containerName`: top-level entries
- * have no container, classes/structures are children of their namespace, and
- * members live under their owning class.
+ * for the Outline view, breadcrumbs, sticky scroll and `Ctrl+Shift+O`
+ * using the unified parser AST.
  */
 export class D7BasicDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-  private indexer = WorkspaceSymbolIndexer.getInstance();
-
   public provideDocumentSymbols(
     document: vscode.TextDocument,
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.DocumentSymbol[]> {
     if (token.isCancellationRequested) return undefined;
 
-    const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
-    if (!fileSyms || fileSyms.symbols.length === 0) return [];
+    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const unit = cached.unit;
 
-    const byContainer = new Map<string, SymbolInfo[]>();
-    const topLevel: SymbolInfo[] = [];
-    for (const s of fileSyms.symbols) {
-      if (s.containerName) {
-        const a = byContainer.get(s.containerName) ?? [];
-        a.push(s);
-        byContainer.set(s.containerName, a);
-      } else {
-        topLevel.push(s);
-      }
+    const symbols: vscode.DocumentSymbol[] = [];
+    for (const m of unit.members) {
+      symbols.push(...processMember(m));
     }
+    return symbols;
+  }
+}
 
-    const toDocumentSymbol = (s: SymbolInfo): vscode.DocumentSymbol => {
-      // `range` should cover the ENTIRE symbol body (header → `End Xxx`) so
-      // breadcrumbs / sticky scroll know which symbol the cursor sits inside.
-      // `selectionRange` should pinpoint the name on the header line.
-      const fullRange = toFullRange(s);
-      const selRange = toSelectionRange(s);
-      const detail = buildDetail(s);
+function toVsCodeRange(loc: SourceLocation | undefined): vscode.Range {
+  if (!loc) {
+    return new vscode.Range(0, 0, 0, 0);
+  }
+  const startLine = Math.max(0, loc.startLine - 1);
+  const endLine = Math.max(0, loc.endLine - 1);
+  return new vscode.Range(startLine, loc.startChar, endLine, loc.endChar);
+}
+
+function toSelectionRange(name: string, loc: SourceLocation | undefined): vscode.Range {
+  if (!loc) {
+    return new vscode.Range(0, 0, 0, 0);
+  }
+  const startLine = Math.max(0, loc.startLine - 1);
+  return new vscode.Range(startLine, loc.startChar, startLine, loc.startChar + name.length);
+}
+
+function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSymbol[] {
+  const symbols: vscode.DocumentSymbol[] = [];
+  const range = toVsCodeRange(member.loc);
+  const name = "name" in member ? member.name : "";
+  const selRange = toSelectionRange(name, member.loc);
+
+  switch (member.kind) {
+    case "NamespaceDeclaration": {
       const sym = new vscode.DocumentSymbol(
-        s.name,
-        detail,
-        mapSystemKindToVsCode(s),
-        fullRange,
-        selRange,
+        member.name,
+        "Namespace",
+        vscode.SymbolKind.Namespace,
+        range,
+        selRange
       );
-      const children = byContainer.get(s.name);
-      if (children) {
-        for (const c of children.sort((a, b) => a.range.startLine - b.range.startLine)) {
-          sym.children.push(toDocumentSymbol(c));
-        }
+      for (const m of member.members) {
+        sym.children.push(...processMember(m));
       }
-      return sym;
-    };
-
-    return topLevel.sort((a, b) => a.range.startLine - b.range.startLine).map(toDocumentSymbol);
-  }
-}
-
-/**
- * Range covering the entire symbol body. Used as the `range` of a `DocumentSymbol`
- * so that VS Code can answer "what symbol is the cursor in?" (powers breadcrumbs
- * and sticky-scroll).
- */
-function toFullRange(s: SymbolInfo): vscode.Range {
-  return new vscode.Range(s.range.startLine, s.range.startChar, s.range.endLine, s.range.endChar);
-}
-
-/**
- * Range pinpointing the symbol name on the header line. Used as the
- * `selectionRange` so that clicking a breadcrumb highlights only the name.
- */
-function toSelectionRange(s: SymbolInfo): vscode.Range {
-  return new vscode.Range(
-    s.range.startLine,
-    s.range.startChar,
-    s.range.startLine,
-    s.range.startChar + s.name.length,
-  );
-}
-
-function buildDetail(s: SymbolInfo): string {
-  switch (s.kind) {
-    case "namespace":
-      return "Namespace";
-    case "class":
-      return s.inheritsFrom ? `Class ← ${s.inheritsFrom}` : "Class";
-    case "structure":
-      return "Structure";
-    case "delegate":
-      return "Delegate";
-    case "method": {
-      const params = (s.parameters ?? []).length;
-      return s.type === "Void"
-        ? `Sub (${params} param${params === 1 ? "" : "s"})`
-        : `Function (${params}) → ${s.type}`;
+      symbols.push(sym);
+      break;
     }
-    case "property":
-      return `Property: ${s.type}`;
-    case "variable":
-      return `Var: ${s.type}`;
-    case "declare_sub":
-      return "Declare Sub";
-    case "declare_function":
-      return `Declare Function → ${s.type}`;
-    default:
-      return "";
+    case "ClassDeclaration": {
+      const detail = member.baseType ? `Class ← ${member.baseType.name}` : "Class";
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        detail,
+        vscode.SymbolKind.Class,
+        range,
+        selRange
+      );
+      for (const m of member.members) {
+        sym.children.push(...processMember(m));
+      }
+      symbols.push(sym);
+      break;
+    }
+    case "MethodDeclaration": {
+      const isSub = !member.returnType;
+      const params = member.parameters.length;
+      const paramStr = `(${params} param${params === 1 ? "" : "s"})`;
+      const detail = isSub 
+        ? (member.isConstructor ? "Sub New" : `Sub ${paramStr}`)
+        : `Function ${paramStr} → ${member.returnType ? member.returnType.name : "Variant"}`;
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        detail,
+        vscode.SymbolKind.Method,
+        range,
+        selRange
+      );
+      symbols.push(sym);
+      break;
+    }
+    case "PropertyDeclaration": {
+      const detail = `Property: ${member.type.name}`;
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        detail,
+        vscode.SymbolKind.Property,
+        range,
+        selRange
+      );
+      symbols.push(sym);
+      break;
+    }
+    case "FieldDeclaration": {
+      const detail = `Field: ${member.type.name}`;
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        detail,
+        vscode.SymbolKind.Field,
+        range,
+        selRange
+      );
+      symbols.push(sym);
+      break;
+    }
+    case "EnumDeclaration": {
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        "Enum",
+        vscode.SymbolKind.Enum,
+        range,
+        selRange
+      );
+      for (const entry of member.entries) {
+        const entryRange = toVsCodeRange(entry.loc);
+        const entrySelRange = toSelectionRange(entry.name, entry.loc);
+        const entrySym = new vscode.DocumentSymbol(
+          entry.name,
+          "Enum Member",
+          vscode.SymbolKind.EnumMember,
+          entryRange,
+          entrySelRange
+        );
+        sym.children.push(entrySym);
+      }
+      symbols.push(sym);
+      break;
+    }
+    case "DelegateDeclaration": {
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        "Delegate",
+        vscode.SymbolKind.Event,
+        range,
+        selRange
+      );
+      symbols.push(sym);
+      break;
+    }
+    case "VariableDeclaration": {
+      const typeSuffix = member.type ? `: ${member.type.name}` : "";
+      const detail = `${member.isConst ? "Const" : "Var"}${typeSuffix}`;
+      const sym = new vscode.DocumentSymbol(
+        member.name,
+        detail,
+        vscode.SymbolKind.Variable,
+        range,
+        selRange
+      );
+      symbols.push(sym);
+      break;
+    }
+    case "DestructuredVariableDeclaration": {
+      for (const b of member.bindings) {
+        const bRange = toVsCodeRange(member.loc);
+        const bSelRange = toSelectionRange(b.name, member.loc);
+        const sym = new vscode.DocumentSymbol(
+          b.name,
+          "Var (Destructured)",
+          vscode.SymbolKind.Variable,
+          bRange,
+          bSelRange
+        );
+        symbols.push(sym);
+      }
+      break;
+    }
   }
+  return symbols;
 }

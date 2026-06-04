@@ -6,9 +6,12 @@
  * everything they need from this barrel.
  */
 
+import { parse, parseExpr } from "./parser";
+import type { ParseResult, ParseOptions } from "./parser";
+
 export { tokenize } from "./lexer";
-export { parse, parseExpr } from "./parser";
-export type { ParseResult } from "./parser";
+export { parse, parseExpr };
+export type { ParseResult, ParseOptions };
 export { makeError } from "./parser-errors";
 export type { ParseError, ParseErrorCode } from "./parser-errors";
 export { serializeUnit, serializeUnitWithMap, obfuscateLocalVariables } from "./serializer";
@@ -20,9 +23,10 @@ export type { Token, TokenKind, TokenLocation } from "./token-types";
  * point. Equivalent to {@link parse} but exported with a more
  * descriptive name.
  */
-import { parse } from "./parser";
-import type { ParseResult } from "./parser";
-
-export function parseBasic(source: string): ParseResult {
-  return parse(source);
+export function parseBasic(source: string, options?: ParseOptions): ParseResult {
+  return parse(source, options);
 }
+
+export type { ParserPlugin } from "./plugin";
+export { SugarsParserPlugin } from "./sugars-plugin";
+export { GenericsParserPlugin } from "./generics-plugin";

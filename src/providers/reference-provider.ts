@@ -1,19 +1,11 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { DependencyScanner } from "../analysis/dependency-scanner";
-import { escapeForRegex } from "../utils/regex-helpers";
+import { LanguageProcessor } from "../analysis/language-processor";
 
 /**
  * Provides "Find All References" (Shift+F12) for Data7 Basic identifiers.
- *
- * Strategy:
- *  1. Identify the word at the cursor.
- *  2. Look up every indexed `.bas` file the indexer knows about plus the active
- *     document. For each, scan with a whole-word regex (case-insensitive,
- *     since Data7 Basic is case-insensitive in practice).
- *  3. Skip matches that appear inside comments or string literals — we use the
- *     same `stripComments` helper that already powers the linter.
+ * Uses tokens from LanguageProcessor to ensure high-fidelity matches.
  */
 export class D7BasicReferenceProvider implements vscode.ReferenceProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -37,16 +29,14 @@ export class D7BasicReferenceProvider implements vscode.ReferenceProvider {
     const scan = (uri: string, fullText: string): void => {
       if (seenFiles.has(uri)) return;
       seenFiles.add(uri);
-      const cleaned = DependencyScanner.stripComments(fullText);
-      const lines = cleaned.split(/\r?\n/);
-      const regex = new RegExp(`\\b${escapeForRegex(word)}\\b`, "gi");
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? "";
-        let match: RegExpExecArray | null;
-        regex.lastIndex = 0;
-        while ((match = regex.exec(line)) !== null) {
-          const start = new vscode.Position(i, match.index);
-          const end = new vscode.Position(i, match.index + word.length);
+
+      const cached = LanguageProcessor.getInstance().getOrParse(uri, fullText);
+      const tokens = cached.tokens;
+      for (const t of tokens) {
+        if (t.kind === "identifier" && t.value.toLowerCase() === word.toLowerCase()) {
+          const line = Math.max(0, t.loc.line - 1);
+          const start = new vscode.Position(line, t.loc.column);
+          const end = new vscode.Position(line, t.loc.column + t.value.length);
           results.push(new vscode.Location(vscode.Uri.parse(uri), new vscode.Range(start, end)));
         }
       }
@@ -57,8 +47,6 @@ export class D7BasicReferenceProvider implements vscode.ReferenceProvider {
 
     // Every indexed file.
     for (const fileSyms of this.indexer.getAllFileSymbols()) {
-      // The token can flip asynchronously while we iterate; TS sees the
-      // property as a stable boolean and flags the runtime guard as redundant.
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (token.isCancellationRequested) return undefined;
       try {
@@ -69,15 +57,21 @@ export class D7BasicReferenceProvider implements vscode.ReferenceProvider {
     }
 
     if (!context.includeDeclaration) {
-      // Filter out the symbol's own declaration when the caller asked for
-      // references only (`Peek References` panel). We look the declaration up
-      // via the indexer — if it matches one of our scanned `Location`s by URI
-      // + line + start-column, we drop it.
       const declaration = this.indexer.findSymbolByName(word);
       if (declaration) {
         const declUri = declaration.fileUri;
         const declLine = declaration.range.startLine;
-        const declChar = declaration.range.startChar;
+        let declChar = declaration.range.startChar;
+
+        // Resolve the exact column of the identifier token on the declaration line
+        const declCached = LanguageProcessor.getInstance().getOrParse(declUri);
+        const declToken = declCached.tokens.find(
+          (t) => t.loc.line === declLine + 1 && t.value.toLowerCase() === declaration.name.toLowerCase(),
+        );
+        if (declToken) {
+          declChar = declToken.loc.column;
+        }
+
         return results.filter(
           (loc) =>
             !(

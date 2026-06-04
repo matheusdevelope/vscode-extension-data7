@@ -14,7 +14,7 @@
  * warning types declared here.
  */
 
-import { tokenize as tokenizeLine } from "../utils/bas-tokenizer";
+
 
 /**
  * Stable warning codes emitted by the textual generics pre-pass. The
@@ -213,14 +213,48 @@ export function analyzeGenericsPass(code: string): readonly GenericsPassWarning[
  * monomorphic copies.
  */
 export function stripStringsAndComments(line: string): string {
-  const tokens = tokenizeLine(line);
+  let inString = false;
+  let inInterpolation = false;
   const out = line.split("");
-  for (const t of tokens) {
-    if (t.kind !== "string" && t.kind !== "comment") continue;
-    const col = t.col;
-    for (let k = 0; k < t.value.length; k++) {
-      if (col + k < out.length) out[col + k] = " ";
+  let i = 0;
+  while (i < line.length) {
+    const c = line[i];
+    if (c === "'") {
+      if (!inString && !inInterpolation) {
+        for (let j = i; j < line.length; j++) {
+          out[j] = " ";
+        }
+        break;
+      }
     }
+    if (c === '"') {
+      if (inString) {
+        if (line[i + 1] === '"') {
+          out[i] = " ";
+          out[i + 1] = " ";
+          i += 2;
+          continue;
+        } else {
+          inString = false;
+        }
+      } else if (!inInterpolation) {
+        inString = true;
+      }
+      out[i] = " ";
+    } else if (c === "$" && line[i + 1] === '"') {
+      if (!inString && !inInterpolation) {
+        inInterpolation = true;
+        out[i] = " ";
+        out[i + 1] = " ";
+        i += 2;
+        continue;
+      }
+    } else {
+      if (inString || inInterpolation) {
+        out[i] = " ";
+      }
+    }
+    i++;
   }
   return out.join("");
 }

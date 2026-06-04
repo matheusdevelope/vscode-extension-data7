@@ -43,7 +43,7 @@ describe("parser/serializer", () => {
     const src = "Class MyList Inherits TList<Integer>\nEnd Class";
     const r = parse(src);
     const out = serializeUnit(r.unit);
-    assert.match(out, /Class MyList Inherits TList<Integer>/);
+    assert.match(out, /Class MyList\s+Inherits TList<Integer>/);
   });
 
   test("serialises a Sub with parameters and an opaque body line", () => {
@@ -90,5 +90,46 @@ describe("parser/serializer", () => {
     const r = parse(src);
     const out = serializeUnit(r.unit, { eol: "\r\n" });
     assert.match(out, /\r\n/);
+  });
+
+  test("serialises indexed properties and Select Case statements correctly", () => {
+    const src = [
+      "Class TestProp",
+      "   Property Item(pIndex As Integer) As String",
+      "      Get",
+      "         Item = \"hello\"",
+      "      End Get",
+      "      Set(pValue As String)",
+      "         me.SetItem(pIndex, pValue)",
+      "      End Set",
+      "   End Property",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Property Item\(pIndex As Integer\) As String/);
+    assert.match(out, /Get/);
+    assert.match(out, /Set\(pValue As String\)/);
+  });
+
+  test("serialises Select Case statement correctly", () => {
+    const src = [
+      "Sub TestSelect()",
+      "   Select Case pAdm",
+      "      Case 1",
+      "         x = 10",
+      "      Case Else",
+      "         x = 30",
+      "   End Select",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Select Case pAdm/);
+    assert.match(out, /Case 1/);
+    assert.match(out, /Case Else/);
+    assert.match(out, /End Select/);
   });
 });

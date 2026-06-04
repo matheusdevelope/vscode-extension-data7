@@ -2,26 +2,13 @@ import * as fs from "fs";
 import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { escapeForRegex } from "../utils/regex-helpers";
-import { stripCommentsAndStrings } from "../utils/code-stripper";
+import { LanguageProcessor } from "../analysis/language-processor";
 
 const VALID_NEW_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * Implements `F2` Rename for Data7 Basic.
- *
- * Safety scope (intentionally conservative):
- *
- *  - Only `class`, `structure`, `namespace`, `method`, `delegate`,
- *    `declare_sub` and `declare_function` symbols are renameable.
- *  - Variables and properties are NOT renameable — they need full scope
- *    analysis to avoid renaming unrelated occurrences (e.g. shadowed locals).
- *  - System Library symbols are NOT renameable — they live outside the
- *    workspace and are owned by the extension.
- *  - Rename only rewrites occurrences in indexed `.bas` workspace files.
- *
- * Implementation uses whole-word case-insensitive matching against the cleaned
- * (comment-stripped) text. Inside comments / strings we don't touch.
+ * Uses tokens from LanguageProcessor for safe, precise renaming.
  */
 export class D7BasicRenameProvider implements vscode.RenameProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -68,21 +55,18 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
     if (!symbol) return undefined;
 
     const edit = new vscode.WorkspaceEdit();
-    const wordRegex = new RegExp(`\\b${escapeForRegex(oldName)}\\b`, "gi");
 
     // Rewrite the active document first (uses current buffer, not disk).
-    rewriteDocument(edit, document.uri, document.getText(), wordRegex, newName);
+    rewriteDocument(edit, document.uri, document.getText(), oldName, newName);
 
     // Then every indexed file from the workspace.
     for (const fileSyms of this.indexer.getAllFileSymbols()) {
-      // The token state can flip asynchronously while we iterate, even though
-      // TS sees the property as a stable `boolean` after the first read.
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (token.isCancellationRequested) return undefined;
       if (fileSyms.fileUri === document.uri.toString()) continue;
       try {
         const text = readFileTextSafely(fileSyms.filePath);
-        rewriteDocument(edit, vscode.Uri.parse(fileSyms.fileUri), text, wordRegex, newName);
+        rewriteDocument(edit, vscode.Uri.parse(fileSyms.fileUri), text, oldName, newName);
       } catch {
         // skip unreadable files
       }
@@ -90,8 +74,6 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
 
     return edit;
   }
-
-  // -------------------------------------------------------------------------
 
   private findRenameableSymbol(name: string): SymbolInfo | undefined {
     const lowerName = name.toLowerCase();
@@ -114,23 +96,16 @@ function rewriteDocument(
   edit: vscode.WorkspaceEdit,
   uri: vscode.Uri,
   fullText: string,
-  wordRegex: RegExp,
+  oldName: string,
   newName: string,
 ): void {
-  // Match against the COMMENT- and STRING-stripped text so we never touch
-  // occurrences inside line comments or string literals — e.g., renaming
-  // `Greeter` must NOT rewrite the literal `"Greeter foi salvo"`.
-  // The stripper preserves column positions (each removed character becomes
-  // a space) so match offsets map cleanly back to the original document.
-  const cleaned = stripCommentsAndStrings(fullText);
-  const lines = cleaned.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    let m: RegExpExecArray | null;
-    wordRegex.lastIndex = 0;
-    while ((m = wordRegex.exec(line)) !== null) {
-      const start = new vscode.Position(i, m.index);
-      const end = new vscode.Position(i, m.index + m[0].length);
+  const cached = LanguageProcessor.getInstance().getOrParse(uri.toString(), fullText);
+  const tokens = cached.tokens;
+  for (const t of tokens) {
+    if (t.kind === "identifier" && t.value.toLowerCase() === oldName.toLowerCase()) {
+      const line = Math.max(0, t.loc.line - 1);
+      const start = new vscode.Position(line, t.loc.column);
+      const end = new vscode.Position(line, t.loc.column + t.value.length);
       edit.replace(uri, new vscode.Range(start, end), newName);
     }
   }

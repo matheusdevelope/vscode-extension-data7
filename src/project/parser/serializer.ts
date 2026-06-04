@@ -18,12 +18,17 @@ import type {
   UsingStatement,
   MatchStatement,
   OpaqueStatement,
+  ImportsDeclaration,
   WithStatement,
   Expression,
   SourceLocation,
   Assignment,
   VariableDeclaration,
   Node,
+  EnumDeclaration,
+  DestructuredVariableDeclaration,
+  SelectCaseStatement,
+  SelectCaseBranch,
 } from "../generics-monomorphizer/ast";
 import { deepClone } from "../generics-monomorphizer/clone";
 import { ASTWalker } from "../generics-monomorphizer/ast";
@@ -133,7 +138,13 @@ function serializeMember(
     case "ReturnStatement":
     case "Block":
     case "WithStatement":
+    case "EnumDeclaration":
+    case "DestructuredVariableDeclaration":
+    case "SelectCaseStatement":
       serializeStatement(member, depth, out, options);
+      return;
+    case "ImportsDeclaration":
+      serializeImports(member, depth, out, options);
       return;
     default: {
       const exhaustive: never = member;
@@ -143,16 +154,23 @@ function serializeMember(
   }
 }
 
+function capitalize(word: string): string {
+  if (!word) return "";
+  const lower = word.toLowerCase();
+  if (lower === "readonly") return "ReadOnly";
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 function emitModifiers(mods?: string[]): string {
   if (mods && mods.length > 0) {
-    return mods.join(" ") + " ";
+    return mods.map(capitalize).join(" ") + " ";
   }
   return "";
 }
 
 function emitFieldModifiers(mods?: string[]): string {
   if (mods && mods.length > 0) {
-    return mods.join(" ") + " ";
+    return mods.map(capitalize).join(" ") + " ";
   }
   return "Public ";
 }
@@ -245,18 +263,26 @@ function serializeDelegate(
 
 // Substitua a função serializeProperty por esta:
 function serializeProperty(
-  pDecl: PropertyDeclaration,
+  p: PropertyDeclaration,
   depth: number,
   out: OutputBuffer,
   options: SerializeOptions,
 ): void {
-  const p = pDecl;
   out.setLine(p.loc);
   const isBlock = p.hasBlock || (p.getter ?? p.setter);
 
+  const params = p.parameters
+    ? p.parameters
+        .map((param) =>
+          `${param.isByRef === true ? "ByRef " : ""}${param.name} As ${emitTypeRef(param.type)}`.trim(),
+        )
+        .join(", ")
+    : "";
+  const paramsStr = p.parameters ? `(${params})` : "";
+
   out.push(
     indent(depth, options) +
-      `${emitFieldModifiers(p.modifiers)}Property ${p.name} As ${emitTypeRef(p.type)}` +
+      `${emitFieldModifiers(p.modifiers)}Property ${p.name}${paramsStr} As ${emitTypeRef(p.type)}` +
       (p.comment && !options.minify ? " " + p.comment : ""),
   );
 
@@ -370,6 +396,9 @@ function serializeStatement(
     case "MatchStatement":
       serializeMatchStatement(s, depth, out, options);
       return;
+    case "SelectCaseStatement":
+      serializeSelectCase(s, depth, out, options);
+      return;
     case "WithStatement":
       serializeWithStatement(s, depth, out, options);
       return;
@@ -384,6 +413,16 @@ function serializeStatement(
       for (const stmt of s.statements) {
         serializeStatement(stmt, depth, out, options);
       }
+      return;
+    case "EnumDeclaration":
+      serializeEnum(s, depth, out, options);
+      return;
+    case "DestructuredVariableDeclaration":
+      out.push(
+        indent(depth, options) +
+          emitDestructuredVariableDeclaration(s) +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
       return;
     default: {
       const exhaustive: never = s;
@@ -472,6 +511,13 @@ function emitExpressionRaw(expr: Expression): string {
       return `${emitExpression(expr.left)} |> ${emitExpression(expr.right)}`;
     case "TaggedTemplateExpression":
       return `${expr.tag}$"${expr.body}"`;
+    case "ObjectInitializerExpression": {
+      const argsStr = expr.arguments.map(emitExpression).join(", ");
+      const assignmentsStr = expr.assignments
+        .map((a) => `.${a.member} = ${emitExpression(a.value)}`)
+        .join(", ");
+      return `New ${emitTypeRef(expr.type)}(${argsStr}) With { ${assignmentsStr} }`;
+    }
     default: {
       const exhaustive: never = expr;
       void exhaustive;
@@ -771,6 +817,8 @@ class LocalObfuscator {
         this.collectLocalVars(s.body);
       } else if (s.kind === "MatchStatement") {
         for (const c of s.cases) this.collectLocalVars(c.body);
+      } else if (s.kind === "SelectCaseStatement") {
+        for (const c of s.cases) this.collectLocalVars(c.body);
       } else if (s.kind === "Block") {
         this.collectLocalVars(s.statements);
       }
@@ -799,6 +847,40 @@ export function obfuscateLocalVariables(unit: CompilationUnit): void {
   walker.walk(unit);
 }
 
+function serializeEnum(
+  e: EnumDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(e.loc);
+  const baseStr = e.baseType ? ` As ${emitTypeRef(e.baseType)}` : "";
+  out.push(
+    indent(depth, options) +
+      `${emitModifiers(e.modifiers)}Enum ${e.name}${baseStr}` +
+      (e.comment && !options.minify ? " " + e.comment : ""),
+  );
+  for (const entry of e.entries) {
+    const valStr = entry.value ? " = " + emitExpression(entry.value) : "";
+    out.push(indent(depth + 1, options) + `${entry.name}${valStr}`);
+  }
+  out.push(indent(depth, options) + "End Enum");
+}
+
+function emitDestructuredVariableDeclaration(d: DestructuredVariableDeclaration): string {
+  const open = d.isObject ? "{" : "[";
+  const close = d.isObject ? "}" : "]";
+  const bindingsStr = d.bindings
+    .map((b) => {
+      if (b.isRest) return `...${b.name}`;
+      const propStr = b.property ? `${b.property} As ` : "";
+      const defaultStr = b.defaultValue ? " = " + emitExpression(b.defaultValue) : "";
+      return `${propStr}${b.name}${defaultStr}`;
+    })
+    .join(", ");
+  return `Dim ${open} ${bindingsStr} ${close} = ${emitExpression(d.initializer)}`;
+}
+
 // export function obfuscateLocalVariables(unit: CompilationUnit): void {
 //   const walker = new (class extends ASTWalker {
 //     protected override visitTypeReference(_: TypeReference): void {
@@ -814,3 +896,54 @@ export function obfuscateLocalVariables(unit: CompilationUnit): void {
 //   })();
 //   walker.walk(unit);
 // }
+
+function serializeImports(
+  imp: ImportsDeclaration,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.setLine(imp.loc);
+  out.push(
+    indent(depth, options) +
+      `Imports ${imp.target}` +
+      (imp.comment && !options.minify ? " " + imp.comment : ""),
+  );
+}
+
+function serializeSelectCase(
+  s: SelectCaseStatement,
+  depth: number,
+  out: OutputBuffer,
+  options: SerializeOptions,
+): void {
+  out.push(
+    indent(depth, options) +
+      `Select Case ${emitExpression(s.expression)}` +
+      (s.comment && !options.minify ? " " + s.comment : ""),
+  );
+
+  for (const c of s.cases) {
+    out.setLine(c.loc);
+    if (c.isElse) {
+      out.push(
+        indent(depth + 1, options) +
+          "Case Else" +
+          (c.comment && !options.minify ? " " + c.comment : ""),
+      );
+    } else {
+      const valuesStr = c.values.map((v) => emitExpression(v)).join(", ");
+      out.push(
+        indent(depth + 1, options) +
+          `Case ${valuesStr}` +
+          (c.comment && !options.minify ? " " + c.comment : ""),
+      );
+    }
+
+    for (const stmt of c.body) {
+      serializeStatement(stmt, depth + 2, out, options);
+    }
+  }
+
+  out.push(indent(depth, options) + "End Select");
+}

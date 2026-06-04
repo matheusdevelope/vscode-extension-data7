@@ -7,6 +7,7 @@ import {
   SYSTEM_SYMBOLS,
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
+import { parseBasic } from "../project/parser";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { DependencyScanner, IMPORTS_REGEX_ANCHORED } from "../analysis/dependency-scanner";
 import { analyzeGenericsPass, type GenericsPassWarning } from "../analysis/generics-analyzer";
@@ -33,9 +34,7 @@ import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configuration";
 import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
 import { parseInterpolation } from "../utils/interpolation";
-import { findTopLevelTernary } from "../utils/ternary";
-import { stripCommentsAndStringsLine } from "../utils/code-stripper";
-import { getChainPrefix } from "../utils/chain-parser";
+import { getChainPrefix } from "../utils/chain-prefix";
 
 const KEYWORDS = [
   "imports",
@@ -388,7 +387,20 @@ export class DiagnosticsLinter {
     Object.values(DiagnosticCodes),
   );
 
+  private readonly isStrict: boolean;
+
+  constructor(options?: { strict?: boolean }) {
+    this.isStrict = options?.strict ?? false;
+  }
+
   public static runAdvancedDiagnostics(
+    document: vscode.TextDocument,
+    indexer: WorkspaceSymbolIndexer,
+  ): vscode.Diagnostic[] {
+    return new DiagnosticsLinter().runDiagnostics(document, indexer);
+  }
+
+  public runDiagnostics(
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
   ): vscode.Diagnostic[] {
@@ -397,6 +409,24 @@ export class DiagnosticsLinter {
     }
     const diagnostics: vscode.Diagnostic[] = [];
     const text = document.getText();
+
+    if (this.isStrict) {
+      const { errors } = parseBasic(text, { plugins: [] });
+      errors.forEach((err) => {
+        const line = Math.max(0, err.loc.line - 1);
+        const col = Math.max(0, err.loc.column);
+        const range = new vscode.Range(line, col, line, col + 1);
+        const diag = new vscode.Diagnostic(
+          range,
+          `[Strict Native] ${err.message}`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = err.code;
+        diag.source = "data7-strict";
+        diagnostics.push(diag);
+      });
+    }
+
     const lines = text.split(/\r?\n/);
 
     // 1. Gather imports and check for unused imports.
@@ -539,11 +569,11 @@ export class DiagnosticsLinter {
               attachUnknownMemberSuggestions(
                 diag,
                 memberName,
-                this.collectMemberNames(currentClass.name, indexer),
+                DiagnosticsLinter.collectMemberNames(currentClass.name, indexer),
               );
               diagnostics.push(diag);
             } else if (resolved.isUnsupported) {
-              this.pushUnsupportedMemberDiagnostic(
+              DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
                 diagnostics,
                 lineIdx,
                 dotIndex + 1,
@@ -584,7 +614,7 @@ export class DiagnosticsLinter {
           }
         }
 
-        if (typeName && this.isKnownType(typeName, indexer)) {
+        if (typeName && DiagnosticsLinter.isKnownType(typeName, indexer)) {
           const resolved = TypeResolver.findMember(typeName, memberName, indexer);
           if (
             !resolved &&
@@ -603,11 +633,11 @@ export class DiagnosticsLinter {
             attachUnknownMemberSuggestions(
               diag,
               memberName,
-              this.collectMemberNames(typeName, indexer),
+              DiagnosticsLinter.collectMemberNames(typeName, indexer),
             );
             diagnostics.push(diag);
           } else if (resolved?.isUnsupported) {
-            this.pushUnsupportedMemberDiagnostic(
+            DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
               diagnostics,
               lineIdx,
               dotIndex + 1,
@@ -692,7 +722,7 @@ export class DiagnosticsLinter {
             if (precedingText.toLowerCase().endsWith("as")) continue;
           }
           const start = m.index + m[0].indexOf(typeName);
-          this.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
+          DiagnosticsLinter.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
         }
       };
       runTypeRefScan(typeRefRegex);
@@ -822,11 +852,10 @@ export class DiagnosticsLinter {
       // Start the search ONE line before the `For Each` header — otherwise
       // the regex inside `getVariableType` matches the `In <operand>` portion
       // on the very same line and returns `Variant`.
-      const lookupLine = Math.max(0, lineIdx - 1);
       const operandType = TypeResolver.getVariableType(
         operandName,
         document,
-        new vscode.Position(lookupLine, 0),
+        new vscode.Position(lineIdx, 0),
         indexer,
       );
       const explicitTypeMatch = /\bAs\s+([\w.]+)\s+In\b/i.exec(cleanLine);
@@ -973,16 +1002,16 @@ export class DiagnosticsLinter {
       }
     }
 
-    this.validateAdvancedRules(document, indexer, lines, diagnostics);
-    this.validateDuplicateDeclarations(document, indexer, diagnostics);
+    DiagnosticsLinter.validateAdvancedRules(document, indexer, lines, diagnostics);
+    DiagnosticsLinter.validateDuplicateDeclarations(document, indexer, diagnostics);
 
     // 8. `Sub New` without `MyBase.New()`. Every Data7 constructor must call
     //    `MyBase.New(...)` so the runtime can properly initialise the base
     //    object. We track state across lines to find `Sub New` / `End Sub`
     //    pairs and then check that the body contains at least one call.
-    this.validateMyBaseNewCalls(lines, diagnostics);
+    DiagnosticsLinter.validateMyBaseNewCalls(lines, diagnostics);
 
-    return this.postProcessDiagnostics(diagnostics, text);
+    return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
   }
 
   private static validateAdvancedRules(
@@ -1088,6 +1117,11 @@ export class DiagnosticsLinter {
 
         const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
         if (forEachMatch?.[1]?.toLowerCase() === nameLower) {
+          return true;
+        }
+
+        const forMatch = /\bFor\s+([a-zA-Z0-9_]+)\s*=/i.exec(cleanLine);
+        if (forMatch?.[1]?.toLowerCase() === nameLower) {
           return true;
         }
 
@@ -1480,7 +1514,7 @@ export class DiagnosticsLinter {
           } else {
             parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
           }
-        } else if (lower.startsWith("select case")) {
+        } else if (lower.startsWith("select case") || /^select\s+/i.test(clean)) {
           parsedLines.push({ lineIdx: i, text: clean, type: "select" });
         } else if (lower.startsWith("case")) {
           parsedLines.push({ lineIdx: i, text: clean, type: "case" });
@@ -2986,4 +3020,119 @@ function inheritsFromClass(
     current = parent ? parent.toLowerCase() : "";
   }
   return current === target;
+}
+
+interface TernaryPositions {
+  readonly questionAt: number;
+  readonly colonAt: number;
+}
+
+function findTopLevelTernary(line: string): TernaryPositions | null {
+  let depth = 0;
+  let questionAt = -1;
+  let pendingNestedQuestions = 0;
+
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+
+    if (c === '"' || (c === "$" && line[i + 1] === '"')) {
+      i = skipStringLiteralForTernary(line, c === "$" ? i + 1 : i);
+      continue;
+    }
+
+    if (c === "'") return questionAt !== -1 ? null : null;
+
+    if (c === "(" || c === "[") {
+      depth++;
+      continue;
+    }
+    if (c === ")" || c === "]") {
+      depth--;
+      continue;
+    }
+
+    if (depth !== 0) continue;
+
+    if (c === "?") {
+      if (questionAt === -1) {
+        questionAt = i;
+      } else {
+        pendingNestedQuestions++;
+      }
+      continue;
+    }
+    if (c === ":" && questionAt !== -1) {
+      if (pendingNestedQuestions > 0) {
+        pendingNestedQuestions--;
+        continue;
+      }
+      return { questionAt, colonAt: i };
+    }
+  }
+
+  return null;
+}
+
+function skipStringLiteralForTernary(line: string, openQuoteIdx: number): number {
+  let i = openQuoteIdx + 1;
+  while (i < line.length) {
+    const c = line[i];
+    if (c === '"') {
+      if (line[i + 1] === '"') {
+        i += 2;
+        continue;
+      }
+      return i;
+    }
+    i++;
+  }
+  return line.length - 1;
+}
+
+function stripCommentsAndStringsLine(line: string): string {
+  const trimmed = line.trimStart().toLowerCase();
+  if (
+    trimmed.startsWith("'") ||
+    trimmed === "rem" ||
+    trimmed.startsWith("rem ") ||
+    trimmed.startsWith("rem\t")
+  ) {
+    return " ".repeat(line.length);
+  }
+
+  let result = "";
+  let i = 0;
+  let inString = false;
+  while (i < line.length) {
+    const ch = line[i] ?? "";
+    if (inString) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          result += "  ";
+          i += 2;
+          continue;
+        }
+        inString = false;
+        result += '"';
+        i++;
+        continue;
+      }
+      result += " ";
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      result += '"';
+      i++;
+      continue;
+    }
+    if (ch === "'") {
+      result += " ".repeat(line.length - i);
+      break;
+    }
+    result += ch;
+    i++;
+  }
+  return result;
 }

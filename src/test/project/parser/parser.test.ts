@@ -387,5 +387,65 @@ describe("parser/parser", () => {
     assert.ok(out.includes("pVal As Integer"), `Expected parameter in serialized output`);
     assert.ok(!out.includes("Sub ("), "Serializer must not emit 'Sub (' (lost name)");
   });
+
+  test("parses indexed properties with parameters", () => {
+    const src = [
+      "Class TestProp",
+      "   Property Item(pIndex As Integer) As String",
+      "      Get",
+      "         Item = \"hello\"",
+      "      End Get",
+      "      Set(pValue As String)",
+      "         me.SetItem(pIndex, pValue)",
+      "      End Set",
+      "   End Property",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    const prop = klass.members[0];
+    assert.equal(prop?.kind, "PropertyDeclaration");
+    if (prop?.kind === "PropertyDeclaration") {
+      assert.equal(prop.name, "Item");
+      assert.equal(prop.type.name, "String");
+      assert.ok(prop.parameters);
+      assert.equal(prop.parameters.length, 1);
+      assert.equal(prop.parameters[0]?.name, "pIndex");
+      assert.equal(prop.parameters[0]?.type.name, "Integer");
+      assert.ok(prop.getter);
+      assert.ok(prop.setter);
+      assert.equal(prop.setter.parameters.length, 1);
+      assert.equal(prop.setter.parameters[0]?.name, "pValue");
+    }
+  });
+
+  test("parses Select and Select Case statements structurally", () => {
+    const src = [
+      "Sub TestSelect()",
+      "   Select Case pAdm",
+      "      Case 1",
+      "         x = 10",
+      "      Case 2, 3",
+      "         x = 20",
+      "      Case Else",
+      "         x = 30",
+      "   End Select",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const selectStmt = m.body[0];
+    assert.equal(selectStmt?.kind, "SelectCaseStatement");
+    if (selectStmt?.kind === "SelectCaseStatement") {
+      assert.equal(selectStmt.expression.kind, "Identifier");
+      assert.equal(selectStmt.cases.length, 3);
+      assert.equal(selectStmt.cases[0]?.isElse, false);
+      assert.equal(selectStmt.cases[0]?.values.length, 1);
+      assert.equal(selectStmt.cases[1]?.values.length, 2);
+      assert.equal(selectStmt.cases[2]?.isElse, true);
+    }
+  });
 });
 

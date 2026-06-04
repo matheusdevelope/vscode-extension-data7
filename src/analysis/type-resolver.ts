@@ -4,12 +4,26 @@ import {
   SYSTEM_SYMBOLS,
   lookupSystemByContainer,
   lookupSystemClassByName,
+  lookupSystemByName,
 } from "../system-library";
 import { inferLiteralType } from "../utils/literal-type-infer";
-import { parseChain } from "../utils/chain-parser";
-import { findTopLevelTernary } from "../utils/ternary";
 import { getNonNullVariablesAt } from "./flow-analyzer";
 import { findInnerMostGenericUsage, flatNameOf } from "./generics-analyzer";
+import { LanguageProcessor } from "./language-processor";
+import type {
+  Expression,
+  TopLevelMember,
+  ClassMember,
+  NamespaceDeclaration,
+  ClassDeclaration,
+  MethodDeclaration,
+  PropertyDeclaration,
+  TypeReference,
+  VariableDeclaration,
+  Node,
+  BinaryExpression,
+  UnaryExpression,
+} from "../project/generics-monomorphizer/ast";
 
 /**
  * Shared scope and type resolution helpers used by every provider and by the
@@ -19,8 +33,7 @@ import { findInnerMostGenericUsage, flatNameOf } from "./generics-analyzer";
 export class TypeResolver {
   /**
    * Resolves the static type of a local variable, parameter, field or
-   * namespace-level variable by walking the current method/class/namespace
-   * context in the active document.
+   * namespace-level variable by walking the AST of the active document.
    *
    * Falls back to `undefined` when the type cannot be determined.
    */
@@ -42,67 +55,16 @@ export class TypeResolver {
     position: vscode.Position,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
-    const text = document.getText();
-    const lines = text.split(/\r?\n/);
     const varLower = varName.toLowerCase();
 
-    // Walk upward from the cursor to find a `Dim name As Type` declaration in scope.
-    // The `<...>` suffix lets the regex pick up generic types
-    // (`TList<Product>`); `findMember` later normalises them to their
-    // flat form (`TList_Product`).
-    const regex = new RegExp(
-      `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\b(?:\\s+As\\s+(?:New\\s+)?([a-zA-Z0-9_.]+(?:\\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?`,
-      "i",
-    );
-    // `For Each <name> As <Type> In ...` introduces `<name>` into the enclosing
-    // scope. The sugar transpiler later expands it into a synthetic `Dim`, but
-    // hover/completion/signature must already see the variable while the file
-    // is still authored in sugared form.
-    const forEachRegex = new RegExp(
-      `\\bFor\\s+Each\\s+${varName}\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+(?:\\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?\\s+In\\b`,
-      "i",
-    );
-    // `Dim name = <expr>` (no As clause) — infer from the right-hand side
-    // when the RHS is a method call (`me.X()` / `obj.X()` / `New Type()`) or
-    // a `Cls.SharedX()` static call.
-    const assignmentRegex = new RegExp(
-      `\\b(?:Dim|Private|Public|Protected|Shared)?\\s+${varName}\\s*=\\s*(.+?)\\s*(?:'.*)?$`,
-      "i",
-    );
-    const setRegex = new RegExp(
-      `^\\s*Set\\s*\\(\\s*(?:ByVal\\s+|ByRef\\s+)?([a-zA-Z0-9_]+)\\b(?:\\s+As\\s+([a-zA-Z0-9_.]+))?`,
-      "i",
-    );
+    // Walk the AST from the beginning of the file up to the cursor position
+    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const unit = cached.unit;
+    const locals = new Map<string, string>();
+    collectLocalDeclarations(unit, position, locals, indexer, document, position.line);
 
-    for (let i = position.line; i >= 0; i--) {
-      const lineRaw = lines[i];
-      if (lineRaw === undefined) continue;
-      const lineText = lineRaw.trim();
-      if (lineText.startsWith("'") || lineText.toLowerCase().startsWith("rem ")) continue;
-
-      const forEachMatch = lineText.match(forEachRegex);
-      if (forEachMatch) {
-        return forEachMatch[1] ?? "Variant";
-      }
-
-      const setMatch = setRegex.exec(lineText);
-      if (setMatch?.[1]?.toLowerCase() === varLower) {
-        return setMatch[2] ?? "Variant";
-      }
-
-      const match = lineText.match(regex);
-      if (match) {
-        if (match[1]) return match[1];
-        // No `As Type` — try inferring from `= <expr>` on the same line.
-        const assignMatch = lineText.match(assignmentRegex);
-        const rhs = assignMatch?.[1];
-        if (rhs) {
-          const inferred = TypeResolver.inferExpressionType(rhs, document, i, indexer);
-          if (inferred) return inferred;
-        }
-        return "Variant";
-      }
-    }
+    const localType = locals.get(varLower);
+    if (localType) return localType;
 
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     if (!fileSyms) return undefined;
@@ -118,7 +80,6 @@ export class TypeResolver {
       if (param) return param.type;
     }
 
-    // NOVO: Verifica os parâmetros do Property ativo (ex: propriedades indexadas como Item(pIndex As Integer))
     const currentProperty = fileSyms.symbols.find(
       (s) =>
         (s.kind === "property" || s.kind === "indexed-property") &&
@@ -137,8 +98,6 @@ export class TypeResolver {
         position.line <= s.range.endLine,
     );
     if (currentClass) {
-      // Walk current class + ancestors (workspace + system library) looking for a
-      // variable OR property OR method matching the name. Returns the declared type.
       const allWorkspaceSymbols = indexer.getAllSymbols();
       const visited = new Set<string>();
       let cls: SymbolInfo | undefined = currentClass;
@@ -204,8 +163,6 @@ export class TypeResolver {
       );
       if (exact) return exact;
 
-      // `noUncheckedIndexedAccess` now widens `[0]` to `T | undefined`
-      // automatically, so the explicit cast above is no longer needed.
       const byName = lookupSystemClassByName(namePart)[0];
       if (byName) return byName;
 
@@ -220,24 +177,7 @@ export class TypeResolver {
 
   /**
    * Best-effort type inference for `Dim x = <expr>` when the user omits the
-   * `As <Type>` clause. Handles the cases that pay off the most in real
-   * Data7 code:
-   *
-   *  - `New <Type>(...)` → `<Type>`
-   *  - `Me.Method(...)` or `MyBase.Method(...)` → return type of `Method` on
-   *    the enclosing class
-   *  - `<ident>.Method(...)` → resolves `<ident>` to a type and looks up
-   *    `Method` on that type chain
-   *  - `<Class>.SharedMethod(...)` → return type of the shared/static method
-   *  - `<ident>` (bare identifier) → recurses into {@link getVariableType}
-   *
-   * Returns `undefined` when the expression's shape is unsupported (literals,
-   * string concatenation, arithmetic) — the caller should fall back to
-   * `"Variant"` in that case.
-   *
-   * `lineIdx` is the 0-based line where the declaration sits; recursive
-   * lookups walk backwards from that line so we never "see" the variable
-   * we are currently resolving.
+   * `As <Type>` clause. Handles expressions via unified parser AST.
    */
   public static inferExpressionType(
     expr: string,
@@ -245,118 +185,173 @@ export class TypeResolver {
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
-    const rawType = TypeResolver.inferRawExpressionType(expr, document, lineIdx, indexer);
-    if (!rawType) return undefined;
-    const position = { line: lineIdx, character: 0 } as vscode.Position;
-    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
-    return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+    const trimmed = expr.trim();
+    if (!trimmed) return undefined;
+    const noComment = stripTrailingComment(trimmed).trim();
+    if (!noComment) return undefined;
+
+    try {
+      const parsedExpr = LanguageProcessor.getInstance().parseExpression(noComment);
+      const rawType = TypeResolver.resolveExpressionType(parsedExpr, document, lineIdx, indexer);
+      if (!rawType) return undefined;
+      const position = { line: lineIdx, character: 0 } as vscode.Position;
+      const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
+      return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+    } catch {
+      const literal = inferLiteralType(noComment);
+      if (literal) return literal;
+      return undefined;
+    }
   }
 
-  private static inferRawExpressionType(
-    expr: string,
+  public static resolveExpressionType(
+    expr: Expression,
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
-    const trimmed = expr.trim();
-    if (!trimmed) return undefined;
-
-    // Strip trailing inline comment so `Dim x = 42  ' explanation` infers
-    // `Integer` rather than failing on the comment text.
-    const noComment = stripTrailingComment(trimmed).trim();
-    if (!noComment) return undefined;
-
-    // Step 1 — Pure literal / `New T(...)` / `CType(_, T)` / `$"..."`.
-    // The shared helper handles these without consulting the indexer; we keep
-    // them first because they are the fastest path and the most common RHS
-    // shapes in real code.
-    const literal = inferLiteralType(noComment);
-    if (literal) return literal;
-
-    // Step 2 — Top-level ternary `cond ? a : b`. Infer the common type of
-    // both branches; fall back to `Variant` if they disagree.
-    const ternary = findTopLevelTernary(noComment);
-    if (ternary) {
-      const thenBranch = noComment.slice(ternary.questionAt + 1, ternary.colonAt).trim();
-      const elseBranch = noComment.slice(ternary.colonAt + 1).trim();
-      const tType = TypeResolver.inferExpressionType(thenBranch, document, lineIdx, indexer);
-      const eType = TypeResolver.inferExpressionType(elseBranch, document, lineIdx, indexer);
-      if (tType && eType) {
-        return tType.toLowerCase() === eType.toLowerCase() ? tType : "Variant";
+    switch (expr.kind) {
+      case "Literal":
+        if (expr.value === null) return "Variant";
+        return inferLiteralType(String(expr.value)) ?? typeofLiteral(expr.value);
+      case "TaggedTemplateExpression":
+        return "String";
+      case "ObjectCreationExpression":
+        return typeRefToString(expr.type);
+      case "Identifier":
+        return TypeResolver.resolveIdentifierType(expr.name, document, lineIdx, indexer);
+      case "MemberAccess": {
+        const targetType = TypeResolver.resolveExpressionType(expr.target, document, lineIdx, indexer);
+        if (!targetType) return undefined;
+        return TypeResolver.findMember(targetType, expr.member, indexer)?.type;
       }
-      return tType ?? eType ?? "Variant";
+      case "MethodInvocation": {
+        if (expr.methodName.toLowerCase() === "ctype" && expr.arguments.length === 2 && !expr.callee) {
+          const targetArg = expr.arguments[1];
+          if (targetArg) {
+            return expressionToTypeString(targetArg);
+          }
+        }
+        if (expr.callee) {
+          const targetType = TypeResolver.resolveExpressionType(expr.callee, document, lineIdx, indexer);
+          if (!targetType) return undefined;
+          return TypeResolver.findMember(targetType, expr.methodName, indexer)?.type;
+        }
+        const fileSyms = indexer.getFileSymbols(document.uri.toString());
+        const activeClass = fileSyms?.symbols.find(
+          (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine
+        );
+        if (activeClass) {
+          const member = TypeResolver.findMember(activeClass.name, expr.methodName, indexer);
+          if (member?.type) return member.type;
+        }
+        return (
+          indexer.findSymbolByName(expr.methodName, document.uri.toString()) ??
+          lookupSystemByName(expr.methodName).find((s) => !s.containerName)
+        )?.type;
+      }
+      case "OptionalChainingExpression":
+        return TypeResolver.resolveExpressionType(expr.member, document, lineIdx, indexer);
+      case "TernaryExpression": {
+        const trueType = TypeResolver.resolveExpressionType(expr.trueExpr, document, lineIdx, indexer);
+        const falseType = TypeResolver.resolveExpressionType(expr.falseExpr, document, lineIdx, indexer);
+        if (trueType && falseType) {
+          return trueType.toLowerCase() === falseType.toLowerCase() ? trueType : "Variant";
+        }
+        return trueType ?? falseType;
+      }
+      case "NullCoalescingExpression":
+        return TypeResolver.resolveExpressionType(expr.left, document, lineIdx, indexer) ?? 
+               TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
+      case "PipeExpression":
+        return TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
+      case "BinaryExpression":
+        return TypeResolver.resolveBinaryType(expr, document, lineIdx, indexer);
+      case "UnaryExpression":
+        return TypeResolver.resolveUnaryType(expr, document, lineIdx, indexer);
+      default:
+        return undefined;
+    }
+  }
+
+  private static resolveIdentifierType(
+    name: string,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    const lower = name.toLowerCase();
+    const position = { line: lineIdx, character: 0 } as vscode.Position;
+    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
+    const genericConstraint = genericParams.get(lower);
+    if (genericConstraint) return genericConstraint;
+
+    if (lower === "me" || lower === "mybase") {
+      const fileSyms = indexer.getFileSymbols(document.uri.toString());
+      const activeClass = fileSyms?.symbols.find(
+        (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine
+      );
+      return activeClass?.name;
     }
 
-    // Step 3 — Member access chain (`a.b().c().d`). The parser walks the
-    // chain segment by segment; we resolve the type at each link via
-    // `findMember`. Chain of length 1 (just the root identifier) falls
-    // through to Step 4 because `parseChain` records zero segments then.
-    const chain = parseChain(noComment);
-    if (chain && chain.segments.length > 0) {
-      let currentType = TypeResolver.resolveRootType(chain.root, document, lineIdx, indexer);
-      if (!currentType) return undefined;
-      for (const seg of chain.segments) {
-        const member = TypeResolver.findMember(currentType, seg.name, indexer);
-        if (!member?.type || member.type === "Void") return undefined;
-        currentType = member.type;
-      }
-      return currentType;
-    }
+    const local = TypeResolver.getVariableType(name, document, position, indexer);
+    if (local) return local;
 
-    // Step 4 — Bare identifier: recurse via getVariableType (one hop earlier
-    // so we do not match the current declaration line again).
-    if (/^[A-Za-z_]\w*$/.test(noComment)) {
-      // Construct a position type-erased — we only need `.line` inside the
-      // recursive call, and we know the prior declaration sits BEFORE lineIdx.
-      const position = { line: lineIdx, character: 0 } as vscode.Position;
-      return TypeResolver.getVariableType(noComment, document, position, indexer);
+    const symbol =
+      indexer.findSymbolByName(name, document.uri.toString()) ??
+      lookupSystemClassByName(name)[0];
+    if (
+      symbol &&
+      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "namespace")
+    ) {
+      return symbol.name;
     }
 
     return undefined;
   }
 
-  /**
-   * Resolves the type of the `<root>` token in expressions like `<root>.X`:
-   *
-   *  - `me` / `mybase` → the enclosing class declared in the file.
-   *  - `<ClassName>` (bare class identifier) → the class itself, so callers
-   *    can look up Shared members on it.
-   *  - Anything else → fall back to {@link getVariableType}.
-   */
-  private static resolveRootType(
-    root: string,
+  private static resolveBinaryType(
+    expr: BinaryExpression,
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
-    const lower = root.toLowerCase();
-    const position = { line: lineIdx, character: 0 } as vscode.Position;
-    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
-    if (genericParams.has(lower)) {
-      return genericParams.get(lower);
-    }
-
-    if (lower === "me" || lower === "mybase") {
-      const fileSyms = indexer.getFileSymbols(document.uri.toString());
-      const currentClass = fileSyms?.symbols.find(
-        (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-      );
-      return currentClass?.name;
-    }
-
-    // Bare class/namespace name (static access).
-    const classSymbol = TypeResolver.findClassSymbol(root, indexer);
+    const op = expr.operator.toLowerCase();
     if (
-      classSymbol &&
-      (classSymbol.kind === "class" ||
-        classSymbol.kind === "structure" ||
-        classSymbol.kind === "namespace")
+      [
+        "=",
+        "<>",
+        "<",
+        ">",
+        "<=",
+        ">=",
+        "is",
+        "isnot",
+        "like",
+        "and",
+        "or",
+        "xor",
+        "andalso",
+        "orelse",
+      ].includes(op)
     ) {
-      return classSymbol.name;
+      return "Boolean";
     }
+    if (op === "&") return "String";
+    const left = TypeResolver.resolveExpressionType(expr.left, document, lineIdx, indexer);
+    const right = TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
+    if (left && left.toLowerCase() === right?.toLowerCase()) return left;
+    return left ?? right;
+  }
 
-    // Fallback: resolve as a variable.
-    return TypeResolver.getVariableType(root, document, position, indexer);
+  private static resolveUnaryType(
+    expr: UnaryExpression,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    if (expr.operator.toLowerCase() === "not") return "Boolean";
+    return TypeResolver.resolveExpressionType(expr.argument, document, lineIdx, indexer);
   }
 
   /**
@@ -780,3 +775,274 @@ class AcceptAllSet extends Set<string> {
   }
 }
 const ACCEPT_ALL_PASCAL_NAMES: ReadonlySet<string> = new AcceptAllSet();
+
+function typeofLiteral(value: string | number | boolean): string {
+  if (typeof value === "boolean") return "Boolean";
+  if (typeof value === "number") return Number.isInteger(value) ? "Integer" : "Double";
+  return "String";
+}
+
+function typeRefToString(typeRef: TypeReference | undefined): string | undefined {
+  if (!typeRef?.name) return undefined;
+  if (typeRef.typeArguments.length === 0) return typeRef.name;
+  return `${typeRef.name}<${typeRef.typeArguments
+    .map((arg) => typeRefToString(arg) ?? "")
+    .join(", ")}>`;
+}
+
+function expressionToTypeString(expr: Expression): string | undefined {
+  if (expr.kind === "Identifier") {
+    return expr.name;
+  }
+  if (expr.kind === "MemberAccess") {
+    const targetStr = expressionToTypeString(expr.target);
+    if (targetStr) {
+      return `${targetStr}.${expr.member}`;
+    }
+  }
+  return undefined;
+}
+
+function collectLocalDeclarations(
+  node: Node | undefined,
+  position: vscode.Position,
+  locals: Map<string, string>,
+  indexer: WorkspaceSymbolIndexer,
+  document: vscode.TextDocument,
+  lineIdx: number,
+): void {
+  if (!node) return;
+
+  const nodeLine = Math.max(0, (node.loc?.startLine ?? 1) - 1);
+
+  const isClassOrMethod =
+    node.kind === "NamespaceDeclaration" ||
+    node.kind === "ClassDeclaration" ||
+    node.kind === "MethodDeclaration" ||
+    node.kind === "PropertyDeclaration";
+
+  if (!isClassOrMethod && node.loc) {
+    if (
+      nodeLine > position.line ||
+      (nodeLine === position.line && node.loc.startChar > position.character)
+    ) {
+      return;
+    }
+  }
+
+  switch (node.kind) {
+    case "CompilationUnit":
+    case "NamespaceDeclaration":
+      if (node.members) {
+        for (const m of node.members) {
+          if (m.kind === "NamespaceDeclaration") {
+            const mLine = Math.max(0, (m.loc?.startLine ?? 1) - 1);
+            const mEndLine = Math.max(0, (m.loc?.endLine ?? 1) - 1);
+            if (position.line >= mLine && position.line <= mEndLine) {
+              collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+            }
+          } else {
+            collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+          }
+        }
+      }
+      break;
+
+    case "ClassDeclaration":
+      if (node.members) {
+        for (const m of node.members) {
+          if (m.loc) {
+            const mLine = Math.max(0, m.loc.startLine - 1);
+            const mEndLine = Math.max(0, m.loc.endLine - 1);
+            if (position.line >= mLine && position.line <= mEndLine) {
+              collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+            }
+          }
+        }
+      }
+      break;
+
+    case "MethodDeclaration":
+      if (node.parameters) {
+        for (const p of node.parameters) {
+          locals.set(p.name.toLowerCase(), typeRefToString(p.type) ?? "Variant");
+        }
+      }
+      if (node.body) {
+        for (const s of node.body) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+
+    case "PropertyDeclaration":
+      if (node.getter && node.getter.loc) {
+        const gLine = Math.max(0, node.getter.loc.startLine - 1);
+        const gEndLine = Math.max(0, node.getter.loc.endLine - 1);
+        if (position.line >= gLine && position.line <= gEndLine) {
+          if (node.parameters) {
+            for (const p of node.parameters) {
+              locals.set(p.name.toLowerCase(), typeRefToString(p.type) ?? "Variant");
+            }
+          }
+          collectLocalDeclarations(node.getter, position, locals, indexer, document, lineIdx);
+        }
+      }
+      if (node.setter && node.setter.loc) {
+        const sLine = Math.max(0, node.setter.loc.startLine - 1);
+        const sEndLine = Math.max(0, node.setter.loc.endLine - 1);
+        if (position.line >= sLine && position.line <= sEndLine) {
+          if (node.parameters) {
+            for (const p of node.parameters) {
+              locals.set(p.name.toLowerCase(), typeRefToString(p.type) ?? "Variant");
+            }
+          }
+          collectLocalDeclarations(node.setter, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+
+    case "VariableDeclaration": {
+      const explicitType = typeRefToString(node.type);
+      const inferredType = node.initializer
+        ? TypeResolver.resolveExpressionType(node.initializer, document, lineIdx, indexer)
+        : undefined;
+      locals.set(node.name.toLowerCase(), explicitType ?? inferredType ?? "Variant");
+      break;
+    }
+
+    case "DestructuredVariableDeclaration":
+      if (node.bindings) {
+        for (const b of node.bindings) {
+          locals.set(b.name.toLowerCase(), "Variant");
+        }
+      }
+      break;
+
+    case "ForEachStatement":
+      if (node.loc) {
+        const start = Math.max(0, node.loc.startLine - 1);
+        const end = Math.max(0, node.loc.endLine - 1);
+        if (position.line >= start && position.line <= end) {
+          locals.set(
+            node.elementVar.name.toLowerCase(),
+            typeRefToString(node.elementType) ?? "Variant",
+          );
+          if (node.body) {
+            for (const s of node.body) {
+              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+            }
+          }
+        }
+      }
+      break;
+
+    case "ForStatement":
+      if (node.loc) {
+        const start = Math.max(0, node.loc.startLine - 1);
+        const end = Math.max(0, node.loc.endLine - 1);
+        if (position.line >= start && position.line <= end) {
+          locals.set(node.counter.name.toLowerCase(), "Integer");
+          if (node.body) {
+            for (const s of node.body) {
+              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+            }
+          }
+        }
+      }
+      break;
+
+    case "IfStatement":
+      if (node.thenBranch) {
+        for (const s of node.thenBranch) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      if (node.elseIfBranches) {
+        for (const b of node.elseIfBranches) {
+          if (b.body) {
+            for (const s of b.body) {
+              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+            }
+          }
+        }
+      }
+      if (node.elseBranch) {
+        for (const s of node.elseBranch) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+
+    case "WhileStatement":
+    case "UsingStatement":
+    case "WithStatement":
+      if (node.body) {
+        for (const s of node.body) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+
+    case "TryCatchStatement":
+      if (node.tryBody) {
+        for (const s of node.tryBody) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      if (node.catchBody) {
+        let inCatch = false;
+        const lastTry = node.tryBody && node.tryBody.length > 0 ? node.tryBody[node.tryBody.length - 1] : undefined;
+        const nodeStart = node.loc ? node.loc.startLine : 0;
+        const nodeEnd = node.loc ? node.loc.endLine : 0;
+        const tryEnd = lastTry && lastTry.loc
+          ? Math.max(0, lastTry.loc.endLine - 1)
+          : Math.max(0, nodeStart - 1);
+
+        const firstFinally = node.finallyBody && node.finallyBody.length > 0 ? node.finallyBody[0] : undefined;
+        const finallyStart = firstFinally && firstFinally.loc
+          ? Math.max(0, firstFinally.loc.startLine - 1)
+          : Math.max(0, nodeEnd - 1);
+
+        if (position.line > tryEnd && position.line < finallyStart) {
+          inCatch = true;
+        }
+        if (inCatch && node.catchVar) {
+          locals.set(
+            node.catchVar.name.toLowerCase(),
+            typeRefToString(node.catchType) ?? "Exception",
+          );
+        }
+        for (const s of node.catchBody) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      if (node.finallyBody) {
+        for (const s of node.finallyBody) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+
+    case "MatchStatement":
+      if (node.cases) {
+        for (const c of node.cases) {
+          if (c.body) {
+            for (const s of c.body) {
+              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+            }
+          }
+        }
+      }
+      break;
+
+    case "Block":
+      if (node.statements) {
+        for (const s of node.statements) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+  }
+}
+

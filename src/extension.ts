@@ -2,6 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 
 import { WorkspaceSymbolIndexer } from "./analysis/symbol-indexer";
+import { LanguageProcessor } from "./analysis/language-processor";
 import { CONFIG_NAMESPACE, LANGUAGE_IDS } from "./infra/constants";
 import { initLogger, logger } from "./infra/logger";
 import { Builder } from "./project/builder";
@@ -76,15 +77,36 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
   const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
   basWatcher.onDidChange((uri) => {
+    LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
   });
   basWatcher.onDidCreate((uri) => {
+    LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
   });
   basWatcher.onDidDelete((uri) => {
+    LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.removeFile(uri.toString());
   });
   context.subscriptions.push(basWatcher);
+
+  // Listen to document changes to update AST cache reactively
+  const docChangeListener = vscode.workspace.onDidChangeTextDocument((e) => {
+    if (e.document.languageId === LANGUAGE_IDS.d7basic || e.document.fileName.endsWith(".bas")) {
+      LanguageProcessor.getInstance().handleDocumentChange(
+        e.document.uri.toString(),
+        e.document.getText(),
+        e.document.version
+      );
+    }
+  });
+
+  const docCloseListener = vscode.workspace.onDidCloseTextDocument((doc) => {
+    if (doc.languageId === LANGUAGE_IDS.d7basic || doc.fileName.endsWith(".bas")) {
+      LanguageProcessor.getInstance().invalidate(doc.uri.toString());
+    }
+  });
+  context.subscriptions.push(docChangeListener, docCloseListener);
 
   // Auto-rebuild on rename / delete inside a project. Debounced to absorb bursts.
   const handleProjectChange = debounce((workspaceDir: string, projectFilePath: string) => {

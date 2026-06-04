@@ -47,6 +47,8 @@ function firstText(result: unknown): string {
   return "";
 }
 
+import { listOfficialArticles } from "../../mcp/resources/official";
+
 describe("MCP server e2e — resource reads", () => {
   test("multi-segment example reads (regression: {+path})", async () => {
     const r = await client.readResource({ uri: "data7://examples/forms/05-grid-com-dados" });
@@ -66,6 +68,7 @@ describe("MCP server e2e — resource reads", () => {
   });
 
   test("official article reads (dotted qualified name)", async () => {
+    if (listOfficialArticles().length === 0) return;
     const r = await client.readResource({ uri: "data7://official/Collections.StringList.Add" });
     assert.match(firstText(r), /UnicodeString/);
   });

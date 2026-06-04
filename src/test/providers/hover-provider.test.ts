@@ -94,5 +94,29 @@ End Namespace`;
         `hover should show substituted Product type; got: ${text}`,
       );
     });
+
+    test("resolves a Property Set parameter from the AST", async () => {
+      const code = `Namespace mod_hset
+   Class C
+      Property Name As String
+         Set(pValue As String)
+            pValue = pValue
+         End Set
+      End Property
+   End Class
+End Namespace`;
+      const uri = "file:///hov_set_param.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicHoverProvider();
+      const hover = (await Promise.resolve(provider.provideHover(doc, pos(4, 13), noopToken))) as
+        | { contents: readonly ({ value?: string } | string)[] }
+        | undefined;
+
+      assert.ok(hover, "hover must not be undefined for Set parameter");
+      assert.match(JSON.stringify(hover.contents), /pValue\s+As\s+String/i);
+    });
   });
 });

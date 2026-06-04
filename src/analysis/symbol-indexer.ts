@@ -2,15 +2,20 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { logger } from "../infra/logger";
-import { IMPORTS_REGEX_ANCHORED } from "./dependency-scanner";
+// Removed dependency-scanner import since we no longer use IMPORTS_REGEX_ANCHORED here
 import { isExcluded } from "../infra/configuration";
 import {
   collectGenericsContext,
   type GenericTemplateInfo,
   type GenericUsageOccurrence,
 } from "./generics-analyzer";
-import { PRIMITIVE_TYPES } from "../utils/primitive-types";
-import { inferLiteralType } from "../utils/literal-type-infer";
+import { parseBasic } from "../project/parser";
+import {
+  ASTWalker,
+  type CompilationUnit,
+  type TypeReference,
+  type Node,
+} from "../project/generics-monomorphizer/ast";
 
 // Parameter info
 export interface ParameterInfo {
@@ -83,80 +88,312 @@ export interface FileSymbols {
   symbols: SymbolInfo[];
 }
 
-export class SymbolParser {
-  public static parseParameters(paramsStr: string): ParameterInfo[] {
-    const result: ParameterInfo[] = [];
-    if (!paramsStr.trim()) {
-      return result;
-    }
-    // Simple split by comma
-    const parts = paramsStr.split(",");
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (!trimmed) continue;
+function typeRefToString(typeRef: TypeReference | undefined): string | undefined {
+  if (!typeRef?.name) return undefined;
+  if (typeRef.typeArguments.length === 0) return typeRef.name;
+  return `${typeRef.name}<${typeRef.typeArguments
+    .map((arg) => typeRefToString(arg) ?? "")
+    .join(", ")}>`;
+}
 
-      let isByRef = false;
-      let isExplicitByVal = false;
-      let isExplicitByRef = false;
-      let isOptional = false;
-      let pText = trimmed;
 
-      // Check ByVal / ByRef
-      if (pText.toLowerCase().startsWith("byref ")) {
-        isExplicitByRef = true;
-        pText = pText.substring(6).trim();
-      } else if (pText.toLowerCase().startsWith("byval ")) {
-        isExplicitByVal = true;
-        pText = pText.substring(6).trim();
-      }
 
-      // Check Optional
-      if (pText.toLowerCase().startsWith("optional ")) {
-        isOptional = true;
-        pText = pText.substring(9).trim();
-      }
+class SymbolIndexerWalker extends ASTWalker {
+  public readonly symbols: SymbolInfo[] = [];
+  private activeNamespace: string | undefined;
+  private activeClass: string | undefined;
 
-      let name = "";
-      let type = "Variant";
-      let defaultValue: string | undefined;
-
-      const eqIdx = pText.indexOf("=");
-      if (eqIdx !== -1) {
-        defaultValue = pText.substring(eqIdx + 1).trim();
-        pText = pText.substring(0, eqIdx).trim();
-        isOptional = true;
-      }
-
-      const asIdx = pText.toLowerCase().lastIndexOf(" as ");
-      if (asIdx !== -1) {
-        name = pText.substring(0, asIdx).trim();
-        type = pText.substring(asIdx + 4).trim();
-      } else {
-        name = pText;
-      }
-
-      if (isExplicitByRef) {
-        isByRef = true;
-      } else if (isExplicitByVal) {
-        isByRef = false;
-      } else {
-        const typeLower = type.toLowerCase();
-        const isPrimitive =
-          PRIMITIVE_TYPES.has(typeLower) || typeLower === "variant" || typeLower === "void";
-        isByRef = !isPrimitive;
-      }
-
-      result.push({
-        name,
-        type,
-        isByRef,
-        isOptional,
-        defaultValue,
-      });
-    }
-    return result;
+  constructor(
+    private readonly fileUri: string,
+    private readonly lines: readonly string[]
+  ) {
+    super();
   }
 
+  public run(unit: CompilationUnit): void {
+    this.walk(unit);
+  }
+
+  override walk(node: Node): void {
+    if (node.kind === "NamespaceDeclaration") {
+      const prevNamespace = this.activeNamespace;
+      this.activeNamespace = node.name;
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const nsSymbol: SymbolInfo = {
+        name: node.name,
+        kind: "namespace",
+        type: "Namespace",
+        isShared: true,
+        isPrivate: false,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        description: node.comment?.trim() || `Namespace ${node.name}`,
+      };
+      this.symbols.push(nsSymbol);
+
+      super.walk(node);
+      this.activeNamespace = prevNamespace;
+      return;
+    }
+
+    if (node.kind === "ClassDeclaration") {
+      const prevClass = this.activeClass;
+      this.activeClass = node.name;
+
+      const isStructure = node.modifiers?.includes("structure") ?? false;
+      const isPrivate = node.modifiers?.includes("private") ?? false;
+      const isProtected = node.modifiers?.includes("protected") ?? false;
+      const isShared = node.modifiers?.includes("shared") ?? false;
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const classSymbol: SymbolInfo = {
+        name: node.name,
+        kind: isStructure ? "structure" : "class",
+        type: node.name,
+        isShared,
+        isPrivate,
+        isProtected,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        containerName: this.activeNamespace,
+        description: node.comment?.trim() || undefined,
+      };
+      if (node.baseType) {
+        classSymbol.inheritsFrom = typeRefToString(node.baseType);
+      }
+      this.symbols.push(classSymbol);
+
+      super.walk(node);
+      this.activeClass = prevClass;
+      return;
+    }
+
+    if (node.kind === "MethodDeclaration") {
+      const isPrivate = node.modifiers?.includes("private") ?? false;
+      const isProtected = node.modifiers?.includes("protected") ?? false;
+      const isShared = (node.modifiers?.includes("shared") ?? false) || (!this.activeClass && !!this.activeNamespace);
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const params = node.parameters.map((p) => ({
+        name: p.name,
+        type: typeRefToString(p.type) ?? "Variant",
+        isByRef: p.isByRef ?? false,
+        isOptional: false,
+      }));
+
+      const methodSymbol: SymbolInfo = {
+        name: node.name,
+        kind: "method",
+        type: node.returnType ? typeRefToString(node.returnType) ?? "Variant" : "Void",
+        isShared,
+        isPrivate,
+        isProtected,
+        parameters: params,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        containerName: this.activeClass ?? this.activeNamespace,
+        description: node.comment?.trim() || undefined,
+      };
+      this.symbols.push(methodSymbol);
+      return;
+    }
+
+    if (node.kind === "DelegateDeclaration") {
+      const isPrivate = node.modifiers?.includes("private") ?? false;
+      const isProtected = node.modifiers?.includes("protected") ?? false;
+      const isShared = node.modifiers?.includes("shared") ?? false;
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const params = node.parameters.map((p) => ({
+        name: p.name,
+        type: typeRefToString(p.type) ?? "Variant",
+        isByRef: p.isByRef ?? false,
+        isOptional: false,
+      }));
+
+      const delegateSymbol: SymbolInfo = {
+        name: node.name,
+        kind: "delegate",
+        type: node.returnType ? typeRefToString(node.returnType) ?? "Variant" : "Void",
+        isShared,
+        isPrivate,
+        isProtected,
+        parameters: params,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        containerName: this.activeClass ?? this.activeNamespace,
+        description: node.comment?.trim() || undefined,
+      };
+      this.symbols.push(delegateSymbol);
+      return;
+    }
+
+    if (node.kind === "PropertyDeclaration") {
+      const isPrivate = node.modifiers?.includes("private") ?? false;
+      const isProtected = node.modifiers?.includes("protected") ?? false;
+      const isShared = node.modifiers?.includes("shared") ?? false;
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const params = node.parameters ?? node.getter?.parameters ?? node.setter?.parameters;
+      const parsedParams = params && params.length > 0
+        ? params.map((p) => ({
+            name: p.name,
+            type: typeRefToString(p.type) ?? "Variant",
+            isByRef: p.isByRef ?? false,
+            isOptional: false,
+          }))
+        : undefined;
+
+      const propSymbol: SymbolInfo = {
+        name: node.name,
+        kind: parsedParams ? "indexed-property" : "property",
+        type: typeRefToString(node.type) ?? "Variant",
+        isShared,
+        isPrivate,
+        isProtected,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        containerName: this.activeClass ?? this.activeNamespace,
+        description: node.comment?.trim() || undefined,
+      };
+      if (parsedParams) {
+        propSymbol.parameters = parsedParams;
+      }
+      this.symbols.push(propSymbol);
+      return;
+    }
+
+    if (node.kind === "FieldDeclaration") {
+      const isPrivate = node.modifiers?.includes("private") ?? false;
+      const isProtected = node.modifiers?.includes("protected") ?? false;
+      const isShared = node.modifiers?.includes("shared") ?? false;
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const varSymbol: SymbolInfo = {
+        name: node.name,
+        kind: "variable",
+        type: typeRefToString(node.type) ?? "Variant",
+        isShared,
+        isPrivate,
+        isProtected,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        containerName: this.activeClass ?? this.activeNamespace,
+        description: node.comment?.trim() || undefined,
+      };
+      this.symbols.push(varSymbol);
+      return;
+    }
+
+    if (node.kind === "EnumDeclaration") {
+      const isPrivate = node.modifiers?.includes("private") ?? false;
+      const isProtected = node.modifiers?.includes("protected") ?? false;
+      const isShared = node.modifiers?.includes("shared") ?? false;
+
+      const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+      const enumSymbol: SymbolInfo = {
+        name: node.name,
+        kind: "class",
+        type: node.name,
+        isShared,
+        isPrivate,
+        isProtected,
+        range: {
+          startLine: loc.startLine - 1,
+          startChar: loc.startChar,
+          endLine: loc.endLine - 1,
+          endChar: loc.endChar,
+        },
+        fileUri: this.fileUri,
+        containerName: this.activeNamespace,
+        description: node.comment?.trim() || undefined,
+        inheritsFrom: "BaseEnum",
+      };
+      this.symbols.push(enumSymbol);
+
+      for (const entry of node.entries) {
+        const entryLoc = entry.loc ?? loc;
+        this.symbols.push({
+          name: entry.name,
+          kind: "method",
+          type: node.name,
+          isShared: true,
+          isPrivate: false,
+          range: {
+            startLine: entryLoc.startLine - 1,
+            startChar: entryLoc.startChar,
+            endLine: entryLoc.endLine - 1,
+            endChar: entryLoc.endChar,
+          },
+          fileUri: this.fileUri,
+          containerName: node.name,
+          description: `Enum member \`${node.name}.${entry.name}\``,
+        });
+      }
+      return;
+    }
+
+    if (node.kind === "VariableDeclaration") {
+      if (this.activeNamespace && !this.activeClass) {
+        const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
+        const varSymbol: SymbolInfo = {
+          name: node.name,
+          kind: "variable",
+          type: typeRefToString(node.type) ?? "Variant",
+          isShared: true,
+          isPrivate: false,
+          isConst: node.isConst,
+          range: {
+            startLine: loc.startLine - 1,
+            startChar: loc.startChar,
+            endLine: loc.endLine - 1,
+            endChar: loc.endChar,
+          },
+          fileUri: this.fileUri,
+          containerName: this.activeNamespace,
+          description: node.comment?.trim() || undefined,
+        };
+        this.symbols.push(varSymbol);
+      }
+      return;
+    }
+
+    super.walk(node);
+  }
+}
+
+export class SymbolParser {
   public static parseBasFile(fileUri: string, content: string): FileSymbols {
     const lines = content.split(/\r?\n/);
     const fileSymbols: FileSymbols = {
@@ -166,506 +403,21 @@ export class SymbolParser {
       symbols: [],
     };
 
-    let activeNamespace: string | undefined;
-    let activeClass: SymbolInfo | undefined;
-    let activeStructure: SymbolInfo | undefined;
-    let activeProperty: SymbolInfo | undefined;
-    let activeMethod: SymbolInfo | undefined;
+    try {
+      const { unit } = parseBasic(content);
 
-    let pendingDescription = "";
-
-    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-      // `lineIdx < lines.length` makes `lines[lineIdx]` always defined; the
-      // `?? ""` keeps `noUncheckedIndexedAccess` happy without weakening
-      // anything at runtime.
-      const line = lines[lineIdx] ?? "";
-      const trimmed = line.trim();
-
-      // 1. Check comments
-      if (trimmed.startsWith("'") || trimmed.toLowerCase().startsWith("rem ")) {
-        const commentContent = trimmed.startsWith("'")
-          ? trimmed.substring(1)
-          : trimmed.substring(4);
-        const cleaned = commentContent.trim();
-        if (!cleaned.startsWith("@")) {
-          // skip metadata tags like @Module
-          if (pendingDescription) {
-            pendingDescription += "\n" + cleaned;
-          } else {
-            pendingDescription = cleaned;
-          }
-        }
-        continue;
-      }
-
-      if (!trimmed) {
-        pendingDescription = "";
-        continue;
-      }
-
-      const lowerTrimmed = trimmed.toLowerCase();
-
-      // 2. Imports
-      const importMatch = trimmed.match(IMPORTS_REGEX_ANCHORED);
-      if (importMatch?.[1]) {
-        fileSymbols.imports.push(importMatch[1]);
-        pendingDescription = "";
-        continue;
-      }
-
-      // 3. Namespace end
-      if (lowerTrimmed === "end namespace") {
-        activeNamespace = undefined;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 4. Namespace start
-      const nsMatch = /^Namespace\s+([a-zA-Z0-9_.]+)/i.exec(trimmed);
-      if (nsMatch?.[1]) {
-        activeNamespace = nsMatch[1];
-        const nsSymbol: SymbolInfo = {
-          name: activeNamespace,
-          kind: "namespace",
-          type: "Namespace",
-          isShared: true,
-          isPrivate: false,
-          range: {
-            startLine: lineIdx,
-            startChar: line.indexOf(activeNamespace),
-            endLine: lineIdx,
-            endChar: line.length,
-          },
-          fileUri,
-          description: pendingDescription || `Namespace ${activeNamespace}`,
-        };
-        fileSymbols.symbols.push(nsSymbol);
-        pendingDescription = "";
-        continue;
-      }
-
-      // 5. End Class
-      if (lowerTrimmed === "end class") {
-        if (activeClass) {
-          activeClass.range.endLine = lineIdx;
-          activeClass.range.endChar = line.length;
-        }
-        activeClass = undefined;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 6. Inherits (inside class)
-      const inheritsMatch = /^Inherits\s+([a-zA-Z0-9_.]+)/i.exec(trimmed);
-      if (inheritsMatch?.[1] && activeClass) {
-        activeClass.inheritsFrom = inheritsMatch[1];
-        pendingDescription = "";
-        continue;
-      }
-
-      // 7. Class start
-      const classMatch = /^(?:(Private|Public|Protected|Shared)\s+)*Class\s+([a-zA-Z0-9_]+)/i.exec(
-        trimmed,
-      );
-      if (classMatch?.[2]) {
-        const classIdx = trimmed.toLowerCase().indexOf("class");
-        const modifiersPart = trimmed.substring(0, classIdx);
-        const isPrivate = /\bprivate\b/i.test(modifiersPart);
-        const isProtected = /\bprotected\b/i.test(modifiersPart);
-        const isShared = /\bshared\b/i.test(modifiersPart);
-        const name = classMatch[2];
-
-        const classSymbol: SymbolInfo = {
-          name,
-          kind: "class",
-          type: name,
-          isShared,
-          isPrivate,
-          isProtected,
-          range: {
-            startLine: lineIdx,
-            startChar: line.indexOf(name),
-            endLine: lineIdx,
-            endChar: line.length,
-          },
-          fileUri,
-          containerName: activeNamespace,
-          description: pendingDescription || undefined,
-        };
-        fileSymbols.symbols.push(classSymbol);
-        activeClass = classSymbol;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 8. End Structure
-      if (lowerTrimmed === "end structure") {
-        if (activeStructure) {
-          activeStructure.range.endLine = lineIdx;
-          activeStructure.range.endChar = line.length;
-        }
-        activeStructure = undefined;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 9. Structure start
-      const structMatch =
-        /^(?:(Private|Public|Protected|Shared)\s+)*Structure\s+([a-zA-Z0-9_]+)/i.exec(trimmed);
-      if (structMatch?.[2]) {
-        const structIdx = trimmed.toLowerCase().indexOf("structure");
-        const modifiersPart = trimmed.substring(0, structIdx);
-        const isPrivate = /\bprivate\b/i.test(modifiersPart);
-        const isProtected = /\bprotected\b/i.test(modifiersPart);
-        const isShared = /\bshared\b/i.test(modifiersPart);
-        const name = structMatch[2];
-
-        const structSymbol: SymbolInfo = {
-          name,
-          kind: "structure",
-          type: name,
-          isShared,
-          isPrivate,
-          isProtected,
-          range: {
-            startLine: lineIdx,
-            startChar: line.indexOf(name),
-            endLine: lineIdx,
-            endChar: line.length,
-          },
-          fileUri,
-          containerName: activeClass?.name ?? activeNamespace,
-          description: pendingDescription || undefined,
-        };
-        fileSymbols.symbols.push(structSymbol);
-        activeStructure = structSymbol;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 10. End Property
-      if (lowerTrimmed === "end property") {
-        if (activeProperty) {
-          activeProperty.range.endLine = lineIdx;
-          activeProperty.range.endChar = line.length;
-        }
-        activeProperty = undefined;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 11. Property start
-      const propMatch =
-        /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*Property\s+([a-zA-Z0-9_]+)(?:\((.*?)\))?(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
-          trimmed,
-        );
-      if (propMatch?.[2]) {
-        const propIdx = trimmed.toLowerCase().indexOf("property");
-        const modifiersPart = trimmed.substring(0, propIdx);
-        const isPrivate = /\bprivate\b/i.test(modifiersPart);
-        const isProtected = /\bprotected\b/i.test(modifiersPart);
-        const isShared = /\bshared\b/i.test(modifiersPart);
-        const name = propMatch[2];
-        const hasParams = propMatch[3] !== undefined;
-        const type = propMatch[4] ?? "Variant";
-
-        const propSymbol: SymbolInfo = {
-          name,
-          kind: hasParams ? "indexed-property" : "property",
-          type,
-          isShared,
-          isPrivate,
-          isProtected,
-          range: {
-            startLine: lineIdx,
-            startChar: line.indexOf(name),
-            endLine: lineIdx,
-            endChar: line.length,
-          },
-          fileUri,
-          containerName: activeClass?.name ?? activeNamespace,
-          description: pendingDescription || undefined,
-        };
-        if (hasParams && propMatch[3]) {
-          propSymbol.parameters = SymbolParser.parseParameters(propMatch[3]);
-        }
-        fileSymbols.symbols.push(propSymbol);
-        activeProperty = propSymbol;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 12. Delegate
-      const delegateMatch =
-        /^(?:(Private|Public|Protected|Shared)\s+)*Delegate\s+(Sub|Function)\s+([a-zA-Z0-9_]+)\s*\(([^)]*)\)(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
-          trimmed,
-        );
-      if (delegateMatch?.[3]) {
-        const delegateIdx = trimmed.toLowerCase().indexOf("delegate");
-        const modifiersPart = trimmed.substring(0, delegateIdx);
-        const isPrivate = /\bprivate\b/i.test(modifiersPart);
-        const isProtected = /\bprotected\b/i.test(modifiersPart);
-        const isShared = /\bshared\b/i.test(modifiersPart);
-        const name = delegateMatch[3];
-        const params = this.parseParameters(delegateMatch[4] ?? "");
-        const type =
-          delegateMatch[5] ??
-          ((delegateMatch[2] ?? "").toLowerCase() === "sub" ? "Void" : "Variant");
-
-        const delegateSymbol: SymbolInfo = {
-          name,
-          kind: "delegate",
-          type,
-          isShared,
-          isPrivate,
-          isProtected,
-          parameters: params,
-          range: {
-            startLine: lineIdx,
-            startChar: line.indexOf(name),
-            endLine: lineIdx,
-            endChar: line.length,
-          },
-          fileUri,
-          containerName: activeClass?.name ?? activeNamespace,
-          description: pendingDescription || undefined,
-        };
-        fileSymbols.symbols.push(delegateSymbol);
-        pendingDescription = "";
-        continue;
-      }
-
-      // 13. Declare Function / Sub
-      const declareMatch =
-        /^(?:(Private|Public|Protected|Shared)\s+)*Declare\s+(Sub|Function)\s+([a-zA-Z0-9_]+)\s+Lib\s+"([^"]+)"(?:\s+Alias\s+"([^"]+)")?\s*\(([^)]*)\)(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
-          trimmed,
-        );
-      if (declareMatch?.[3]) {
-        const modifiers = declareMatch[1]?.toLowerCase() ?? "";
-        const isPrivate = /\bprivate\b/i.test(modifiers);
-        const isProtected = /\bprotected\b/i.test(modifiers);
-        const isShared = true;
-        const subOrFunc = (declareMatch[2] ?? "").toLowerCase();
-        const kind = subOrFunc === "sub" ? "declare_sub" : "declare_function";
-        const name = declareMatch[3];
-        const params = this.parseParameters(declareMatch[6] ?? "");
-        const type = declareMatch[7] ?? (subOrFunc === "sub" ? "Void" : "Variant");
-
-        const declareSymbol: SymbolInfo = {
-          name,
-          kind,
-          type,
-          isShared,
-          isPrivate,
-          isProtected,
-          parameters: params,
-          range: {
-            startLine: lineIdx,
-            startChar: line.indexOf(name),
-            endLine: lineIdx,
-            endChar: line.length,
-          },
-          fileUri,
-          containerName: activeNamespace,
-          description: pendingDescription || `Importação de API Win32 de ${declareMatch[4] ?? "?"}`,
-        };
-        fileSymbols.symbols.push(declareSymbol);
-        pendingDescription = "";
-        continue;
-      }
-
-      // 14. End Sub / Function
-      if (lowerTrimmed === "end sub" || lowerTrimmed === "end function") {
-        if (activeMethod) {
-          activeMethod.range.endLine = lineIdx;
-          activeMethod.range.endChar = line.length;
-        }
-        activeMethod = undefined;
-        pendingDescription = "";
-        continue;
-      }
-
-      // 15. Sub / Function start
-      const methodMatch =
-        /^(?:(Private|Public|Protected|Shared|Overridable|Overrides)\s+)*(Sub|Function)\s+([a-zA-Z0-9_]+)(?:\s*\(([^)]*)\))?(?:\s+As\s+([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
-          trimmed,
-        );
-      if (methodMatch?.[3]) {
-        const subIdx = trimmed.toLowerCase().indexOf("sub");
-        const funcIdx = trimmed.toLowerCase().indexOf("function");
-        const keywordIdx =
-          subIdx !== -1 && funcIdx !== -1
-            ? Math.min(subIdx, funcIdx)
-            : subIdx !== -1
-              ? subIdx
-              : funcIdx;
-        const modifiersPart = trimmed.substring(0, keywordIdx);
-        const isPrivate = /\bprivate\b/i.test(modifiersPart);
-        const isProtected = /\bprotected\b/i.test(modifiersPart);
-        const isShared = /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
-        const name = methodMatch[3];
-        const params = this.parseParameters(methodMatch[4] ?? "");
-        const type =
-          methodMatch[5] ?? ((methodMatch[2] ?? "").toLowerCase() === "sub" ? "Void" : "Variant");
-
-        if (name.toLowerCase() !== "new" || activeClass) {
-          const methodSymbol: SymbolInfo = {
-            name,
-            kind: "method",
-            type,
-            isShared,
-            isPrivate,
-            isProtected,
-            parameters: params,
-            range: {
-              startLine: lineIdx,
-              startChar: line.indexOf(name),
-              endLine: lineIdx,
-              endChar: line.length,
-            },
-            fileUri,
-            containerName: activeClass?.name ?? activeNamespace,
-            description: pendingDescription || undefined,
-          };
-          fileSymbols.symbols.push(methodSymbol);
-          activeMethod = methodSymbol;
-        }
-        pendingDescription = "";
-        continue;
-      }
-
-      // 16. Fields / Variables (Dim / Const)
-      if (!activeMethod && !activeProperty) {
-        const constMatch =
-          /^(?:(Private|Public|Protected|Shared)\s+)*Const\s+([a-zA-Z0-9_]+)(?:\s+As\s+([a-zA-Z0-9_.]+))?(?:\s*=\s*(.+))?/i.exec(
-            trimmed,
-          );
-        if (constMatch) {
-          const modifiers = constMatch[1]?.toLowerCase() ?? "";
-          const name = constMatch[2]!;
-          const explicitType = constMatch[3];
-          const valueExpr = constMatch[4];
-
-          let type = explicitType ?? "Variant";
-          if (!explicitType && valueExpr) {
-            type = inferLiteralType(valueExpr.trim()) ?? "Variant";
-          }
-
-          const isPrivate =
-            /\bprivate\b/i.test(modifiers) ||
-            ((!!activeClass || !!activeStructure) &&
-              !/\bpublic\b/i.test(modifiers) &&
-              !/\bprotected\b/i.test(modifiers));
-          const isProtected = /\bprotected\b/i.test(modifiers);
-          const isShared = true; // Consts are static/shared by definition
-
-          const constSymbol: SymbolInfo = {
-            name,
-            kind: "variable",
-            type,
-            isShared,
-            isPrivate,
-            isProtected,
-            isConst: true,
-            range: {
-              startLine: lineIdx,
-              startChar: line.indexOf(name),
-              endLine: lineIdx,
-              endChar: line.length,
-            },
-            fileUri,
-            containerName: activeClass?.name ?? activeStructure?.name ?? activeNamespace,
-            description: pendingDescription || undefined,
-          };
-          fileSymbols.symbols.push(constSymbol);
-          pendingDescription = "";
-          continue;
-        }
-
-        const varMatch =
-          /^(?:(Private|Public|Protected|Shared|ReadOnly|WriteOnly)\s+)*(?:Dim\s+)?([a-zA-Z0-9_]+)(?:\s+As\s+(?:New\s+)?([a-zA-Z0-9_.]+(?:\s*<[^<>]*?(?:<[^<>]*?>[^<>]*?)*?>)?))?/i.exec(
-            trimmed,
-          );
-        if (varMatch?.[2] && (activeClass || activeStructure || activeNamespace)) {
-          const name = varMatch[2];
-          const lowerName = name.toLowerCase();
-          const reserved = [
-            "if",
-            "else",
-            "elseif",
-            "select",
-            "case",
-            "for",
-            "each",
-            "do",
-            "loop",
-            "while",
-            "until",
-            "try",
-            "catch",
-            "finally",
-            "end",
-            "exit",
-            "return",
-            "next",
-            "throw",
-            "imports",
-            "namespace",
-            "class",
-            "structure",
-            "delegate",
-            "property",
-            "sub",
-            "function",
-            "declare",
-            "shared",
-            "private",
-            "public",
-            "protected",
-            "inherits",
-            "with",
-          ];
-
-          if (!reserved.includes(lowerName)) {
-            const varName = varMatch[2];
-            const varNameIdx = trimmed.indexOf(varName);
-            const modifiersPart = trimmed.substring(0, varNameIdx);
-
-            // In VB.Net/Data7, fields declared with Dim or Private are Private by default inside classes/structures.
-            // At the namespace/global level, they are public by default.
-            const isPrivate =
-              /\bprivate\b/i.test(modifiersPart) ||
-              (/\bdim\b/i.test(modifiersPart) && (!!activeClass || !!activeStructure));
-            const isProtected = /\bprotected\b/i.test(modifiersPart);
-            const isReadOnly = /\breadonly\b/i.test(modifiersPart);
-            const isShared =
-              /\bshared\b/i.test(modifiersPart) || (!activeClass && !!activeNamespace);
-            const type = varMatch[3] ?? "Variant";
-
-            const varSymbol: SymbolInfo = {
-              name,
-              kind: "variable",
-              type,
-              isShared,
-              isPrivate,
-              isProtected,
-              isReadOnly,
-              range: {
-                startLine: lineIdx,
-                startChar: line.indexOf(name),
-                endLine: lineIdx,
-                endChar: line.length,
-              },
-              fileUri,
-              containerName: activeClass?.name ?? activeStructure?.name ?? activeNamespace,
-              description: pendingDescription || undefined,
-            };
-            fileSymbols.symbols.push(varSymbol);
-          }
+      // Extract imports from top-level ImportsDeclarations
+      for (const member of unit.members) {
+        if (member.kind === "ImportsDeclaration") {
+          fileSymbols.imports.push(member.target);
         }
       }
 
-      pendingDescription = "";
+      const walker = new SymbolIndexerWalker(fileUri, lines);
+      walker.run(unit);
+      fileSymbols.symbols = walker.symbols;
+    } catch (err: unknown) {
+      logger.error(`SymbolParser: AST walk failed for ${fileUri}.`, err);
     }
 
     return fileSymbols;
@@ -717,6 +469,9 @@ export class WorkspaceSymbolIndexer {
    */
   public isFileValid(fileUri: string): boolean {
     if (fileUri.startsWith("system://")) {
+      return true;
+    }
+    if (fileUri.startsWith("file:///synthetic-build-dir/")) {
       return true;
     }
     try {

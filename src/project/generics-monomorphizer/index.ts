@@ -24,6 +24,7 @@ export type {
   Node,
   ObjectCreationExpression,
   OpaqueStatement,
+  ImportsDeclaration,
   ParameterDeclaration,
   PropertyDeclaration,
   SourceLocation,

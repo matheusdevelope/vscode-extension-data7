@@ -10,6 +10,8 @@ import { detectEnumerable } from "../analysis/enumerable-detector";
 import { isExcluded, readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { logger } from "../infra/logger";
+import * as vscode from "vscode";
+import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { readProjectConfig, writeProjectConfig } from "./project-config";
 import { SugarTranspiler, type TranspileContext, type SugarDiagnostic } from "./transpiler";
 
@@ -105,7 +107,10 @@ export class Builder {
    * the build sees a deterministic snapshot built only from files actually
    * on disk under `srcDir` + `data7ModulesDir`.
    */
-  private static buildTranspileContext(srcDir: string, data7ModulesDir: string): TranspileContext {
+  private static buildTranspileContext(
+    srcDir: string,
+    data7ModulesDir: string,
+  ): { transpileCtx: TranspileContext; indexer: WorkspaceSymbolIndexer } {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     this.preIndexDirectory(indexer, srcDir);
     if (fs.existsSync(data7ModulesDir)) {
@@ -123,8 +128,8 @@ export class Builder {
     if (useAstGenerics) {
       logger.info("[Generics] AST pipeline active (experimental.useAstGenerics=true).");
     }
-    return {
-      detectEnumerable: (typeName, preferredElementType) =>
+    const transpileCtx = {
+      detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
           typeName,
           (t) => TypeResolver.getAllMembersForType(t, indexer),
@@ -132,6 +137,7 @@ export class Builder {
         ),
       useAstGenerics,
     };
+    return { transpileCtx, indexer };
   }
 
   private static preIndexDirectory(indexer: WorkspaceSymbolIndexer, dir: string): void {
@@ -214,11 +220,13 @@ export class Builder {
 
     const minify = !!metadata.opcoes.minify;
     const stripComments = !!metadata.opcoes.stripComments;
-    const transpileCtx = this.buildTranspileContext(srcDir, data7ModulesDir);
+    const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(srcDir, data7ModulesDir);
 
     const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
     const mainTranspiled = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics);
+    const mainUri = `file:///${mainCodePath.replace(/\\/g, "/")}`;
+    this.runStrictNativeLinter(mainUri, mainTranspiled.code, buildIndexer);
     const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
 
     const getFilesRecursive = (dir: string, ext: string): string[] => {
@@ -353,6 +361,8 @@ export class Builder {
       const rawCode = fs.readFileSync(filePath, "utf-8");
       const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
       this.reportSugarDiagnostics(`${filename}.bas`, transpiled.diagnostics);
+      const fileUri = `file:///${filePath.replace(/\\/g, "/")}`;
+      this.runStrictNativeLinter(fileUri, transpiled.code, buildIndexer);
       const code = this.optimizeCode(transpiled.code, minify, stripComments);
 
       // With `noUncheckedIndexedAccess`, the record lookup is already typed
@@ -411,6 +421,8 @@ export class Builder {
 
           const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
           this.reportSugarDiagnostics(`data7_modules/${filename}.bas`, transpiled.diagnostics);
+          const fileUri = `file:///${path.join(data7ModulesDir, file).replace(/\\/g, "/")}`;
+          this.runStrictNativeLinter(fileUri, transpiled.code, buildIndexer);
           const code = this.optimizeCode(transpiled.code, minify, stripComments);
           modulesToCompile.push({
             name: filename,
@@ -519,6 +531,39 @@ export class Builder {
     parts.push("</Projeto_Data7>");
 
     return parts.join("\n") + "\n";
+  }
+
+  private static runStrictNativeLinter(
+    fileUri: string,
+    code: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): void {
+    indexer.updateFileContent(fileUri, code);
+
+    const mockDoc = {
+      uri: vscode.Uri.parse(fileUri),
+      languageId: "d7basic",
+      version: 1,
+      getText: () => code,
+    } as unknown as vscode.TextDocument;
+
+    const linter = new DiagnosticsLinter({ strict: true });
+    const diagnostics = linter.runDiagnostics(mockDoc, indexer);
+
+    const errors = diagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error);
+    if (errors.length > 0) {
+      const filename = path.basename(mockDoc.uri.fsPath);
+      const errorMsg = errors
+        .map(
+          (e) =>
+            `[${(e.range.start.line + 1).toString()}:${e.range.start.character.toString()}] ${e.message}`,
+        )
+        .join("\n");
+      logger.error(`[Build] Erro de Linter/Sintaxe Nativa em ${filename}:\n${errorMsg}`);
+      throw new Error(
+        `O build foi abortado devido a erros de validação strict native em ${filename}:\n${errorMsg}`,
+      );
+    }
   }
 }
 

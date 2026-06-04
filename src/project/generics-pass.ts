@@ -51,7 +51,7 @@ import {
   flatNameOf,
   stripStringsAndComments,
 } from "../analysis/generics-analyzer";
-import { tokenize } from "../utils/bas-tokenizer";
+import { tokenizeLine } from "./parser/lexer";
 
 export { analyzeGenericsPass, flatNameOf } from "../analysis/generics-analyzer";
 export type { GenericsPassWarning, GenericsPassWarningCode } from "../analysis/generics-analyzer";
@@ -547,7 +547,7 @@ function substituteTemplateNameInBodyLine(
   templateName: string,
   flatName: string,
 ): string {
-  const tokens = tokenize(line, { includeWhitespace: true });
+  const tokens = tokenizeLine(line, { includeWhitespace: true });
   const parts: string[] = [];
   let afterDot = false;
 
@@ -608,7 +608,7 @@ export function substituteTypeParamsInLine(
   templates: { has(name: string): boolean },
 ): string {
   if (subs.size === 0) return line;
-  const tokens = tokenize(line, { includeWhitespace: true });
+  const tokens = tokenizeLine(line, { includeWhitespace: true });
   const parts: string[] = [];
   let typeRefMode = false;
   let angleDepth = 0;

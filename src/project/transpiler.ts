@@ -4,7 +4,7 @@ import { DependencyScanner } from "../analysis/dependency-scanner";
 import type { EnumerableInfo } from "../analysis/enumerable-detector";
 import { runGenericsViaAST } from "./generics-driver";
 import { runGenericsPass, type GenericsPassWarning } from "./generics-pass";
-import { parseBasic, parseExpr, serializeUnitWithMap } from "./parser";
+import { parseBasic, parseExpr, serializeUnitWithMap, SugarsParserPlugin, GenericsParserPlugin } from "./parser";
 import {
   ASTWalker,
   type Statement,
@@ -18,6 +18,12 @@ import {
   type TypeReference,
   type TopLevelMember,
   type Node,
+  type ClassDeclaration,
+  type ClassMember,
+  type ObjectCreationExpression,
+  type Assignment,
+  type BinaryExpression,
+  type WithStatement,
 } from "./generics-monomorphizer/ast";
 
 export interface SugarDiagnostic {
@@ -95,21 +101,7 @@ function inferOperandType(
   }
   return undefined;
 }
-
-function extractTrailingComment(line: string): string | undefined {
-  let inString = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (!inString && ch === "'") {
-      return line.slice(i).trim() || undefined;
-    }
-  }
-  return undefined;
-}
+// extractTrailingComment removed
 
 interface InterpolationSegment {
   readonly isExpression: boolean;
@@ -171,256 +163,7 @@ function splitInterpolatedString(str: string): InterpolationSegment[] {
   return segments;
 }
 
-// ---------------------------------------------------------------------------
-// Text pre-pass rules (Enum, Destructuring, Auto-New, Object-Init)
-// ---------------------------------------------------------------------------
-
-const ENUM_HEADER_REGEX = /^(\s*)Enum\s+([A-Za-z_]\w*)(?:\s+As\s+BaseEnum)?\s*$/i;
-function runEnumPrePass(lines: string[]): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    const m = ENUM_HEADER_REGEX.exec(DependencyScanner.stripComments(line));
-    if (m) {
-      const indent = m[1] ?? "";
-      const enumName = m[2];
-      if (enumName) {
-        let endIdx = -1;
-        const entries: { name: string; value: string }[] = [];
-        for (let j = i + 1; j < lines.length; j++) {
-          const ln = lines[j] ?? "";
-          const clean = DependencyScanner.stripComments(ln).trim();
-          if (!clean) continue;
-          if (/^End\s+Enum\b/i.test(clean)) {
-            endIdx = j;
-            break;
-          }
-          const e = /^([A-Za-z_]\w*)\s*(?:=\s*(.+))?$/.exec(clean);
-          if (e) {
-            const name = e[1] ?? "";
-            const value = (e[2] ?? `"${name}"`).trim();
-            if (name) entries.push({ name, value });
-          }
-        }
-        if (endIdx >= 0 && entries.length > 0) {
-          const innerIndent = indent + "   ";
-          out.push(`${indent}Class ${enumName}`);
-          out.push(`${innerIndent}Inherits BaseEnum`);
-          out.push("");
-          out.push(`${innerIndent}Private Shared _Initialized As Boolean`);
-          out.push("");
-          out.push(`${innerIndent}Private Shared Sub Initialize()`);
-          out.push(`${innerIndent}   If _Initialized Then Exit Sub`);
-          entries.forEach((entry, idx) => {
-            out.push(
-              `${innerIndent}   BaseEnum._AddEnumItem("${enumName}", New ${enumName}(${idx}, ${entry.value}))`,
-            );
-          });
-          out.push(`${innerIndent}   _Initialized = True`);
-          out.push(`${innerIndent}End Sub`);
-          for (const entry of entries) {
-            out.push("");
-            out.push(`${innerIndent}Shared Function ${entry.name} As ${enumName}`);
-            out.push(`${innerIndent}   ${entry.name} = Load(${entry.value})`);
-            out.push(`${innerIndent}End Function`);
-          }
-          out.push("");
-          out.push(`${innerIndent}Shared Function Load(pValue As String) As ${enumName}`);
-          out.push(`${innerIndent}   ${enumName}.Initialize()`);
-          out.push(
-            `${innerIndent}   Load = CType(BaseEnum._GetCache("${enumName}", pValue), ${enumName})`,
-          );
-          out.push(`${innerIndent}End Function`);
-          out.push("");
-          out.push(`${innerIndent}Shared Function GetOptions() As String`);
-          out.push(`${innerIndent}   ${enumName}.Initialize()`);
-          out.push(`${innerIndent}   GetOptions = BaseEnum._GetEnumOptions("${enumName}")`);
-          out.push(`${innerIndent}End Function`);
-          out.push(`${indent}End Class`);
-          i = endIdx;
-          continue;
-        }
-      }
-    }
-    out.push(line);
-  }
-  return out;
-}
-
-const DESTRUCTURE_OBJECT_REGEX = /^(\s*)Dim\s*\{\s*([^}]+?)\s*\}\s*=\s*(.+)$/i;
-const DESTRUCTURE_ARRAY_REGEX = /^(\s*)Dim\s*\[\s*([^\]]+?)\s*\]\s*=\s*(.+)$/i;
-
-function parseObjectDestructure(
-  body: string,
-): { local: string; member: string; defaultExpr?: string }[] | null {
-  const parts = splitInitializerList(body);
-  const result: { local: string; member: string; defaultExpr?: string }[] = [];
-  for (const part of parts) {
-    const m = /^(\w+)(?:\s+As\s+(\w+))?(?:\s*=\s*(.+))?$/i.exec(part.trim());
-    if (!m) return null;
-    const member = m[1] ?? "";
-    const local = m[2] ?? member;
-    const defaultExpr = m[3]?.trim();
-    result.push({ local, member, defaultExpr });
-  }
-  return result;
-}
-
-function parseArrayDestructure(body: string): { local: string; isRest: boolean }[] | null {
-  const parts = splitInitializerList(body);
-  const result: { local: string; isRest: boolean }[] = [];
-  for (const part of parts) {
-    const text = part.trim();
-    if (text.startsWith("...")) {
-      result.push({ local: text.slice(3).trim(), isRest: true });
-    } else {
-      result.push({ local: text, isRest: false });
-    }
-  }
-  return result;
-}
-
-function splitInitializerList(raw: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-  let inString = false;
-  for (let i = 0; i < raw.length; i++) {
-    const c = raw[i] ?? "";
-    if (c === '"') {
-      if (inString && raw[i + 1] === '"') {
-        i++;
-        continue;
-      }
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (c === "(" || c === "[" || c === "{") depth++;
-    else if (c === ")" || c === "]" || c === "}") depth--;
-    else if (c === "," && depth === 0) {
-      const segment = raw.slice(start, i).trim();
-      if (segment) parts.push(segment);
-      start = i + 1;
-    }
-  }
-  const tail = raw.slice(start).trim();
-  if (tail) parts.push(tail);
-  return parts;
-}
-
-const AUTO_NEW_REGEX =
-  /^(\s*)(?:(Dim|Public|Private|Protected|Shared)\s+)?([A-Za-z_]\w*)\s+As\s+New\s+([\w.]+)\s*$/i;
-
-const OBJECT_INIT_REGEX =
-  /^(\s*)(?:(Dim|Public|Private|Protected|Shared)\s+)?([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*(?:As\s+([\w.]+)\s*)?=\s*(New\s+[\w.]+\s*\(.*?\))\s+With\s*\{\s*(.+?)\s*\}\s*$/i;
-
-function runLinePrePasses(
-  lines: string[],
-  idxCounter: () => string,
-  srcCounter: () => string,
-): string[] {
-  const out: string[] = [];
-  // for (let i = 0; i < lines.length; i++) {
-  for (const line of lines) {
-    // const line = lines[i] ?? "";
-    const cleanLine = DependencyScanner.stripComments(line);
-
-    // Destructure Object
-    const destObj = DESTRUCTURE_OBJECT_REGEX.exec(cleanLine);
-    if (destObj) {
-      const indent = destObj[1] ?? "";
-      const body = destObj[2] ?? "";
-      const source = (destObj[3] ?? "").trim();
-      const bindings = parseObjectDestructure(body);
-      if (bindings) {
-        const trailingComment = extractTrailingComment(line);
-        bindings.forEach((b, idx) => {
-          const dim = `${indent}Dim ${b.local} = ${source}.${b.member}`;
-          out.push(idx === 0 && trailingComment ? `${dim} ${trailingComment}` : dim);
-          if (b.defaultExpr !== undefined) {
-            out.push(
-              `${indent}If ${b.local} = NULL Or ${b.local} = "" Then ${b.local} = ${b.defaultExpr}`,
-            );
-          }
-        });
-        continue;
-      }
-    }
-
-    // Destructure Array
-    const destArr = DESTRUCTURE_ARRAY_REGEX.exec(cleanLine);
-    if (destArr) {
-      const indent = destArr[1] ?? "";
-      const body = destArr[2] ?? "";
-      const source = (destArr[3] ?? "").trim();
-      const bindings = parseArrayDestructure(body);
-      if (bindings) {
-        const trailingComment = extractTrailingComment(line);
-        bindings.forEach((b, idx) => {
-          if (b.isRest) {
-            const restList = srcCounter();
-            out.push(`${indent}Dim ${b.local} As StringList = New StringList()`);
-            out.push(`${indent}For ${restList} = ${idx} To ${source}.Count - 1`);
-            out.push(`${indent}   ${b.local}.Add(${source}.Item(${restList}))`);
-            out.push(`${indent}Next`);
-          } else {
-            const dim = `${indent}Dim ${b.local} = ${source}.Item(${idx})`;
-            out.push(idx === 0 && trailingComment ? `${dim} ${trailingComment}` : dim);
-          }
-        });
-        continue;
-      }
-    }
-
-    // Auto-New
-    const autoNew = AUTO_NEW_REGEX.exec(cleanLine);
-    if (autoNew) {
-      const indent = autoNew[1] ?? "";
-      const dimKeyword = autoNew[2] ?? "Dim";
-      const target = autoNew[3];
-      const typeName = autoNew[4];
-      if (target && typeName) {
-        const trailingComment = extractTrailingComment(line);
-        const head = `${indent}${dimKeyword} ${target} As ${typeName} = New ${typeName}()`;
-        out.push(trailingComment ? `${head} ${trailingComment}` : head);
-        continue;
-      }
-    }
-
-    // Object Init
-    const objInit = OBJECT_INIT_REGEX.exec(cleanLine);
-    if (objInit) {
-      const indent = objInit[1] ?? "";
-      const dimKeyword = objInit[2];
-      const target = objInit[3];
-      const asType = objInit[4];
-      const newExpr = objInit[5];
-      const initList = objInit[6] ?? "";
-      if (target && newExpr) {
-        const trailingComment = extractTrailingComment(line);
-        const innerIndent = indent + "   ";
-        const assignmentLine = dimKeyword
-          ? asType
-            ? `${indent}${dimKeyword} ${target} As ${asType} = ${newExpr}`
-            : `${indent}${dimKeyword} ${target} = ${newExpr}`
-          : `${indent}${target} = ${newExpr}`;
-        out.push(trailingComment ? `${assignmentLine} ${trailingComment}` : assignmentLine);
-
-        const inits = splitInitializerList(initList);
-        out.push(`${indent}With ${target}`);
-        for (const init of inits) {
-          out.push(`${innerIndent}${init}`);
-        }
-        out.push(`${indent}End With`);
-        continue;
-      }
-    }
-
-    out.push(line);
-  }
-  return out;
-}
+// Dead code block and helper functions removed
 
 const NUMERIC_SEPARATOR_TRANSFORM = {
   apply(line: string): string {
@@ -565,6 +308,8 @@ export class ASTSugarTransformer extends ASTWalker {
       ) {
         this.walk(m);
         result.push(m);
+      } else if (m.kind === "ImportsDeclaration") {
+        result.push(m);
       } else {
         // `VariableDeclaration` (top-level Dim/Const), OpaqueStatements, and
         // all other statement-like members go through `transformStatement` so
@@ -597,6 +342,45 @@ export class ASTSugarTransformer extends ASTWalker {
   private transformStatement(s: Statement): Statement | Statement[] {
     switch (s.kind) {
       case "VariableDeclaration": {
+        if (s.initializer?.kind === "ObjectInitializerExpression") {
+          const objInit = s.initializer;
+          const target: Identifier = { kind: "Identifier", name: s.name, loc: s.loc };
+          const creation: ObjectCreationExpression = {
+            kind: "ObjectCreationExpression",
+            type: objInit.type,
+            arguments: objInit.arguments,
+            loc: objInit.loc,
+          };
+          const decl: VariableDeclaration = {
+            kind: "VariableDeclaration",
+            name: s.name,
+            type: s.type,
+            initializer: creation,
+            loc: s.loc,
+          };
+          const withBody: Statement[] = objInit.assignments.map((assoc) => {
+            const val = this.transformExpression(assoc.value, true, s.loc?.startLine);
+            return {
+              kind: "Assignment",
+              target: {
+                kind: "MemberAccess",
+                target: { kind: "Identifier", name: "", loc: s.loc },
+                member: assoc.member,
+                loc: s.loc,
+              },
+              value: val,
+              loc: s.loc,
+            };
+          });
+          const withStmt: WithStatement = {
+            kind: "WithStatement",
+            expression: target,
+            body: withBody,
+            loc: s.loc,
+          };
+          return [decl, withStmt];
+        }
+
         if (s.initializer) {
           s.initializer = this.transformExpression(s.initializer, true, s.loc?.startLine);
           if (s.initializer.kind === "TernaryExpression") {
@@ -719,6 +503,44 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "Assignment": {
+        if (s.value.kind === "ObjectInitializerExpression") {
+          const objInit = s.value;
+          const target = this.transformExpression(s.target, false, s.loc?.startLine);
+          const creation: ObjectCreationExpression = {
+            kind: "ObjectCreationExpression",
+            type: objInit.type,
+            arguments: objInit.arguments,
+            loc: objInit.loc,
+          };
+          const assign: Assignment = {
+            kind: "Assignment",
+            target,
+            value: creation,
+            loc: s.loc,
+          };
+          const withBody: Statement[] = objInit.assignments.map((assoc) => {
+            const val = this.transformExpression(assoc.value, true, s.loc?.startLine);
+            return {
+              kind: "Assignment",
+              target: {
+                kind: "MemberAccess",
+                target: { kind: "Identifier", name: "", loc: s.loc },
+                member: assoc.member,
+                loc: s.loc,
+              },
+              value: val,
+              loc: s.loc,
+            };
+          });
+          const withStmt: WithStatement = {
+            kind: "WithStatement",
+            expression: target,
+            body: withBody,
+            loc: s.loc,
+          };
+          return [assign, withStmt];
+        }
+
         s.target = this.transformExpression(s.target, false, s.loc?.startLine);
         s.value = this.transformExpression(s.value, true, s.loc?.startLine);
 
@@ -851,7 +673,304 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           };
         }
+        if (s.value.kind === "ObjectInitializerExpression") {
+          const objInit = s.value;
+          const target = s.target;
+          const creation: ObjectCreationExpression = {
+            kind: "ObjectCreationExpression",
+            type: objInit.type,
+            arguments: objInit.arguments,
+            loc: objInit.loc,
+          };
+          const baseAssign: Assignment = {
+            kind: "Assignment",
+            target,
+            value: creation,
+            loc: s.loc,
+          };
+          const assignments: Statement[] = objInit.assignments.map((assoc) => {
+            const val = this.transformExpression(assoc.value, true, s.loc?.startLine);
+            return {
+              kind: "Assignment",
+              target: {
+                kind: "MemberAccess",
+                target,
+                member: assoc.member,
+                loc: s.loc,
+              },
+              value: val,
+              loc: s.loc,
+            };
+          });
+          return [baseAssign, ...assignments];
+        }
+
         return s;
+      }
+
+      case "EnumDeclaration": {
+        const enumName = s.name;
+        const entries = s.entries.map((entry) => {
+          let valueStr = `"${entry.name}"`;
+          if (entry.value) {
+            if (entry.value.kind === "Literal") {
+              const val = entry.value.value;
+              if (typeof val === "string") valueStr = val;
+              else if (val === null) valueStr = "NULL";
+              else valueStr = String(val);
+            } else if (entry.value.kind === "Identifier") {
+              valueStr = entry.value.name;
+            }
+          }
+          return { name: entry.name, value: valueStr };
+        });
+
+        const classMembers: ClassMember[] = [];
+
+        classMembers.push({
+          kind: "FieldDeclaration",
+          name: "_Initialized",
+          type: { kind: "TypeReference", name: "Boolean", typeArguments: [], loc: s.loc },
+          modifiers: ["Private", "Shared"],
+          loc: s.loc,
+        });
+
+        const initBody: Statement[] = [
+          { kind: "OpaqueStatement", text: "If _Initialized Then Exit Sub", loc: s.loc }
+        ];
+        entries.forEach((entry, idx) => {
+          initBody.push({
+            kind: "OpaqueStatement",
+            text: `BaseEnum._AddEnumItem("${enumName}", New ${enumName}(${idx}, ${entry.value}))`,
+            loc: s.loc
+          });
+        });
+        initBody.push({ kind: "OpaqueStatement", text: "_Initialized = True", loc: s.loc });
+
+        classMembers.push({
+          kind: "MethodDeclaration",
+          name: "Initialize",
+          typeParameters: [],
+          parameters: [],
+          body: initBody,
+          modifiers: ["Private", "Shared"],
+          loc: s.loc,
+        });
+
+        for (const entry of entries) {
+          classMembers.push({
+            kind: "MethodDeclaration",
+            name: entry.name,
+            typeParameters: [],
+            parameters: [],
+            returnType: { kind: "TypeReference", name: enumName, typeArguments: [], loc: s.loc },
+            body: [
+              { kind: "OpaqueStatement", text: `${entry.name} = Load(${entry.value})`, loc: s.loc }
+            ],
+            modifiers: ["Shared"],
+            loc: s.loc,
+            noParentheses: true,
+          });
+        }
+
+        classMembers.push({
+          kind: "MethodDeclaration",
+          name: "Load",
+          typeParameters: [],
+          parameters: [
+            {
+              kind: "ParameterDeclaration",
+              name: "pValue",
+              type: { kind: "TypeReference", name: "String", typeArguments: [], loc: s.loc }
+            }
+          ],
+          returnType: { kind: "TypeReference", name: enumName, typeArguments: [], loc: s.loc },
+          body: [
+            { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: s.loc },
+            { kind: "OpaqueStatement", text: `Load = CType(BaseEnum._GetCache("${enumName}", pValue), ${enumName})`, loc: s.loc }
+          ],
+          modifiers: ["Shared"],
+          loc: s.loc,
+        });
+
+        classMembers.push({
+          kind: "MethodDeclaration",
+          name: "GetOptions",
+          typeParameters: [],
+          parameters: [],
+          returnType: { kind: "TypeReference", name: "String", typeArguments: [], loc: s.loc },
+          body: [
+            { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: s.loc },
+            { kind: "OpaqueStatement", text: `GetOptions = BaseEnum._GetEnumOptions("${enumName}")`, loc: s.loc }
+          ],
+          modifiers: ["Shared"],
+          loc: s.loc,
+        });
+
+        const classDecl: ClassDeclaration = {
+          kind: "ClassDeclaration",
+          name: enumName,
+          typeParameters: [],
+          baseType: { kind: "TypeReference", name: "BaseEnum", typeArguments: [], loc: s.loc },
+          members: classMembers,
+          modifiers: s.modifiers ?? [],
+          loc: s.loc,
+        };
+
+        return classDecl as unknown as Statement;
+      }
+
+      case "DestructuredVariableDeclaration": {
+        const sourceName = s.initializer.kind === "Identifier" ? s.initializer.name : this.freshSource();
+        const declarations: Statement[] = [];
+        
+        if (s.initializer.kind !== "Identifier") {
+          declarations.push({
+            kind: "VariableDeclaration",
+            name: sourceName,
+            initializer: s.initializer,
+            loc: s.loc,
+          });
+        }
+        
+        const sourceRef: Identifier = { kind: "Identifier", name: sourceName, loc: s.loc };
+        
+        if (s.isObject) {
+          s.bindings.forEach((b) => {
+            const memberName = b.property ?? b.name;
+            const access: MemberAccess = {
+              kind: "MemberAccess",
+              target: sourceRef,
+              member: memberName,
+              loc: s.loc,
+            };
+            const decl: VariableDeclaration = {
+              kind: "VariableDeclaration",
+              name: b.name,
+              initializer: access,
+              loc: s.loc,
+            };
+            declarations.push(decl);
+            if (b.defaultValue !== undefined) {
+              const checkNull: BinaryExpression = {
+                kind: "BinaryExpression",
+                left: { kind: "Identifier", name: b.name, loc: s.loc },
+                operator: "=",
+                right: { kind: "Literal", value: null, loc: s.loc },
+                loc: s.loc,
+              };
+              const checkEmpty: BinaryExpression = {
+                kind: "BinaryExpression",
+                left: { kind: "Identifier", name: b.name, loc: s.loc },
+                operator: "=",
+                right: { kind: "Literal", value: `""`, loc: s.loc },
+                loc: s.loc,
+              };
+              const condition: BinaryExpression = {
+                kind: "BinaryExpression",
+                left: checkNull,
+                operator: "Or",
+                right: checkEmpty,
+                loc: s.loc,
+              };
+              declarations.push({
+                kind: "IfStatement",
+                condition,
+                thenBranch: [
+                  {
+                    kind: "Assignment",
+                    target: { kind: "Identifier", name: b.name, loc: s.loc },
+                    value: b.defaultValue,
+                    loc: s.loc,
+                  },
+                ],
+                elseIfBranches: [],
+                loc: s.loc,
+                singleLine: true,
+              });
+            }
+          });
+        } else {
+          s.bindings.forEach((b, idx) => {
+            if (b.isRest) {
+              const restList = this.freshSource();
+              const restListVar: Identifier = { kind: "Identifier", name: restList, loc: s.loc };
+              declarations.push({
+                kind: "VariableDeclaration",
+                name: b.name,
+                type: { kind: "TypeReference", name: "StringList", typeArguments: [], loc: s.loc },
+                initializer: {
+                  kind: "ObjectCreationExpression",
+                  type: { kind: "TypeReference", name: "StringList", typeArguments: [], loc: s.loc },
+                  arguments: [],
+                  loc: s.loc,
+                },
+                loc: s.loc,
+              });
+              
+              const countExpr: MemberAccess = {
+                kind: "MemberAccess",
+                target: sourceRef,
+                member: "Count",
+                loc: s.loc,
+              };
+              
+              declarations.push({
+                kind: "ForStatement",
+                counter: restListVar,
+                start: { kind: "Literal", value: idx, loc: s.loc },
+                end: {
+                  kind: "BinaryExpression",
+                  left: countExpr,
+                  operator: "-",
+                  right: { kind: "Literal", value: 1, loc: s.loc },
+                  loc: s.loc,
+                },
+                body: [
+                  {
+                    kind: "ExpressionStatement",
+                    expression: {
+                      kind: "MethodInvocation",
+                      callee: { kind: "Identifier", name: b.name, loc: s.loc },
+                      methodName: "Add",
+                      typeArguments: [],
+                      arguments: [
+                        {
+                          kind: "MethodInvocation",
+                          callee: sourceRef,
+                          methodName: "Item",
+                          typeArguments: [],
+                          arguments: [restListVar],
+                          loc: s.loc,
+                        },
+                      ],
+                      loc: s.loc,
+                    },
+                    loc: s.loc,
+                  },
+                ],
+                loc: s.loc,
+              });
+            } else {
+              const itemCall: MethodInvocation = {
+                kind: "MethodInvocation",
+                callee: sourceRef,
+                methodName: "Item",
+                typeArguments: [],
+                arguments: [{ kind: "Literal", value: idx, loc: s.loc }],
+                loc: s.loc,
+              };
+              declarations.push({
+                kind: "VariableDeclaration",
+                name: b.name,
+                initializer: itemCall,
+                loc: s.loc,
+              });
+            }
+          });
+        }
+        
+        return declarations;
       }
 
       case "ExpressionStatement": {
@@ -1145,6 +1264,17 @@ export class ASTSugarTransformer extends ASTWalker {
         s.body = this.transformStatements(s.body);
         return s;
       }
+ 
+      case "SelectCaseStatement": {
+        s.expression = this.transformExpression(s.expression, false, s.loc?.startLine);
+        for (const c of s.cases) {
+          for (let i = 0; i < c.values.length; i++) {
+            c.values[i] = this.transformExpression(c.values[i]!, false, c.loc?.startLine);
+          }
+          c.body = this.transformStatements(c.body);
+        }
+        return s;
+      }
 
       case "Block": {
         s.statements = this.transformStatements(s.statements);
@@ -1154,6 +1284,7 @@ export class ASTSugarTransformer extends ASTWalker {
       case "OpaqueStatement":
         return s;
     }
+    return s;
   }
 
   private transformExpression(
@@ -1396,7 +1527,16 @@ export class ASTSugarTransformer extends ASTWalker {
           };
         }
       }
+      case "ObjectInitializerExpression": {
+        return {
+          kind: "ObjectCreationExpression",
+          type: e.type,
+          arguments: e.arguments.map((arg) => this.transformExpression(arg, false, startLine)),
+          loc: e.loc,
+        };
+      }
     }
+    return e;
   }
 
   private isComplexExpression(expr: Expression): boolean {
@@ -1532,28 +1672,18 @@ export class SugarTranspiler {
     // Numeric separators
     lines = lines.map((line) => NUMERIC_SEPARATOR_TRANSFORM.apply(line));
 
-    // Enum
-    lines = runEnumPrePass(lines);
-
-    // Destructuring / Auto-New / Object-Init
-    let idxVal = 0;
-    let srcVal = 0;
-    lines = runLinePrePasses(
-      lines,
-      () => `__idx${idxVal++}`,
-      () => `__src${srcVal++}`,
-    );
-
     const processedCode = lines.join(eol);
 
     // 3. Parse to AST (Check if has structural definitions first)
-    const tempParse = parseBasic(processedCode);
+    const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
+    const tempParse = parseBasic(processedCode, { plugins });
     const hasStructural = tempParse.unit.members.some(
       (m) =>
         m.kind === "NamespaceDeclaration" ||
         m.kind === "ClassDeclaration" ||
         m.kind === "MethodDeclaration" ||
-        m.kind === "DelegateDeclaration",
+        m.kind === "DelegateDeclaration" ||
+        m.kind === "EnumDeclaration",
     );
 
     let finalUnit = tempParse.unit;
@@ -1563,7 +1693,7 @@ export class SugarTranspiler {
     if (!hasStructural) {
       wrapped = true;
       const wrappedCode = `Sub __syntheticMethod()${eol}${processedCode}${eol}End Sub`;
-      finalUnit = parseBasic(wrappedCode).unit;
+      finalUnit = parseBasic(wrappedCode, { plugins }).unit;
       transformerLines = [`Sub __syntheticMethod()`, ...lines, `End Sub`];
     }
 

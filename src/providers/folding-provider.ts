@@ -1,57 +1,12 @@
 import * as vscode from "vscode";
-import { stripCommentsAndStrings } from "../utils/code-stripper";
-
-interface OpenBlock {
-  startLine: number;
-  endKeyword: RegExp;
-  kind: vscode.FoldingRangeKind | undefined;
-}
-
-const RE_NAMESPACE_OPEN = /^\s*Namespace\b/i;
-const RE_NAMESPACE_CLOSE = /^\s*End\s+Namespace\b/i;
-
-const RE_CLASS_OPEN = /^\s*(?:Public|Private)?\s*(?:Shared)?\s*Class\b/i;
-const RE_CLASS_CLOSE = /^\s*End\s+Class\b/i;
-
-const RE_STRUCT_OPEN = /^\s*(?:Public|Private)?\s*Structure\b/i;
-const RE_STRUCT_CLOSE = /^\s*End\s+Structure\b/i;
-
-// `Declare Sub|Function` declarations don't have an `End` — exclude them.
-const RE_SUB_OPEN =
-  /^\s*(?!.*\bDeclare\b)(?:Public|Private)?\s*(?:Shared)?\s*Sub\b(?!.*?\bEnd\s+Sub\b)/i;
-const RE_SUB_CLOSE = /^\s*End\s+Sub\b/i;
-
-const RE_FN_OPEN =
-  /^\s*(?!.*\bDeclare\b)(?:Public|Private)?\s*(?:Shared)?\s*Function\b(?!.*?\bEnd\s+Function\b)/i;
-const RE_FN_CLOSE = /^\s*End\s+Function\b/i;
-
-// Block-If: `If ... Then` with nothing after Then on the same line.
-const RE_IF_OPEN = /^\s*If\b.+?\bThen\s*(?:'.*)?$/i;
-const RE_IF_CLOSE = /^\s*End\s+If\b/i;
-
-const RE_FOR_OPEN = /^\s*For\b/i;
-const RE_FOR_CLOSE = /^\s*Next\b/i;
-
-const RE_WHILE_OPEN = /^\s*(?:While\b|Do\s+While\b|Do\b)/i;
-const RE_WHILE_CLOSE = /^\s*(?:End\s+While\b|Loop\b)/i;
-
-const RE_SELECT_OPEN = /^\s*Select\s+Case\b/i;
-const RE_SELECT_CLOSE = /^\s*End\s+Select\b/i;
-
-const RE_TRY_OPEN = /^\s*Try\b/i;
-const RE_TRY_CLOSE = /^\s*End\s+Try\b/i;
-
-const RE_REGION_OPEN = /^\s*#Region\b/i;
-const RE_REGION_CLOSE = /^\s*#End\s+Region\b/i;
-
-const RE_IMPORTS = /^\s*Imports\b/i;
+import { LanguageProcessor } from "../analysis/language-processor";
+import type { Node } from "../project/generics-monomorphizer/ast";
 
 /**
  * Provides semantic folding ranges for Data7 Basic: namespaces, classes,
  * structures, methods, control-flow blocks, `#Region`s and `Imports` runs.
- *
- * The parser is line-based and tolerant — it strips line comments before
- * matching so commented-out keywords are not treated as block openers.
+ * Uses the AST from LanguageProcessor for semantic structures, and a simple line-scan
+ * for preprocessor `#Region` and `Imports` runs.
  */
 export class D7BasicFoldingRangeProvider implements vscode.FoldingRangeProvider {
   public provideFoldingRanges(
@@ -61,11 +16,19 @@ export class D7BasicFoldingRangeProvider implements vscode.FoldingRangeProvider 
   ): vscode.ProviderResult<vscode.FoldingRange[]> {
     if (token.isCancellationRequested) return undefined;
 
-    const cleaned = stripCommentsAndStrings(document.getText()).split("\n");
+    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const unit = cached.unit;
     const ranges: vscode.FoldingRange[] = [];
-    const stack: OpenBlock[] = [];
 
-    // Track contiguous Imports for a single fold.
+    // Traverse AST for semantic blocks
+    traverseForFolding(unit, ranges);
+
+    // Line scan for #Region and Imports
+    const lines = document.getText().split(/\r?\n/);
+    const regionStack: number[] = [];
+    const RE_REGION_OPEN = /^\s*#Region\b/i;
+    const RE_REGION_CLOSE = /^\s*#End\s+Region\b/i;
+    const RE_IMPORTS = /^\s*Imports\b/i;
     let importsRun: { start: number; end: number } | null = null;
 
     const flushImports = (): void => {
@@ -81,61 +44,144 @@ export class D7BasicFoldingRangeProvider implements vscode.FoldingRangeProvider 
       importsRun = null;
     };
 
-    for (let i = 0; i < cleaned.length; i++) {
-      // `i < cleaned.length` guarantees the access; the `?? ""` fallback
-      // keeps `noUncheckedIndexedAccess` happy with no runtime change.
-      const line = cleaned[i] ?? "";
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
 
-      // Imports run.
+      // Imports
       if (RE_IMPORTS.test(line)) {
-        if (!importsRun) importsRun = { start: i, end: i };
-        else importsRun.end = i;
+        if (!importsRun) {
+          importsRun = { start: i, end: i };
+        } else {
+          importsRun.end = i;
+        }
       } else if (importsRun) {
         flushImports();
       }
 
-      // Try to close the innermost open block first.
-      const top = stack.at(-1);
-      if (top?.endKeyword.test(line)) {
-        const open = stack.pop();
-        if (!open) continue;
-        if (i > open.startLine) {
-          ranges.push(new vscode.FoldingRange(open.startLine, i, open.kind));
-        }
-        continue;
-      }
-
-      // Try to open a new block. Order matters: more specific patterns first.
+      // Region
       if (RE_REGION_OPEN.test(line)) {
-        stack.push({
-          startLine: i,
-          endKeyword: RE_REGION_CLOSE,
-          kind: vscode.FoldingRangeKind.Region,
-        });
-      } else if (RE_NAMESPACE_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_NAMESPACE_CLOSE, kind: undefined });
-      } else if (RE_CLASS_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_CLASS_CLOSE, kind: undefined });
-      } else if (RE_STRUCT_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_STRUCT_CLOSE, kind: undefined });
-      } else if (RE_SUB_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_SUB_CLOSE, kind: undefined });
-      } else if (RE_FN_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_FN_CLOSE, kind: undefined });
-      } else if (RE_IF_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_IF_CLOSE, kind: undefined });
-      } else if (RE_FOR_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_FOR_CLOSE, kind: undefined });
-      } else if (RE_WHILE_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_WHILE_CLOSE, kind: undefined });
-      } else if (RE_SELECT_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_SELECT_CLOSE, kind: undefined });
-      } else if (RE_TRY_OPEN.test(line)) {
-        stack.push({ startLine: i, endKeyword: RE_TRY_CLOSE, kind: undefined });
+        regionStack.push(i);
+      } else if (RE_REGION_CLOSE.test(line)) {
+        const start = regionStack.pop();
+        if (start !== undefined && i > start) {
+          ranges.push(new vscode.FoldingRange(start, i, vscode.FoldingRangeKind.Region));
+        }
       }
     }
-
     flushImports();
+
     return ranges;
+  }
+}
+
+function traverseForFolding(node: Node | undefined, ranges: vscode.FoldingRange[]): void {
+  if (!node) return;
+
+  if (node.loc) {
+    const startLine = Math.max(0, node.loc.startLine - 1);
+    const endLine = Math.max(0, node.loc.endLine - 1);
+
+    if (endLine > startLine) {
+      const exists = ranges.some((r) => r.start === startLine && r.end === endLine);
+      if (!exists) {
+        const shouldFold = [
+          "NamespaceDeclaration",
+          "ClassDeclaration",
+          "MethodDeclaration",
+          "PropertyDeclaration",
+          "EnumDeclaration",
+          "IfStatement",
+          "ForStatement",
+          "ForEachStatement",
+          "WhileStatement",
+          "TryCatchStatement",
+          "UsingStatement",
+          "MatchStatement",
+          "WithStatement",
+          "SelectCaseStatement",
+        ].includes(node.kind);
+
+        if (shouldFold) {
+          ranges.push(new vscode.FoldingRange(startLine, endLine));
+        }
+      }
+    }
+  }
+
+  switch (node.kind) {
+    case "CompilationUnit":
+    case "NamespaceDeclaration":
+      for (const m of node.members) {
+        traverseForFolding(m, ranges);
+      }
+      break;
+    case "ClassDeclaration":
+      for (const m of node.members) {
+        traverseForFolding(m, ranges);
+      }
+      break;
+    case "MethodDeclaration":
+      for (const s of node.body) {
+        traverseForFolding(s, ranges);
+      }
+      break;
+    case "PropertyDeclaration":
+      traverseForFolding(node.getter, ranges);
+      traverseForFolding(node.setter, ranges);
+      break;
+    case "EnumDeclaration":
+      // Enum entries are single-line and do not need folding traversal themselves
+      break;
+    case "IfStatement":
+      for (const s of node.thenBranch) {
+        traverseForFolding(s, ranges);
+      }
+      for (const branch of node.elseIfBranches) {
+        for (const s of branch.body) {
+          traverseForFolding(s, ranges);
+        }
+      }
+      if (node.elseBranch) {
+        for (const s of node.elseBranch) {
+          traverseForFolding(s, ranges);
+        }
+      }
+      break;
+    case "ForStatement":
+    case "ForEachStatement":
+    case "WhileStatement":
+    case "UsingStatement":
+    case "WithStatement":
+      for (const s of node.body) {
+        traverseForFolding(s, ranges);
+      }
+      break;
+    case "MatchStatement":
+      for (const c of node.cases) {
+        for (const s of c.body) {
+          traverseForFolding(s, ranges);
+        }
+      }
+      break;
+    case "SelectCaseStatement":
+      for (const c of node.cases) {
+        for (const s of c.body) {
+          traverseForFolding(s, ranges);
+        }
+      }
+      break;
+    case "TryCatchStatement":
+      for (const s of node.tryBody) {
+        traverseForFolding(s, ranges);
+      }
+      for (const s of node.catchBody) {
+        traverseForFolding(s, ranges);
+      }
+      if (node.finallyBody) {
+        for (const s of node.finallyBody) {
+          traverseForFolding(s, ranges);
+        }
+      }
+      break;
   }
 }

@@ -1,17 +1,10 @@
 /**
- * Multi-line lexer for Data7 Basic source files.
- *
- * Reuses the lexical primitives from {@link tokenizeLine} (in
- * `src/utils/bas-tokenizer.ts`) and stitches them across lines, emitting
- * an explicit `newline` token between lines and an `eof` token at the
- * end. The newline token makes line-oriented constructs (declaration
- * headers, opaque body lines) easy to recognise in the parser without
- * tracking column offsets manually.
+ * Multi-line lexer and single-line tokenizer for Data7 Basic source files.
  *
  * Position model:
  *
  *  - `line` is 1-based (matches the editor gutter).
- *  - `column` is 0-based (matches `bas-tokenizer.ts`).
+ *  - `column` is 0-based.
  *  - The `newline` token's column is the column where the newline
  *    physically occurred (i.e. the length of the source line).
  *  - The `eof` token sits one past the last character of the last line.
@@ -21,8 +14,295 @@
  * discards whitespace by default).
  */
 
-import { tokenize as tokenizeLine, type Token as LineToken } from "../../utils/bas-tokenizer";
 import type { Token, TokenKind } from "./token-types";
+
+// ===========================================================================
+// Single-line Tokenizer Types and Implementation
+// ===========================================================================
+
+export interface IdentifierToken {
+  readonly kind: "identifier";
+  readonly value: string;
+  /** 0-based column where the token starts. */
+  readonly col: number;
+}
+
+export interface KeywordToken {
+  readonly kind: "keyword";
+  readonly value: string;
+  readonly col: number;
+}
+
+export interface NumberToken {
+  readonly kind: "number";
+  readonly value: string;
+  readonly col: number;
+}
+
+/**
+ * "..." or $"..." string literal. prefix is "$" for
+ * interpolation tokens and "" for regular strings.
+ */
+export interface StringToken {
+  readonly kind: "string";
+  readonly value: string;
+  readonly col: number;
+  readonly prefix: "" | "$";
+}
+
+export interface CommentToken {
+  readonly kind: "comment";
+  readonly value: string;
+  readonly col: number;
+}
+
+export interface PunctToken {
+  readonly kind: "punct";
+  readonly value: string;
+  readonly col: number;
+}
+
+export interface WhitespaceToken {
+  readonly kind: "whitespace";
+  readonly value: string;
+  readonly col: number;
+}
+
+export type LineToken =
+  | IdentifierToken
+  | KeywordToken
+  | NumberToken
+  | StringToken
+  | CommentToken
+  | PunctToken
+  | WhitespaceToken;
+
+/**
+ * Canonical Data7 Basic keyword set (case-insensitive lookups).
+ */
+const KEYWORDS: ReadonlySet<string> = new Set(
+  [
+    "And",
+    "AndAlso",
+    "As",
+    "ByRef",
+    "ByVal",
+    "Case",
+    "Catch",
+    "Class",
+    "Const",
+    "Declare",
+    "Delegate",
+    "Dim",
+    "Do",
+    "Each",
+    "Else",
+    "ElseIf",
+    "End",
+    "Enum",
+    "Exit",
+    "False",
+    "Finally",
+    "For",
+    "Function",
+    "Get",
+    "If",
+    "Imports",
+    "In",
+    "Inherits",
+    "Is",
+    "Let",
+    "Loop",
+    "Match",
+    "Me",
+    "Mod",
+    "MyBase",
+    "Namespace",
+    "New",
+    "Next",
+    "Not",
+    "Nothing",
+    "NULL",
+    "Or",
+    "OrElse",
+    "Overridable",
+    "Overrides",
+    "Private",
+    "Property",
+    "Protected",
+    "Public",
+    "ReadOnly",
+    "Return",
+    "Select",
+    "Set",
+    "Shared",
+    "Step",
+    "Structure",
+    "Sub",
+    "Then",
+    "Throw",
+    "To",
+    "True",
+    "Try",
+    "Until",
+    "Using",
+    "When",
+    "While",
+    "With",
+    "Xor",
+  ].map((k) => k.toLowerCase()),
+);
+
+/**
+ * Tokenizes a single line of Data7 Basic source.
+ */
+export function tokenizeLine(
+  line: string,
+  options: { readonly includeWhitespace?: boolean } = {},
+): LineToken[] {
+  const includeWS = options.includeWhitespace === true;
+  const tokens: LineToken[] = [];
+  let i = 0;
+  const n = line.length;
+
+  while (i < n) {
+    const ch = line[i] ?? "";
+
+    // Whitespace.
+    if (ch === " " || ch === "\t") {
+      const start = i;
+      while (i < n && (line[i] === " " || line[i] === "\t")) i++;
+      if (includeWS) {
+        tokens.push({ kind: "whitespace", value: line.slice(start, i), col: start });
+      }
+      continue;
+    }
+
+    // Line comment.
+    if (ch === "'") {
+      tokens.push({ kind: "comment", value: line.slice(i), col: i });
+      return tokens;
+    }
+
+    // String literal (`"..."` with `""` escape).
+    if (ch === '"') {
+      const start = i;
+      i++;
+      while (i < n) {
+        if (line[i] === '"') {
+          if (line[i + 1] === '"') {
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+      tokens.push({ kind: "string", value: line.slice(start, i), col: start, prefix: "" });
+      continue;
+    }
+
+    // `$"..."` interpolation token.
+    if (ch === "$" && line[i + 1] === '"') {
+      const start = i;
+      i += 2;
+      while (i < n) {
+        if (line[i] === '"') {
+          if (line[i + 1] === '"') {
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+      tokens.push({ kind: "string", value: line.slice(start, i), col: start, prefix: "$" });
+      continue;
+    }
+
+    // Number literal.
+    if (isDigit(ch) || (ch === "&" && (line[i + 1] === "H" || line[i + 1] === "h"))) {
+      const start = i;
+      if (ch === "&") {
+        i += 2;
+        while (i < n && isHexDigit(line[i] ?? "")) i++;
+      } else {
+        while (i < n && isDigit(line[i] ?? "")) i++;
+        if (line[i] === "." && line[i + 1] !== ".") {
+          i++;
+          while (i < n && isDigit(line[i] ?? "")) i++;
+        }
+        if (line[i] === "e" || line[i] === "E") {
+          i++;
+          if (line[i] === "+" || line[i] === "-") i++;
+          while (i < n && isDigit(line[i] ?? "")) i++;
+        }
+      }
+      tokens.push({ kind: "number", value: line.slice(start, i), col: start });
+      continue;
+    }
+
+    // Identifier or keyword.
+    if (isIdentStart(ch)) {
+      const start = i;
+      while (i < n && isIdentChar(line[i] ?? "")) i++;
+      const value = line.slice(start, i);
+      const kind = KEYWORDS.has(value.toLowerCase()) ? "keyword" : "identifier";
+      tokens.push({ kind, value, col: start });
+      continue;
+    }
+
+    // Multi-character punctuation.
+    const three = line.slice(i, i + 3);
+    if (three === "??=" || three === "||=" || three === "&&=" || three === "...") {
+      tokens.push({ kind: "punct", value: three, col: i });
+      i += 3;
+      continue;
+    }
+    const two = line.slice(i, i + 2);
+    if (
+      two === "<=" ||
+      two === ">=" ||
+      two === "<>" ||
+      two === "??" ||
+      two === "?." ||
+      two === "|>" ||
+      two === ".."
+    ) {
+      tokens.push({ kind: "punct", value: two, col: i });
+      i += 2;
+      continue;
+    }
+
+    // Single character punctuation.
+    tokens.push({ kind: "punct", value: ch, col: i });
+    i++;
+  }
+
+  return tokens;
+}
+
+function isDigit(ch: string): boolean {
+  return ch >= "0" && ch <= "9";
+}
+
+function isHexDigit(ch: string): boolean {
+  return isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F");
+}
+
+function isIdentStart(ch: string): boolean {
+  return /[A-Za-z_]/.test(ch);
+}
+
+function isIdentChar(ch: string): boolean {
+  return /[A-Za-z0-9_]/.test(ch);
+}
+
+// ===========================================================================
+// Multi-line Lexer Implementation
+// ===========================================================================
 
 /**
  * Tokenises the entire `source` and returns the resulting flat stream,
@@ -30,8 +310,6 @@ import type { Token, TokenKind } from "./token-types";
  */
 export function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
-  // Preserve empty trailing line (split keeps it). We iterate explicitly
-  // so the lexer is platform-aware (handles CR/LF and LF identically).
   const lines = source.split(/\r?\n/);
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
@@ -41,8 +319,7 @@ export function tokenize(source: string): Token[] {
       const mapped = mapLineToken(lt, lineIdx + 1);
       if (mapped !== null) tokens.push(mapped);
     }
-    // Emit a newline marker after every line except the last (the last
-    // line is closed by `eof`).
+    // Emit a newline marker after every line except the last.
     if (lineIdx < lines.length - 1) {
       tokens.push({
         kind: "newline",
@@ -61,8 +338,6 @@ export function tokenize(source: string): Token[] {
 
 /**
  * Maps a single-line tokenizer token to the parser's wider token shape.
- * Returns `null` for tokens the parser does not need to see (whitespace,
- * comments).
  */
 function mapLineToken(t: LineToken, line: number): Token | null {
   if (t.kind === "whitespace") return null;

@@ -132,4 +132,33 @@ End Namespace`;
       );
     });
   });
+
+  describe("AST-backed local scope", () => {
+    test("lists method parameters and local variables from the parsed AST", async () => {
+      const code = `Namespace mod_scope
+   Class C
+      Public Sub Run(pName As String)
+         Dim localCount As Integer
+         
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///cp_ast_scope.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(doc, pos(4, 9), noopToken, {} as vscode.CompletionContext),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("pName"), `pName must appear; got ${labels.join(", ")}`);
+      assert.ok(
+        labels.includes("localCount"),
+        `localCount must appear; got ${labels.join(", ")}`,
+      );
+    });
+  });
 });

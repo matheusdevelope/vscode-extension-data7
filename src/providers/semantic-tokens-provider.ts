@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { SYSTEM_SYMBOLS } from "../system-library";
-import { stripCommentsAndStringsLine } from "../utils/code-stripper";
+import { LanguageProcessor } from "../analysis/language-processor";
 
 /**
  * Token types we declare to VS Code. Order matters — index = `legend.tokenTypes.indexOf(type)`.
@@ -25,12 +25,6 @@ export const D7BasicSemanticTokensLegend = new vscode.SemanticTokensLegend(
  * Provides semantic highlighting for `.bas` files. Unlike TextMate grammar
  * (which colours only by syntax), this provider colours identifiers based on
  * their resolved kind in the symbol indexer + system library.
- *
- * Strategy:
- *  1. Build a fast lookup `Map<lowerCaseName, TokenType>` from every known
- *     class/namespace/method/property in the workspace + System Library.
- *  2. Tokenise the document line-by-line via a single word regex.
- *  3. For each word, emit a token with its mapped type when it's known.
  */
 export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -44,20 +38,16 @@ export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTok
     const lookup = this.buildSymbolLookup();
     const builder = new vscode.SemanticTokensBuilder(D7BasicSemanticTokensLegend);
 
-    const wordRegex = /[A-Za-z_][\w]*/g;
-    for (let lineIdx = 0; lineIdx < document.lineCount; lineIdx++) {
-      const lineText = document.lineAt(lineIdx).text;
-      // Skip comment lines wholesale.
-      if (/^\s*('|Rem\s)/i.test(lineText)) continue;
-
-      const cleanedLine = stripCommentsAndStringsLine(lineText);
-      wordRegex.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = wordRegex.exec(cleanedLine)) !== null) {
-        const kind = lookup.get(m[0].toLowerCase());
-        if (!kind) continue;
-        const tokenTypeIdx = TOKEN_TYPES.indexOf(kind);
-        builder.push(lineIdx, m.index, m[0].length, tokenTypeIdx, 0);
+    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const tokens = cached.tokens;
+    for (const t of tokens) {
+      if (t.kind === "identifier") {
+        const kind = lookup.get(t.value.toLowerCase());
+        if (kind) {
+          const tokenTypeIdx = TOKEN_TYPES.indexOf(kind);
+          const line = Math.max(0, t.loc.line - 1);
+          builder.push(line, t.loc.column, t.value.length, tokenTypeIdx, 0);
+        }
       }
     }
 

@@ -4,6 +4,7 @@ import * as fs from "fs";
 import type { SharedModuleInfo } from "../analysis/dependency-scanner";
 import { DependencyScanner, IMPORTS_REGEX } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { LanguageProcessor } from "../analysis/language-processor";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
@@ -41,6 +42,17 @@ export class DiagnosticService {
   public static initialize(context: vscode.ExtensionContext): void {
     this._collection = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
     context.subscriptions.push(this._collection);
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand("data7.refreshDiagnostics", (uriStr: string) => {
+        const doc = vscode.workspace.textDocuments.find(
+          (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase()
+        );
+        if (doc) {
+          this.refreshDiagnosticsNow(doc);
+        }
+      })
+    );
 
     const handleDocument = (doc: vscode.TextDocument): void => {
       if (doc.uri.scheme === "data7-preview") {
@@ -194,6 +206,25 @@ export class DiagnosticService {
         }
       }
     });
+
+    try {
+      const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+      cachedDoc.errors.forEach((err) => {
+        const line = Math.max(0, err.loc.line - 1);
+        const col = Math.max(0, err.loc.column);
+        const range = new vscode.Range(line, col, line, col + 1);
+        const diag = new vscode.Diagnostic(
+          range,
+          err.message,
+          vscode.DiagnosticSeverity.Error
+        );
+        diag.code = err.code;
+        diag.source = DIAGNOSTIC_SOURCE;
+        diagnostics.push(diag);
+      });
+    } catch (err: unknown) {
+      logger.error("Falha ao obter erros sintáticos do LanguageProcessor.", err);
+    }
 
     try {
       const advanced = DiagnosticsLinter.runAdvancedDiagnostics(

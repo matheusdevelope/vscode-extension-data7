@@ -116,7 +116,7 @@ export class PreviewService {
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument((e) => {
         if (
-          (e.document.languageId === "d7basic" || e.document.fileName.endsWith(".bas")) &&
+          (e.document.languageId === "d7basic" || e.document.fileName?.endsWith(".bas")) &&
           e.document.uri.scheme !== D7PreviewContentProvider.scheme
         ) {
           const previewUri = e.document.uri.with({
@@ -148,7 +148,7 @@ export class PreviewService {
 
     // Only act on source .bas files, never on the preview itself.
     if (
-      (doc.languageId !== "d7basic" && !doc.fileName.endsWith(".bas")) ||
+      (doc.languageId !== "d7basic" && !doc.fileName?.endsWith(".bas")) ||
       doc.uri.scheme === D7PreviewContentProvider.scheme
     ) {
       return;
@@ -232,7 +232,7 @@ export class PreviewService {
 
     const doc = activeEditor.document;
     if (
-      (doc.languageId !== "d7basic" && !doc.fileName.endsWith(".bas")) ||
+      (doc.languageId !== "d7basic" && !doc.fileName?.endsWith(".bas")) ||
       doc.uri.scheme === D7PreviewContentProvider.scheme
     ) {
       vscode.window.showWarningMessage(

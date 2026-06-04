@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { logger } from "../infra/logger";
+import { parseBasic, SugarsParserPlugin, GenericsParserPlugin } from "../project/parser";
+import type { Node } from "../project/generics-monomorphizer/ast";
 
 // -----------------------------------------------------------------------------
 // Canonical `Imports <namespace>` regexes.
@@ -10,7 +12,6 @@ import { logger } from "../infra/logger";
 // the only forms callers should use:
 //
 //   IMPORTS_REGEX           – first occurrence anywhere on a line  (use with .match)
-//   IMPORTS_REGEX_GLOBAL    – all occurrences, line-by-line scans (use with .exec in a loop)
 //   IMPORTS_REGEX_ANCHORED  – line-start only, allows leading whitespace
 //
 // Every variant captures the namespace name in group 1 and accepts qualified
@@ -18,7 +19,6 @@ import { logger } from "../infra/logger";
 // -----------------------------------------------------------------------------
 const IMPORTS_NS = "[A-Za-z_][\\w.]*";
 export const IMPORTS_REGEX = new RegExp(`\\bImports\\s+(${IMPORTS_NS})`, "i");
-export const IMPORTS_REGEX_GLOBAL = new RegExp(`\\bImports\\s+(${IMPORTS_NS})`, "gi");
 export const IMPORTS_REGEX_ANCHORED = new RegExp(`^\\s*Imports\\s+(${IMPORTS_NS})`, "i");
 
 export interface SharedModuleInfo {
@@ -158,6 +158,8 @@ export class DependencyScanner {
     return null;
   }
 
+
+
   // Scan local src/ files for any references to modules
   public static detectReferencedModules(
     srcDir: string,
@@ -180,46 +182,44 @@ export class DependencyScanner {
       // Also parse namespace in local file just in case
       try {
         const content = fs.readFileSync(file, "utf-8");
-        const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-        const ns = nsMatch?.[1];
-        if (ns) {
-          localModules.add(ns.toLowerCase());
+        const { unit } = parseBasic(content, {
+          plugins: [new SugarsParserPlugin(), new GenericsParserPlugin()],
+        });
+        for (const member of unit.members) {
+          if (member.kind === "NamespaceDeclaration") {
+            localModules.add(member.name.toLowerCase());
+          }
         }
       } catch {
         /* file unreadable — skip namespace inference */
       }
     });
 
-    // Regexes to detect references
-    const importsRegex = new RegExp(IMPORTS_REGEX_GLOBAL.source, IMPORTS_REGEX_GLOBAL.flags);
-    const directCallRegex = /\b(mod_[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)(?=\.)/gi; // Matches mod_abc.xyz or console.log (captures console/mod_abc)
-
     basFiles.forEach((file) => {
       try {
         const content = fs.readFileSync(file, "utf-8");
+        const { unit } = parseBasic(content, {
+          plugins: [new SugarsParserPlugin(), new GenericsParserPlugin()],
+        });
 
         // 1. Scan explicit imports
-        importsRegex.lastIndex = 0;
-        let match;
-        while ((match = importsRegex.exec(content)) !== null) {
-          const importName = match[1];
-          if (!importName) continue;
-          const resolved = this.resolveModuleName(importName, localModules, availableSharedModules);
-          if (resolved) {
-            referenced.add(resolved);
+        for (const member of unit.members) {
+          if (member.kind === "ImportsDeclaration") {
+            const firstSegment = member.target.split(".")[0] ?? member.target;
+            const resolved = this.resolveModuleName(firstSegment, localModules, availableSharedModules);
+            if (resolved) {
+              referenced.add(resolved);
+            }
           }
         }
 
         // 2. Scan direct references
-        let dMatch;
-        while ((dMatch = directCallRegex.exec(content)) !== null) {
-          const callName = dMatch[1];
-          if (!callName) continue;
+        collectModuleReferences(unit, (callName) => {
           const resolved = this.resolveModuleName(callName, localModules, availableSharedModules);
           if (resolved) {
             referenced.add(resolved);
           }
-        }
+        });
       } catch (err: unknown) {
         logger.error(`Erro ao escanear arquivo local para dependências: ${file}`, err);
       }
@@ -320,3 +320,229 @@ export class DependencyScanner {
     return synced;
   }
 }
+
+function collectModuleReferences(node: Node, callback: (name: string) => void): void {
+  if (!node) return;
+
+  switch (node.kind) {
+    case "CompilationUnit":
+      if (node.members) {
+        for (const m of node.members) collectModuleReferences(m, callback);
+      }
+      break;
+    case "NamespaceDeclaration":
+      if (node.members) {
+        for (const m of node.members) collectModuleReferences(m, callback);
+      }
+      break;
+    case "ClassDeclaration":
+      if (node.baseType) collectModuleReferences(node.baseType, callback);
+      if (node.members) {
+        for (const m of node.members) collectModuleReferences(m, callback);
+      }
+      break;
+    case "MethodDeclaration":
+      if (node.returnType) collectModuleReferences(node.returnType, callback);
+      if (node.parameters) {
+        for (const p of node.parameters) collectModuleReferences(p, callback);
+      }
+      if (node.body) {
+        for (const s of node.body) collectModuleReferences(s, callback);
+      }
+      break;
+    case "ParameterDeclaration":
+      if (node.type) collectModuleReferences(node.type, callback);
+      break;
+    case "VariableDeclaration":
+      if (node.type) collectModuleReferences(node.type, callback);
+      if (node.initializer) collectModuleReferences(node.initializer, callback);
+      break;
+    case "DestructuredVariableDeclaration":
+      if (node.initializer) collectModuleReferences(node.initializer, callback);
+      if (node.bindings) {
+        for (const b of node.bindings) {
+          if (b.defaultValue) collectModuleReferences(b.defaultValue, callback);
+        }
+      }
+      break;
+    case "EnumDeclaration":
+      if (node.baseType) collectModuleReferences(node.baseType, callback);
+      if (node.entries) {
+        for (const e of node.entries) {
+          if (e.value) collectModuleReferences(e.value, callback);
+        }
+      }
+      break;
+    case "PropertyDeclaration":
+      if (node.type) collectModuleReferences(node.type, callback);
+      if (node.getter) collectModuleReferences(node.getter, callback);
+      if (node.setter) collectModuleReferences(node.setter, callback);
+      break;
+    case "FieldDeclaration":
+      if (node.type) collectModuleReferences(node.type, callback);
+      break;
+    case "TypeReference":
+      if (node.name.includes(".")) {
+        const parts = node.name.split(".");
+        if (parts[0]) callback(parts[0]);
+      }
+      if (node.typeArguments) {
+        for (const arg of node.typeArguments) collectModuleReferences(arg, callback);
+      }
+      break;
+    case "MemberAccess":
+      if (node.target.kind === "Identifier") {
+        callback(node.target.name);
+      } else {
+        collectModuleReferences(node.target, callback);
+      }
+      break;
+    case "MethodInvocation":
+      if (node.callee) {
+        if (node.callee.kind === "Identifier") {
+          callback(node.callee.name);
+        } else {
+          collectModuleReferences(node.callee, callback);
+        }
+      }
+      if (node.arguments) {
+        for (const arg of node.arguments) collectModuleReferences(arg, callback);
+      }
+      break;
+    case "ObjectCreationExpression":
+      if (node.type) collectModuleReferences(node.type, callback);
+      if (node.arguments) {
+        for (const arg of node.arguments) collectModuleReferences(arg, callback);
+      }
+      break;
+    case "ObjectInitializerExpression":
+      if (node.type) collectModuleReferences(node.type, callback);
+      if (node.arguments) {
+        for (const arg of node.arguments) collectModuleReferences(arg, callback);
+      }
+      if (node.assignments) {
+        for (const assign of node.assignments) collectModuleReferences(assign.value, callback);
+      }
+      break;
+    case "IfStatement":
+      if (node.condition) collectModuleReferences(node.condition, callback);
+      if (node.thenBranch) {
+        for (const s of node.thenBranch) collectModuleReferences(s, callback);
+      }
+      if (node.elseIfBranches) {
+        for (const branch of node.elseIfBranches) {
+          if (branch.condition) collectModuleReferences(branch.condition, callback);
+          if (branch.body) {
+            for (const s of branch.body) collectModuleReferences(s, callback);
+          }
+        }
+      }
+      if (node.elseBranch) {
+        for (const s of node.elseBranch) collectModuleReferences(s, callback);
+      }
+      break;
+    case "ForStatement":
+      if (node.start) collectModuleReferences(node.start, callback);
+      if (node.end) collectModuleReferences(node.end, callback);
+      if (node.step) collectModuleReferences(node.step, callback);
+      if (node.body) {
+        for (const s of node.body) collectModuleReferences(s, callback);
+      }
+      break;
+    case "ForEachStatement":
+      if (node.elementType) collectModuleReferences(node.elementType, callback);
+      if (node.enumerable) collectModuleReferences(node.enumerable, callback);
+      if (node.body) {
+        for (const s of node.body) collectModuleReferences(s, callback);
+      }
+      break;
+    case "WhileStatement":
+      if (node.condition) collectModuleReferences(node.condition, callback);
+      if (node.body) {
+        for (const s of node.body) collectModuleReferences(s, callback);
+      }
+      break;
+    case "TryCatchStatement":
+      if (node.tryBody) {
+        for (const s of node.tryBody) collectModuleReferences(s, callback);
+      }
+      if (node.catchType) collectModuleReferences(node.catchType, callback);
+      if (node.catchBody) {
+        for (const s of node.catchBody) collectModuleReferences(s, callback);
+      }
+      if (node.finallyBody) {
+        for (const s of node.finallyBody) collectModuleReferences(s, callback);
+      }
+      break;
+    case "UsingStatement":
+      if (node.resourceType) collectModuleReferences(node.resourceType, callback);
+      if (node.resourceArgs) {
+        for (const arg of node.resourceArgs) collectModuleReferences(arg, callback);
+      }
+      if (node.body) {
+        for (const s of node.body) collectModuleReferences(s, callback);
+      }
+      break;
+    case "WithStatement":
+      if (node.expression) collectModuleReferences(node.expression, callback);
+      if ((node as any).body) {
+        for (const s of (node as any).body) collectModuleReferences(s, callback);
+      }
+      break;
+    case "MatchStatement":
+      if (node.subject) collectModuleReferences(node.subject, callback);
+      if (node.cases) {
+        for (const c of node.cases) {
+          if (c.body) {
+            for (const s of c.body) collectModuleReferences(s, callback);
+          }
+        }
+      }
+      break;
+    case "ReturnStatement":
+      if (node.expression) collectModuleReferences(node.expression, callback);
+      break;
+    case "BinaryExpression":
+      if (node.left) collectModuleReferences(node.left, callback);
+      if (node.right) collectModuleReferences(node.right, callback);
+      break;
+    case "UnaryExpression":
+      if (node.argument) collectModuleReferences(node.argument, callback);
+      break;
+    case "TernaryExpression":
+      if (node.condition) collectModuleReferences(node.condition, callback);
+      if (node.trueExpr) collectModuleReferences(node.trueExpr, callback);
+      if (node.falseExpr) collectModuleReferences(node.falseExpr, callback);
+      break;
+    case "NullCoalescingExpression":
+      if (node.left) collectModuleReferences(node.left, callback);
+      if (node.right) collectModuleReferences(node.right, callback);
+      break;
+    case "OptionalChainingExpression":
+      if (node.target) collectModuleReferences(node.target, callback);
+      if (node.member) collectModuleReferences(node.member, callback);
+      break;
+    case "PipeExpression":
+      if (node.left) collectModuleReferences(node.left, callback);
+      if (node.right) collectModuleReferences(node.right, callback);
+      break;
+    case "TaggedTemplateExpression":
+      if (node.tag) callback(node.tag);
+      break;
+    case "Block":
+      if (node.statements) {
+        for (const s of node.statements) collectModuleReferences(s, callback);
+      }
+      break;
+    case "OpaqueStatement": {
+      const opaqueMatchRegex = /\b(mod_[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)(?=\.)/gi;
+      let match;
+      opaqueMatchRegex.lastIndex = 0;
+      while ((match = opaqueMatchRegex.exec(node.text)) !== null) {
+        if (match[1]) callback(match[1]);
+      }
+      break;
+    }
+  }
+}
+

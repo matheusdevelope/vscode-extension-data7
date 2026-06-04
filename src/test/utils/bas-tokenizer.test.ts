@@ -1,7 +1,7 @@
 import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { tokenize, type Token } from "../../utils/bas-tokenizer";
+import { tokenizeLine as tokenize, type LineToken as Token } from "../../project/parser/lexer";
 
 function values(tokens: readonly Token[]): readonly { kind: Token["kind"]; value: string }[] {
   return tokens.map((t) => ({ kind: t.kind, value: t.value }));

@@ -41,6 +41,7 @@ import type {
   MethodDeclaration,
   NamespaceDeclaration,
   OpaqueStatement,
+  ImportsDeclaration,
   ParameterDeclaration,
   PropertyDeclaration,
   Statement,
@@ -52,24 +53,27 @@ import type {
   ForEachStatement,
   WhileStatement,
   TryCatchStatement,
-  UsingStatement,
-  MatchStatement,
   ReturnStatement,
   WithStatement,
   Expression,
   Identifier,
   VariableDeclaration,
+  SelectCaseStatement,
+  SelectCaseBranch,
 } from "../generics-monomorphizer/ast";
 import { tokenize } from "./lexer";
 import { makeError, type ParseError, type ParseErrorCode } from "./parser-errors";
 import type { Token, TokenLocation } from "./token-types";
+import type { ParserPlugin } from "./plugin";
+import { SugarsParserPlugin } from "./sugars-plugin";
+import { GenericsParserPlugin } from "./generics-plugin";
 
 export interface ParseResult {
   readonly unit: CompilationUnit;
   readonly errors: readonly ParseError[];
 }
 
-enum Precedence {
+export enum Precedence {
   None = 0,
   Assignment = 1,
   Ternary = 2,
@@ -122,17 +126,23 @@ const PRECEDENCES: Record<string, number> = {
  * here to avoid threading the original string through every recursive
  * call.
  */
-export function parse(source: string): ParseResult {
+export interface ParseOptions {
+  plugins?: ParserPlugin[];
+}
+
+export function parse(source: string, options?: ParseOptions): ParseResult {
   const tokens = tokenize(source);
   const sourceLines = source.split(/\r?\n/);
-  const parser = new Parser(tokens, sourceLines);
+  const plugins = options?.plugins ?? [new SugarsParserPlugin(), new GenericsParserPlugin()];
+  const parser = new Parser(tokens, sourceLines, plugins);
   const unit = parser.parseCompilationUnit();
   return { unit, errors: parser.errors };
 }
 
-export function parseExpr(source: string): Expression {
+export function parseExpr(source: string, options?: ParseOptions): Expression {
   const tokens = tokenize(source);
-  const parser = new Parser(tokens, [source]);
+  const plugins = options?.plugins ?? [new SugarsParserPlugin(), new GenericsParserPlugin()];
+  const parser = new Parser(tokens, [source], plugins);
   return parser.parseExpression();
 }
 
@@ -140,20 +150,21 @@ export function parseExpr(source: string): Expression {
 // Parser internals
 // ============================================================================
 
-class Parser {
-  private pos = 0;
+export class Parser {
+  public pos = 0;
   public readonly errors: ParseError[] = [];
 
   constructor(
-    private readonly tokens: readonly Token[],
-    private readonly sourceLines: readonly string[],
+    public readonly tokens: readonly Token[],
+    public readonly sourceLines: readonly string[],
+    public readonly plugins: readonly ParserPlugin[] = [],
   ) {}
 
   // --------------------------------------------------------------------------
   // Cursor helpers
   // --------------------------------------------------------------------------
 
-  private peek(offset = 0): Token {
+  public peek(offset = 0): Token {
     const idx = this.pos + offset;
     const at = this.tokens[idx];
     if (at !== undefined) return at;
@@ -164,31 +175,35 @@ class Parser {
     return last ?? { kind: "eof", value: "", loc: { line: 0, column: 0 } };
   }
 
-  private isEOF(): boolean {
+  public isEOF(): boolean {
     return this.peek().kind === "eof";
   }
 
-  private advance(): Token {
+  public advance(): Token {
     const t = this.peek();
     if (t.kind !== "eof") this.pos++;
     return t;
   }
 
   /** Skips zero or more `newline` tokens. */
-  private skipNewlines(): void {
+  public skipNewlines(): void {
     while (this.peek().kind === "newline") this.pos++;
   }
 
   /** Case-insensitive comparison of a keyword/identifier token's value. */
-  private static eq(token: Token, name: string): boolean {
+  public static eq(token: Token, name: string): boolean {
     return token.value.toLowerCase() === name.toLowerCase();
+  }
+
+  public eq(token: Token, name: string): boolean {
+    return Parser.eq(token, name);
   }
 
   /**
    * Returns true if the current token matches `kind` and (when given)
    * `value` (case-insensitive). Does NOT consume the token.
    */
-  private match(kind: Token["kind"], value?: string): boolean {
+  public match(kind: Token["kind"], value?: string): boolean {
     const t = this.peek();
     if (t.kind !== kind) return false;
     if (value === undefined) return true;
@@ -199,7 +214,7 @@ class Parser {
    * Consumes the current token if it matches. Returns the consumed
    * token on match, otherwise `null`.
    */
-  private consume(kind: Token["kind"], value?: string): Token | null {
+  public consume(kind: Token["kind"], value?: string): Token | null {
     if (this.match(kind, value)) return this.advance();
     return null;
   }
@@ -214,7 +229,7 @@ class Parser {
    * message; pass it whenever the placeholder differs from the literal
    * value (e.g. `<namespace-name>` instead of a hard-coded token).
    */
-  private expect(
+  public expect(
     kind: Token["kind"],
     valueOrDescription: string,
     options: { readonly literal?: boolean } = {},
@@ -231,7 +246,7 @@ class Parser {
     return null;
   }
 
-  private recordError(code: ParseErrorCode, message: string, loc: TokenLocation): void {
+  public recordError(code: ParseErrorCode, message: string, loc: TokenLocation): void {
     this.errors.push(makeError(code, message, loc));
   }
 
@@ -259,20 +274,32 @@ class Parser {
 
     if (head.kind === "keyword" || head.kind === "identifier") {
       const v = head.value.toLowerCase();
+      
+      for (const plugin of this.plugins) {
+        if (plugin.parseStatement) {
+          const res = plugin.parseStatement(this);
+          if (res !== null) return res;
+        }
+      }
+
       if (v === "namespace") return this.parseNamespace();
-      if (v === "class") return this.parseClass();
+      if (v === "class" || v === "structure") return this.parseClass();
       if (v === "sub" || v === "function") return this.parseMethod();
       if (v === "delegate") return this.parseDelegate();
-      // Parse `Dim` and `Const` at the top-level so that their
-      // initializers pass through the AST sugar transformer
-      // (ternary, null-coalescing, interpolation). Without this,
-      // code in `Principal.bas` outside any Namespace block falls
-      // through to `consumeLineAsOpaque()` and sugar is never
-      // rewritten.
+      if (v === "imports") return this.parseImportsDeclaration();
+      
       if (v === "dim" || v === "const") {
-        // Consume any leading modifiers before the Dim/Const keyword.
         this.parseModifiers();
-        return this.parseLocalVariableDeclaration();
+        const startLoc = this.peek().loc;
+        const isConst = v === "const";
+        this.advance(); // consume dim/const
+        for (const plugin of this.plugins) {
+          if (plugin.parseVariableDeclaration) {
+            const res = plugin.parseVariableDeclaration(this);
+            if (res !== null) return res;
+          }
+        }
+        return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
       }
     }
 
@@ -301,12 +328,13 @@ class Parser {
     this.skipToEndOfLine();
 
     const members: TopLevelMember[] = [];
+    let endLoc: TokenLocation | undefined;
     while (!this.isEOF()) {
       this.skipNewlines();
       if (this.matchEnd("namespace")) {
-        this.consumeEnd("namespace");
+        endLoc = this.consumeEnd("namespace");
         this.skipToEndOfLine();
-        return { kind: "NamespaceDeclaration", name, members, loc: locOf(startLoc) };
+        return { kind: "NamespaceDeclaration", name, members, loc: locOf(startLoc, endLoc) };
       }
       const m = this.parseTopLevelMember();
       if (m !== null) members.push(m);
@@ -319,6 +347,33 @@ class Parser {
     return { kind: "NamespaceDeclaration", name, members, loc: locOf(startLoc) };
   }
 
+  private parseImportsDeclaration(): ImportsDeclaration {
+    const startLoc = this.peek().loc;
+    this.advance(); // consume 'Imports'
+    const parts: string[] = [];
+    const firstIdent = this.expect("identifier", "<namespace-or-module-name>");
+    if (firstIdent) {
+      parts.push(firstIdent.value);
+    }
+    while (this.consume("punct", ".")) {
+      const nextIdent = this.expect("identifier", "<namespace-or-module-name>");
+      if (nextIdent) {
+        parts.push(nextIdent.value);
+      } else {
+        break;
+      }
+    }
+    const target = parts.join(".");
+    const endLoc = this.peek().loc;
+    const comment = this.skipToEndOfLine();
+    return {
+      kind: "ImportsDeclaration",
+      target,
+      comment,
+      loc: locOf(startLoc, endLoc),
+    };
+  }
+
   // --------------------------------------------------------------------------
   // Class
   // --------------------------------------------------------------------------
@@ -326,8 +381,12 @@ class Parser {
   private parseClass(): ClassDeclaration {
     const startLoc = this.peek().loc;
     const modifiers = this.parseModifiers();
-    this.advance(); // 'Class'
-    const nameToken = this.expect("identifier", "<class-name>");
+    const isStructure = Parser.eq(this.peek(), "structure");
+    this.advance(); // 'Class' or 'Structure'
+    if (isStructure) {
+      modifiers.push("structure");
+    }
+    const nameToken = this.expect("identifier", isStructure ? "<structure-name>" : "<class-name>");
     const name = nameToken?.value ?? "";
     const typeParameters = this.parseOptionalTypeParameters();
     let baseType: TypeReference | undefined;
@@ -346,17 +405,19 @@ class Parser {
     }
 
     const classMembers: ClassMember[] = [];
+    const endKind = isStructure ? "structure" : "class";
+    let endLoc: TokenLocation | undefined;
     while (!this.isEOF()) {
       this.skipNewlines();
-      if (this.matchEnd("class")) {
-        this.consumeEnd("class");
+      if (this.matchEnd(endKind)) {
+        endLoc = this.consumeEnd(endKind);
         this.skipToEndOfLine();
         const decl: ClassDeclaration = {
           kind: "ClassDeclaration",
           name,
           typeParameters,
           members: classMembers,
-          loc: locOf(startLoc),
+          loc: locOf(startLoc, endLoc),
           modifiers,
         };
         if (baseType !== undefined) decl.baseType = baseType;
@@ -365,7 +426,7 @@ class Parser {
       const m = this.parseClassMember();
       if (m !== null) classMembers.push(m);
     }
-    this.recordError("unterminated-block", `Class '${name}' is missing 'End Class'.`, startLoc);
+    this.recordError("unterminated-block", `${isStructure ? "Structure" : "Class"} '${name}' is missing 'End ${isStructure ? "Structure" : "Class"}'.`, startLoc);
     const decl: ClassDeclaration = {
       kind: "ClassDeclaration",
       name,
@@ -405,7 +466,11 @@ class Parser {
     const isFunction = Parser.eq(head, "function");
     // 'New' is a keyword token (not an identifier), but it is a valid
     // method name in Data7 Basic (constructor). Accept either kind.
-    const nameToken = this.consume("identifier") ?? this.consume("keyword", "new");
+    const nameToken =
+      this.consume("identifier") ??
+      this.consume("keyword", "new") ??
+      this.consume("keyword", "get") ??
+      this.consume("keyword", "set");
     if (!nameToken) {
       this.recordError(
         "expected-token",
@@ -428,14 +493,14 @@ class Parser {
     this.skipToEndOfLine();
 
     const endKind = isFunction ? "function" : "sub";
-    const body = this.parseMethodBody(endKind, startLoc);
+    const { stmts: body, endLoc } = this.parseMethodBody(endKind, startLoc);
     const decl: MethodDeclaration = {
       kind: "MethodDeclaration",
       name,
       typeParameters,
       parameters,
       body,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
       modifiers,
       noParentheses: !hasParentheses,
     };
@@ -448,14 +513,14 @@ class Parser {
   private parseMethodBody(
     endKind: "sub" | "function" | "get" | "set",
     startLoc: TokenLocation,
-  ): Statement[] {
+  ): { stmts: Statement[]; endLoc?: TokenLocation } {
     const stmts: Statement[] = [];
     while (!this.isEOF()) {
       this.skipNewlines();
       if (this.matchEnd(endKind)) {
-        this.consumeEnd(endKind);
+        const endLoc = this.consumeEnd(endKind);
         this.skipToEndOfLine();
-        return stmts;
+        return { stmts, endLoc };
       }
       const s = this.parseStatement();
       if (s !== null) stmts.push(s);
@@ -470,7 +535,7 @@ class Parser {
             ? "Get"
             : "Set";
     this.recordError("unterminated-block", `Method body is missing 'End ${endLabel}'.`, startLoc);
-    return stmts;
+    return { stmts };
   }
 
   // private parseMethodBody(endKind: "sub" | "function", startLoc: TokenLocation): Statement[] {
@@ -494,14 +559,14 @@ class Parser {
   //   return stmts;
   // }
 
-  private skipStatementSeparator(): void {
+  public skipStatementSeparator(): void {
     while (this.consume("punct", ":")) {
       // Allow colons
     }
     this.skipNewlines();
   }
 
-  private parseStatement(): Statement | null {
+  public parseStatement(): Statement | null {
     const startLoc = this.peek().loc;
     if (this.peek().kind === "comment") {
       const commentToken = this.advance();
@@ -512,13 +577,29 @@ class Parser {
         loc: locOf(startLoc),
       };
     }
+
+    for (const plugin of this.plugins) {
+      if (plugin.parseStatement) {
+        const res = plugin.parseStatement(this);
+        if (res !== null) return res;
+      }
+    }
+
     if (
       this.match("keyword", "dim") ||
       this.match("identifier", "dim") ||
       this.match("keyword", "const") ||
       this.match("identifier", "const")
     ) {
-      return this.parseLocalVariableDeclaration();
+      const isConst = this.peek().value.toLowerCase() === "const";
+      this.advance(); // consume 'Dim'/'Const'
+      for (const plugin of this.plugins) {
+        if (plugin.parseVariableDeclaration) {
+          const res = plugin.parseVariableDeclaration(this);
+          if (res !== null) return res;
+        }
+      }
+      return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
     }
     if (this.match("keyword", "if") || this.match("identifier", "if")) {
       return this.parseIfStatement();
@@ -535,36 +616,47 @@ class Parser {
     if (this.match("keyword", "try") || this.match("identifier", "try")) {
       return this.parseTryCatchStatement();
     }
-    if (this.match("keyword", "using") || this.match("identifier", "using")) {
-      return this.parseUsingStatement();
-    }
-    if (this.match("keyword", "match") || this.match("identifier", "match")) {
-      return this.parseMatchStatement();
-    }
     if (this.match("keyword", "return") || this.match("identifier", "return")) {
       return this.parseReturnStatement();
     }
     if (this.match("keyword", "with") || this.match("identifier", "with")) {
       return this.parseWithStatement();
     }
+    if (this.match("keyword", "select") || this.match("identifier", "select")) {
+      return this.parseSelectCaseStatement();
+    }
     return this.parseAssignmentOrExpressionStatement();
   }
 
-  private parseLocalVariableDeclaration(): VariableDeclaration {
+  public parseLocalVariableDeclaration(): VariableDeclaration {
     const startLoc = this.peek().loc;
-    this.advance(); // consume 'Dim'
+    const isConst = this.peek().value.toLowerCase() === "const";
+    this.advance(); // consume 'Dim'/'Const'
+    return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
+  }
+
+  public parseLocalVariableDeclarationAfterDim(startLoc: TokenLocation, isConst: boolean): VariableDeclaration {
     const nameToken = this.expect("identifier", "<variable-name>");
     const name = nameToken?.value ?? "";
     let type: TypeReference | undefined;
+    let hasAsNew = false;
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      this.consume("keyword", "new");
-      this.consume("identifier", "new");
+      if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
+        hasAsNew = true;
+      }
       const t = this.parseTypeReference();
       if (t !== null) type = t;
     }
     let initializer: Expression | undefined;
     if (this.consume("punct", "=")) {
       initializer = this.parseExpression();
+    } else if (hasAsNew && type) {
+      initializer = {
+        kind: "ObjectCreationExpression",
+        type: type,
+        arguments: [],
+        loc: type.loc,
+      };
     }
     const comment = this.skipToEndOfLine();
     return {
@@ -572,6 +664,7 @@ class Parser {
       name,
       type,
       initializer,
+      isConst,
       loc: locOf(startLoc),
       comment,
     };
@@ -646,10 +739,11 @@ class Parser {
 
     this.skipToEndOfLine();
 
+    let endLoc: TokenLocation | undefined;
     while (!this.isEOF()) {
       this.skipNewlines();
       if (this.matchEnd("if")) {
-        this.consumeEnd("if");
+        endLoc = this.consumeEnd("if");
         this.skipToEndOfLine();
         break;
       }
@@ -697,7 +791,7 @@ class Parser {
       thenBranch,
       elseIfBranches,
       elseBranch,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
     };
   }
 
@@ -735,10 +829,11 @@ class Parser {
       const comment = this.skipToEndOfLine();
 
       const body: Statement[] = [];
+      let endLoc: TokenLocation | undefined;
       while (!this.isEOF()) {
         this.skipNewlines();
         if (this.matchEnd("for") || this.matchNext()) {
-          this.consumeNext();
+          endLoc = this.consumeNext();
           this.skipToEndOfLine();
           break;
         }
@@ -753,7 +848,7 @@ class Parser {
         elementType,
         enumerable,
         body,
-        loc: locOf(startLoc),
+        loc: locOf(startLoc, endLoc),
         comment,
       };
     } else {
@@ -774,10 +869,11 @@ class Parser {
       const comment = this.skipToEndOfLine();
 
       const body: Statement[] = [];
+      let endLoc: TokenLocation | undefined;
       while (!this.isEOF()) {
         this.skipNewlines();
         if (this.matchEnd("for") || this.matchNext()) {
-          this.consumeNext();
+          endLoc = this.consumeNext();
           this.skipToEndOfLine();
           break;
         }
@@ -793,7 +889,7 @@ class Parser {
         end,
         step,
         body,
-        loc: locOf(startLoc),
+        loc: locOf(startLoc, endLoc),
         comment,
       };
     }
@@ -803,11 +899,21 @@ class Parser {
     return this.match("keyword", "next") || this.match("identifier", "next");
   }
 
-  private consumeNext(): void {
-    this.advance(); // consume 'Next'
-    if (this.peek().kind === "identifier") {
-      this.advance();
+  private consumeNext(): TokenLocation {
+    const nextKw = this.advance(); // consume 'Next'
+    let lastLoc = nextKw.loc;
+    if (nextKw.value.toLowerCase() === "end") {
+      const nextToken = this.peek();
+      if (nextToken.value.toLowerCase() === "for") {
+        lastLoc = this.advance().loc;
+      }
+    } else {
+      const nextToken = this.peek();
+      if (nextToken.kind === "identifier") {
+        lastLoc = this.advance().loc;
+      }
     }
+    return lastLoc;
   }
 
   private parseWhileStatement(): WhileStatement {
@@ -817,6 +923,7 @@ class Parser {
     this.skipToEndOfLine();
 
     const body: Statement[] = [];
+    let endLoc: TokenLocation | undefined;
     while (!this.isEOF()) {
       this.skipNewlines();
       if (
@@ -825,9 +932,9 @@ class Parser {
         this.match("identifier", "wend")
       ) {
         if (this.matchEnd("while")) {
-          this.consumeEnd("while");
+          endLoc = this.consumeEnd("while");
         } else {
-          this.advance(); // consume 'Wend'
+          endLoc = this.advance().loc; // consume 'Wend'
         }
         this.skipToEndOfLine();
         break;
@@ -841,7 +948,7 @@ class Parser {
       kind: "WhileStatement",
       condition,
       body,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
     };
   }
 
@@ -863,10 +970,12 @@ class Parser {
     this.skipToEndOfLine();
 
     const body: Statement[] = [];
+    let endLoc: TokenLocation | undefined;
     while (!this.isEOF()) {
       this.skipNewlines();
       if (this.match("keyword", "loop") || this.match("identifier", "loop")) {
-        this.advance(); // consume 'Loop'
+        const loopKw = this.advance(); // consume 'Loop'
+        endLoc = loopKw.loc;
         const tailToken = this.peek();
         if (
           (tailToken.kind === "keyword" || tailToken.kind === "identifier") &&
@@ -875,6 +984,9 @@ class Parser {
           isUntil = Parser.eq(tailToken, "until");
           this.advance();
           condition = this.parseExpression();
+          if (condition && condition.loc) {
+            endLoc = { line: condition.loc.endLine, column: condition.loc.endChar };
+          }
         }
         this.skipToEndOfLine();
         break;
@@ -898,7 +1010,7 @@ class Parser {
       kind: "WhileStatement",
       condition: finalCondition,
       body,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
     };
   }
 
@@ -913,11 +1025,12 @@ class Parser {
     const catchBody: Statement[] = [];
     let finallyBody: Statement[] | undefined;
     let currentBlock: "try" | "catch" | "finally" = "try";
+    let endLoc: TokenLocation | undefined;
 
     while (!this.isEOF()) {
       this.skipNewlines();
       if (this.matchEnd("try")) {
-        this.consumeEnd("try");
+        endLoc = this.consumeEnd("try");
         this.skipToEndOfLine();
         break;
       }
@@ -965,125 +1078,11 @@ class Parser {
       catchType,
       catchBody,
       finallyBody,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
     };
   }
 
-  private parseUsingStatement(): UsingStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'Using'
-    const resourceVarToken = this.expect("identifier", "<resource-variable>");
-    const resourceVar: Identifier = {
-      kind: "Identifier",
-      name: resourceVarToken?.value ?? "",
-      loc: locOf(resourceVarToken?.loc ?? startLoc),
-    };
-    this.expect("keyword", "as", { literal: true });
-    this.consume("keyword", "new");
-    this.consume("identifier", "new");
-    const resourceType = this.parseTypeReference() ?? {
-      kind: "TypeReference",
-      name: "",
-      typeArguments: [],
-      loc: locOf(startLoc),
-    };
-    const resourceArgs: Expression[] = [];
-    if (this.consume("punct", "(")) {
-      while (!this.match("punct", ")") && !this.isEOF()) {
-        resourceArgs.push(this.parseExpression());
-        if (!this.consume("punct", ",")) break;
-      }
-      this.expect("punct", ")", { literal: true });
-    }
-    this.skipToEndOfLine();
 
-    const body: Statement[] = [];
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd("using")) {
-        this.consumeEnd("using");
-        this.skipToEndOfLine();
-        break;
-      }
-      const s = this.parseStatement();
-      if (s !== null) body.push(s);
-      this.skipStatementSeparator();
-    }
-
-    return {
-      kind: "UsingStatement",
-      resourceVar,
-      resourceType,
-      resourceArgs,
-      body,
-      loc: locOf(startLoc),
-    };
-  }
-
-  private parseMatchStatement(): MatchStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'Match'
-    const subject = this.parseExpression();
-    this.skipToEndOfLine();
-
-    const cases: { typeName?: string; isElse: boolean; body: Statement[] }[] = [];
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd("match")) {
-        this.consumeEnd("match");
-        this.skipToEndOfLine();
-        break;
-      }
-
-      const head = this.peek();
-      if ((head.kind === "keyword" || head.kind === "identifier") && Parser.eq(head, "case")) {
-        this.advance(); // consume 'Case'
-        const next = this.peek();
-        let typeName: string | undefined;
-        let isElse = false;
-
-        if ((next.kind === "keyword" || next.kind === "identifier") && Parser.eq(next, "is")) {
-          this.advance(); // consume 'Is'
-          const typeRef = this.parseTypeReference();
-          typeName = typeRef ? typeRef.name : undefined;
-        } else if (
-          (next.kind === "keyword" || next.kind === "identifier") &&
-          Parser.eq(next, "else")
-        ) {
-          this.advance(); // consume 'Else'
-          isElse = true;
-        }
-
-        this.expect("punct", ":", { literal: true });
-
-        const caseBody: Statement[] = [];
-        while (!this.isEOF()) {
-          this.skipNewlines();
-          const nextHead = this.peek();
-          if (
-            (nextHead.kind === "keyword" || nextHead.kind === "identifier") &&
-            (Parser.eq(nextHead, "case") ||
-              (Parser.eq(nextHead, "end") && Parser.eq(this.peek(1), "match")))
-          ) {
-            break;
-          }
-          const s = this.parseStatement();
-          if (s !== null) caseBody.push(s);
-          this.skipStatementSeparator();
-        }
-        cases.push({ typeName, isElse, body: caseBody });
-        continue;
-      }
-      this.advance();
-    }
-
-    return {
-      kind: "MatchStatement",
-      subject,
-      cases,
-      loc: locOf(startLoc),
-    };
-  }
 
   private parseReturnStatement(): ReturnStatement {
     const startLoc = this.peek().loc;
@@ -1097,23 +1096,7 @@ class Parser {
       next.value !== ":" &&
       !(next.kind === "keyword" && Parser.eq(next, "end"))
     ) {
-      if ((next.kind === "keyword" || next.kind === "identifier") && Parser.eq(next, "if")) {
-        this.advance(); // consume 'If'
-        const condition = this.parseExpression();
-        this.expect("keyword", "then", { literal: true });
-        const trueExpr = this.parseExpression();
-        this.expect("keyword", "else", { literal: true });
-        const falseExpr = this.parseExpression();
-        expression = {
-          kind: "TernaryExpression",
-          condition,
-          trueExpr,
-          falseExpr,
-          loc: locOf(startLoc),
-        };
-      } else {
-        expression = this.parseExpression();
-      }
+      expression = this.parseExpression();
     }
 
     return {
@@ -1130,10 +1113,11 @@ class Parser {
     this.skipToEndOfLine();
 
     const body: Statement[] = [];
+    let endLoc: TokenLocation | undefined;
     while (!this.isEOF()) {
       this.skipNewlines();
       if (this.matchEnd("with")) {
-        this.consumeEnd("with");
+        endLoc = this.consumeEnd("with");
         this.skipToEndOfLine();
         break;
       }
@@ -1146,7 +1130,7 @@ class Parser {
       kind: "WithStatement",
       expression,
       body,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
     };
   }
 
@@ -1257,7 +1241,14 @@ class Parser {
     return this.parseExpressionWithLeft(left, precedence);
   }
 
-  private parsePrefix(): Expression | null {
+  public parsePrefix(): Expression | null {
+    for (const plugin of this.plugins) {
+      if (plugin.parseExpressionPrefix) {
+        const res = plugin.parseExpressionPrefix(this);
+        if (res !== null) return res;
+      }
+    }
+
     const token = this.peek();
     if (token.kind === "number") {
       this.advance();
@@ -1266,29 +1257,10 @@ class Parser {
     }
     if (token.kind === "string") {
       const strToken = this.advance();
-      if (strToken.prefix === "$") {
-        return {
-          kind: "TaggedTemplateExpression",
-          tag: "",
-          body: strToken.value,
-          loc: locOf(strToken.loc),
-        };
-      }
       return { kind: "Literal", value: strToken.value, loc: locOf(strToken.loc) };
     }
     if (token.kind === "identifier" || token.kind === "keyword") {
       const lower = token.value.toLowerCase();
-      const nextToken = this.peek(1);
-      if (nextToken.kind === "string" && nextToken.prefix === "$") {
-        const tag = this.advance().value;
-        const bodyToken = this.advance();
-        return {
-          kind: "TaggedTemplateExpression",
-          tag,
-          body: bodyToken.value,
-          loc: locOf(token.loc),
-        };
-      }
       if (lower === "true") {
         this.advance();
         return { kind: "Literal", value: true, loc: locOf(token.loc) };
@@ -1321,6 +1293,7 @@ class Parser {
           if (!this.consume("punct", ",")) break;
         }
         this.expect("punct", ")", { literal: true });
+
         return {
           kind: "ObjectCreationExpression",
           type: typeRef,
@@ -1365,7 +1338,14 @@ class Parser {
     return null;
   }
 
-  private parseInfix(left: Expression, token: Token): Expression | null {
+  public parseInfix(left: Expression, token: Token): Expression | null {
+    for (const plugin of this.plugins) {
+      if (plugin.parseExpressionInfix) {
+        const res = plugin.parseExpressionInfix(this, left, token);
+        if (res !== null) return res;
+      }
+    }
+
     if (token.kind === "punct" && token.value === "(") {
       this.advance();
       const args: Expression[] = [];
@@ -1415,13 +1395,14 @@ class Parser {
       }
       const member = memberToken?.value ?? "";
       const typeArguments: TypeReference[] = [];
-      if (this.consume("punct", "<")) {
-        while (!this.match("punct", ">") && !this.isEOF()) {
-          const tRef = this.parseTypeReference();
-          if (tRef) typeArguments.push(tRef);
-          if (!this.consume("punct", ",")) break;
+      for (const plugin of this.plugins) {
+        if (plugin.parseTypeArguments) {
+          const res = plugin.parseTypeArguments(this);
+          if (res !== null) {
+            typeArguments.push(...res);
+            break;
+          }
         }
-        this.expect("punct", ">", { literal: true });
       }
       if (typeArguments.length > 0) {
         return {
@@ -1437,82 +1418,6 @@ class Parser {
         kind: "MemberAccess",
         target: left,
         member,
-        loc: left.loc,
-      };
-    }
-    if (token.kind === "punct" && token.value === "?.") {
-      this.advance();
-      // Member names can be keywords in some contexts (e.g., `MyBase.New()`).\n
-      const memberToken = this.consume("identifier") ?? this.consume("keyword");
-      if (!memberToken) {
-        this.recordError(
-          "expected-token",
-          `Expected '<member-name>', got '${this.peek().value || this.peek().kind}'.`,
-          this.peek().loc,
-        );
-      }
-      const member = memberToken?.value ?? "";
-      let memberExpr: Expression;
-      if (this.match("punct", "(")) {
-        this.advance();
-        const args: Expression[] = [];
-        while (!this.match("punct", ")") && !this.isEOF()) {
-          args.push(this.parseExpression());
-          if (!this.consume("punct", ",")) break;
-        }
-        this.expect("punct", ")", { literal: true });
-        memberExpr = {
-          kind: "MethodInvocation",
-          methodName: member,
-          typeArguments: [],
-          arguments: args,
-          loc: locOf(memberToken?.loc ?? token.loc),
-        };
-      } else {
-        memberExpr = {
-          kind: "MemberAccess",
-          target: { kind: "Identifier", name: "", loc: left.loc },
-          member,
-          loc: locOf(memberToken?.loc ?? token.loc),
-        };
-      }
-      return {
-        kind: "OptionalChainingExpression",
-        target: left,
-        member: memberExpr,
-        loc: left.loc,
-      };
-    }
-    if (token.kind === "punct" && token.value === "?") {
-      this.advance();
-      const trueExpr = this.parseExpression();
-      this.expect("punct", ":", { literal: true });
-      const falseExpr = this.parseExpression(Precedence.Ternary);
-      return {
-        kind: "TernaryExpression",
-        condition: left,
-        trueExpr,
-        falseExpr,
-        loc: left.loc,
-      };
-    }
-    if (token.kind === "punct" && token.value === "??") {
-      this.advance();
-      const right = this.parseExpression(Precedence.NullCoalescing);
-      return {
-        kind: "NullCoalescingExpression",
-        left,
-        right,
-        loc: left.loc,
-      };
-    }
-    if (token.kind === "punct" && token.value === "|>") {
-      this.advance();
-      const right = this.parseExpression(Precedence.Pipe);
-      return {
-        kind: "PipeExpression",
-        left,
-        right,
         loc: left.loc,
       };
     }
@@ -1576,6 +1481,11 @@ class Parser {
     this.advance(); // 'Property'
     const nameToken = this.expect("identifier", "<property-name>");
     const name = nameToken?.value ?? "";
+    let params: ParameterDeclaration[] | undefined;
+    if (this.match("punct", "(")) {
+      const parsed = this.parseParameterList();
+      params = parsed.params;
+    }
     let type: TypeReference = emptyTypeReference();
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
       const t = this.parseTypeReference();
@@ -1608,11 +1518,12 @@ class Parser {
       }
     }
 
+    let endLoc: TokenLocation | undefined;
     if (hasBlock) {
       while (!this.isEOF()) {
         this.skipNewlines();
         if (this.matchEnd("property")) {
-          this.consumeEnd("property");
+          endLoc = this.consumeEnd("property");
           this.skipToEndOfLine();
           break;
         }
@@ -1625,14 +1536,14 @@ class Parser {
             const getStartLoc = head.loc;
             this.advance(); // consume Get
             this.skipToEndOfLine();
-            const body = this.parseMethodBody("get", getStartLoc);
+            const { stmts: body, endLoc: getEndLoc } = this.parseMethodBody("get", getStartLoc);
             getter = {
               kind: "MethodDeclaration",
               name: "Get",
               typeParameters: [],
               parameters: [],
               body,
-              loc: locOf(getStartLoc),
+              loc: locOf(getStartLoc, getEndLoc),
               modifiers: getSetModifiers,
               noParentheses: true,
             };
@@ -1642,14 +1553,14 @@ class Parser {
             this.advance(); // consume Set
             const { params, hasParentheses } = this.parseParameterList();
             this.skipToEndOfLine();
-            const body = this.parseMethodBody("set", setStartLoc);
+            const { stmts: body, endLoc: setEndLoc } = this.parseMethodBody("set", setStartLoc);
             setter = {
               kind: "MethodDeclaration",
               name: "Set",
               typeParameters: [],
               parameters: params,
               body,
-              loc: locOf(setStartLoc),
+              loc: locOf(setStartLoc, setEndLoc),
               modifiers: getSetModifiers,
               noParentheses: !hasParentheses,
             };
@@ -1663,20 +1574,116 @@ class Parser {
       }
     }
 
-    // Fazemos um bypass/cast para `any` para evitar conflitos na interface AST se
-    // os campos getter/setter não estiverem declarados na interface original
     const decl: PropertyDeclaration = {
       kind: "PropertyDeclaration",
       name,
       type,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
       modifiers,
       getter: getter,
       setter: setter,
       hasBlock: hasBlock,
+      parameters: params,
     };
 
     return decl;
+  }
+
+  private parseSelectCaseStatement(): SelectCaseStatement {
+    const startLoc = this.peek().loc;
+    this.advance(); // 'Select'
+    
+    // Opcional: consome 'Case' se existir (ex.: Select Case x)
+    if (this.match("keyword", "case") || this.match("identifier", "case")) {
+      this.advance(); // consome 'Case'
+    }
+    
+    const expression = this.parseExpression();
+    this.skipToEndOfLine();
+    
+    const cases: SelectCaseBranch[] = [];
+    let endLoc: TokenLocation | undefined;
+    
+    while (!this.isEOF()) {
+      this.skipNewlines();
+      
+      if (this.matchEnd("select")) {
+        endLoc = this.consumeEnd("select");
+        this.skipToEndOfLine();
+        break;
+      }
+      
+      const head = this.peek();
+      if (head.kind === "identifier" || head.kind === "keyword") {
+        const v = head.value.toLowerCase();
+        if (v === "case") {
+          const caseStartLoc = head.loc;
+          this.advance(); // consome 'Case'
+          
+          let isElse = false;
+          const values: Expression[] = [];
+          
+          // Verifica se é "Case Else"
+          const next = this.peek();
+          if ((next.kind === "keyword" || next.kind === "identifier") && next.value.toLowerCase() === "else") {
+            this.advance(); // consome 'Else'
+            isElse = true;
+          } else {
+            // Lê a lista de valores/expressões separadas por vírgula
+            while (!this.isEOF()) {
+              values.push(this.parseExpression());
+              if (!this.consume("punct", ",")) {
+                break;
+              }
+            }
+          }
+          this.skipToEndOfLine();
+          
+          const body: Statement[] = [];
+          while (!this.isEOF()) {
+            this.skipNewlines();
+            
+            const nextHead = this.peek();
+            if (nextHead.kind === "identifier" || nextHead.kind === "keyword") {
+              const val = nextHead.value.toLowerCase();
+              if (val === "case") {
+                break;
+              }
+              if (val === "end" && Parser.eq(this.peek(1), "select")) {
+                break;
+              }
+            }
+            
+            const stmt = this.parseStatement();
+            if (stmt !== null) {
+              body.push(stmt);
+            }
+            this.skipStatementSeparator();
+          }
+          
+          const caseEndLoc = this.peek().loc;
+          cases.push({
+            kind: "SelectCaseBranch",
+            values,
+            isElse,
+            body,
+            loc: locOf(caseStartLoc, caseEndLoc),
+          });
+          continue;
+        }
+      }
+      
+      const errLoc = this.peek().loc;
+      this.recordError("expected-token", "Expected 'Case', 'Case Else' or 'End Select'.", errLoc);
+      this.advance();
+    }
+    
+    return {
+      kind: "SelectCaseStatement",
+      expression,
+      cases,
+      loc: locOf(startLoc, endLoc),
+    };
   }
 
   // private parseProperty(): PropertyDeclaration {
@@ -1716,26 +1723,17 @@ class Parser {
   // Type parameters / parameters / type references
   // --------------------------------------------------------------------------
 
-  private parseOptionalTypeParameters(): TypeParameter[] {
-    if (!this.match("punct", "<")) return [];
-    this.advance();
-    const params: TypeParameter[] = [];
-    while (!this.match("punct", ">") && !this.isEOF()) {
-      const nameToken = this.consume("identifier");
-      if (nameToken === null) break;
-      const tp: TypeParameter = { kind: "TypeParameter", name: nameToken.value };
-      if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-        const c = this.parseTypeReference();
-        if (c !== null) tp.constraint = c;
+  public parseOptionalTypeParameters(): TypeParameter[] {
+    for (const plugin of this.plugins) {
+      if (plugin.parseTypeParameters) {
+        const res = plugin.parseTypeParameters(this);
+        if (res !== null) return res;
       }
-      params.push(tp);
-      if (!this.consume("punct", ",")) break;
     }
-    this.expect("punct", ">", { literal: true });
-    return params;
+    return [];
   }
 
-  private parseParameterList(): { params: ParameterDeclaration[]; hasParentheses: boolean } {
+  public parseParameterList(): { params: ParameterDeclaration[]; hasParentheses: boolean } {
     const params: ParameterDeclaration[] = [];
     if (!this.consume("punct", "(")) {
       return { params, hasParentheses: false };
@@ -1780,7 +1778,7 @@ class Parser {
    * generic type arguments with arbitrary nesting (`TList<TList<Integer>>`),
    * and trailing primitive-array brackets (`T()`).
    */
-  private parseTypeReference(swallowArrayMarker = true): TypeReference | null {
+  public parseTypeReference(swallowArrayMarker = true): TypeReference | null {
     const head = this.peek();
     if (head.kind !== "identifier" && head.kind !== "keyword") {
       this.recordError(
@@ -1798,13 +1796,14 @@ class Parser {
       name += "." + next.value;
     }
     const typeArguments: TypeReference[] = [];
-    if (this.consume("punct", "<")) {
-      while (!this.match("punct", ">") && !this.isEOF()) {
-        const arg = this.parseTypeReference();
-        if (arg !== null) typeArguments.push(arg);
-        if (!this.consume("punct", ",")) break;
+    for (const plugin of this.plugins) {
+      if (plugin.parseTypeArguments) {
+        const res = plugin.parseTypeArguments(this);
+        if (res !== null) {
+          typeArguments.push(...res);
+          break;
+        }
       }
-      this.expect("punct", ">", { literal: true });
     }
     // Swallow `()` array marker without storing — the engine ignores it.
     if (swallowArrayMarker && this.match("punct", "(")) {
@@ -1827,7 +1826,7 @@ class Parser {
    * `sourceLines`). Used both for unparsable top-level lines and for
    * statements inside a method body.
    */
-  private consumeLineAsOpaque(): OpaqueStatement | null {
+  public consumeLineAsOpaque(): OpaqueStatement | null {
     if (this.isEOF()) return null;
     const startLoc = this.peek().loc;
     const lineNo = startLoc.line;
@@ -1843,28 +1842,31 @@ class Parser {
     return { kind: "OpaqueStatement", text, loc: locOf(startLoc) };
   }
 
-  private parseModifiers(): string[] {
+  public parseModifiers(): string[] {
     const list: string[] = [];
     while (this.peekIsModifier(0)) {
-      list.push(this.advance().value);
+      list.push(this.advance().value.toLowerCase());
     }
     return list;
   }
 
-  private matchEnd(kind: string): boolean {
+  public matchEnd(kind: string): boolean {
     return (
       (this.match("keyword", "end") || this.match("identifier", "end")) &&
       Parser.eq(this.peek(1), kind)
     );
   }
 
-  private consumeEnd(kind: string): void {
-    this.advance(); // 'End'
+  public consumeEnd(kind: string): TokenLocation {
+    const endKw = this.advance(); // 'End'
     const next = this.peek();
-    if (Parser.eq(next, kind)) this.advance();
+    if (Parser.eq(next, kind)) {
+      return this.advance().loc;
+    }
+    return endKw.loc;
   }
 
-  private skipToEndOfLine(): string | undefined {
+  public skipToEndOfLine(): string | undefined {
     let comment: string | undefined;
     while (!this.isEOF() && this.peek().kind !== "newline") {
       const t = this.advance();
@@ -1896,7 +1898,7 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "readonly",
 ]);
 
-function locOf(loc: TokenLocation): {
+function locOf(loc: TokenLocation, endLoc?: TokenLocation): {
   startLine: number;
   startChar: number;
   endLine: number;
@@ -1905,8 +1907,8 @@ function locOf(loc: TokenLocation): {
   return {
     startLine: loc.line,
     startChar: loc.column,
-    endLine: loc.line,
-    endChar: loc.column,
+    endLine: endLoc ? endLoc.line : loc.line,
+    endChar: endLoc ? endLoc.column : loc.column,
   };
 }
 

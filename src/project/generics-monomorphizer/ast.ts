@@ -83,7 +83,13 @@ export type Node =
   | NullCoalescingExpression
   | OptionalChainingExpression
   | PipeExpression
-  | TaggedTemplateExpression;
+  | TaggedTemplateExpression
+  | EnumDeclaration
+  | DestructuredVariableDeclaration
+  | ObjectInitializerExpression
+  | ImportsDeclaration
+  | SelectCaseStatement
+  | SelectCaseBranch;
 
 export interface CompilationUnit extends BaseNode {
   readonly kind: "CompilationUnit";
@@ -96,7 +102,10 @@ export type TopLevelMember =
   | MethodDeclaration
   | DelegateDeclaration
   | VariableDeclaration
-  | Statement;
+  | Statement
+  | EnumDeclaration
+  | DestructuredVariableDeclaration
+  | ImportsDeclaration;
 
 export interface NamespaceDeclaration extends BaseNode {
   readonly kind: "NamespaceDeclaration";
@@ -154,6 +163,7 @@ export interface PropertyDeclaration extends BaseNode {
   setter?: MethodDeclaration;
   hasBlock: boolean;
   readonly modifiers?: string[];
+  parameters?: ParameterDeclaration[];
 }
 
 export interface ParameterDeclaration extends BaseNode {
@@ -196,7 +206,8 @@ export type Expression =
   | NullCoalescingExpression
   | OptionalChainingExpression
   | PipeExpression
-  | TaggedTemplateExpression;
+  | TaggedTemplateExpression
+  | ObjectInitializerExpression;
 
 export interface ObjectCreationExpression extends BaseNode {
   readonly kind: "ObjectCreationExpression";
@@ -243,7 +254,10 @@ export type Statement =
   | MatchStatement
   | ReturnStatement
   | Block
-  | WithStatement;
+  | WithStatement
+  | EnumDeclaration
+  | DestructuredVariableDeclaration
+  | SelectCaseStatement;
 
 export interface ExpressionStatement extends BaseNode {
   readonly kind: "ExpressionStatement";
@@ -261,6 +275,11 @@ export interface OpaqueStatement extends BaseNode {
   readonly kind: "OpaqueStatement";
   /** Verbatim line text (without trailing EOL). */
   text: string;
+}
+
+export interface ImportsDeclaration extends BaseNode {
+  readonly kind: "ImportsDeclaration";
+  target: string;
 }
 
 export interface IfStatement extends BaseNode {
@@ -315,6 +334,19 @@ export interface MatchStatement extends BaseNode {
   readonly kind: "MatchStatement";
   subject: Expression;
   cases: { typeName?: string; isElse: boolean; body: Statement[] }[];
+}
+
+export interface SelectCaseStatement extends BaseNode {
+  readonly kind: "SelectCaseStatement";
+  expression: Expression;
+  cases: SelectCaseBranch[];
+}
+
+export interface SelectCaseBranch extends BaseNode {
+  readonly kind: "SelectCaseBranch";
+  values: Expression[];
+  isElse: boolean;
+  body: Statement[];
 }
 
 export interface ReturnStatement extends BaseNode {
@@ -411,7 +443,12 @@ export abstract class ASTWalker {
         if (node.initializer) this.walk(node.initializer);
         return;
       case "PropertyDeclaration":
+        if (node.parameters) {
+          for (const p of node.parameters) this.walk(p);
+        }
         this.walk(node.type);
+        if (node.getter) this.walk(node.getter);
+        if (node.setter) this.walk(node.setter);
         return;
       case "ParameterDeclaration":
         this.walk(node.type);
@@ -444,6 +481,9 @@ export abstract class ASTWalker {
       case "Literal":
       case "OpaqueStatement":
         if (node.kind === "OpaqueStatement") this.visitOpaqueStatement(node);
+        return;
+      case "ImportsDeclaration":
+        this.visitImportsDeclaration(node);
         return;
       case "ExpressionStatement":
         this.walk(node.expression);
@@ -501,6 +541,14 @@ export abstract class ASTWalker {
           for (const s of c.body) this.walk(s);
         }
         return;
+      case "SelectCaseStatement":
+        this.walk(node.expression);
+        for (const c of node.cases) this.walk(c);
+        return;
+      case "SelectCaseBranch":
+        for (const v of node.values) this.walk(v);
+        for (const s of node.body) this.walk(s);
+        return;
       case "ReturnStatement":
         if (node.expression) this.walk(node.expression);
         return;
@@ -537,6 +585,23 @@ export abstract class ASTWalker {
         return;
       case "TaggedTemplateExpression":
         return;
+      case "EnumDeclaration":
+        if (node.baseType) this.walk(node.baseType);
+        for (const entry of node.entries) {
+          if (entry.value) this.walk(entry.value);
+        }
+        return;
+      case "DestructuredVariableDeclaration":
+        for (const binding of node.bindings) {
+          if (binding.defaultValue) this.walk(binding.defaultValue);
+        }
+        this.walk(node.initializer);
+        return;
+      case "ObjectInitializerExpression":
+        this.walk(node.type);
+        for (const arg of node.arguments) this.walk(arg);
+        for (const assoc of node.assignments) this.walk(assoc.value);
+        return;
       default: {
         const _exhaustive: never = node;
         return _exhaustive;
@@ -553,4 +618,36 @@ export abstract class ASTWalker {
   protected visitOpaqueStatement(_node: OpaqueStatement): void {
     // No-op base hook; subclasses override to react to OpaqueStatement nodes.
   }
+  protected visitImportsDeclaration(_node: ImportsDeclaration): void {
+    // No-op base hook; subclasses override to react to ImportsDeclaration nodes.
+  }
+}
+
+export interface EnumDeclaration extends BaseNode {
+  readonly kind: "EnumDeclaration";
+  name: string;
+  baseType?: TypeReference;
+  entries: { name: string; value?: Expression; loc?: SourceLocation }[];
+  readonly modifiers?: string[];
+}
+
+export interface DestructuringBinding {
+  name: string;
+  property?: string;
+  defaultValue?: Expression;
+  isRest?: boolean;
+}
+
+export interface DestructuredVariableDeclaration extends BaseNode {
+  readonly kind: "DestructuredVariableDeclaration";
+  isObject: boolean;
+  bindings: DestructuringBinding[];
+  initializer: Expression;
+}
+
+export interface ObjectInitializerExpression extends BaseNode {
+  readonly kind: "ObjectInitializerExpression";
+  type: TypeReference;
+  arguments: Expression[];
+  assignments: { member: string; value: Expression }[];
 }

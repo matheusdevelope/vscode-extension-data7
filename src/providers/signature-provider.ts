@@ -3,7 +3,7 @@ import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { lookupSystemByName, lookupSystemNamespaceOrClassByName } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
-import { getChainPrefix } from "../utils/chain-parser";
+import { getChainPrefix } from "../utils/chain-prefix";
 
 export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
