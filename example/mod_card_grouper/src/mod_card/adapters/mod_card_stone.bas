@@ -17,19 +17,19 @@ Namespace mod_card_stone
          MyBase.New(CardAdm.Stone)
 
          With me
-            .Estabelecimento.Options.Add("StoneCode")
-            .NumeroCartao.Options.Add("N° Cartao")
-            .NumeroCartao.Options.Add("N° Cartão")
-            .NumeroAutorizacao.Options.Add("Stone ID")
-            .NumeroParcela.Options.Add("Nº da Parcela")
-            .QuantidadeParcela.Options.Add("Qtd de Parcelas")
-            .DataVenda.Options.Add("Data da venda")
-            .DataPagamento.Options.Add("Data do Último Status")
-            .ValorBruto.Options.Add("Valor Bruto")
-            .ValorLiquido.Options.Add("Valor Líquido")
-            .Fields.Add(New TField("StatusTitulo", True))
-            .Fields.Last.Options.Add("Último Status")
-            .Fields.Add(New TField("Produto", True))
+         .Estabelecimento.Options.Add("StoneCode")
+         .NumeroCartao.Options.Add("N° Cartao")
+         .NumeroCartao.Options.Add("N° Cartão")
+         .NumeroAutorizacao.Options.Add("Stone ID")
+         .NumeroParcela.Options.Add("Nº da Parcela")
+         .QuantidadeParcela.Options.Add("Qtd de Parcelas")
+         .DataVenda.Options.Add("Data da venda")
+         .DataPagamento.Options.Add("Data do Último Status")
+         .ValorBruto.Options.Add("Valor Bruto")
+         .ValorLiquido.Options.Add("Valor Líquido")
+         .Fields.Add(New TField("StatusTitulo", True))
+         .Fields.Last.Options.Add("Último Status")
+         .Fields.Add(New TField("Produto", True))
          End With
 
          me.SupportedInputDataSources.Add(DataSource.Excel)
@@ -67,11 +67,11 @@ Namespace mod_card_stone
          _Initialized = True
       End Sub
 
-      Shared Function BandeiraProduto As CardGroupersStone
+      Shared Function BandeiraProduto() As CardGroupersStone
          BandeiraProduto = Load("Por Bandeira e Produto")
       End Function
 
-      Shared Function DataPagamento As CardGroupersStone
+      Shared Function DataPagamento() As CardGroupersStone
          DataPagamento = Load("Por Data de Pagamento")
       End Function
 
@@ -97,15 +97,15 @@ Namespace mod_card_stone
       Shared Function LoadGrouper(pGrouperName As String, pAdm As CardAdm) As CardGrouper
          CardGroupersStone.Initialize()
          Select CardGroupersStone.Load(pGrouperName)
-            Case CardGroupersStone.BandeiraProduto
-               Return New GrouperBandeiraProduto(pAdm)
-            Case CardGroupersStone.DataPagamento
-               Return New GrouperDataPagamento(pAdm)
-            Case Else
-               Throw New Exception("Grouper não implementado na Stone.")
-         End Select
-      End Function
+         Case CardGroupersStone.BandeiraProduto
+         Return New GrouperBandeiraProduto(pAdm)
+         Case CardGroupersStone.DataPagamento
+         Return New GrouperDataPagamento(pAdm)
+         Case Else
+         Throw New Exception("Grouper não implementado na Stone.")
+      End Select
+   End Function
 
-   End Class
+End Class
 
 End Namespace

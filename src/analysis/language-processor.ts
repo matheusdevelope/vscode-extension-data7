@@ -12,6 +12,7 @@ export interface CachedDocument {
   readonly tokens: readonly Token[];
   readonly errors: readonly ParseError[];
   readonly version: number;
+  readonly content?: string;
 }
 
 export class LanguageProcessor {
@@ -59,7 +60,9 @@ export class LanguageProcessor {
     const cached = this.cache.get(key);
 
     if (cached) {
-      return cached;
+      if (content === undefined || cached.content === content) {
+        return cached;
+      }
     }
 
     let actualContent = content;
@@ -126,6 +129,7 @@ export class LanguageProcessor {
         tokens,
         errors,
         version,
+        content,
       };
       this.cache.set(key, cachedDoc);
       return cachedDoc;
@@ -138,6 +142,7 @@ export class LanguageProcessor {
         tokens: [],
         errors: [],
         version,
+        content,
       };
       this.cache.set(key, cachedDoc);
       return cachedDoc;

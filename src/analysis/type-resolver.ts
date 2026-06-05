@@ -79,6 +79,9 @@ export class TypeResolver {
       const param = currentMethod.parameters.find((p) => p.name.toLowerCase() === varLower);
       if (param) return param.type;
     }
+    if (currentMethod && currentMethod.name.toLowerCase() === varLower) {
+      return currentMethod.type;
+    }
 
     const currentProperty = fileSyms.symbols.find(
       (s) =>
@@ -89,6 +92,9 @@ export class TypeResolver {
     if (currentProperty?.parameters) {
       const param = currentProperty.parameters.find((p) => p.name.toLowerCase() === varLower);
       if (param) return param.type;
+    }
+    if (currentProperty && currentProperty.name.toLowerCase() === varLower) {
+      return currentProperty.type;
     }
 
     const currentClass = fileSyms.symbols.find(
@@ -223,7 +229,7 @@ export class TypeResolver {
       case "MemberAccess": {
         const targetType = TypeResolver.resolveExpressionType(expr.target, document, lineIdx, indexer);
         if (!targetType) return undefined;
-        return TypeResolver.findMember(targetType, expr.member, indexer)?.type;
+        return TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
       }
       case "MethodInvocation": {
         if (expr.methodName.toLowerCase() === "ctype" && expr.arguments.length === 2 && !expr.callee) {
@@ -235,14 +241,14 @@ export class TypeResolver {
         if (expr.callee) {
           const targetType = TypeResolver.resolveExpressionType(expr.callee, document, lineIdx, indexer);
           if (!targetType) return undefined;
-          return TypeResolver.findMember(targetType, expr.methodName, indexer)?.type;
+          return TypeResolver.findMember(targetType, expr.methodName, indexer, expr.arguments.length)?.type;
         }
         const fileSyms = indexer.getFileSymbols(document.uri.toString());
         const activeClass = fileSyms?.symbols.find(
           (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine
         );
         if (activeClass) {
-          const member = TypeResolver.findMember(activeClass.name, expr.methodName, indexer);
+          const member = TypeResolver.findMember(activeClass.name, expr.methodName, indexer, expr.arguments.length);
           if (member?.type) return member.type;
         }
         return (
@@ -291,7 +297,11 @@ export class TypeResolver {
       const activeClass = fileSyms?.symbols.find(
         (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine
       );
-      return activeClass?.name;
+      if (lower === "me") {
+        return activeClass?.name;
+      } else {
+        return activeClass?.inheritsFrom ?? "TObject";
+      }
     }
 
     const local = TypeResolver.getVariableType(name, document, position, indexer);
@@ -362,7 +372,7 @@ export class TypeResolver {
     className: string,
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo[] {
-    const members: SymbolInfo[] = [];
+    const membersMap = new Map<string, SymbolInfo>();
     const visited = new Set<string>();
 
     const collect = (currentClassName: string): void => {
@@ -381,18 +391,30 @@ export class TypeResolver {
         containerName !== undefined &&
         (containerName.toLowerCase() === key || containerName.toLowerCase() === shortName);
 
-      members.push(...SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)));
-      members.push(...indexer.getAllSymbols().filter((s) => containerMatch(s.containerName)));
+      const addSymbol = (s: SymbolInfo): void => {
+        const namePart = s.name.toLowerCase();
+        let paramsPart = "";
+        if (s.parameters && s.parameters.length > 0) {
+          paramsPart = s.parameters.map((p) => p.type.toLowerCase()).join(",");
+        }
+        const signatureKey = `${namePart}#${paramsPart}`;
+        if (!membersMap.has(signatureKey)) {
+          membersMap.set(signatureKey, s);
+        }
+      };
+
+      SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
+      indexer.getAllSymbols().filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
 
       const parent = TypeResolver.resolveParent(classSymbol);
       if (parent) collect(parent);
     };
 
     const startClass = TypeResolver.findClassSymbol(className, indexer);
-    if (!startClass) return members;
+    if (!startClass) return [];
     const parent = TypeResolver.resolveParent(startClass);
     if (parent) collect(parent);
-    return members;
+    return Array.from(membersMap.values());
   }
 
   /**
@@ -438,6 +460,7 @@ export class TypeResolver {
     typeName: string,
     memberName: string,
     indexer: WorkspaceSymbolIndexer,
+    arity?: number,
   ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const visited = new Set<string>();
@@ -463,15 +486,26 @@ export class TypeResolver {
       };
 
       // Workspace takes precedence over the System Library when both declare the same member.
-      const wsHit = indexer
+      const allWsHits = indexer
         .getAllSymbols()
-        .find((s) => s.name.toLowerCase() === memberLower && containerMatch(s.containerName));
-      if (wsHit) return wsHit;
+        .filter((s) => s.name.toLowerCase() === memberLower && containerMatch(s.containerName));
 
-      const sysHit = SYSTEM_SYMBOLS.find(
+      if (arity !== undefined) {
+        const arityHit = allWsHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
+        if (arityHit) return arityHit;
+      }
+
+      const allSysHits = SYSTEM_SYMBOLS.filter(
         (s) => s.name.toLowerCase() === memberLower && containerMatch(s.containerName),
       );
-      if (sysHit) return sysHit;
+
+      if (arity !== undefined) {
+        const arityHit = allSysHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
+        if (arityHit) return arityHit;
+      }
+
+      if (allWsHits.length > 0) return allWsHits[0];
+      if (allSysHits.length > 0) return allSysHits[0];
 
       const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
       if (!classSymbol) return undefined;
@@ -700,6 +734,25 @@ export class TypeResolver {
     }
     return current;
   }
+
+  public static isSubclassOf(
+    subClassName: string,
+    baseClassName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): boolean {
+    let current = subClassName.toLowerCase();
+    const target = baseClassName.toLowerCase();
+    if (current === target) return true;
+    const visited = new Set<string>();
+    while (current && current !== target && !visited.has(current)) {
+      visited.add(current);
+      const cls = TypeResolver.findClassSymbol(current, indexer);
+      if (!cls) break;
+      const parent = TypeResolver.resolveParent(cls);
+      current = parent ? parent.toLowerCase() : "";
+    }
+    return current === target;
+  }
 }
 
 /**
@@ -904,10 +957,14 @@ function collectLocalDeclarations(
 
     case "VariableDeclaration": {
       const explicitType = typeRefToString(node.type);
-      const inferredType = node.initializer
-        ? TypeResolver.resolveExpressionType(node.initializer, document, lineIdx, indexer)
-        : undefined;
-      locals.set(node.name.toLowerCase(), explicitType ?? inferredType ?? "Variant");
+      if (explicitType) {
+        locals.set(node.name.toLowerCase(), explicitType);
+      } else {
+        const inferredType = node.initializer
+          ? TypeResolver.resolveExpressionType(node.initializer, document, nodeLine, indexer)
+          : undefined;
+        locals.set(node.name.toLowerCase(), inferredType ?? "Variant");
+      }
       break;
     }
 

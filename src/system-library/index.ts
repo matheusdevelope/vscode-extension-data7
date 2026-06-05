@@ -158,6 +158,7 @@ import { symbols as sym_Globals_DateTime } from "./Globals/DateTime";
 import { symbols as sym_Globals_FileToBase64 } from "./Globals/FileToBase64";
 import { symbols as sym_Globals_InStr } from "./Globals/InStr";
 import { symbols as sym_Globals_LCase } from "./Globals/LCase";
+import { symbols as sym_Globals_Len } from "./Globals/Len";
 import { symbols as sym_Globals_Left } from "./Globals/Left";
 import { symbols as sym_Globals_Mid } from "./Globals/Mid";
 import { symbols as sym_Globals_RGB } from "./Globals/RGB";
@@ -382,6 +383,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_FileToBase64,
   ...sym_Globals_InStr,
   ...sym_Globals_LCase,
+  ...sym_Globals_Len,
   ...sym_Globals_Left,
   ...sym_Globals_Mid,
   ...sym_Globals_RGB,

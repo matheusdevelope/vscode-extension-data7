@@ -19,57 +19,67 @@ Namespace mod_card_grouper
       Shared Function GetOptions(pAdm As CardAdm) As String
          If pAdm = NULL Then Return ""
          Select pAdm
-            Case CardAdm.Stone
-               GetOptions = mod_card_stone.CardGroupersStone.GetOptions()
-            ' Case CardAdm.Cielo
-            '    GetOptions = mod_card_cielo.CardGroupersCielo.GetOptions()
-            Case Else
-               GetOptions = ""
-         End Select
-      End Function
+         Case CardAdm.Stone
+         GetOptions = mod_card_stone.CardGroupersStone.GetOptions()
+         ' Case CardAdm.Cielo
+         '    GetOptions = mod_card_cielo.CardGroupersCielo.GetOptions()
+         Case Else
+         GetOptions = ""
+      End Select
+   End Function
 
-      Shared Function Load(pAdm As CardAdm, pGrouperName As String) As CardGrouper
-         If pAdm = NULL Then Throw New Exception("Invalid CardAdm")
+   Shared Function Load(pAdm As CardAdm, pGrouperName As String) As CardGrouper
+      If pAdm = NULL Then Throw New Exception("Invalid CardAdm")
 
-         Select pAdm
-            Case CardAdm.Stone
-               Load = mod_card_stone.CardGroupersStone.LoadGrouper(pGrouperName, pAdm)
-            ' Case CardAdm.Cielo
-            '    Load = mod_card_cielo.CardGroupersCielo.LoadGrouper(pGrouperName, pAdm)
-            Case Else
-               Throw New Exception("Groupers not supported for ADM: " + pAdm.AsString)
-         End Select
-      End Function
+      Select pAdm
+      Case CardAdm.Stone
+      Load = mod_card_stone.CardGroupersStone.LoadGrouper(pGrouperName, pAdm)
+      ' Case CardAdm.Cielo
+      '    Load = mod_card_cielo.CardGroupersCielo.LoadGrouper(pGrouperName, pAdm)
+      Case Else
+      Throw New Exception("Groupers not supported for ADM: " + pAdm.AsString)
+   End Select
+End Function
 
-      Sub Free()
-         MyBase.Free()
-      End Sub
+Sub Free()
+   MyBase.Free()
+End Sub
 
-   End Class
+End Class
 
-   ' === AGRUPADORES COMPARTILHADOS (REUTILIZÁVEIS) ===
+' === AGRUPADORES COMPARTILHADOS (REUTILIZÁVEIS) ===
 
-   Class GrouperBandeiraProduto
-      Inherits CardGrouper
+Class GrouperBandeiraProduto
+   Inherits CardGrouper
 
-      Sub New(pAdm As CardAdm)
-         MyBase.New(pAdm, "BandeiraProduto")
-         With me.Definition.Fields
-            .Add(New TField("Bandeira"))
-            .Add(New TField("Produto"))
-         End With
-      End Sub
-   End Class
+   Sub New(pAdm As CardAdm)
+      MyBase.New(pAdm, "BandeiraProduto")
+      With me.Definition.Fields
+      .Add(New TField("Bandeira"))
+      .Add(New TField("Produto"))
+      End With
+   End Sub
 
-   Class GrouperDataPagamento
-      Inherits CardGrouper
+   Sub Free()
+      MyBase.Free()
+   End Sub
 
-      Sub New(pAdm As CardAdm)
-         MyBase.New(pAdm, "DataPagamento")
-         With me.Definition.Fields
-            .Add(New TField("DataPagamento"))
-         End With
-      End Sub
-   End Class
+End Class
+
+Class GrouperDataPagamento
+   Inherits CardGrouper
+
+   Sub New(pAdm As CardAdm)
+      MyBase.New(pAdm, "DataPagamento")
+      With me.Definition.Fields
+      .Add(New TField("DataPagamento"))
+      End With
+   End Sub
+
+   Public Sub Free()
+      MyBase.Free()
+   End Sub
+
+End Class
 
 End Namespace

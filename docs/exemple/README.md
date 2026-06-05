@@ -125,8 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (116 arquivos)
-## Índice de exemplos (108 arquivos)
+## Índice de exemplos (130 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -206,12 +205,15 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/type-alias/01-basic.bas`](./sugar/type-alias/01-basic.bas) | Type ProductId = String — alias só design-time | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (36)
+### diagnostics (49)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
 | [`diagnostics/auto-new-non-default-ctor/trigger.bas`](./diagnostics/auto-new-non-default-ctor/trigger.bas) | Dim x As New T mas T só tem construtor com args — runtime falha | `auto-new-non-default-ctor@5` | `classe TNeedsArgs sem construtor sem-args` |
+| [`diagnostics/call-parentheses-mismatch/trigger.bas`](./diagnostics/call-parentheses-mismatch/trigger.bas) | missing parentheses for method call with multiple arguments | `call-parentheses-mismatch@12` | `linter implementation for call parentheses validation` |
 | [`diagnostics/class-generic-method-unsupported/trigger.bas`](./diagnostics/class-generic-method-unsupported/trigger.bas) | a generic method declared inside a non-generic class | `class-generic-method-unsupported@9` | `only emitted by the AST monomorphization engine (Fase 6); the live linter does not yet detect generic methods inside classes.` |
+| [`diagnostics/dead-code/trigger.bas`](./diagnostics/dead-code/trigger.bas) | dead code after return | `dead-code@10` | `linter implementation for dead code detection` |
+| [`diagnostics/declaration-parentheses-mismatch/trigger.bas`](./diagnostics/declaration-parentheses-mismatch/trigger.bas) | method declaration missing parentheses | `declaration-parentheses-mismatch@8` | — |
 | [`diagnostics/default-indexer-missing/trigger.bas`](./diagnostics/default-indexer-missing/trigger.bas) | list(i) usado mas o tipo não declara Item(Integer) | `default-indexer-missing@5` | `classe TBag sem Property Item(Integer) no workspace` |
 | [`diagnostics/destructure-context-unsupported/trigger.bas`](./diagnostics/destructure-context-unsupported/trigger.bas) | destructure fora de Dim/parâmetro — não suportado | `destructure-context-unsupported@6` | `emissão futura do linter quando destructure for detectado em contexto não-Dim` |
 | [`diagnostics/destructure-non-array/trigger.bas`](./diagnostics/destructure-non-array/trigger.bas) | destructure array [a, b] aplicado a tipo não indexável | `destructure-non-array@6` | `classe TPessoa sem Item(Integer) no workspace` |
@@ -222,13 +224,20 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
 | [`diagnostics/event-signature-mismatch/trigger.bas`](./diagnostics/event-signature-mismatch/trigger.bas) | handler atribuído a OnClick (TNotifyEvent espera 1 parâmetro Sender) mas o handler tem 0 | `event-signature-mismatch@11` | — |
 | [`diagnostics/flat-name-collision/trigger.bas`](./diagnostics/flat-name-collision/trigger.bas) | source type carries `_` so two distinct usages collapse to the same flat name | `flat-name-collision@14` | `emitted by the SugarTranspiler at build-time (Fase 6); the live linter does not yet track flat-name collisions.` |
+| [`diagnostics/function-read-self/trigger.bas`](./diagnostics/function-read-self/trigger.bas) | reading from function name inside its own body | `function-read-self@10` | `linter implementation for function self read detection` |
 | [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |
 | [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As BaseEnum> violada por Integer | `generic-constraint-violated@10` | `classes BaseEnum + CardAdm declaradas no workspace` |
+| [`diagnostics/instance-member-access-on-type/trigger.bas`](./diagnostics/instance-member-access-on-type/trigger.bas) | access to an instance member statically on the type | `none` | — |
 | [`diagnostics/instantiation-limit-exceeded/trigger.bas`](./diagnostics/instantiation-limit-exceeded/trigger.bas) | a generic template that recursively instantiates itself exceeds MAX_INSTANTIATIONS | `instantiation-limit-exceeded@11` | `emitted by the SugarTranspiler at build-time (Fase 6) when the worklist exceeds 10_000 instantiations; the live linter does not run the drain.` |
+| [`diagnostics/invalid-assignment-target/trigger.bas`](./diagnostics/invalid-assignment-target/trigger.bas) | assigning to another function name | `invalid-assignment-target@13` | `linter implementation for invalid assignment target` |
 | [`diagnostics/invalid-interpolation/trigger.bas`](./diagnostics/invalid-interpolation/trigger.bas) | string interpolada com `{}` vazio — parser não consegue produzir expansão | `invalid-interpolation@8` | — |
 | [`diagnostics/lambda-capture-unsupported/trigger.bas`](./diagnostics/lambda-capture-unsupported/trigger.bas) | lambda referencia variável local — captura não suportada em Data7 | `lambda-capture-unsupported@7` | `emissão futura do linter quando lambdas inline forem implementados (H3)` |
+| [`diagnostics/loose-type-statement/trigger.bas`](./diagnostics/loose-type-statement/trigger.bas) | loose type statement | `loose-type-statement@8` | `linter implementation for loose types` |
 | [`diagnostics/missing-import/after-quickfix.bas`](./diagnostics/missing-import/after-quickfix.bas) | resultado de aplicar o Quick Fix "Importar mod_resources" sobre diagnostics/missing-import/trigger | `none` | — |
 | [`diagnostics/missing-import/trigger.bas`](./diagnostics/missing-import/trigger.bas) | tipo de outro módulo do workspace usado sem o Imports correspondente | `missing-import@9` | `módulo "mod_resources" exportando "TResourceLoader" no workspace` |
+| [`diagnostics/missing-mybase-free/trigger.bas`](./diagnostics/missing-mybase-free/trigger.bas) | classe sem o método Sub Free() | `missing-mybase-free@3` | — |
+| [`diagnostics/missing-mybase-new/trigger.bas`](./diagnostics/missing-mybase-new/trigger.bas) | construtor Sub New sem chamada a MyBase.New() | `missing-mybase-new@5` | — |
+| [`diagnostics/missing-return-value/trigger.bas`](./diagnostics/missing-return-value/trigger.bas) | function missing return value | `missing-return-value@7` | `linter implementation for control flow analysis` |
 | [`diagnostics/module-not-declared/trigger.bas`](./diagnostics/module-not-declared/trigger.bas) | módulo existe no repositório privado mas não foi adicionado a data7.json#dependencies | `module-not-declared@6` | `módulo "mod_shared_utility" no repositório privado E ausência da entrada em data7.json` |
 | [`diagnostics/module-not-found/trigger.bas`](./diagnostics/module-not-found/trigger.bas) | Imports de um módulo que não existe no workspace, repositório privado, nem System Library | `module-not-found@6` | `nenhum módulo "mod_unknown_module" instalado em lugar nenhum` |
 | [`diagnostics/not-enumerable/trigger.bas`](./diagnostics/not-enumerable/trigger.bas) | For Each sobre tipo do workspace sem propriedade Count + indexer inteiro | `not-enumerable@12` | — |
@@ -239,10 +248,13 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/private-member-access/trigger.bas`](./diagnostics/private-member-access/trigger.bas) | acesso a membro Private de uma classe a partir de outra classe | `private-member-access@13` | `módulo "mod_vault" exportando a classe Vault com campo Private "secret"` |
 | [`diagnostics/readonly-assignment/trigger.bas`](./diagnostics/readonly-assignment/trigger.bas) | atribuição a campo ReadOnly fora do construtor | `readonly-assignment@11` | `emissão futura do linter quando a checagem ReadOnly for implementada (I3)` |
 | [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |
+| [`diagnostics/sub-used-as-function/trigger.bas`](./diagnostics/sub-used-as-function/trigger.bas) | using a Sub procedure as a function in an expression context | `none` | — |
 | [`diagnostics/ternary-context-unsupported/trigger.bas`](./diagnostics/ternary-context-unsupported/trigger.bas) | ternário em contexto não-assignment (Print) — não é expansível | `ternary-context-unsupported@8` | — |
 | [`diagnostics/unknown-member/trigger.bas`](./diagnostics/unknown-member/trigger.bas) | acesso a propriedade inexistente (typo) — emite unknown-member com "did you mean Align?" | `unknown-member@11` | — |
 | [`diagnostics/unknown-suppression-code/trigger.bas`](./diagnostics/unknown-suppression-code/trigger.bas) | diretiva data7:disable-line referenciando código inexistente em DiagnosticCodes | `unknown-suppression-code@7` | — |
+| [`diagnostics/unknown-symbol/trigger.bas`](./diagnostics/unknown-symbol/trigger.bas) | reference to a symbol that does not exist in the scope | `none` | — |
 | [`diagnostics/unknown-template/trigger.bas`](./diagnostics/unknown-template/trigger.bas) | usage of TList<T> without the template declared in scope | `unknown-template@9` | — |
+| [`diagnostics/unknown-type/trigger.bas`](./diagnostics/unknown-type/trigger.bas) | referência a tipo que não existe no workspace ou na biblioteca do sistema | `unknown-type@8` | — |
 | [`diagnostics/unsupported-member/trigger.bas`](./diagnostics/unsupported-member/trigger.bas) | acesso a propriedade marcada isUnsupported=true na System Library (não traduzida pelo compilador Data7) | `unsupported-member@11` | — |
 | [`diagnostics/unused-import/trigger.bas`](./diagnostics/unused-import/trigger.bas) | diretiva Imports declarada mas nenhum símbolo do namespace é referenciado | `unused-import@5` | — |
 | [`diagnostics/using-non-disposable/trigger.bas`](./diagnostics/using-non-disposable/trigger.bas) | Using sobre tipo sem Free na cadeia — Builder gera .Free() mesmo assim | `using-non-disposable@5` | `classe TNotDisposable sem Free no workspace` |

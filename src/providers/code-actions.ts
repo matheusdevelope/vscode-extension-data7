@@ -4,8 +4,10 @@ import type {
   ModuleNotFoundPayload,
   MissingImportPayload,
   UnknownMemberPayload,
+  UnknownTypePayload,
   UnsupportedMemberPayload,
   UnusedImportPayload,
+  MissingMyBaseFreePayload,
 } from "../diagnostics/diagnostic-codes";
 import { DiagnosticCodes } from "../diagnostics/diagnostic-codes";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
@@ -67,8 +69,28 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         case DiagnosticCodes.UnknownMember:
           this.addDidYouMeanFixes(actions, document, diagnostic);
           break;
+        case DiagnosticCodes.UnknownType:
+          this.addUnknownTypeDidYouMeanFixes(actions, document, diagnostic);
+          break;
         case DiagnosticCodes.UnsupportedMember:
           this.addUnsupportedMemberFixes(actions, document, diagnostic);
+          break;
+        case DiagnosticCodes.DeclarationParenthesesMismatch:
+          this.addDeclarationParenthesesMismatchFix(actions, document, diagnostic);
+          this.addDeclarationParenthesesMismatchBulkFix(actions, document, diagnostic);
+          break;
+        case DiagnosticCodes.MissingMyBaseNew:
+          this.addMissingMyBaseNewFix(actions, document, diagnostic);
+          this.addMissingMyBaseNewBulkFix(actions, document, diagnostic);
+          break;
+        case DiagnosticCodes.MissingMyBaseFree:
+          this.addMissingMyBaseFreeFix(actions, document, diagnostic);
+          this.addMissingMyBaseFreeBulkFix(actions, document, diagnostic);
+          break;
+        case "expected-token":
+          if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
+            this.addMissingThenFix(actions, document, diagnostic);
+          }
           break;
         default:
           break;
@@ -529,6 +551,278 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       suppressAction.edit = edit;
     }
     actions.push(suppressAction);
+  }
+
+  private addDeclarationParenthesesMismatchFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const action = new vscode.CodeAction(
+      "Adicionar parênteses '()'",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+    action.isPreferred = true;
+
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(document.uri, diagnostic.range.end, "()");
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addUnknownTypeDidYouMeanFixes(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const payload = readPayload<UnknownTypePayload>(diagnostic, DiagnosticCodes.UnknownType);
+    if (!payload || payload.suggestions.length === 0) return;
+
+    payload.suggestions.forEach((suggestion, idx) => {
+      const action = new vscode.CodeAction(
+        `Você quis dizer "${suggestion}"?`,
+        vscode.CodeActionKind.QuickFix,
+      );
+      action.diagnostics = [diagnostic];
+      if (idx === 0) action.isPreferred = true;
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(document.uri, diagnostic.range, suggestion);
+      action.edit = edit;
+      actions.push(action);
+    });
+  }
+
+  private addDeclarationParenthesesMismatchBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.DeclarationParenthesesMismatch);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Adicionar parênteses '()' em todas as declarações deste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    for (const match of mismatches) {
+      edit.insert(document.uri, match.range.end, "()");
+    }
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addMissingMyBaseNewFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const action = new vscode.CodeAction(
+      "Adicionar chamada 'MyBase.New()'",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+    action.isPreferred = true;
+
+    const edit = new vscode.WorkspaceEdit();
+    // Sub New header is on diagnostic.range.start.line
+    const line = diagnostic.range.start.line;
+    const lineText = document.lineAt(line).text;
+    const indentMatch = /^(\s*)/.exec(lineText);
+    const indent = indentMatch?.[1] ?? "";
+    // Insert on the next line inside the Sub
+    const position = new vscode.Position(line + 1, 0);
+    const insertText = `${indent}  MyBase.New()\n`;
+    edit.insert(document.uri, position, insertText);
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addMissingMyBaseNewBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.MissingMyBaseNew);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Adicionar chamada 'MyBase.New()' em todos os construtores deste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    // To avoid offset problems when modifying lines from top to bottom,
+    // we can sort the diagnostics in descending order of line number.
+    const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+    for (const match of sorted) {
+      const line = match.range.start.line;
+      const lineText = document.lineAt(line).text;
+      const indentMatch = /^(\s*)/.exec(lineText);
+      const indent = indentMatch?.[1] ?? "";
+      const position = new vscode.Position(line + 1, 0);
+      const insertText = `${indent}  MyBase.New()\n`;
+      edit.insert(document.uri, position, insertText);
+    }
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addMissingMyBaseFreeFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const payload = readPayload<MissingMyBaseFreePayload>(diagnostic, DiagnosticCodes.MissingMyBaseFree);
+    if (!payload) return;
+
+    // Check if the warning is on "Class" declaration (Sub Free is missing entirely)
+    // or on "Sub Free" itself (MyBase.Free() call is missing).
+    const lineText = document.lineAt(diagnostic.range.start.line).text;
+    const isClassDecl = /\bClass\b/i.test(lineText);
+
+    if (isClassDecl) {
+      const action = new vscode.CodeAction(
+        "Gerar método 'Sub Free()'",
+        vscode.CodeActionKind.QuickFix,
+      );
+      action.diagnostics = [diagnostic];
+      action.isPreferred = true;
+
+      const edit = new vscode.WorkspaceEdit();
+      // Find where "End Class" is. We can search from the Class start line forward.
+      let endClassLine = -1;
+      const classIndentMatch = /^(\s*)/.exec(lineText);
+      const classIndent = classIndentMatch?.[1] ?? "";
+
+      for (let i = diagnostic.range.start.line + 1; i < document.lineCount; i++) {
+        if (/^\s*End\s+Class\b/i.test(document.lineAt(i).text)) {
+          endClassLine = i;
+          break;
+        }
+      }
+
+      if (endClassLine !== -1) {
+        const position = new vscode.Position(endClassLine, 0);
+        // Build Sub Free using the class's indentation
+        const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+        const subFreeText = `${classIndent}  Public Sub Free()${eol}${classIndent}    MyBase.Free()${eol}${classIndent}  End Sub${eol}${eol}`;
+        edit.insert(document.uri, position, subFreeText);
+      }
+      action.edit = edit;
+      actions.push(action);
+    } else {
+      // Sub Free exists but lacks MyBase.Free() call
+      const action = new vscode.CodeAction(
+        "Adicionar chamada 'MyBase.Free()'",
+        vscode.CodeActionKind.QuickFix,
+      );
+      action.diagnostics = [diagnostic];
+      action.isPreferred = true;
+
+      const edit = new vscode.WorkspaceEdit();
+      const line = diagnostic.range.start.line;
+      const indentMatch = /^(\s*)/.exec(lineText);
+      const indent = indentMatch?.[1] ?? "";
+      const position = new vscode.Position(line + 1, 0);
+      const insertText = `${indent}  MyBase.Free()\n`;
+      edit.insert(document.uri, position, insertText);
+      action.edit = edit;
+      actions.push(action);
+    }
+  }
+
+  private addMissingMyBaseFreeBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.MissingMyBaseFree);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Corrigir/Gerar chamadas de 'MyBase.Free()' em todas as classes deste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    // Sort in descending order of start line to avoid offset shift issues
+    const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+
+    for (const match of sorted) {
+      const line = match.range.start.line;
+      const lineText = document.lineAt(line).text;
+      const isClassDecl = /\bClass\b/i.test(lineText);
+
+      if (isClassDecl) {
+        let endClassLine = -1;
+        const classIndentMatch = /^(\s*)/.exec(lineText);
+        const classIndent = classIndentMatch?.[1] ?? "";
+
+        for (let i = line + 1; i < document.lineCount; i++) {
+          if (/^\s*End\s+Class\b/i.test(document.lineAt(i).text)) {
+            endClassLine = i;
+            break;
+          }
+        }
+
+        if (endClassLine !== -1) {
+          const position = new vscode.Position(endClassLine, 0);
+          const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+          const subFreeText = `${classIndent}  Public Sub Free()${eol}${classIndent}    MyBase.Free()${eol}${classIndent}  End Sub${eol}${eol}`;
+          edit.insert(document.uri, position, subFreeText);
+        }
+      } else {
+        const indentMatch = /^(\s*)/.exec(lineText);
+        const indent = indentMatch?.[1] ?? "";
+        const position = new vscode.Position(line + 1, 0);
+        const insertText = `${indent}  MyBase.Free()\n`;
+        edit.insert(document.uri, position, insertText);
+      }
+    }
+
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addMissingThenFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const action = new vscode.CodeAction(
+      "Adicionar 'Then'",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+    action.isPreferred = true;
+
+    const line = diagnostic.range.start.line;
+    const lineText = document.lineAt(line).text;
+    
+    // Find the end of the expression or end of line before any comments
+    let endChar = lineText.length;
+    const commentIdx = lineText.indexOf("'");
+    if (commentIdx !== -1) {
+      endChar = commentIdx;
+    }
+    // Trim trailing whitespace from the insertion point
+    const textBeforeComment = lineText.substring(0, endChar);
+    const trimmedLen = textBeforeComment.trimEnd().length;
+    const insertPos = new vscode.Position(line, trimmedLen);
+
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(document.uri, insertPos, " Then");
+    action.edit = edit;
+    actions.push(action);
   }
 }
 

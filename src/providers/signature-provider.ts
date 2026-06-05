@@ -94,7 +94,8 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
               position.line <= s.range.endLine,
           );
           if (currentClass) {
-            targetSymbol = this.findClassMember(currentClass.name, sigCtx.name);
+            const typeName = dotPrefixLower === "me" ? currentClass.name : (currentClass.inheritsFrom ?? "TObject");
+            targetSymbol = this.findClassMember(typeName, sigCtx.name);
           }
         }
       } else {

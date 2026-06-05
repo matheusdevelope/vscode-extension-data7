@@ -75,6 +75,8 @@ export type Node =
   | UsingStatement
   | MatchStatement
   | ReturnStatement
+  | ExitStatement
+  | ThrowStatement
   | Block
   | WithStatement
   | BinaryExpression
@@ -171,6 +173,7 @@ export interface ParameterDeclaration extends BaseNode {
   name: string;
   type: TypeReference;
   isByRef?: boolean;
+  defaultValue?: Expression;
 }
 
 export interface TypeParameter extends BaseNode {
@@ -253,6 +256,8 @@ export type Statement =
   | UsingStatement
   | MatchStatement
   | ReturnStatement
+  | ExitStatement
+  | ThrowStatement
   | Block
   | WithStatement
   | EnumDeclaration
@@ -354,6 +359,16 @@ export interface ReturnStatement extends BaseNode {
   expression?: Expression;
 }
 
+export interface ExitStatement extends BaseNode {
+  readonly kind: "ExitStatement";
+  target: "Sub" | "Function" | "For" | "Do" | "While" | "Property";
+}
+
+export interface ThrowStatement extends BaseNode {
+  readonly kind: "ThrowStatement";
+  expression: Expression;
+}
+
 export interface Block extends BaseNode {
   readonly kind: "Block";
   statements: Statement[];
@@ -452,6 +467,7 @@ export abstract class ASTWalker {
         return;
       case "ParameterDeclaration":
         this.walk(node.type);
+        if (node.defaultValue) this.walk(node.defaultValue);
         return;
       case "TypeParameter":
         if (node.constraint) this.walk(node.constraint);
@@ -551,6 +567,11 @@ export abstract class ASTWalker {
         return;
       case "ReturnStatement":
         if (node.expression) this.walk(node.expression);
+        return;
+      case "ExitStatement":
+        return;
+      case "ThrowStatement":
+        this.walk(node.expression);
         return;
       case "Block":
         for (const s of node.statements) this.walk(s);

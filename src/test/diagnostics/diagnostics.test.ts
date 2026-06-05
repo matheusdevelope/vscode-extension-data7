@@ -58,6 +58,9 @@ End Namespace`;
          Dim client As THTTP
          Dim json As TJSONObject
       End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
    End Class
 End Namespace`);
       assert.equal(diags.length, 0);
@@ -68,6 +71,9 @@ End Namespace`);
    Class TTest
       Public Sub Run()
          Dim loader As TResourceLoader
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
       End Sub
    End Class
 End Namespace`);
@@ -80,6 +86,9 @@ End Namespace`);
    Class TTest
       Public Sub Run()
          Dim loader As mod_resources.TResourceLoader
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
       End Sub
    End Class
 End Namespace`);
@@ -94,6 +103,9 @@ Namespace my_app
       Public Sub Run()
          Dim loader As TResourceLoader
       End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
    End Class
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingImport);
@@ -103,6 +115,9 @@ End Namespace`);
       const diags = runLinter(`Namespace my_app
    Class TTest
       Inherits TPrincipalClass
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
    End Class
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingImport);
@@ -112,6 +127,9 @@ End Namespace`);
       const diags = runLinter(`Namespace my_app
    Class TTest
       Inherits Form
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
    End Class
 End Namespace`);
       expectDiagnostic(diags, DiagnosticCodes.MissingImport);
@@ -129,6 +147,9 @@ End Namespace`);
 Imports Forms
 Namespace mod_test
    Class C
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
    End Class
 End Namespace`;
       indexer.updateFileContent(uri, code);
@@ -817,6 +838,163 @@ End Namespace`);
    End Class
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // missing-mybase-free
+  // -------------------------------------------------------------------------
+  describe("missing-mybase-free", () => {
+    const runLinter = (code: string) => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const uri = "file:///dummy/test_free.bas";
+      // Register class in mock document indexer
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code, { register: true });
+      return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+    };
+
+    test("emits warning when class has no Sub Free", () => {
+      const diags = runLinter(`Namespace mod_free
+   Class C
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree, "não possui o método 'Sub Free()'");
+    });
+
+    test("emits warning when Sub Free has no MyBase.Free()", () => {
+      const diags = runLinter(`Namespace mod_free
+   Class C
+      Public Sub Free()
+         ' no call
+      End Sub
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree, "não chama 'MyBase.Free()'");
+    });
+
+    test("emits no warning when Sub Free has MyBase.Free()", () => {
+      const diags = runLinter(`Namespace mod_free
+   Class C
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
+    });
+
+    test("does not emit warning for BaseEnum classes", () => {
+      const diags = runLinter(`Namespace mod_free
+   Enum MyEnum
+      Value1
+      Value2
+   End Enum
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // declaration-parentheses-mismatch & function-read-self declaration line
+  // -------------------------------------------------------------------------
+  describe("declaration-parentheses-mismatch", () => {
+    const runLinter = (code: string) => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const uri = "file:///decl_parens_test.bas";
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+    };
+
+    test("emits warning when function is declared without parameters and without parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Shared Function BandeiraProduto As TObject
+         BandeiraProduto = Nothing
+      End Function
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.DeclarationParenthesesMismatch, "BandeiraProduto");
+      expectNoDiagnostic(diags, DiagnosticCodes.FunctionReadSelf);
+    });
+
+    test("does NOT emit warning when function is declared with parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Shared Function BandeiraProduto() As TObject
+         BandeiraProduto = Nothing
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.DeclarationParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.FunctionReadSelf);
+    });
+
+    test("does NOT emit warning when function is declared with parameters", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Shared Function Load(pValue As String) As TObject
+         Load = Nothing
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.DeclarationParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.FunctionReadSelf);
+    });
+
+    test("does NOT emit function-read-self when function name is dot-preceded", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Function First() As TObject
+         First = CType(MyBase.First(), TObject)
+      End Function
+      Function Last() As TObject
+         Last = CType(MyBase.Last, TObject)
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.FunctionReadSelf);
+    });
+
+    test("does NOT emit unknown-symbol for parameters inside Delegate declarations", () => {
+      const diags = runLinter(`Namespace mod_test
+   Delegate Function CardRecordFindDelegate(pValue As C, i As Integer, extra As Variant) As Boolean
+   Class C
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    });
+
+    test("does NOT emit parentheses warning for MyBase.First() or MyBase.Last parameterless calls when overloads exist on base class", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class BaseClass
+      Function First() As TObject
+         First = Nothing
+      End Function
+      Function First(pLimit As Integer) As BaseClass
+         First = Nothing
+      End Function
+      Function Last() As TObject
+         Last = Nothing
+      End Function
+      Function Last(pLimit As Integer) As BaseClass
+         Last = Nothing
+      End Function
+   End Class
+
+   Class SubClass
+      Inherits BaseClass
+      Function First() As TObject
+         First = CType(MyBase.First(), TObject)
+      End Function
+      Function Last() As TObject
+         Last = CType(MyBase.Last, TObject)
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
   });
 

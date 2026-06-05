@@ -143,6 +143,19 @@ export class SugarsParserPlugin implements ParserPlugin {
   parseExpressionPrefix(parser: Parser): Expression | null {
     const token = parser.peek();
     
+    // AddressOf operator
+    if ((token.kind === "identifier" || token.kind === "keyword") && token.value.toLowerCase() === "addressof") {
+      parser.advance(); // consume 'AddressOf'
+      const arg = parser.parseExpression(Precedence.Unary);
+      return {
+        kind: "MethodInvocation",
+        methodName: "AddressOf",
+        typeArguments: [],
+        arguments: [arg],
+        loc: locOf(token.loc),
+      } as any;
+    }
+    
     // Tagged template tag$"..."
     if (token.kind === "identifier" || token.kind === "keyword") {
       const lower = token.value.toLowerCase();

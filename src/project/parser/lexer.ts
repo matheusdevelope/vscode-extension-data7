@@ -269,7 +269,11 @@ export function tokenizeLine(
       two === "??" ||
       two === "?." ||
       two === "|>" ||
-      two === ".."
+      two === ".." ||
+      two === "+=" ||
+      two === "-=" ||
+      two === "*=" ||
+      two === "/="
     ) {
       tokens.push({ kind: "punct", value: two, col: i });
       i += 2;

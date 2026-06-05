@@ -90,17 +90,7 @@ function inheritsFromClass(
   baseClassName: string,
   indexer: WorkspaceSymbolIndexer,
 ): boolean {
-  let current = subClassName.toLowerCase();
-  const target = baseClassName.toLowerCase();
-  const visited = new Set<string>();
-  while (current && current !== target && !visited.has(current)) {
-    visited.add(current);
-    const cls = TypeResolver.findClassSymbol(current, indexer);
-    if (!cls) break;
-    const parent = TypeResolver.resolveParent(cls);
-    current = parent ? parent.toLowerCase() : "";
-  }
-  return current === target;
+  return TypeResolver.isSubclassOf(subClassName, baseClassName, indexer);
 }
 
 function isSymbolVisible(
@@ -116,6 +106,15 @@ function isSymbolVisible(
     if (inheritsFromClass(activeClass.name, s.containerName, indexer)) return !s.isPrivate;
   }
   return !s.isPrivate && !s.isProtected;
+}
+
+function getSignatureKey(s: SymbolInfo): string {
+  const namePart = s.name.toLowerCase();
+  let paramsPart = "";
+  if (s.parameters && s.parameters.length > 0) {
+    paramsPart = s.parameters.map((p) => p.type.toLowerCase()).join(",");
+  }
+  return `${namePart}#${paramsPart}`;
 }
 
 export class D7BasicCompletionProvider implements vscode.CompletionItemProvider {
@@ -147,14 +146,26 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
 
       if (receiverLower === "me" || receiverLower === "mybase") {
         if (activeClass) {
+          const list: SymbolInfo[] = [];
           if (receiverLower === "me") {
-            fileSyms?.symbols
-              .filter((s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase())
-              .forEach((s) => items.push(this.createCompletionItem(s, document)));
+            const ownSymbols = fileSyms?.symbols.filter(
+              (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase()
+            ) ?? [];
+            list.push(...ownSymbols);
           }
-          TypeResolver.getInheritedMembers(activeClass.name, this.indexer)
-            .filter((s) => !s.isPrivate)
-            .forEach((s) => items.push(this.createCompletionItem(s, document)));
+          const inherited = TypeResolver.getInheritedMembers(activeClass.name, this.indexer)
+            .filter((s) => !s.isPrivate);
+
+          // Deduplicate based on signature (override/shadowing)
+          inherited.forEach((s) => {
+            const sigKey = getSignatureKey(s);
+            const hasOverride = list.some((existing) => getSignatureKey(existing) === sigKey);
+            if (!hasOverride) {
+              list.push(s);
+            }
+          });
+
+          list.forEach((s) => items.push(this.createCompletionItem(s, document)));
         }
         return items;
       }
@@ -191,8 +202,9 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         .filter((s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase())
         .forEach((s) => {
           const lowerName = s.name.toLowerCase();
-          if (!seenNames.has(lowerName)) {
-            seenNames.add(lowerName);
+          const sigKey = getSignatureKey(s);
+          if (!seenNames.has(lowerName) && !seenNames.has(sigKey)) {
+            seenNames.add(sigKey);
             items.push(this.createCompletionItem(s, document));
           }
         });
@@ -200,8 +212,9 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       TypeResolver.getInheritedMembers(activeClass.name, this.indexer).forEach((s) => {
         if (s.isPrivate) return;
         const lowerName = s.name.toLowerCase();
-        if (!seenNames.has(lowerName)) {
-          seenNames.add(lowerName);
+        const sigKey = getSignatureKey(s);
+        if (!seenNames.has(lowerName) && !seenNames.has(sigKey)) {
+          seenNames.add(sigKey);
           items.push(this.createCompletionItem(s, document));
         }
       });
@@ -374,7 +387,11 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         })
         .join(", ");
 
-      labelInput = { label: s.name, detail: `(${paramsStr})` };
+      const isSubOrVoid = s.type === "Void" || s.kind === "declare_sub";
+      const returnPart = isSubOrVoid ? "" : ` As ${s.type}`;
+      labelInput = { label: s.name, detail: `(${paramsStr})${returnPart}` };
+    } else if (s.type && s.type !== "Void") {
+      labelInput = { label: s.name, detail: ` As ${s.type}` };
     }
 
     const item = new vscode.CompletionItem(labelInput, kind);

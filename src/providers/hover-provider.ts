@@ -89,11 +89,38 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     if (memberAccess) {
       targetSymbol = memberAccess.symbol;
     } else {
-      targetSymbol =
-        this.indexer.findSymbolByName(word, document.uri.toString()) ??
-        lookupSystemByName(word).find(
-          (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
-        );
+      const wordLower = word.toLowerCase();
+      if (wordLower === "me" || wordLower === "mybase") {
+        const activeClass = ast.getActiveClassSymbol();
+        if (activeClass) {
+          if (wordLower === "me") {
+            targetSymbol = {
+              ...activeClass,
+              description: `Representa a instancia atual da classe \`${activeClass.name}\`.` + (activeClass.description ? `\n\n${activeClass.description}` : ""),
+            };
+          } else {
+            const parentName = activeClass.inheritsFrom ?? "TObject";
+            const parentSymbol = this.indexer.findSymbolByName(parentName, document.uri.toString());
+            if (parentSymbol) {
+              targetSymbol = {
+                ...parentSymbol,
+                description: `Acessa membros da classe base herdada \`${parentName}\`.` + (parentSymbol.description ? `\n\n${parentSymbol.description}` : ""),
+              };
+            } else {
+              targetSymbol = {
+                name: parentName,
+                kind: "class",
+                type: parentName,
+                isShared: false,
+                isPrivate: false,
+                range: activeClass.range,
+                fileUri: activeClass.fileUri,
+                description: `Acessa membros da classe base herdada \`${parentName}\`.`,
+              };
+            }
+          }
+        }
+      }
 
       if (!targetSymbol) {
         const local = ast.findLocal(word);
@@ -101,7 +128,37 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       }
 
       if (!targetSymbol) {
-        const constraint = ast.getGenericParametersInScope().get(word.toLowerCase());
+        const activeMethod = ast.getActiveMethodSymbol();
+        if (activeMethod && activeMethod.name.toLowerCase() === wordLower) {
+          targetSymbol = activeMethod;
+        } else {
+          const activeProperty = ast.getActivePropertySymbol();
+          if (activeProperty && activeProperty.name.toLowerCase() === wordLower) {
+            targetSymbol = activeProperty;
+          }
+        }
+      }
+
+      if (!targetSymbol) {
+        const activeClass = ast.getActiveClassSymbol();
+        if (activeClass) {
+          const member = TypeResolver.findMember(activeClass.name, word, this.indexer);
+          if (member) {
+            targetSymbol = member;
+          }
+        }
+      }
+
+      if (!targetSymbol) {
+        targetSymbol =
+          this.indexer.findSymbolByName(word, document.uri.toString()) ??
+          lookupSystemByName(word).find(
+            (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
+          );
+      }
+
+      if (!targetSymbol) {
+        const constraint = ast.getGenericParametersInScope().get(wordLower);
         if (constraint) {
           const constraintSymbol =
             this.indexer.findSymbolByName(constraint, document.uri.toString()) ??
@@ -173,7 +230,11 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     markdown.appendMarkdown("\n---\n**Membros:**\n");
     const uniqueMembers = new Map<string, SymbolInfo>();
     members.forEach((m) => {
-      const key = `${m.kind}:${m.name.toLowerCase()}`;
+      let paramsPart = "";
+      if (m.parameters && m.parameters.length > 0) {
+        paramsPart = m.parameters.map((p) => p.type.toLowerCase()).join(",");
+      }
+      const key = `${m.kind}:${m.name.toLowerCase()}#${paramsPart}`;
       if (!uniqueMembers.has(key)) uniqueMembers.set(key, m);
     });
 

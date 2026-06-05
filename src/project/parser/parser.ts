@@ -54,6 +54,8 @@ import type {
   WhileStatement,
   TryCatchStatement,
   ReturnStatement,
+  ExitStatement,
+  ThrowStatement,
   WithStatement,
   Expression,
   Identifier,
@@ -619,6 +621,12 @@ export class Parser {
     if (this.match("keyword", "return") || this.match("identifier", "return")) {
       return this.parseReturnStatement();
     }
+    if (this.match("keyword", "exit") || this.match("identifier", "exit")) {
+      return this.parseExitStatement();
+    }
+    if (this.match("keyword", "throw") || this.match("identifier", "throw")) {
+      return this.parseThrowStatement();
+    }
     if (this.match("keyword", "with") || this.match("identifier", "with")) {
       return this.parseWithStatement();
     }
@@ -628,14 +636,14 @@ export class Parser {
     return this.parseAssignmentOrExpressionStatement();
   }
 
-  public parseLocalVariableDeclaration(): VariableDeclaration {
+  public parseLocalVariableDeclaration(): Statement {
     const startLoc = this.peek().loc;
     const isConst = this.peek().value.toLowerCase() === "const";
     this.advance(); // consume 'Dim'/'Const'
     return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
   }
 
-  public parseLocalVariableDeclarationAfterDim(startLoc: TokenLocation, isConst: boolean): VariableDeclaration {
+  private parseSingleVariableDeclaration(startLoc: TokenLocation, isConst: boolean): VariableDeclaration {
     const nameToken = this.expect("identifier", "<variable-name>");
     const name = nameToken?.value ?? "";
     let type: TypeReference | undefined;
@@ -658,7 +666,6 @@ export class Parser {
         loc: type.loc,
       };
     }
-    const comment = this.skipToEndOfLine();
     return {
       kind: "VariableDeclaration",
       name,
@@ -666,8 +673,31 @@ export class Parser {
       initializer,
       isConst,
       loc: locOf(startLoc),
-      comment,
     };
+  }
+
+  public parseLocalVariableDeclarationAfterDim(startLoc: TokenLocation, isConst: boolean): Statement {
+    const first = this.parseSingleVariableDeclaration(startLoc, isConst);
+
+    if (this.match("punct", ",")) {
+      const decls: Statement[] = [first];
+      while (this.consume("punct", ",")) {
+        const nextStartLoc = this.peek().loc;
+        const nextDecl = this.parseSingleVariableDeclaration(nextStartLoc, isConst);
+        decls.push(nextDecl);
+      }
+      const comment = this.skipToEndOfLine();
+      return {
+        kind: "Block",
+        statements: decls,
+        comment,
+        loc: locOf(startLoc, this.peek().loc),
+      };
+    } else {
+      const comment = this.skipToEndOfLine();
+      first.comment = comment;
+      return first;
+    }
   }
 
   private parseIfStatement(): IfStatement {
@@ -725,7 +755,9 @@ export class Parser {
         }
       }
 
-      this.skipToEndOfLine();
+      if (this.peek().loc.line === startLoc.line) {
+        this.skipToEndOfLine();
+      }
       return {
         kind: "IfStatement",
         condition,
@@ -1106,6 +1138,58 @@ export class Parser {
     };
   }
 
+  private parseExitStatement(): ExitStatement {
+    const startLoc = this.peek().loc;
+    this.advance(); // consume 'Exit'
+    const next = this.peek();
+    let targetVal = "";
+    if (next.kind === "keyword" || next.kind === "identifier") {
+      targetVal = this.advance().value.toLowerCase();
+    } else {
+      this.recordError(
+        "expected-token",
+        `Expected 'Sub', 'Function', 'For', 'Do', 'While' or 'Property' after 'Exit', got '${next.value || next.kind}'.`,
+        startLoc,
+      );
+    }
+
+    let target: "Sub" | "Function" | "For" | "Do" | "While" | "Property" = "Sub";
+    if (targetVal === "function") target = "Function";
+    else if (targetVal === "for") target = "For";
+    else if (targetVal === "do") target = "Do";
+    else if (targetVal === "while") target = "While";
+    else if (targetVal === "property") target = "Property";
+    else if (targetVal === "sub") target = "Sub";
+    else if (targetVal !== "") {
+      this.recordError(
+        "expected-token",
+        `Expected 'Sub', 'Function', 'For', 'Do', 'While' or 'Property' after 'Exit', got '${targetVal}'.`,
+        startLoc,
+      );
+    }
+
+    const endLoc = this.peek().loc;
+    this.skipToEndOfLine();
+    return {
+      kind: "ExitStatement",
+      target,
+      loc: locOf(startLoc, endLoc),
+    };
+  }
+
+  private parseThrowStatement(): ThrowStatement {
+    const startLoc = this.peek().loc;
+    this.advance(); // consume 'Throw'
+    const expression = this.parseExpression();
+    const comment = this.skipToEndOfLine();
+    return {
+      kind: "ThrowStatement",
+      expression,
+      loc: locOf(startLoc),
+      comment,
+    };
+  }
+
   private parseWithStatement(): WithStatement {
     const startLoc = this.peek().loc;
     this.advance(); // consume 'With'
@@ -1140,7 +1224,7 @@ export class Parser {
     const next = this.peek();
     if (
       next.kind === "punct" &&
-      (next.value === "=" || next.value === "??=" || next.value === "||=" || next.value === "&&=")
+      (next.value === "=" || next.value === "+=" || next.value === "-=" || next.value === "*=" || next.value === "/=" || next.value === "??=" || next.value === "||=" || next.value === "&&=")
     ) {
       const op = this.advance().value;
       const right = this.parseExpression();
@@ -1715,8 +1799,12 @@ export class Parser {
       const t = this.parseTypeReference();
       if (t !== null) type = t;
     }
-    this.skipToEndOfLine();
-    return { kind: "FieldDeclaration", name, type, loc: locOf(startLoc), modifiers };
+    let initializer: Expression | undefined;
+    if (this.consume("punct", "=")) {
+      initializer = this.parseExpression();
+    }
+    const comment = this.skipToEndOfLine();
+    return { kind: "FieldDeclaration", name, type, initializer, loc: locOf(startLoc), modifiers, comment };
   }
 
   // --------------------------------------------------------------------------
@@ -1739,7 +1827,7 @@ export class Parser {
       return { params, hasParentheses: false };
     }
     while (!this.match("punct", ")") && !this.isEOF() && !this.match("newline")) {
-      // Skip ByRef/ByVal/ReadOnly modifiers.
+      // Skip ByRef/ByVal/ReadOnly/Optional modifiers.
       let isByRef = false;
       let advanced = true;
       while (advanced) {
@@ -1751,6 +1839,8 @@ export class Parser {
           advanced = true;
         } else if (this.consume("keyword", "readonly") || this.consume("identifier", "readonly")) {
           advanced = true;
+        } else if (this.consume("keyword", "optional") || this.consume("identifier", "optional")) {
+          advanced = true;
         }
       }
       const nameToken = this.consume("identifier");
@@ -1760,12 +1850,17 @@ export class Parser {
         const t = this.parseTypeReference();
         if (t !== null) type = t;
       }
+      let defaultValue: Expression | undefined;
+      if (this.consume("punct", "=")) {
+        defaultValue = this.parseExpression();
+      }
       const decl: ParameterDeclaration = {
         kind: "ParameterDeclaration",
         name: nameToken.value,
         type,
       };
       if (isByRef) decl.isByRef = true;
+      if (defaultValue) decl.defaultValue = defaultValue;
       params.push(decl);
       if (!this.consume("punct", ",")) break;
     }
@@ -1896,6 +1991,7 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "overridable",
   "overrides",
   "readonly",
+  "dim",
 ]);
 
 function locOf(loc: TokenLocation, endLoc?: TokenLocation): {

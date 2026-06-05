@@ -436,6 +436,7 @@ const mockVsCode = {
   Position,
   Diagnostic,
   DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
+  DiagnosticTag: { Unnecessary: 1, Deprecated: 2 },
   ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2, Three: 3 },
   Uri: MockUri,
   Location,

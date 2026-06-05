@@ -49,7 +49,8 @@ describe("data7_baseenum_pattern — output passes basic parsing", () => {
         d.code !== "missing-import" &&
         d.code !== "unused-import" &&
         d.code !== "unknown-member" &&
-        d.code !== "unknown-type",
+        d.code !== "unknown-type" &&
+        d.code !== "missing-mybase-free",
     );
     assert.equal(otherErrors.length, 0, JSON.stringify(otherErrors, null, 2));
   });
@@ -80,7 +81,8 @@ describe("data7_module_skeleton — output passes basic parsing", () => {
       (d) =>
         d.code !== "unused-import" &&
         d.code !== "module-not-declared" &&
-        d.code !== "missing-mybase-new",
+        d.code !== "missing-mybase-new" &&
+        d.code !== "missing-mybase-free",
     );
     assert.equal(blockers.length, 0, JSON.stringify(blockers, null, 2));
   });

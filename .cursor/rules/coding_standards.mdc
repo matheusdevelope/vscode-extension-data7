@@ -20,3 +20,5 @@ alwaysApply: true
 - Handle failures explicitly: surface user-relevant errors to the user and detailed context to logs. Do not swallow exceptions. The concrete VS Code surfaces (`showErrorMessage`, `OutputChannel`) are described in `vscode_extension.mdc`.
 - Avoid premature abstractions. Duplicate once if needed, then extract when the pattern is real (the second or third occurrence). When a shared helper already exists for a concern, reuse it instead of re-implementing it.
 - Optimize for readability first: names, types, module boundaries, and control flow should help a reviewer understand the code quickly.
+- **AST-first analysis (no raw regex)**: All features that process Data7 Basic source code (diagnostics, providers, transpilers) MUST use the central AST produced by `LanguageProcessor`. Never use regex over raw text to detect language constructs (variables, types, scopes, expressions, control flow). Regex is only acceptable for processing content outside the AST (comment directives, suppression pragmas).
+

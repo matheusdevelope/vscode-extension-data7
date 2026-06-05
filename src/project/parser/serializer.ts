@@ -10,6 +10,7 @@ import type {
   TopLevelMember,
   TypeParameter,
   TypeReference,
+  ParameterDeclaration,
   IfStatement,
   ForStatement,
   ForEachStatement,
@@ -136,6 +137,8 @@ function serializeMember(
     case "UsingStatement":
     case "MatchStatement":
     case "ReturnStatement":
+    case "ExitStatement":
+    case "ThrowStatement":
     case "Block":
     case "WithStatement":
     case "EnumDeclaration":
@@ -226,7 +229,7 @@ function serializeMethod(
   out.setLine(m.loc);
   const keyword = m.returnType !== undefined ? "Function" : "Sub";
   const params = m.parameters
-    .map((p) => `${p.isByRef === true ? "ByRef " : ""}${p.name} As ${emitTypeRef(p.type)}`.trim())
+    .map(emitParameter)
     .join(", ");
   const ret = m.returnType !== undefined ? ` As ${emitTypeRef(m.returnType)}` : "";
   const paramsStr = m.noParentheses ? "" : `(${params})`;
@@ -250,7 +253,7 @@ function serializeDelegate(
   out.setLine(d.loc);
   const keyword = d.returnType !== undefined ? "Function" : "Sub";
   const params = d.parameters
-    .map((p) => `${p.isByRef === true ? "ByRef " : ""}${p.name} As ${emitTypeRef(p.type)}`.trim())
+    .map(emitParameter)
     .join(", ");
   const ret = d.returnType !== undefined ? ` As ${emitTypeRef(d.returnType)}` : "";
   const paramsStr = d.noParentheses ? "" : `(${params})`;
@@ -273,9 +276,7 @@ function serializeProperty(
 
   const params = p.parameters
     ? p.parameters
-        .map((param) =>
-          `${param.isByRef === true ? "ByRef " : ""}${param.name} As ${emitTypeRef(param.type)}`.trim(),
-        )
+        .map(emitParameter)
         .join(", ")
     : "";
   const paramsStr = p.parameters ? `(${params})` : "";
@@ -298,9 +299,7 @@ function serializeProperty(
     if (p.setter) {
       out.setLine(p.setter.loc);
       const params = p.setter.parameters
-        .map((param) =>
-          `${param.isByRef === true ? "ByRef " : ""}${param.name} As ${emitTypeRef(param.type)}`.trim(),
-        )
+        .map(emitParameter)
         .join(", ");
       const paramsStr = p.setter.noParentheses ? "" : `(${params})`;
       out.push(indent(depth + 1, options) + `${emitModifiers(p.setter.modifiers)}Set${paramsStr}`);
@@ -334,9 +333,10 @@ function serializeField(
   options: SerializeOptions,
 ): void {
   out.setLine(f.loc);
+  const initStr = f.initializer ? ` = ${emitExpression(f.initializer)}` : "";
   out.push(
     indent(depth, options) +
-      `${emitFieldModifiers(f.modifiers)}${f.name} As ${emitTypeRef(f.type)}` +
+      `${emitFieldModifiers(f.modifiers)}${f.name} As ${emitTypeRef(f.type)}${initStr}` +
       (f.comment && !options.minify ? " " + f.comment : ""),
   );
 }
@@ -409,6 +409,20 @@ function serializeStatement(
           (s.comment && !options.minify ? " " + s.comment : ""),
       );
       return;
+    case "ExitStatement":
+      out.push(
+        indent(depth, options) +
+          `Exit ${s.target}` +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
+    case "ThrowStatement":
+      out.push(
+        indent(depth, options) +
+          `Throw ${emitExpression(s.expression)}` +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
     case "Block":
       for (const stmt of s.statements) {
         serializeStatement(stmt, depth, out, options);
@@ -445,6 +459,11 @@ function emitVariableDeclaration(v: VariableDeclaration): string {
 
 function emitAssignment(s: Assignment): string {
   const op = s.operator ?? "=";
+  if (op === "+=" || op === "-=" || op === "*=" || op === "/=") {
+    const baseOp = op.charAt(0);
+    const targetStr = emitExpression(s.target);
+    return `${targetStr} = ${targetStr} ${baseOp} ${emitExpression(s.value)}`;
+  }
   return `${emitExpression(s.target)} ${op} ${emitExpression(s.value)}`;
 }
 
@@ -729,6 +748,12 @@ function emitTypeParams(params: readonly TypeParameter[]): string {
 function emitTypeRef(t: TypeReference): string {
   if (t.typeArguments.length === 0) return t.name;
   return `${t.name}<${t.typeArguments.map(emitTypeRef).join(", ")}>`;
+}
+
+function emitParameter(p: ParameterDeclaration): string {
+  const byRef = p.isByRef === true ? "ByRef " : "";
+  const defaultValue = p.defaultValue ? ` = ${emitExpression(p.defaultValue)}` : "";
+  return `${byRef}${p.name} As ${emitTypeRef(p.type)}${defaultValue}`.trim();
 }
 
 function indent(depth: number, options: SerializeOptions): string {

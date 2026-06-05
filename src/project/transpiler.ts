@@ -4,7 +4,13 @@ import { DependencyScanner } from "../analysis/dependency-scanner";
 import type { EnumerableInfo } from "../analysis/enumerable-detector";
 import { runGenericsViaAST } from "./generics-driver";
 import { runGenericsPass, type GenericsPassWarning } from "./generics-pass";
-import { parseBasic, parseExpr, serializeUnitWithMap, SugarsParserPlugin, GenericsParserPlugin } from "./parser";
+import {
+  parseBasic,
+  parseExpr,
+  serializeUnitWithMap,
+  SugarsParserPlugin,
+  GenericsParserPlugin,
+} from "./parser";
 import {
   ASTWalker,
   type Statement,
@@ -544,6 +550,24 @@ export class ASTSugarTransformer extends ASTWalker {
         s.target = this.transformExpression(s.target, false, s.loc?.startLine);
         s.value = this.transformExpression(s.value, true, s.loc?.startLine);
 
+        if (
+          s.operator === "+=" ||
+          s.operator === "-=" ||
+          s.operator === "*=" ||
+          s.operator === "/="
+        ) {
+          const op = s.operator.charAt(0);
+          const target = s.target;
+          s.operator = "=";
+          s.value = {
+            kind: "BinaryExpression",
+            left: target,
+            operator: op,
+            right: s.value,
+            loc: s.loc,
+          };
+        }
+
         if (s.operator === "??=") {
           const target = s.target;
           return {
@@ -736,13 +760,13 @@ export class ASTSugarTransformer extends ASTWalker {
         });
 
         const initBody: Statement[] = [
-          { kind: "OpaqueStatement", text: "If _Initialized Then Exit Sub", loc: s.loc }
+          { kind: "OpaqueStatement", text: "If _Initialized Then Exit Sub", loc: s.loc },
         ];
         entries.forEach((entry, idx) => {
           initBody.push({
             kind: "OpaqueStatement",
             text: `BaseEnum._AddEnumItem("${enumName}", New ${enumName}(${idx}, ${entry.value}))`,
-            loc: s.loc
+            loc: s.loc,
           });
         });
         initBody.push({ kind: "OpaqueStatement", text: "_Initialized = True", loc: s.loc });
@@ -765,7 +789,7 @@ export class ASTSugarTransformer extends ASTWalker {
             parameters: [],
             returnType: { kind: "TypeReference", name: enumName, typeArguments: [], loc: s.loc },
             body: [
-              { kind: "OpaqueStatement", text: `${entry.name} = Load(${entry.value})`, loc: s.loc }
+              { kind: "OpaqueStatement", text: `${entry.name} = Load(${entry.value})`, loc: s.loc },
             ],
             modifiers: ["Shared"],
             loc: s.loc,
@@ -781,13 +805,17 @@ export class ASTSugarTransformer extends ASTWalker {
             {
               kind: "ParameterDeclaration",
               name: "pValue",
-              type: { kind: "TypeReference", name: "String", typeArguments: [], loc: s.loc }
-            }
+              type: { kind: "TypeReference", name: "String", typeArguments: [], loc: s.loc },
+            },
           ],
           returnType: { kind: "TypeReference", name: enumName, typeArguments: [], loc: s.loc },
           body: [
             { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: s.loc },
-            { kind: "OpaqueStatement", text: `Load = CType(BaseEnum._GetCache("${enumName}", pValue), ${enumName})`, loc: s.loc }
+            {
+              kind: "OpaqueStatement",
+              text: `Load = CType(BaseEnum._GetCache("${enumName}", pValue), ${enumName})`,
+              loc: s.loc,
+            },
           ],
           modifiers: ["Shared"],
           loc: s.loc,
@@ -801,7 +829,11 @@ export class ASTSugarTransformer extends ASTWalker {
           returnType: { kind: "TypeReference", name: "String", typeArguments: [], loc: s.loc },
           body: [
             { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: s.loc },
-            { kind: "OpaqueStatement", text: `GetOptions = BaseEnum._GetEnumOptions("${enumName}")`, loc: s.loc }
+            {
+              kind: "OpaqueStatement",
+              text: `GetOptions = BaseEnum._GetEnumOptions("${enumName}")`,
+              loc: s.loc,
+            },
           ],
           modifiers: ["Shared"],
           loc: s.loc,
@@ -821,9 +853,10 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "DestructuredVariableDeclaration": {
-        const sourceName = s.initializer.kind === "Identifier" ? s.initializer.name : this.freshSource();
+        const sourceName =
+          s.initializer.kind === "Identifier" ? s.initializer.name : this.freshSource();
         const declarations: Statement[] = [];
-        
+
         if (s.initializer.kind !== "Identifier") {
           declarations.push({
             kind: "VariableDeclaration",
@@ -832,9 +865,9 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           });
         }
-        
+
         const sourceRef: Identifier = { kind: "Identifier", name: sourceName, loc: s.loc };
-        
+
         if (s.isObject) {
           s.bindings.forEach((b) => {
             const memberName = b.property ?? b.name;
@@ -901,20 +934,25 @@ export class ASTSugarTransformer extends ASTWalker {
                 type: { kind: "TypeReference", name: "StringList", typeArguments: [], loc: s.loc },
                 initializer: {
                   kind: "ObjectCreationExpression",
-                  type: { kind: "TypeReference", name: "StringList", typeArguments: [], loc: s.loc },
+                  type: {
+                    kind: "TypeReference",
+                    name: "StringList",
+                    typeArguments: [],
+                    loc: s.loc,
+                  },
                   arguments: [],
                   loc: s.loc,
                 },
                 loc: s.loc,
               });
-              
+
               const countExpr: MemberAccess = {
                 kind: "MemberAccess",
                 target: sourceRef,
                 member: "Count",
                 loc: s.loc,
               };
-              
+
               declarations.push({
                 kind: "ForStatement",
                 counter: restListVar,
@@ -969,7 +1007,7 @@ export class ASTSugarTransformer extends ASTWalker {
             }
           });
         }
-        
+
         return declarations;
       }
 
@@ -1087,6 +1125,18 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           });
         }
+
+        statements.push({
+          kind: "VariableDeclaration",
+          name: idxVarName,
+          type: {
+            kind: "TypeReference",
+            name: "Integer",
+            typeArguments: [],
+            loc: s.loc,
+          },
+          loc: s.loc,
+        });
 
         const countExpr: MemberAccess = {
           kind: "MemberAccess",
@@ -1264,7 +1314,7 @@ export class ASTSugarTransformer extends ASTWalker {
         s.body = this.transformStatements(s.body);
         return s;
       }
- 
+
       case "SelectCaseStatement": {
         s.expression = this.transformExpression(s.expression, false, s.loc?.startLine);
         for (const c of s.cases) {

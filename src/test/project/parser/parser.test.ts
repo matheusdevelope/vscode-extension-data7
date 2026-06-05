@@ -447,5 +447,113 @@ describe("parser/parser", () => {
       assert.equal(selectStmt.cases[2]?.isElse, true);
     }
   });
+
+  test("parses Exit statement structurally (GAP-01)", () => {
+    const src = [
+      "Sub TestExit()",
+      "   Exit Sub",
+      "   Exit Function",
+      "   Exit For",
+      "   Exit Do",
+      "   Exit While",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.body[0]?.kind, "ExitStatement");
+    assert.equal((m.body[0] as any).target, "Sub");
+    assert.equal((m.body[1] as any).target, "Function");
+    assert.equal((m.body[2] as any).target, "For");
+    assert.equal((m.body[3] as any).target, "Do");
+    assert.equal((m.body[4] as any).target, "While");
+  });
+
+  test("parses compound assignment operators (GAP-02)", () => {
+    const src = [
+      "Sub TestAssign()",
+      "   x += 1",
+      "   y -= 2",
+      "   z *= 3",
+      "   w /= 4",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.body[0]?.kind, "Assignment");
+    assert.equal((m.body[0] as any).operator, "+=");
+    assert.equal((m.body[1] as any).operator, "-=");
+    assert.equal((m.body[2] as any).operator, "*=");
+    assert.equal((m.body[3] as any).operator, "/=");
+  });
+
+  test("parses multi-variable declarations as a Block of VariableDeclarations (GAP-04)", () => {
+    const src = [
+      "Sub TestMultiDim()",
+      "   Dim i As Integer, count As Integer = 10",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const block = m.body[0];
+    assert.equal(block?.kind, "Block");
+    if (block?.kind === "Block") {
+      assert.equal(block.statements.length, 2);
+      assert.equal(block.statements[0]?.kind, "VariableDeclaration");
+      assert.equal((block.statements[0] as any).name, "i");
+      assert.equal((block.statements[0] as any).type?.name, "Integer");
+      assert.equal(block.statements[1]?.kind, "VariableDeclaration");
+      assert.equal((block.statements[1] as any).name, "count");
+      assert.equal((block.statements[1] as any).type?.name, "Integer");
+      assert.equal((block.statements[1] as any).initializer?.kind, "Literal");
+    }
+  });
+
+  test("parses Throw statement structurally (GAP-05)", () => {
+    const src = [
+      "Sub TestThrow()",
+      "   Throw New Exception(\"error\")",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.body[0]?.kind, "ThrowStatement");
+    assert.equal((m.body[0] as any).expression.kind, "ObjectCreationExpression");
+  });
+
+  test("parses method parameters with default values (GAP-09)", () => {
+    const src = [
+      "Sub New(pTimeToStart As Integer = 10)",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.parameters.length, 1);
+    assert.equal(m.parameters[0]?.name, "pTimeToStart");
+    assert.equal(m.parameters[0]?.type.name, "Integer");
+    assert.ok(m.parameters[0]?.defaultValue);
+    assert.equal(m.parameters[0]?.defaultValue?.kind, "Literal");
+  });
+
+  test("parses class field with inline initializer (GAP-07)", () => {
+    const src = [
+      "Class TestFieldInit",
+      "   CheckEvents As Boolean = False",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    assert.equal(klass.members.length, 1);
+    assert.equal(klass.members[0]?.kind, "FieldDeclaration");
+    assert.equal((klass.members[0] as any).name, "CheckEvents");
+    assert.equal((klass.members[0] as any).type.name, "Boolean");
+    assert.ok((klass.members[0] as any).initializer);
+    assert.equal((klass.members[0] as any).initializer.kind, "Literal");
+  });
 });
 

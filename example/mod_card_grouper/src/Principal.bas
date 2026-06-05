@@ -12,8 +12,6 @@ _form.Free()
 Dim status As String = 1 > 0 ? "positivo" : "negativo"
 Print status
 
-
-
 Dim list As StringList
 For Each item As String In list
    ' iterate strings
@@ -30,3 +28,14 @@ For Each name As String In outer
       ' acessa name e tag
    Next
 Next
+
+Enum Color
+Red = 1;
+Green = 2;
+Blue = 3;
+End Enum
+
+Sub TestEnum()
+   Dim c As Color
+   c = Color.Red
+End Sub

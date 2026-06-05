@@ -213,10 +213,16 @@ export class DiagnosticService {
         const line = Math.max(0, err.loc.line - 1);
         const col = Math.max(0, err.loc.column);
         const range = new vscode.Range(line, col, line, col + 1);
+        const isMissingThen =
+          err.code === "expected-token" &&
+          err.message.toLowerCase().includes("expected 'then'");
+        const severity = isMissingThen
+          ? vscode.DiagnosticSeverity.Warning
+          : vscode.DiagnosticSeverity.Error;
         const diag = new vscode.Diagnostic(
           range,
           err.message,
-          vscode.DiagnosticSeverity.Error
+          severity
         );
         diag.code = err.code;
         diag.source = DIAGNOSTIC_SOURCE;

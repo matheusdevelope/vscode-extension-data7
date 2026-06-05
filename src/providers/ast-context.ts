@@ -46,6 +46,7 @@ export interface ImportsCompletionContext {
 interface MemberCandidate {
   memberName: string;
   receiver?: Expression;
+  arity?: number;
 }
 
 export class D7AstContext {
@@ -212,7 +213,7 @@ export class D7AstContext {
 
     const symbol =
       receiverType !== undefined
-        ? TypeResolver.findMember(receiverType, candidate.memberName, this.indexer)
+        ? TypeResolver.findMember(receiverType, candidate.memberName, this.indexer, candidate.arity)
         : undefined;
 
     return {
@@ -245,17 +246,17 @@ export class D7AstContext {
       case "MemberAccess": {
         const targetType = this.resolveExpressionType(expr.target);
         if (!targetType) return undefined;
-        return TypeResolver.findMember(targetType, expr.member, this.indexer)?.type;
+        return TypeResolver.findMember(targetType, expr.member, this.indexer, 0)?.type;
       }
       case "MethodInvocation": {
         if (expr.callee) {
           const targetType = this.resolveExpressionType(expr.callee);
           if (!targetType) return undefined;
-          return TypeResolver.findMember(targetType, expr.methodName, this.indexer)?.type;
+          return TypeResolver.findMember(targetType, expr.methodName, this.indexer, expr.arguments.length)?.type;
         }
         const activeClass = this.getActiveClassSymbol();
         if (activeClass) {
-          const member = TypeResolver.findMember(activeClass.name, expr.methodName, this.indexer);
+          const member = TypeResolver.findMember(activeClass.name, expr.methodName, this.indexer, expr.arguments.length);
           if (member?.type) return member.type;
         }
         return (
@@ -322,7 +323,12 @@ export class D7AstContext {
     if (genericConstraint) return genericConstraint;
 
     if (lower === "me" || lower === "mybase") {
-      return this.getActiveClassSymbol()?.name;
+      const activeClass = this.getActiveClassSymbol();
+      if (lower === "me") {
+        return activeClass?.name;
+      } else {
+        return activeClass?.inheritsFrom ?? "TObject";
+      }
     }
 
     const local = this.findLocal(name);
@@ -391,14 +397,14 @@ export class D7AstContext {
     const candidates: MemberCandidate[] = [];
     walkStatementExpressions(statement, (expr) => {
       if (expr.kind === "MemberAccess") {
-        candidates.push({ memberName: expr.member, receiver: expr.target });
+        candidates.push({ memberName: expr.member, receiver: expr.target, arity: 0 });
       } else if (expr.kind === "MethodInvocation" && expr.callee) {
-        candidates.push({ memberName: expr.methodName, receiver: expr.callee });
+        candidates.push({ memberName: expr.methodName, receiver: expr.callee, arity: expr.arguments.length });
       } else if (expr.kind === "OptionalChainingExpression") {
         if (expr.member.kind === "MemberAccess") {
-          candidates.push({ memberName: expr.member.member, receiver: expr.target });
+          candidates.push({ memberName: expr.member.member, receiver: expr.target, arity: 0 });
         } else if (expr.member.kind === "MethodInvocation") {
-          candidates.push({ memberName: expr.member.methodName, receiver: expr.target });
+          candidates.push({ memberName: expr.member.methodName, receiver: expr.target, arity: expr.member.arguments.length });
         }
       }
     });

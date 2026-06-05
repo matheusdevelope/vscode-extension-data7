@@ -595,4 +595,53 @@ End Namespace`;
       assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "SpecificItem");
     });
   });
+
+  describe("inheritance static binding and casting", () => {
+    test("resolves expression type of a cast call and statically resolves its members", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => any;
+      };
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///cast_test.bas";
+      const code = `Namespace mod_app
+   Class Nivel1
+      Function Func(p As String) As String
+         Func = p
+      End Function
+   End Class
+   Class Nivel2
+      Inherits Nivel1
+      Function Func(p As String) As Integer
+         Func = 123
+      End Function
+   End Class
+   Class TTest
+      Public Sub Run()
+         Dim n2 As New Nivel2()
+         Dim casted = Nivel1(n2)
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      // Verify that n2 resolves to Nivel2
+      const pos1 = { line: 15, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("n2", doc, pos1, indexer), "Nivel2");
+
+      // Verify that calling n2.Func() resolves to Nivel2.Func (Integer)
+      const n2FuncType = TypeResolver.inferExpressionType("n2.Func(\"hello\")", doc, 15, indexer);
+      assert.equal(n2FuncType, "Integer");
+
+      // Verify that casted Nivel1(n2) resolves to Nivel1
+      const castType = TypeResolver.inferExpressionType("Nivel1(n2)", doc, 15, indexer);
+      assert.equal(castType, "Nivel1");
+
+      // Verify that calling Nivel1(n2).Func() resolves to Nivel1.Func (String)
+      const castedFuncType = TypeResolver.inferExpressionType("Nivel1(n2).Func(\"hello\")", doc, 15, indexer);
+      assert.equal(castedFuncType, "String");
+    });
+  });
 });
+

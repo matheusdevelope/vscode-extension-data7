@@ -182,6 +182,7 @@ A extensão segue estritamente o paradigma de **Orientação a Objetos (OOP)** e
 - **Single Responsibility (SRP)**: Cada classe tem uma responsabilidade focada e bem definida (ex: `DiagnosticsLinter` para validação, `SymbolParser` para análise de sintaxe de símbolos, `CodeFormatter` para formatação de código).
 - **DRY**: Funções utilitárias redundantes de comentários, caminhos ou conversões foram consolidadas como métodos estáticos ou de instância em classes auxiliares especializadas (ex: `DependencyScanner.stripComments`).
 - **TypeScript Strict Safety**: Utilização de tipos estritos, uniões e interfaces para validação de fluxos e prevenção de erros em tempo de compilação. O `tsconfig.json` ativa tanto `strict: true` quanto `noUncheckedIndexedAccess: true` — todo acesso indexado (`arr[i]`, `record[k]`, capture group `match[N]`) é tipado `T | undefined` e exige guarda (`??` default, early-return, ou destructuring + `assert.ok` em testes). Convenções detalhadas vivem em `typescript.mdc`.
+- **AST-First Analysis (AST-First)**: Todo o processamento de linguagem, validação estática de código (como diagnósticos/linter) e análise de generics devem ser baseados exclusivamente no parser e na AST central da linguagem (`CompilationUnit`/`LanguageProcessor` e subclasses de `ASTWalker`), em vez de análise baseada em regex sobre texto bruto. Análise via regex é estritamente proibida para inferir estruturas gramaticais, variáveis, tipos ou fluxo de controle. Diretivas de comentário (ex: `' data7:disable-line`) são a única exceção permitida para escaneamento de texto bruto.
 
 ---
 
@@ -231,6 +232,8 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `unknown-symbol` — referência a um símbolo (variável, constante, método) inexistente no escopo atual. Emite _Error_.
 - `loose-type-statement` — declaração de nome de tipo solto/avulso sozinho em uma linha de código. Emite _Error_.
 - `call-parentheses-mismatch` — chamada de método/procedimento violando as regras estritas de parênteses (por exemplo, chamar funções com parâmetros ou subs com >1 parâmetro sem parênteses). Emite _Error_.
+- `declaration-parentheses-mismatch` — declaração de método/procedimento sem parâmetros que omite os parênteses. Emite _Warning_.
+- `missing-mybase-free` — uma classe não possui o método `Sub Free()` ou o método `Sub Free()` não invoca `MyBase.Free()`. Emite _Warning_.
 - `function-read-self` — tentativa de ler o valor de retorno usando o nome da própria função dentro de seu escopo. Emite _Error_.
 - `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função). Emite _Error_.
 - `missing-return-value` — a função pode retornar ou sair sem que um valor de retorno tenha sido definido em todas as ramificações de controle. Emite _Warning_.

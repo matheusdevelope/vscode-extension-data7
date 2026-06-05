@@ -53,6 +53,7 @@ export interface SymbolInfo {
   isConst?: boolean;
   isReadOnly?: boolean;
   parameters?: ParameterInfo[];
+  noParentheses?: boolean;
   /**
    * Overloads adicionais do mesmo método/property indexada — quando preenchido,
    * `parameters` representa a assinatura primária (a primeira mostrada) e
@@ -209,6 +210,7 @@ class SymbolIndexerWalker extends ASTWalker {
         fileUri: this.fileUri,
         containerName: this.activeClass ?? this.activeNamespace,
         description: node.comment?.trim() || undefined,
+        noParentheses: node.noParentheses,
       };
       this.symbols.push(methodSymbol);
       return;
@@ -244,6 +246,7 @@ class SymbolIndexerWalker extends ASTWalker {
         fileUri: this.fileUri,
         containerName: this.activeClass ?? this.activeNamespace,
         description: node.comment?.trim() || undefined,
+        noParentheses: node.noParentheses,
       };
       this.symbols.push(delegateSymbol);
       return;

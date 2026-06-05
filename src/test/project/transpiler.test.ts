@@ -45,6 +45,7 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim __idx0 As Integer/);
     assert.match(out, /For __idx0 = 0 To list\.Count - 1/);
     assert.match(out, /Dim item As String = list\.Strings\(__idx0\)/);
     assert.match(out, /Print\(item\)/);
@@ -65,6 +66,7 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim __idx0 As Integer/);
     assert.match(out, /Dim item As String = list\.Strings\(__idx0\)/);
   });
 
@@ -88,8 +90,10 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim __idx0 As Integer/);
     assert.match(out, /For __idx0 = 0 To outer\.Count - 1/);
     assert.match(out, /Dim name As String = outer\.Strings\(__idx0\)/);
+    assert.match(out, /Dim __idx1 As Integer/);
     assert.match(out, /For __idx1 = 0 To inner\.Count - 1/);
     assert.match(out, /Dim obj As TObject = inner\.Items\(__idx1\)/);
   });
@@ -233,6 +237,7 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /^\s{6}Dim __idx0 As Integer$/m);
     assert.match(out, /^\s{6}For __idx0 = 0 To list\.Count - 1$/m);
     assert.match(out, /^\s{9}Dim item As String = list\.Strings\(__idx0\)$/m);
   });
@@ -370,15 +375,15 @@ describe('SugarTranspiler — string interpolation (`$"..."`)', () => {
       "Dim ativo As Boolean",
       "Dim obj As TProduto",
       "Dim v As Variant",
-      "Dim s1 = $\"Nome: {nome}, Idade: {idade}, Ativo: {ativo}\"",
-      "Dim s2 = $\"Preco: {preco}, Obj: {obj}, Variant: {v}\"",
+      'Dim s1 = $"Nome: {nome}, Idade: {idade}, Ativo: {ativo}"',
+      'Dim s2 = $"Preco: {preco}, Obj: {obj}, Variant: {v}"',
       "Dim s3 = nome & idade & preco & ativo & obj & v",
       "Dim s4 = nome + idade + preco + ativo + obj + v",
       "Dim sum = idade + preco",
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    
+
     const expected = [
       "Dim nome As String",
       "Dim idade As Integer",
@@ -386,13 +391,13 @@ describe('SugarTranspiler — string interpolation (`$"..."`)', () => {
       "Dim ativo As Boolean",
       "Dim obj As TProduto",
       "Dim v As Variant",
-      "Dim s1 = \"Nome: \" & (nome) & \", Idade: \" & (idade).ToString() & \", Ativo: \" & (ativo).ToString()",
-      "Dim s2 = \"Preco: \" & (preco).ToString() & \", Obj: \" & (obj).ToString() & \", Variant: \" & CStr((v))",
+      'Dim s1 = "Nome: " & (nome) & ", Idade: " & (idade).ToString() & ", Ativo: " & (ativo).ToString()',
+      'Dim s2 = "Preco: " & (preco).ToString() & ", Obj: " & (obj).ToString() & ", Variant: " & CStr((v))',
       "Dim s3 = nome & idade.ToString() & preco.ToString() & ativo.ToString() & obj.ToString() & CStr(v)",
       "Dim s4 = nome + idade.ToString() + preco.ToString() + ativo.ToString() + obj.ToString() + CStr(v)",
       "Dim sum = idade + preco",
     ].join("\n");
-    
+
     assert.equal(out, expected);
   });
 });

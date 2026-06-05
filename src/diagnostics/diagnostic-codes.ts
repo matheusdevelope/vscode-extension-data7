@@ -189,6 +189,11 @@ export const DiagnosticCodes = {
    */
   MissingMyBaseNew: "missing-mybase-new",
   /** A member access of an instance member is done statically directly on the type. */
+  /**
+   * A class is missing a `Sub Free()` method or its `Sub Free()` method does not call `MyBase.Free()`.
+   * Every Data7 class must release its resources and forward the call to its base object.
+   */
+  MissingMyBaseFree: "missing-mybase-free",
   InstanceMemberAccessOnType: "instance-member-access-on-type",
   /** A Sub procedure (returning Void) was used as a function in an expression context. */
   SubUsedAsFunction: "sub-used-as-function",
@@ -198,6 +203,8 @@ export const DiagnosticCodes = {
   LooseTypeStatement: "loose-type-statement",
   /** A method call violating the parentheses requirements. */
   CallParenthesesMismatch: "call-parentheses-mismatch",
+  /** A method/delegate declaration missing parentheses. */
+  DeclarationParenthesesMismatch: "declaration-parentheses-mismatch",
   /** Reading from the function name inside its own body is not allowed. */
   FunctionReadSelf: "function-read-self",
   /** Assigning a value to an invalid target (like another function name). */
@@ -206,6 +213,8 @@ export const DiagnosticCodes = {
   MissingReturnValue: "missing-return-value",
   /** Unreachable/dead code following a return/exit or inside always-false constant conditionals. */
   DeadCode: "dead-code",
+  /** Incompatible types assigned to a variable or function return value. */
+  TypeMismatch: "type-mismatch",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -249,6 +258,15 @@ export interface UnknownMemberPayload {
   /** The actual member name the user typed. */
   member: string;
   /** Up to 3 candidate names (typo suggestions) from the resolved type. */
+  suggestions: readonly string[];
+}
+
+/** Payload for `UnknownType`: enables spelling suggestions for unknown types. */
+export interface UnknownTypePayload {
+  code: typeof DiagnosticCodes.UnknownType;
+  /** The actual type name the user typed. */
+  typeName: string;
+  /** Typo suggestions from all available type names in the project. */
   suggestions: readonly string[];
 }
 
@@ -410,12 +428,22 @@ export interface MissingMyBaseNewPayload {
   className: string;
 }
 
+/**
+ * Payload for `MissingMyBaseFree`: identifies which class is missing the Free method/call.
+ */
+export interface MissingMyBaseFreePayload {
+  code: typeof DiagnosticCodes.MissingMyBaseFree;
+  /** Name of the class whose `Sub Free` is missing or lacks `MyBase.Free()`. */
+  className: string;
+}
+
 export type DiagnosticPayload =
   | MissingImportPayload
   | ModuleNotDeclaredPayload
   | ModuleNotFoundPayload
   | UnusedImportPayload
   | UnknownMemberPayload
+  | UnknownTypePayload
   | UnsupportedMemberPayload
   | NotEnumerablePayload
   | UnknownSuppressionCodePayload
@@ -431,7 +459,8 @@ export type DiagnosticPayload =
   | FlatNameCollisionPayload
   | InstantiationLimitExceededPayload
   | DuplicateDeclarationPayload
-  | MissingMyBaseNewPayload;
+  | MissingMyBaseNewPayload
+  | MissingMyBaseFreePayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

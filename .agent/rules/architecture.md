@@ -29,3 +29,8 @@ Layers from leaf to top:
 6. `src/extension.ts` — the only file that may depend on everything; nothing should depend on `extension.ts`.
 
 Cross-cutting concerns (telemetry, logging, configuration) belong in `src/infra/` behind a single helper rather than scattered through providers and services.
+
+## Mandatory AST-first analysis
+
+All language processing features (diagnostics, providers, transpilers, code actions) MUST derive their analysis from the central AST produced by `LanguageProcessor.getOrParse()`. Raw text regex scanning over source code is PROHIBITED for language analysis. The only sanctioned exceptions are comment-based directives (`' data7:disable-line`) which exist outside the AST.
+

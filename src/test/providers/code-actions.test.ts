@@ -264,6 +264,146 @@ describe("D7BasicCodeActionProvider", () => {
     });
   });
 
+  describe("declaration-parentheses-mismatch", () => {
+    test("emits an edit to insert parentheses () at the end of the diagnostic range", async () => {
+      const doc = mockDoc("Shared Function BandeiraProduto As TObject\n");
+      const range = new vscode.Range(0, 16, 0, 31); // range of "BandeiraProduto"
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.DeclarationParenthesesMismatch, undefined, range)] } as any,
+          noopToken,
+        ),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        isPreferred?: boolean;
+        edit: { edits: { type: string; text?: string; position: vscode.Position }[] };
+      }[];
+      const actions = onlyQuickFixes(all);
+      assert.ok(actions.length >= 1);
+      const fix = actions.find((a) => a.title.includes("Adicionar parênteses"));
+      assert.ok(fix);
+      assert.equal(fix.isPreferred, true);
+      expectEdit(fix.edit, { type: "insert", textIncludes: "()" });
+      assert.equal(fix.edit.edits[0]?.position.character, 31);
+    });
+
+  });
+
+  describe("unknown-type spelling suggestions", () => {
+    test("emits did-you-mean suggestions for unknown type names", async () => {
+      const doc = mockDoc("Class Foo\nEnd Class\n");
+      const payload = {
+        code: DiagnosticCodes.UnknownType,
+        typeName: "TForme",
+        suggestions: ["TForm", "TFormat"],
+      };
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(0, 0, 0, 5),
+          { diagnostics: [diagWith(DiagnosticCodes.UnknownType, payload)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const actions = onlyQuickFixes(all);
+      assert.equal(actions.length, 2);
+      assert.deepEqual(
+        actions.map((a) => a.title),
+        ['Você quis dizer "TForm"?', 'Você quis dizer "TFormat"?'],
+      );
+      assert.equal(actions[0].isPreferred, true);
+    });
+  });
+
+  describe("missing-mybase-new quickfix and bulk action", () => {
+    test("emits insert of MyBase.New() inside Sub New constructor", async () => {
+      const doc = mockDoc("Class Foo\n   Sub New()\n   End Sub\nEnd Class\n");
+      const range = new vscode.Range(1, 3, 1, 12);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.MissingMyBaseNew, { code: DiagnosticCodes.MissingMyBaseNew, className: "Foo" }, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const actions = onlyQuickFixes(all);
+      assert.ok(actions.length >= 1);
+      const fix = actions.find((a) => a.title.includes("Adicionar chamada"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "insert", textIncludes: "MyBase.New()" });
+    });
+  });
+
+  describe("missing-mybase-free quickfix and bulk action", () => {
+    test("emits generate Sub Free edit when Free is missing entirely in Class", async () => {
+      const doc = mockDoc("Class Foo\nEnd Class\n");
+      const range = new vscode.Range(0, 0, 0, 9);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.MissingMyBaseFree, { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" }, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const actions = onlyQuickFixes(all);
+      assert.ok(actions.length >= 1);
+      const fix = actions.find((a) => a.title.includes("Gerar método"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "insert", textIncludes: "Public Sub Free()" });
+    });
+
+    test("emits insert MyBase.Free() inside existing Sub Free", async () => {
+      const doc = mockDoc("Class Foo\n   Sub Free()\n   End Sub\nEnd Class\n");
+      const range = new vscode.Range(1, 3, 1, 13);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.MissingMyBaseFree, { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" }, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const actions = onlyQuickFixes(all);
+      assert.ok(actions.length >= 1);
+      const fix = actions.find((a) => a.title.includes("Adicionar chamada"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "insert", textIncludes: "MyBase.Free()" });
+    });
+  });
+
+  describe("expected-token", () => {
+    test("emits an edit to insert 'Then' at the end of the line if missing", async () => {
+      const doc = mockDoc("If x <> 1\n");
+      const range = new vscode.Range(0, 9, 0, 10);
+      const diag = new vscode.Diagnostic(range, "Expected 'then', got '\\n'.", vscode.DiagnosticSeverity.Warning);
+      diag.code = "expected-token";
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diag] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const actions = onlyQuickFixes(all);
+      assert.ok(actions.length >= 1);
+      const fix = actions.find((a) => a.title.includes("Adicionar 'Then'"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "insert", textIncludes: " Then" });
+    });
+  });
+
   describe("source actions", () => {
     test("source.organizeImports sorts + dedupes the Imports block", async () => {
       const doc = mockDoc(

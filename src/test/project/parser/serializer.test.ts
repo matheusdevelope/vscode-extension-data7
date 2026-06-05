@@ -132,4 +132,39 @@ describe("parser/serializer", () => {
     assert.match(out, /Case Else/);
     assert.match(out, /End Select/);
   });
+
+  test("serialises Exit statements correctly", () => {
+    const src = "Sub TestExit()\n   Exit Sub\nEnd Sub";
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Exit Sub/);
+  });
+
+  test("expands compound assignment operators to basic assignment (GAP-02)", () => {
+    const src = "Sub TestAssign()\n   x += 1\nEnd Sub";
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /x = x \+ 1/);
+  });
+
+  test("serialises Throw statements correctly", () => {
+    const src = "Sub TestThrow()\n   Throw New Exception()\nEnd Sub";
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Throw New Exception\(\)/);
+  });
+
+  test("serialises method parameters with default values correctly (GAP-09)", () => {
+    const src = "Sub TestParam(a As Integer = 10)\nEnd Sub";
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Sub TestParam\(a As Integer = 10\)/);
+  });
+
+  test("serialises class fields with initializers correctly (GAP-07)", () => {
+    const src = "Class TestField\n   Public x As Integer = 42\nEnd Class";
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Public x As Integer = 42/);
+  });
 });

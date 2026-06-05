@@ -9,7 +9,6 @@ import {
 import { TypeResolver } from "../analysis/type-resolver";
 import { parseBasic } from "../project/parser";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { DependencyScanner, IMPORTS_REGEX_ANCHORED } from "../analysis/dependency-scanner";
 import { analyzeGenericsPass, type GenericsPassWarning } from "../analysis/generics-analyzer";
 import type {
   ClassGenericMethodUnsupportedPayload,
@@ -34,83 +33,30 @@ import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configuration";
 import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
 import { parseInterpolation } from "../utils/interpolation";
-import { getChainPrefix } from "../utils/chain-prefix";
-
-const KEYWORDS = [
-  "imports",
-  "namespace",
-  "class",
-  "structure",
-  "delegate",
-  "property",
-  "get",
-  "set",
-  "shared",
-  "sub",
-  "function",
-  "dim",
-  "as",
-  "if",
-  "then",
-  "else",
-  "elseif",
-  "end",
-  "select",
-  "case",
-  "for",
-  "to",
-  "step",
-  "next",
-  "each",
-  "in",
-  "do",
-  "loop",
-  "while",
-  "until",
-  "try",
-  "catch",
-  "finally",
-  "return",
-  "new",
-  "inherits",
-  "mybase",
-  "me",
-  "null",
-  "exit",
-  "overrides",
-  "overridable",
-  "private",
-  "public",
-  "protected",
-  "declare",
-  "lib",
-  "alias",
-  "addressof",
-  "throw",
-  "const",
-  "value",
-  "with",
-  "using",
-  "match",
-  "and",
-  "or",
-  "not",
-  "xor",
-  "andalso",
-  "orelse",
-  "mod",
-  "is",
-  "isnot",
-  "like",
-  "byref",
-  "byval",
-  "enum",
-  "let",
-  "nothing",
-  "readonly",
-  "when",
-  "ctype",
-];
+import { LanguageProcessor } from "../analysis/language-processor";
+import {
+  ASTWalker,
+  type CompilationUnit,
+  type ClassDeclaration,
+  type MethodDeclaration,
+  type DelegateDeclaration,
+  type PropertyDeclaration,
+  type FieldDeclaration,
+  type VariableDeclaration,
+  type Expression,
+  type Statement,
+  type Node,
+  type MemberAccess,
+  type MethodInvocation,
+  type TypeReference,
+  type ForEachStatement,
+  type TaggedTemplateExpression,
+  type TernaryExpression,
+  type Assignment,
+  type ExpressionStatement,
+  type OpaqueStatement,
+  type SourceLocation,
+} from "../project/generics-monomorphizer/ast";
 
 export class DiagnosticsLinter {
   private static resolveClassName(className: string): string {
@@ -118,11 +64,7 @@ export class DiagnosticsLinter {
     return lastDotIdx !== -1 ? className.substring(lastDotIdx + 1) : className;
   }
 
-  /**
-   * Collects up to `limit` member names defined anywhere in the inheritance
-   * chain of `className`. Used to power "did you mean…?" suggestions.
-   */
-  private static collectMemberNames(
+  public static collectMemberNames(
     className: string,
     indexer: WorkspaceSymbolIndexer,
     limit = 500,
@@ -137,18 +79,12 @@ export class DiagnosticsLinter {
     };
     pushMembers(shortClassName);
 
-    // `lookupSystemClassByName(...)[0]` is typed as SymbolInfo because we
-    // don't enable `noUncheckedIndexedAccess`, but at runtime it can be
-    // undefined. The helper below preserves that nullability.
     const firstClass = (name: string): SymbolInfo | undefined =>
       indexer.findSymbolByName(name) ?? lookupSystemClassByName(name)[0];
     let cur = firstClass(shortClassName);
     const visited = new Set<string>();
     while (cur && !visited.has(cur.name.toLowerCase()) && names.size < limit) {
       visited.add(cur.name.toLowerCase());
-      // Delegate the "implicit TObject for workspace classes" rule to a
-      // single helper (TypeResolver.resolveParent) so any tweak to that
-      // policy stays in one file.
       const parentName = TypeResolver.resolveParent(cur);
       if (!parentName) break;
       pushMembers(this.resolveClassName(parentName));
@@ -157,7 +93,7 @@ export class DiagnosticsLinter {
     return Array.from(names);
   }
 
-  private static isKnownType(className: string, indexer: WorkspaceSymbolIndexer): boolean {
+  public static isKnownType(className: string, indexer: WorkspaceSymbolIndexer): boolean {
     if (!className) {
       return false;
     }
@@ -202,7 +138,7 @@ export class DiagnosticsLinter {
     return false;
   }
 
-  private static validateTypeReference(
+  public static validateTypeReference(
     typeName: string,
     lineIdx: number,
     startChar: number,
@@ -213,7 +149,6 @@ export class DiagnosticsLinter {
     const typeLower = typeName.toLowerCase();
     if (PRIMITIVE_TYPES.has(typeLower)) return;
 
-    // Parse simple or qualified type reference
     const lastDotIdx = typeName.lastIndexOf(".");
     let name: string;
     let container: string | undefined;
@@ -226,7 +161,6 @@ export class DiagnosticsLinter {
     }
 
     const nameLower = name.toLowerCase();
-
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     const activeNamespace = fileSyms?.symbols.find((s) => s.kind === "namespace")?.name;
 
@@ -261,6 +195,27 @@ export class DiagnosticsLinter {
         vscode.DiagnosticSeverity.Error,
       );
       diag.code = DiagnosticCodes.UnknownType;
+
+      const allTypes = new Set<string>();
+      for (const s of indexer.getAllSymbols()) {
+        if (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") {
+          allTypes.add(s.name);
+        }
+      }
+      for (const s of SYSTEM_SYMBOLS) {
+        if (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") {
+          allTypes.add(s.name);
+        }
+      }
+      const suggestions = findClosest(typeName, Array.from(allTypes));
+      if (suggestions.length > 0) {
+        setDiagnosticPayload(diag, {
+          code: DiagnosticCodes.UnknownType,
+          typeName,
+          suggestions,
+        });
+      }
+
       diagnostics.push(diag);
       return;
     }
@@ -268,7 +223,6 @@ export class DiagnosticsLinter {
     let isValid = false;
     let matchingNamespace: string | undefined;
 
-    // For qualified types, if we found matches, it resolves directly.
     if (isQualified) {
       isValid = true;
     } else {
@@ -288,7 +242,6 @@ export class DiagnosticsLinter {
           isValid = true;
           break;
         }
-        // Declarations in Principal.bas live in the implicit global scope.
         if (sym.fileUri && /principal\.bas$/i.test(sym.fileUri)) {
           isValid = true;
           break;
@@ -315,12 +268,7 @@ export class DiagnosticsLinter {
     }
   }
 
-  /**
-   * Emits the `unsupported-member` diagnostic in a single, consistent shape.
-   * Used both from `Me.X` resolution and from `obj.X` resolution so the
-   * payload, severity and message stay identical across the two paths.
-   */
-  private static pushUnsupportedMemberDiagnostic(
+  public static pushUnsupportedMemberDiagnostic(
     diagnostics: vscode.Diagnostic[],
     lineIdx: number,
     startChar: number,
@@ -343,11 +291,29 @@ export class DiagnosticsLinter {
     diagnostics.push(diag);
   }
 
-  /**
-   * Default severity assumed by each emit site before user overrides via
-   * `data7.diagnosticSeverity` are applied. Centralised so the post-processing
-   * step has a single table to consult.
-   */
+  public static isTypeCompatible(
+    rhsType: string,
+    lhsType: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): boolean {
+    const lhsLower = lhsType.toLowerCase();
+    const rhsLower = rhsType.toLowerCase();
+
+    if (lhsLower === rhsLower) return true;
+
+    const lhsIsPrimitive = PRIMITIVE_TYPES.has(lhsLower);
+    const rhsIsPrimitive = PRIMITIVE_TYPES.has(rhsLower);
+
+    if (lhsLower === "variant") return rhsIsPrimitive;
+    if (rhsLower === "variant") return lhsIsPrimitive;
+
+    if (lhsIsPrimitive || rhsIsPrimitive) return false;
+
+    if (lhsLower === "tobject") return true;
+
+    return TypeResolver.isSubclassOf(rhsType, lhsType, indexer);
+  }
+
   private static readonly DEFAULT_SEVERITY: Readonly<Record<string, vscode.DiagnosticSeverity>> = {
     [DiagnosticCodes.MissingImport]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.UnusedImport]: vscode.DiagnosticSeverity.Warning,
@@ -376,13 +342,15 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.UnknownSymbol]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.LooseTypeStatement]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.CallParenthesesMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.DeclarationParenthesesMismatch]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.FunctionReadSelf]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InvalidAssignmentTarget]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.MissingReturnValue]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.DeadCode]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.MissingMyBaseFree]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.TypeMismatch]: vscode.DiagnosticSeverity.Error,
   };
 
-  /** Frozen set of canonical codes accepted by `' data7:disable-line <code>`. */
   private static readonly VALID_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set(
     Object.values(DiagnosticCodes),
   );
@@ -428,534 +396,23 @@ export class DiagnosticsLinter {
     }
 
     const lines = text.split(/\r?\n/);
+    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+    const unit = cached.unit;
 
-    // 1. Gather imports and check for unused imports.
-    const imports: { name: string; line: number; range: vscode.Range; referenced: boolean }[] = [];
-    const importsRegex = IMPORTS_REGEX_ANCHORED;
+    // Run the AST-based linter walker
+    const walker = new DiagnosticsASTWalker(document, indexer, text, lines, diagnostics);
+    walker.run(unit);
 
-    lines.forEach((lineText, lineIdx) => {
-      const cleanLine = DependencyScanner.stripComments(lineText);
-      const match = cleanLine.match(importsRegex);
-      const name = match?.[1];
-      if (name) {
-        const start = lineText.indexOf(name);
-        imports.push({
-          name,
-          line: lineIdx,
-          range: new vscode.Range(lineIdx, start, lineIdx, start + name.length),
-          referenced: false,
-        });
-      }
-    });
+    // Validate duplicate declarations using AST structure
+    this.validateDuplicateDeclarations(unit, document, indexer, diagnostics);
 
-    const allSymbols = indexer.getAllSymbols();
+    // Validate constructor calls (Sub New calls MyBase.New) using AST structure
+    this.validateMyBaseNewCalls(unit, diagnostics);
 
-    // Local memoised regex compiler — every linter call re-uses the same Map.
-    const regexCache = new Map<string, RegExp>();
-    const wordRegex = (word: string): RegExp => {
-      const key = "\\b" + word + "\\b";
-      let r = regexCache.get(key);
-      if (!r) {
-        r = new RegExp(key, "i");
-        regexCache.set(key, r);
-      }
-      r.lastIndex = 0;
-      return r;
-    };
-    const memberAccessRegexFor = (word: string): RegExp => {
-      const key = "\\b" + word + "\\b\\.";
-      let r = regexCache.get(key);
-      if (!r) {
-        r = new RegExp(key, "i");
-        regexCache.set(key, r);
-      }
-      r.lastIndex = 0;
-      return r;
-    };
+    // Validate destructor resource cleanup (Sub Free calls MyBase.Free) using AST structure
+    this.validateMyBaseFreeCalls(unit, indexer.getFileSymbols(document.uri.toString()), diagnostics);
 
-    imports.forEach((imp) => {
-      const nameLower = imp.name.toLowerCase();
-      if (memberAccessRegexFor(imp.name).test(text)) {
-        imp.referenced = true;
-        return;
-      }
-      // Detect any symbol from the namespace referenced bare in the document.
-      const symbolsInNamespace = [
-        ...allSymbols.filter((s) => s.containerName?.toLowerCase() === nameLower),
-        ...lookupSystemByContainer(imp.name),
-      ];
-
-      for (const s of symbolsInNamespace) {
-        if (wordRegex(s.name).test(text)) {
-          imp.referenced = true;
-          break;
-        }
-      }
-    });
-
-    imports.forEach((imp) => {
-      if (!imp.referenced) {
-        const diag = new vscode.Diagnostic(
-          imp.range,
-          `Importação desnecessária ou não utilizada: "${imp.name}".`,
-          vscode.DiagnosticSeverity.Warning,
-        );
-        diag.code = DiagnosticCodes.UnusedImport;
-        const payload: UnusedImportPayload = {
-          code: DiagnosticCodes.UnusedImport,
-          namespace: imp.name,
-        };
-        setDiagnosticPayload(diag, payload);
-        diagnostics.push(diag);
-      }
-    });
-
-    // 1b. Duplicate imports (same namespace declared more than once).
-    const seenImports = new Map<string, number>();
-    imports.forEach((imp) => {
-      const key = imp.name.toLowerCase();
-      const firstLine = seenImports.get(key);
-      if (firstLine === undefined) {
-        seenImports.set(key, imp.line);
-        return;
-      }
-      const diag = new vscode.Diagnostic(
-        imp.range,
-        `Imports duplicado: "${imp.name}" já foi declarado na linha ${firstLine + 1}.`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-      diag.code = DiagnosticCodes.DuplicateImport;
-      const payload: UnusedImportPayload = {
-        code: DiagnosticCodes.UnusedImport,
-        namespace: imp.name,
-      };
-      setDiagnosticPayload(diag, payload);
-      diagnostics.push(diag);
-    });
-
-    // 2. Member accesses (obj.Member, me.Member).
-    lines.forEach((lineText, lineIdx) => {
-      const cleanLine = stripCommentsAndStringsLine(lineText);
-      if (!cleanLine.trim() || cleanLine.toLowerCase().startsWith("imports ")) return;
-
-      const dotRegex = /\.([a-zA-Z_][a-zA-Z0-9_]*)\b/gi;
-      let dotMatch;
-      while ((dotMatch = dotRegex.exec(cleanLine)) !== null) {
-        const memberName = dotMatch[1];
-        if (!memberName) continue;
-        const dotIndex = dotMatch.index;
-
-        const prefix = getChainPrefix(cleanLine, dotIndex);
-        if (!prefix) continue;
-
-        const prefixLower = prefix.toLowerCase();
-
-        if (prefixLower === "me" || prefixLower === "mybase") {
-          const fileSyms = indexer.getFileSymbols(document.uri.toString());
-          const currentClass = fileSyms?.symbols.find(
-            (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-          );
-          if (currentClass) {
-            const resolved = TypeResolver.findMember(currentClass.name, memberName, indexer);
-            if (!resolved) {
-              const start = dotIndex + 1;
-              const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
-              const diag = new vscode.Diagnostic(
-                range,
-                `Membro "${memberName}" não encontrado na classe "${currentClass.name}".`,
-                vscode.DiagnosticSeverity.Error,
-              );
-              diag.code = DiagnosticCodes.UnknownMember;
-              attachUnknownMemberSuggestions(
-                diag,
-                memberName,
-                DiagnosticsLinter.collectMemberNames(currentClass.name, indexer),
-              );
-              diagnostics.push(diag);
-            } else if (resolved.isUnsupported) {
-              DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
-                diagnostics,
-                lineIdx,
-                dotIndex + 1,
-                memberName,
-                currentClass.name,
-              );
-            }
-          }
-          continue;
-        }
-
-        // Skip VCL and System low-level prefixes to avoid false positives on Delphi internals.
-        if (prefixLower.startsWith("vcl") || prefixLower.startsWith("system")) {
-          continue;
-        }
-
-        let typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
-        let isStaticAccess = false;
-        if (!typeName) {
-          const staticSymbol = indexer.findSymbolByName(prefix, document.uri.toString());
-          if (
-            staticSymbol &&
-            (staticSymbol.kind === "class" ||
-              staticSymbol.kind === "structure" ||
-              staticSymbol.kind === "namespace")
-          ) {
-            typeName = staticSymbol.name;
-            isStaticAccess = staticSymbol.kind === "class" || staticSymbol.kind === "structure";
-          } else {
-            const sysStaticSymbol = lookupSystemByName(prefix).find(
-              (s) => s.kind === "namespace" || s.kind === "class" || s.kind === "structure",
-            );
-            if (sysStaticSymbol) {
-              typeName = sysStaticSymbol.name;
-              isStaticAccess =
-                sysStaticSymbol.kind === "class" || sysStaticSymbol.kind === "structure";
-            }
-          }
-        }
-
-        if (typeName && DiagnosticsLinter.isKnownType(typeName, indexer)) {
-          const resolved = TypeResolver.findMember(typeName, memberName, indexer);
-          if (
-            !resolved &&
-            typeName.toLowerCase() !== "variant" &&
-            typeName.toLowerCase() !== "tobject" &&
-            typeName.toLowerCase() !== "void"
-          ) {
-            const start = dotIndex + 1;
-            const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
-            const diag = new vscode.Diagnostic(
-              range,
-              `Membro "${memberName}" não encontrado na classe/tipo "${typeName}".`,
-              vscode.DiagnosticSeverity.Error,
-            );
-            diag.code = DiagnosticCodes.UnknownMember;
-            attachUnknownMemberSuggestions(
-              diag,
-              memberName,
-              DiagnosticsLinter.collectMemberNames(typeName, indexer),
-            );
-            diagnostics.push(diag);
-          } else if (resolved?.isUnsupported) {
-            DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
-              diagnostics,
-              lineIdx,
-              dotIndex + 1,
-              memberName,
-              typeName,
-            );
-          } else if (
-            resolved &&
-            isStaticAccess &&
-            !resolved.isShared &&
-            resolved.kind !== "class" &&
-            resolved.kind !== "structure" &&
-            resolved.kind !== "delegate"
-          ) {
-            const start = dotIndex + 1;
-            const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
-            const diag = new vscode.Diagnostic(
-              range,
-              `Acesso a membro de instância "${memberName}" diretamente no tipo "${typeName}".`,
-              vscode.DiagnosticSeverity.Error,
-            );
-            diag.code = DiagnosticCodes.InstanceMemberAccessOnType;
-            diagnostics.push(diag);
-          } else if (resolved?.isPrivate || resolved?.isProtected) {
-            // Member exists but is Private or Protected — check scope visibility
-            const fileSyms = indexer.getFileSymbols(document.uri.toString());
-            const enclosingClass = fileSyms?.symbols.find(
-              (s) =>
-                s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-            );
-
-            let hasAccess = false;
-            if (enclosingClass && resolved.containerName) {
-              const ownerLower = resolved.containerName.toLowerCase();
-              const enclosingLower = enclosingClass.name.toLowerCase();
-              if (ownerLower === enclosingLower) {
-                hasAccess = true;
-              } else if (resolved.isProtected) {
-                if (inheritsFromClass(enclosingClass.name, resolved.containerName, indexer)) {
-                  hasAccess = true;
-                }
-              }
-            }
-            if (!hasAccess) {
-              const start = dotIndex + 1;
-              const range = new vscode.Range(lineIdx, start, lineIdx, start + memberName.length);
-              const diag = new vscode.Diagnostic(
-                range,
-                resolved.isPrivate
-                  ? `O membro "${memberName}" de "${typeName}" é Private e não pode ser acessado fora da classe.`
-                  : `O membro "${memberName}" de "${typeName}" é Protected e só pode ser acessado na classe declarante ou suas subclasses.`,
-                vscode.DiagnosticSeverity.Error,
-              );
-              diag.code = DiagnosticCodes.PrivateMemberAccess;
-              diagnostics.push(diag);
-            }
-          }
-        }
-      }
-    });
-
-    // 3. Type references: As [New] Type, New Type, Inherits Type, Implements Type.
-    const typeRefRegex = /\bAs\s+(?:New\s+)?([a-zA-Z0-9_.]+)/gi;
-    const newInstRegex = /\bNew\s+([a-zA-Z0-9_.]+)/gi;
-    const inheritsRegex = /\bInherits\s+([a-zA-Z0-9_.]+)/gi;
-    const implementsRegex = /\bImplements\s+([a-zA-Z0-9_.]+)/gi;
-
-    lines.forEach((lineText, lineIdx) => {
-      // ANTES: const cleanLine = DependencyScanner.stripComments(lineText);
-      // DEPOIS:
-      const cleanLine = stripCommentsAndStringsLine(lineText);
-      if (!cleanLine.trim() || cleanLine.toLowerCase().startsWith("imports ")) return;
-
-      const runTypeRefScan = (regex: RegExp, skipAsPrefix = false): void => {
-        regex.lastIndex = 0;
-        let m: RegExpExecArray | null;
-        while ((m = regex.exec(cleanLine)) !== null) {
-          const typeName = m[1];
-          if (!typeName) continue;
-          if (skipAsPrefix) {
-            const precedingText = cleanLine.substring(0, m.index).trim();
-            if (precedingText.toLowerCase().endsWith("as")) continue;
-          }
-          const start = m.index + m[0].indexOf(typeName);
-          DiagnosticsLinter.validateTypeReference(typeName, lineIdx, start, document, indexer, diagnostics);
-        }
-      };
-      runTypeRefScan(typeRefRegex);
-      runTypeRefScan(newInstRegex, /* skipAsPrefix */ true);
-      runTypeRefScan(inheritsRegex);
-      runTypeRefScan(implementsRegex);
-    });
-
-    // 4. Event signature mismatch.
-    //
-    // Detects assignments like:
-    //   me.btnOk.OnClick = AddressOf btnOk_Click
-    //   self.OnClose    = MyClose
-    //
-    // When the LHS resolves to a property whose `type` is a delegate, and the
-    // handler resolves to a workspace Sub/Function, the parameter counts must
-    // match. Type-by-type comparison is intentionally lenient (we only check
-    // arity) to avoid false positives on `Variant`-typed parameters.
-    const eventAssignRegex =
-      /\b([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\.(\w+)\s*=\s*(?:AddressOf\s+)?([A-Za-z_]\w*)\b/g;
-    lines.forEach((lineText, lineIdx) => {
-      const cleanLine = DependencyScanner.stripComments(lineText);
-      if (!cleanLine.trim()) return;
-      eventAssignRegex.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = eventAssignRegex.exec(cleanLine)) !== null) {
-        const lhsExpr = m[1];
-        const eventName = m[2];
-        const handlerName = m[3];
-        if (!lhsExpr || !eventName || !handlerName) continue;
-        if (!/^On[A-Z]/.test(eventName)) continue;
-
-        // Resolve LHS type.
-        const lhsParts = lhsExpr.split(".");
-        const rootName = lhsParts[lhsParts.length - 1];
-        if (!rootName) continue;
-        const rootLower = rootName.toLowerCase();
-
-        let lhsType: string | undefined;
-        if (rootLower === "me" || rootLower === "mybase") {
-          const fileSyms = indexer.getFileSymbols(document.uri.toString());
-          lhsType = fileSyms?.symbols.find(
-            (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-          )?.name;
-        } else {
-          lhsType = TypeResolver.getVariableType(
-            rootName,
-            document,
-            new vscode.Position(lineIdx, m.index),
-            indexer,
-          );
-        }
-        if (!lhsType) continue;
-
-        const eventMember = TypeResolver.findMember(lhsType, eventName, indexer);
-        if (eventMember?.kind !== "property") continue;
-
-        const delegateName = eventMember.type;
-        const delegate =
-          lookupSystemByName(delegateName).find((s) => s.kind === "delegate") ??
-          indexer.findSymbolByName(delegateName);
-        if (delegate?.kind !== "delegate" || !delegate.parameters) continue;
-
-        const handler = indexer.findSymbolByName(handlerName);
-        if (
-          !handler ||
-          (handler.kind !== "method" &&
-            handler.kind !== "declare_sub" &&
-            handler.kind !== "declare_function")
-        ) {
-          continue;
-        }
-
-        const handlerParams = handler.parameters ?? [];
-        if (handlerParams.length !== delegate.parameters.length) {
-          const handlerStart = m.index + m[0].lastIndexOf(handlerName);
-          const range = new vscode.Range(
-            lineIdx,
-            handlerStart,
-            lineIdx,
-            handlerStart + handlerName.length,
-          );
-          const diag = new vscode.Diagnostic(
-            range,
-            `Assinatura incompatível: o evento "${eventName}" espera ${delegate.parameters.length} parâmetro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
-            vscode.DiagnosticSeverity.Error,
-          );
-          diag.code = DiagnosticCodes.EventSignatureMismatch;
-          diagnostics.push(diag);
-        }
-      }
-    });
-
-    // 5. `For Each <var>[ As T] In <expr>` sugar: warn when the operand's
-    //    type does not expose `Count` + an integer-indexed accessor. The
-    //    Builder's transpiler will refuse to expand those lines as well, so
-    //    we surface the same problem to the user inline in the editor.
-    //
-    //    `detectEnumerable` results are cached per (typeName, explicitType)
-    //    for the lifetime of this single pass — files with many `For Each`
-    //    over the same collection class would otherwise re-walk the entire
-    //    inheritance chain on every loop.
-    const forEachRegex = /^(\s*)For\s+Each\s+\w+(?:\s+As\s+[\w.]+)?\s+In\s+([A-Za-z_]\w*)\s*$/i;
-    const enumerableCache = new Map<string, ReturnType<typeof detectEnumerable>>();
-    const cachedDetect = (
-      typeName: string,
-      explicitType: string | undefined,
-    ): ReturnType<typeof detectEnumerable> => {
-      const key = `${typeName}\u0000${explicitType ?? ""}`;
-      if (enumerableCache.has(key)) return enumerableCache.get(key);
-      const computed = detectEnumerable(
-        typeName,
-        (t) => TypeResolver.getAllMembersForType(t, indexer),
-        explicitType,
-      );
-      enumerableCache.set(key, computed);
-      return computed;
-    };
-    lines.forEach((lineText, lineIdx) => {
-      const cleanLine = DependencyScanner.stripComments(lineText);
-      const match = forEachRegex.exec(cleanLine);
-      if (!match) return;
-
-      const leadingIndent = match[1];
-      const operandName = match[2];
-      if (leadingIndent === undefined || !operandName) return;
-      // Start the search ONE line before the `For Each` header — otherwise
-      // the regex inside `getVariableType` matches the `In <operand>` portion
-      // on the very same line and returns `Variant`.
-      const operandType = TypeResolver.getVariableType(
-        operandName,
-        document,
-        new vscode.Position(lineIdx, 0),
-        indexer,
-      );
-      const explicitTypeMatch = /\bAs\s+([\w.]+)\s+In\b/i.exec(cleanLine);
-      const explicitType = explicitTypeMatch?.[1];
-
-      const enumerable = operandType ? cachedDetect(operandType, explicitType) : undefined;
-      if (enumerable) return;
-
-      const typeName = operandType ?? "Variant";
-      const operandStart = lineText.indexOf(operandName, leadingIndent.length);
-      const range =
-        operandStart >= 0
-          ? new vscode.Range(lineIdx, operandStart, lineIdx, operandStart + operandName.length)
-          : new vscode.Range(lineIdx, leadingIndent.length, lineIdx, lineText.length);
-
-      const diag = new vscode.Diagnostic(
-        range,
-        `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
-          `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-      diag.code = DiagnosticCodes.NotEnumerable;
-      const payload: NotEnumerablePayload = {
-        code: DiagnosticCodes.NotEnumerable,
-        typeName,
-      };
-      setDiagnosticPayload(diag, payload);
-      diagnostics.push(diag);
-    });
-
-    // 6. `$"..."` string interpolation: validate that every interpolated
-    //    string is well-formed BEFORE the Builder tries to expand it. The
-    //    shared `parseInterpolation` helper in `src/utils/` is the single
-    //    source of truth for both the live linter and the build-time
-    //    transpiler — there is no second parser to keep in sync.
-    lines.forEach((lineText, lineIdx) => {
-      if (!lineText.includes('$"')) return;
-      const result = parseInterpolation(lineText);
-      for (const d of result.diagnostics) {
-        const range = new vscode.Range(lineIdx, d.column, lineIdx, lineText.length);
-        const diag = new vscode.Diagnostic(
-          range,
-          `String interpolada \`$"..."\` mal formada (${d.reason}). O Builder não conseguirá expandir esta linha.`,
-          vscode.DiagnosticSeverity.Warning,
-        );
-        diag.code = DiagnosticCodes.InvalidInterpolation;
-        const payload: InvalidInterpolationPayload = {
-          code: DiagnosticCodes.InvalidInterpolation,
-          reason: d.reason,
-        };
-        setDiagnosticPayload(diag, payload);
-        diagnostics.push(diag);
-      }
-    });
-
-    // 6b. Ternary `cond ? a : b` outside of an assignment surface. The
-    //     transpiler only expands ternaries that appear as the RHS of a
-    //     `Dim x = ...` / `x = ...` / `obj.prop = ...` line; anything else
-    //     (function call argument, `Return c ? a : b`, expression-inside-
-    //     expression) cannot be lowered to the native `If/Then/Else/End If`
-    //     form without restructuring the surrounding code. We flag those
-    //     here so the user refactors before the Builder runs.
-    //
-    //     The shared `findTopLevelTernary` helper in `src/utils/` is the
-    //     single source of truth — same parser the transpiler uses, so the
-    //     two stay in lockstep.
-    const ternaryAssignRegex =
-      /^\s*(?:(?:Dim|Public|Private|Protected|Shared)\s+)?[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*(?:As\s+[\w.]+\s*)?=\s*/i;
-    lines.forEach((lineText, lineIdx) => {
-      if (!lineText.includes("?") || !lineText.includes(":")) return;
-      const cleanLine = DependencyScanner.stripComments(lineText);
-      const positions = findTopLevelTernary(cleanLine);
-      if (!positions) return;
-      // Determine whether the line is a supported assignment surface AND
-      // the ternary sits inside the RHS. Anything else triggers the warning.
-      const assignMatch = ternaryAssignRegex.exec(cleanLine);
-      const rhsStart = assignMatch ? assignMatch[0].length : -1;
-      if (assignMatch && positions.questionAt >= rhsStart) return;
-
-      const range = new vscode.Range(lineIdx, positions.questionAt, lineIdx, positions.colonAt + 1);
-      const diag = new vscode.Diagnostic(
-        range,
-        `Tern\u00e1rio \`?:\` fora de contexto de assignment. O Builder s\u00f3 expande tern\u00e1rios em \`Dim x = c ? a : b\`, \`x = c ? a : b\` ou \`obj.prop = c ? a : b\` (forma nativa \u00e9 \`If/Then/Else/End If\`).`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-      diag.code = DiagnosticCodes.TernaryContextUnsupported;
-      const payload: TernaryContextUnsupportedPayload = {
-        code: DiagnosticCodes.TernaryContextUnsupported,
-        context: "non-assignment",
-      };
-      setDiagnosticPayload(diag, payload);
-      diagnostics.push(diag);
-    });
-
-    // 6c. Textual generics pre-pass — surfaces unknown templates, arity
-    //     mismatches, duplicate registrations and flat-name collisions
-    //     directly in the Problems panel so the user does not need to
-    //     run a build to find them. Shares the warning shape with the
-    //     SugarTranspiler so a future migration to the AST driver keeps
-    //     the same codes.
+    // Textual generic pre-pass remains backward-compatible via AST analyzer warnings
     const genericWarnings = analyzeGenericsPass(text);
     for (const warning of genericWarnings) {
       const range = computeGenericWarningRange(warning, lines);
@@ -969,12 +426,10 @@ export class DiagnosticsLinter {
       diagnostics.push(diag);
     }
 
-    // 7. `' data7:disable-line <code>` / `disable-next-line <code>`: warn when
-    //    `<code>` is not a real `DiagnosticCode`. Catches typos in directives
-    //    that would otherwise silently silence nothing.
+    // Directives list is comments-based so it must remain textual scan
     const directives = listSuppressionDirectives(text);
     for (const directive of directives) {
-      if (!directive.codes) continue; // bare directive — "suppress everything"
+      if (!directive.codes) continue;
       for (const rawCode of directive.codes) {
         const codeLower = rawCode.toLowerCase();
         if (DiagnosticsLinter.VALID_DIAGNOSTIC_CODES.has(codeLower)) continue;
@@ -1002,1296 +457,11 @@ export class DiagnosticsLinter {
       }
     }
 
-    DiagnosticsLinter.validateAdvancedRules(document, indexer, lines, diagnostics);
-    DiagnosticsLinter.validateDuplicateDeclarations(document, indexer, diagnostics);
-
-    // 8. `Sub New` without `MyBase.New()`. Every Data7 constructor must call
-    //    `MyBase.New(...)` so the runtime can properly initialise the base
-    //    object. We track state across lines to find `Sub New` / `End Sub`
-    //    pairs and then check that the body contains at least one call.
-    DiagnosticsLinter.validateMyBaseNewCalls(lines, diagnostics);
-
     return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
   }
 
-  private static validateAdvancedRules(
-    document: vscode.TextDocument,
-    indexer: WorkspaceSymbolIndexer,
-    lines: string[],
-    diagnostics: vscode.Diagnostic[],
-  ): void {
-    const fileSyms = indexer.getFileSymbols(document.uri.toString());
-
-    const getActiveContext = (
-      lineIdx: number,
-    ): {
-      activeClass: SymbolInfo | undefined;
-      activeMethod: SymbolInfo | undefined;
-      activeProperty: SymbolInfo | undefined;
-    } => {
-      let activeClass: SymbolInfo | undefined;
-      let activeMethod: SymbolInfo | undefined;
-      let activeProperty: SymbolInfo | undefined;
-      if (fileSyms) {
-        activeClass = fileSyms.symbols.find(
-          (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-        );
-        activeMethod = fileSyms.symbols.find(
-          (s) =>
-            (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function") &&
-            lineIdx >= s.range.startLine &&
-            lineIdx <= s.range.endLine,
-        );
-        activeProperty = fileSyms.symbols.find(
-          (s) =>
-            (s.kind === "property" || s.kind === "indexed-property") &&
-            lineIdx >= s.range.startLine &&
-            lineIdx <= s.range.endLine,
-        );
-      }
-      return { activeClass, activeMethod, activeProperty };
-    };
-
-    // const getActiveContext = (
-    //   lineIdx: number,
-    // ): {
-    //   activeClass: SymbolInfo | undefined;
-    //   activeMethod: SymbolInfo | undefined;
-    // } => {
-    //   let activeClass: SymbolInfo | undefined;
-    //   let activeMethod: SymbolInfo | undefined;
-    //   if (fileSyms) {
-    //     activeClass = fileSyms.symbols.find(
-    //       (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-    //     );
-    //     activeMethod = fileSyms.symbols.find(
-    //       (s) =>
-    //         (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function") &&
-    //         lineIdx >= s.range.startLine &&
-    //         lineIdx <= s.range.endLine,
-    //     );
-    //   }
-    //   return { activeClass, activeMethod };
-    // };
-
-    const isKnownSymbol = (
-      name: string,
-      lineIdx: number,
-      activeClass: SymbolInfo | undefined,
-      activeMethod: SymbolInfo | undefined,
-      activeProperty: SymbolInfo | undefined,
-    ): boolean => {
-      const nameLower = name.toLowerCase();
-      if (nameLower === "me" || nameLower === "mybase" || nameLower === "value") {
-        return true;
-      }
-
-      if (activeMethod?.parameters) {
-        if (activeMethod.parameters.some((p) => p.name.toLowerCase() === nameLower)) {
-          return true;
-        }
-      }
-
-      if (activeProperty?.parameters) {
-        if (activeProperty.parameters.some((p) => p.name.toLowerCase() === nameLower)) {
-          return true;
-        }
-      }
-
-      // O scan recua até o início do bloco em que o cursor está contido
-      let scanStart = 0;
-      if (activeMethod) scanStart = activeMethod.range.startLine;
-      else if (activeProperty) scanStart = activeProperty.range.startLine;
-
-      for (let i = scanStart; i <= lineIdx; i++) {
-        const lineText = lines[i];
-        if (lineText === undefined) continue;
-        const cleanLine = stripCommentsAndStringsLine(lineText);
-
-        const dimMatches = cleanLine.matchAll(/\b(Dim|Const)\s+([a-zA-Z0-9_]+)\b/gi);
-        for (const m of dimMatches) {
-          if (m[2]?.toLowerCase() === nameLower) {
-            return true;
-          }
-        }
-
-        const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-        if (forEachMatch?.[1]?.toLowerCase() === nameLower) {
-          return true;
-        }
-
-        const forMatch = /\bFor\s+([a-zA-Z0-9_]+)\s*=/i.exec(cleanLine);
-        if (forMatch?.[1]?.toLowerCase() === nameLower) {
-          return true;
-        }
-
-        const usingMatch = /\bUsing\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-        if (usingMatch?.[1]?.toLowerCase() === nameLower) {
-          return true;
-        }
-
-        const catchMatch = /\bCatch\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-        if (catchMatch?.[1]?.toLowerCase() === nameLower) {
-          return true;
-        }
-
-        // NOVO: Captura parâmetros de assinatura do Set (ex: Set(pValue As Integer))
-        const setMatch = /^\s*Set\s*\(\s*(?:ByVal\s+|ByRef\s+)?([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-        if (setMatch?.[1]?.toLowerCase() === nameLower) {
-          return true;
-        }
-
-        // NOVO: Captura parâmetros implícitos do cabeçalho da propriedade em si
-        // Ex: Property Item(pIndex As Integer)
-        const propMatch =
-          /^\s*(?:Public\s+|Private\s+|Protected\s+|Shared\s+|Default\s+)*Property\s+[a-zA-Z0-9_]+\s*\(([^)]+)\)/i.exec(
-            cleanLine,
-          );
-        if (propMatch?.[1]) {
-          const paramsStr = propMatch[1];
-          const params = paramsStr.split(",");
-          for (const param of params) {
-            const paramMatch = /(?:ByVal\s+|ByRef\s+)?([a-zA-Z0-9_]+)\b/i.exec(param.trim());
-            if (paramMatch?.[1]?.toLowerCase() === nameLower) {
-              return true;
-            }
-          }
-        }
-      }
-
-      if (activeClass) {
-        const member = fileSyms?.symbols.find(
-          (s) =>
-            s.containerName?.toLowerCase() === activeClass.name.toLowerCase() &&
-            s.name.toLowerCase() === nameLower,
-        );
-        if (member) return true;
-
-        const inherited = TypeResolver.getInheritedMembers(activeClass.name, indexer);
-        if (inherited.some((s) => s.name.toLowerCase() === nameLower)) {
-          return true;
-        }
-      }
-
-      const hasGlobal = indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower);
-      if (hasGlobal) return true;
-
-      const hasSystem = SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
-      if (hasSystem) return true;
-
-      return false;
-    };
-
-    // const isKnownSymbol = (
-    //   name: string,
-    //   lineIdx: number,
-    //   activeClass: SymbolInfo | undefined,
-    //   activeMethod: SymbolInfo | undefined,
-    // ): boolean => {
-    //   const nameLower = name.toLowerCase();
-    //   if (nameLower === "me" || nameLower === "mybase" || nameLower === "value") {
-    //     return true;
-    //   }
-
-    //   if (activeMethod?.parameters) {
-    //     if (activeMethod.parameters.some((p) => p.name.toLowerCase() === nameLower)) {
-    //       return true;
-    //     }
-    //   }
-
-    //   for (let i = activeMethod ? activeMethod.range.startLine : 0; i <= lineIdx; i++) {
-    //     const lineText = lines[i];
-    //     if (lineText === undefined) continue;
-    //     const cleanLine = stripCommentsAndStringsLine(lineText);
-
-    //     const dimMatches = cleanLine.matchAll(/\b(Dim|Const)\s+([a-zA-Z0-9_]+)\b/gi);
-    //     for (const m of dimMatches) {
-    //       if (m[2]?.toLowerCase() === nameLower) {
-    //         return true;
-    //       }
-    //     }
-
-    //     const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-    //     if (forEachMatch?.[1]?.toLowerCase() === nameLower) {
-    //       return true;
-    //     }
-
-    //     const usingMatch = /\bUsing\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-    //     if (usingMatch?.[1]?.toLowerCase() === nameLower) {
-    //       return true;
-    //     }
-
-    //     const catchMatch = /\bCatch\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-    //     if (catchMatch?.[1]?.toLowerCase() === nameLower) {
-    //       return true;
-    //     }
-    //   }
-
-    //   if (activeClass) {
-    //     const member = fileSyms?.symbols.find(
-    //       (s) =>
-    //         s.containerName?.toLowerCase() === activeClass.name.toLowerCase() &&
-    //         s.name.toLowerCase() === nameLower,
-    //     );
-    //     if (member) return true;
-
-    //     const inherited = TypeResolver.getInheritedMembers(activeClass.name, indexer);
-    //     if (inherited.some((s) => s.name.toLowerCase() === nameLower)) {
-    //       return true;
-    //     }
-    //   }
-
-    //   const hasGlobal = indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower);
-    //   if (hasGlobal) return true;
-
-    //   const hasSystem = SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
-    //   if (hasSystem) return true;
-
-    //   return false;
-    // };
-
-    // const resolveLhsSymbol = (
-    //   lhsStr: string,
-    //   lineIdx: number,
-    //   activeClass: SymbolInfo | undefined,
-    //   activeMethod: SymbolInfo | undefined,
-    // ): SymbolInfo | undefined => {
-    //   const cleanLhs = lhsStr.trim();
-    //   if (!cleanLhs) return undefined;
-
-    //   const dotIdx = cleanLhs.lastIndexOf(".");
-    //   if (dotIdx !== -1) {
-    //     const prefix = getChainPrefix(cleanLhs, dotIdx);
-    //     // Strip any argument list from the raw member token so that
-    //     // `obj.Round(2)` resolves symbol `Round`, not the literal `Round(2)`.
-    //     const rawMember = cleanLhs.substring(dotIdx + 1).trim();
-    //     const memberName = rawMember.replace(/\(.*\)$/, "").trim();
-    //     if (prefix && memberName) {
-    //       const prefixLower = prefix.toLowerCase();
-    //       let typeName: string | undefined;
-    //       if (prefixLower === "me" || prefixLower === "mybase") {
-    //         typeName = activeClass?.name;
-    //       } else {
-    //         typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
-    //       }
-    //       if (typeName) {
-    //         const resolved = TypeResolver.findMember(typeName, memberName, indexer);
-    //         // When the LHS had args (rawMember !== memberName), we need to
-    //         // check if the symbol is an indexed-property (assignment is valid)
-    //         // or a function/sub (invalid assignment target).
-    //         if (resolved && rawMember !== memberName) {
-    //           const isAssignableWithArgs =
-    //             resolved.kind === "indexed-property" || resolved.kind === "property";
-    //           if (!isAssignableWithArgs) {
-    //             // Return a synthetic entry typed as "method" so the caller
-    //             // emits InvalidAssignmentTarget.
-    //             return { ...resolved, kind: "method" };
-    //           }
-    //           // Indexed property — assigning is valid; no diagnostic needed.
-    //           return undefined;
-    //         }
-    //         return resolved;
-    //       }
-    //     }
-    //     return undefined;
-    //   }
-
-    //   const nameLower = cleanLhs.toLowerCase();
-
-    //   for (let i = activeMethod ? activeMethod.range.startLine : 0; i < lineIdx; i++) {
-
-    const resolveLhsSymbol = (
-      lhsStr: string,
-      lineIdx: number,
-      activeClass: SymbolInfo | undefined,
-      activeMethod: SymbolInfo | undefined,
-      activeProperty: SymbolInfo | undefined,
-    ): SymbolInfo | undefined => {
-      const cleanLhs = lhsStr.trim();
-      if (!cleanLhs) return undefined;
-
-      const dotIdx = cleanLhs.lastIndexOf(".");
-      if (dotIdx !== -1) {
-        // ... a lógica de dotIdx não muda ...
-      }
-
-      const nameLower = cleanLhs.toLowerCase();
-
-      let scanStart = 0;
-      if (activeMethod) scanStart = activeMethod.range.startLine;
-      else if (activeProperty) scanStart = activeProperty.range.startLine;
-
-      for (let i = scanStart; i < lineIdx; i++) {
-        const lineText = lines[i];
-        if (lineText === undefined) continue;
-        const cleanLine = stripCommentsAndStringsLine(lineText);
-        const constMatch = /^\s*Const\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-        if (constMatch?.[1]?.toLowerCase() === nameLower) {
-          return {
-            name: constMatch[1],
-            kind: "variable",
-            type: "Variant",
-            isShared: true,
-            isPrivate: true,
-            isConst: true,
-            range: { startLine: i, startChar: 0, endLine: i, endChar: 0 },
-            fileUri: document.uri.toString(),
-          };
-        }
-      }
-
-      if (activeClass) {
-        const member = fileSyms?.symbols.find(
-          (s) =>
-            s.containerName?.toLowerCase() === activeClass.name.toLowerCase() &&
-            s.name.toLowerCase() === nameLower,
-        );
-        if (member) return member;
-
-        const inherited = TypeResolver.getInheritedMembers(activeClass.name, indexer);
-        const inhMember = inherited.find((s) => s.name.toLowerCase() === nameLower);
-        if (inhMember) return inhMember;
-      }
-
-      const globalSym = indexer
-        .getAllSymbols()
-        .find((s) => !s.containerName && s.name.toLowerCase() === nameLower);
-      if (globalSym) return globalSym;
-
-      const sysGlobal = SYSTEM_SYMBOLS.find(
-        (s) => !s.containerName && s.name.toLowerCase() === nameLower,
-      );
-      if (sysGlobal) return sysGlobal;
-
-      return undefined;
-    };
-
-    interface ParsedLine {
-      lineIdx: number;
-      text: string;
-      type:
-        | "normal"
-        | "return"
-        | "exit"
-        | "throw"
-        | "if"
-        | "elseif"
-        | "else"
-        | "endif"
-        | "select"
-        | "case"
-        | "endselect"
-        | "assign-ret"
-        | "single-line-if";
-      cond?: string;
-      condValue?: boolean;
-      actionType?: "return" | "exit" | "throw" | "assign-ret" | "normal";
-    }
-
-    interface IfBranch {
-      headerIdx: number;
-      bodyStartIdx: number;
-      bodyEndIdx: number;
-      condValue?: boolean;
-      isElse: boolean;
-    }
-
-    interface SelectCaseBranch {
-      bodyStartIdx: number;
-      bodyEndIdx: number;
-      isElse: boolean;
-    }
-
-    interface JumpFrame {
-      exitIdx: number;
-      targetIdx: number;
-    }
-
-    const evaluateStaticCondition = (cond: string): boolean | undefined => {
-      const c = cond.trim().toLowerCase();
-      if (c === "true" || c === "1 = 1" || c === "1=1") return true;
-      if (c === "false" || c === "1 = 2" || c === "1=2") return false;
-      return undefined;
-    };
-
-    const runFlowAnalysis = (methodSymbol: SymbolInfo): void => {
-      const isFunction = methodSymbol.type.toLowerCase() !== "void";
-      const startLine = methodSymbol.range.startLine;
-      const endLine = methodSymbol.range.endLine;
-
-      const parsedLines: ParsedLine[] = [];
-      const lineMap = new Map<number, number>();
-
-      for (let i = startLine + 1; i < endLine; i++) {
-        const raw = lines[i] ?? "";
-        const clean = stripCommentsAndStringsLine(raw).trim();
-        if (!clean) continue;
-
-        const idx = parsedLines.length;
-        lineMap.set(i, idx);
-
-        const lower = clean.toLowerCase();
-
-        const eqIdx = clean.indexOf("=");
-        let isAssignRet = false;
-        if (eqIdx !== -1) {
-          const lhs = clean.substring(0, eqIdx).trim().toLowerCase();
-          if (
-            lhs === methodSymbol.name.toLowerCase() ||
-            lhs === "me." + methodSymbol.name.toLowerCase()
-          ) {
-            isAssignRet = true;
-          }
-        }
-
-        if (isAssignRet) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "assign-ret" });
-        } else if (lower.startsWith("return")) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "return" });
-        } else if (/^exit\s+(sub|function|property)\b/i.test(lower)) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "exit" });
-        } else if (/^exit\s+(for|while|do)\b/i.test(lower)) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
-        } else if (lower.startsWith("throw")) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "throw" });
-        } else if (/^elseif\b/i.test(lower)) {
-          const thenIdx = lower.lastIndexOf("then");
-          const cond = thenIdx !== -1 ? clean.substring(8, thenIdx).trim() : "";
-          parsedLines.push({
-            lineIdx: i,
-            text: clean,
-            type: "elseif",
-            cond,
-            condValue: evaluateStaticCondition(cond),
-          });
-        } else if (lower === "else") {
-          parsedLines.push({ lineIdx: i, text: clean, type: "else" });
-        } else if (lower === "end if") {
-          parsedLines.push({ lineIdx: i, text: clean, type: "endif" });
-        } else if (/^if\s+/i.test(lower)) {
-          const thenIdx = lower.lastIndexOf("then");
-          if (thenIdx !== -1) {
-            const afterThen = clean.substring(thenIdx + 4).trim();
-            if (afterThen) {
-              const cond = clean.substring(3, thenIdx).trim();
-              let actionType: ParsedLine["actionType"] = "normal";
-              if (afterThen.toLowerCase().startsWith("return")) {
-                actionType = "return";
-              } else if (/^exit\s+(sub|function|property)\b/i.test(afterThen)) {
-                actionType = "exit";
-              } else if (afterThen.toLowerCase().startsWith("throw")) {
-                actionType = "throw";
-              } else {
-                const eq = afterThen.indexOf("=");
-                if (eq !== -1) {
-                  const lhs = afterThen.substring(0, eq).trim().toLowerCase();
-                  if (
-                    lhs === methodSymbol.name.toLowerCase() ||
-                    lhs === "me." + methodSymbol.name.toLowerCase()
-                  ) {
-                    actionType = "assign-ret";
-                  }
-                }
-              }
-              parsedLines.push({
-                lineIdx: i,
-                text: clean,
-                type: "single-line-if",
-                cond,
-                condValue: evaluateStaticCondition(cond),
-                actionType,
-              });
-            } else {
-              const cond = clean.substring(3, thenIdx).trim();
-              parsedLines.push({
-                lineIdx: i,
-                text: clean,
-                type: "if",
-                cond,
-                condValue: evaluateStaticCondition(cond),
-              });
-            }
-          } else {
-            parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
-          }
-        } else if (lower.startsWith("select case") || /^select\s+/i.test(clean)) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "select" });
-        } else if (lower.startsWith("case")) {
-          parsedLines.push({ lineIdx: i, text: clean, type: "case" });
-        } else if (lower === "end select") {
-          parsedLines.push({ lineIdx: i, text: clean, type: "endselect" });
-        } else {
-          parsedLines.push({ lineIdx: i, text: clean, type: "normal" });
-        }
-      }
-
-      const findMatchingEndIf = (fromIdx: number): number => {
-        let depth = 0;
-        for (let i = fromIdx; i < parsedLines.length; i++) {
-          const type = parsedLines[i]!.type;
-          if (type === "if") depth++;
-          else if (type === "endif") {
-            if (depth === 0) return i;
-            depth--;
-          }
-        }
-        return parsedLines.length;
-      };
-
-      const collectIfStructure = (
-        ifIdx: number,
-      ): {
-        branches: IfBranch[];
-        endIfIdx: number;
-      } => {
-        const branches: IfBranch[] = [];
-        let depth = 0;
-        let currentHeader = ifIdx;
-
-        for (let i = ifIdx + 1; i < parsedLines.length; i++) {
-          const type = parsedLines[i]!.type;
-          if (type === "if") {
-            depth++;
-          } else if (type === "endif") {
-            if (depth === 0) {
-              branches.push({
-                headerIdx: currentHeader,
-                bodyStartIdx: currentHeader + 1,
-                bodyEndIdx: i,
-                condValue: parsedLines[currentHeader]!.condValue,
-                isElse: parsedLines[currentHeader]!.type === "else",
-              });
-              return { branches, endIfIdx: i };
-            }
-            depth--;
-          } else if ((type === "elseif" || type === "else") && depth === 0) {
-            branches.push({
-              headerIdx: currentHeader,
-              bodyStartIdx: currentHeader + 1,
-              bodyEndIdx: i,
-              condValue: parsedLines[currentHeader]!.condValue,
-              isElse: parsedLines[currentHeader]!.type === "else",
-            });
-            currentHeader = i;
-          }
-        }
-        return { branches, endIfIdx: parsedLines.length };
-      };
-
-      const collectSelectStructure = (
-        selectIdx: number,
-      ): {
-        cases: SelectCaseBranch[];
-        endSelectIdx: number;
-        hasCaseElse: boolean;
-      } => {
-        const cases: SelectCaseBranch[] = [];
-        let depth = 0;
-        let currentHeader = -1;
-        let hasCaseElse = false;
-
-        for (let i = selectIdx + 1; i < parsedLines.length; i++) {
-          const type = parsedLines[i]!.type;
-          if (type === "select") {
-            depth++;
-          } else if (type === "endselect") {
-            if (depth === 0) {
-              if (currentHeader !== -1) {
-                cases.push({
-                  bodyStartIdx: currentHeader + 1,
-                  bodyEndIdx: i,
-                  isElse: parsedLines[currentHeader]!.text.toLowerCase().includes("case else"),
-                });
-              }
-              return { cases, endSelectIdx: i, hasCaseElse };
-            }
-            depth--;
-          } else if (type === "case" && depth === 0) {
-            if (currentHeader !== -1) {
-              cases.push({
-                bodyStartIdx: currentHeader + 1,
-                bodyEndIdx: i,
-                isElse: parsedLines[currentHeader]!.text.toLowerCase().includes("case else"),
-              });
-            }
-            currentHeader = i;
-            if (parsedLines[i]!.text.toLowerCase().includes("case else")) {
-              hasCaseElse = true;
-            }
-          }
-        }
-        return { cases, endSelectIdx: parsedLines.length, hasCaseElse };
-      };
-
-      const reachableLines = new Set<number>();
-      const visited = new Set<string>();
-      let hasMissingReturnPath = false;
-
-      const walk = (stepIdx: number, retValSet: boolean, jumpStack: JumpFrame[] = []): void => {
-        if (jumpStack.length > 0) {
-          const top = jumpStack[jumpStack.length - 1]!;
-          if (stepIdx === top.exitIdx) {
-            walk(top.targetIdx, retValSet, jumpStack.slice(0, -1));
-            return;
-          }
-        }
-
-        const stateKey = `${stepIdx},${retValSet}`;
-        if (visited.has(stateKey)) return;
-        visited.add(stateKey);
-
-        if (stepIdx >= parsedLines.length) {
-          if (isFunction && !retValSet) {
-            hasMissingReturnPath = true;
-          }
-          return;
-        }
-
-        const pLine = parsedLines[stepIdx]!;
-        reachableLines.add(pLine.lineIdx);
-
-        const simulateIf = (
-          branches: IfBranch[],
-          branchIdx: number,
-          endIfIdx: number,
-          currentRetVal: boolean,
-          currentStack: JumpFrame[],
-        ): void => {
-          if (branchIdx >= branches.length) {
-            walk(endIfIdx, currentRetVal, currentStack);
-            return;
-          }
-          const branch = branches[branchIdx]!;
-          reachableLines.add(parsedLines[branch.headerIdx]!.lineIdx);
-          if (branch.isElse) {
-            const nextStack = [
-              ...currentStack,
-              { exitIdx: branch.bodyEndIdx, targetIdx: endIfIdx },
-            ];
-            walk(branch.bodyStartIdx, currentRetVal, nextStack);
-            return;
-          }
-          if (branch.condValue === true) {
-            const nextStack = [
-              ...currentStack,
-              { exitIdx: branch.bodyEndIdx, targetIdx: endIfIdx },
-            ];
-            walk(branch.bodyStartIdx, currentRetVal, nextStack);
-          } else if (branch.condValue === false) {
-            simulateIf(branches, branchIdx + 1, endIfIdx, currentRetVal, currentStack);
-          } else {
-            const nextStack = [
-              ...currentStack,
-              { exitIdx: branch.bodyEndIdx, targetIdx: endIfIdx },
-            ];
-            walk(branch.bodyStartIdx, currentRetVal, nextStack);
-            simulateIf(branches, branchIdx + 1, endIfIdx, currentRetVal, currentStack);
-          }
-        };
-
-        switch (pLine.type) {
-          case "normal":
-            walk(stepIdx + 1, retValSet, jumpStack);
-            break;
-
-          case "assign-ret":
-            walk(stepIdx + 1, true, jumpStack);
-            break;
-
-          case "return":
-            break;
-
-          case "exit":
-            if (isFunction && !retValSet) {
-              hasMissingReturnPath = true;
-            }
-            break;
-
-          case "throw":
-            break;
-
-          case "single-line-if":
-            if (pLine.condValue === true) {
-              if (pLine.actionType === "return") {
-                // terminates
-              } else if (pLine.actionType === "exit") {
-                if (isFunction && !retValSet) hasMissingReturnPath = true;
-              } else if (pLine.actionType === "throw") {
-                // terminates
-              } else if (pLine.actionType === "assign-ret") {
-                walk(stepIdx + 1, true, jumpStack);
-              } else {
-                walk(stepIdx + 1, retValSet, jumpStack);
-              }
-            } else if (pLine.condValue === false) {
-              walk(stepIdx + 1, retValSet, jumpStack);
-            } else {
-              if (pLine.actionType === "return") {
-                // terminates
-              } else if (pLine.actionType === "exit") {
-                if (isFunction && !retValSet) hasMissingReturnPath = true;
-              } else if (pLine.actionType === "throw") {
-                // terminates
-              } else if (pLine.actionType === "assign-ret") {
-                walk(stepIdx + 1, true, jumpStack);
-              } else {
-                walk(stepIdx + 1, retValSet, jumpStack);
-              }
-              walk(stepIdx + 1, retValSet, jumpStack);
-            }
-            break;
-
-          case "if": {
-            const { branches, endIfIdx } = collectIfStructure(stepIdx);
-            simulateIf(branches, 0, endIfIdx, retValSet, jumpStack);
-            break;
-          }
-
-          case "select": {
-            const { cases, endSelectIdx, hasCaseElse } = collectSelectStructure(stepIdx);
-            cases.forEach((c) => {
-              reachableLines.add(parsedLines[c.bodyStartIdx - 1]!.lineIdx);
-              const nextStack = [...jumpStack, { exitIdx: c.bodyEndIdx, targetIdx: endSelectIdx }];
-              walk(c.bodyStartIdx, retValSet, nextStack);
-            });
-            if (!hasCaseElse) {
-              walk(endSelectIdx, retValSet, jumpStack);
-            }
-            break;
-          }
-
-          case "elseif":
-          case "else": {
-            const endIfIdx = findMatchingEndIf(stepIdx);
-            walk(endIfIdx, retValSet, jumpStack);
-            break;
-          }
-
-          case "case": {
-            let depth = 0;
-            let endSelectIdx = parsedLines.length;
-            for (let i = stepIdx; i < parsedLines.length; i++) {
-              const type = parsedLines[i]!.type;
-              if (type === "select") depth++;
-              else if (type === "endselect") {
-                if (depth === 0) {
-                  endSelectIdx = i;
-                  break;
-                }
-                depth--;
-              }
-            }
-            walk(endSelectIdx, retValSet, jumpStack);
-            break;
-          }
-
-          case "endselect":
-          case "endif":
-            walk(stepIdx + 1, retValSet, jumpStack);
-            break;
-        }
-      };
-
-      walk(0, false);
-
-      parsedLines.forEach((pLine) => {
-        // Structural flow-control nodes (End If, Else, ElseIf, End Select, Case)
-        // are convergence points — they are never "executable" statements in the
-        // business-logic sense.  Flagging them as dead code is misleading: the
-        // interesting warning is for the real statements that follow the block,
-        // not the closing keyword itself.
-        const isStructuralNode =
-          pLine.type === "endif" ||
-          pLine.type === "endselect" ||
-          pLine.type === "else" ||
-          pLine.type === "elseif" ||
-          pLine.type === "case";
-
-        if (!reachableLines.has(pLine.lineIdx) && !isStructuralNode) {
-          const rawLine = lines[pLine.lineIdx] ?? "";
-          const start = rawLine.length - rawLine.trimStart().length;
-          const end = rawLine.trimEnd().length;
-          const range = new vscode.Range(pLine.lineIdx, start, pLine.lineIdx, end);
-
-          const diag = new vscode.Diagnostic(
-            range,
-            `Código inalcançável detectado (dead-code).`,
-            vscode.DiagnosticSeverity.Warning,
-          );
-          diag.code = DiagnosticCodes.DeadCode;
-          diag.tags = [vscode.DiagnosticTag.Unnecessary];
-          diagnostics.push(diag);
-        }
-      });
-
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (isFunction && hasMissingReturnPath) {
-        const rawLine = lines[startLine] ?? "";
-        const funcIdx = rawLine.search(/\bFunction\b/i);
-        const start = funcIdx >= 0 ? funcIdx : 0;
-        const end = rawLine.trimEnd().length;
-        const range = new vscode.Range(startLine, start, startLine, end);
-
-        const diag = new vscode.Diagnostic(
-          range,
-          `O método Function "${methodSymbol.name}" pode retornar sem definir um valor de retorno explícito em todas as ramificações de fluxo de controle.`,
-          vscode.DiagnosticSeverity.Warning,
-        );
-        diag.code = DiagnosticCodes.MissingReturnValue;
-        diagnostics.push(diag);
-      }
-    };
-
-    lines.forEach((lineText, lineIdx) => {
-      const cleanLine = stripCommentsAndStringsLine(lineText);
-      const trimmedClean = cleanLine.trim();
-      if (!trimmedClean || cleanLine.toLowerCase().startsWith("imports ")) return;
-
-      const { activeClass, activeMethod, activeProperty } = getActiveContext(lineIdx);
-
-      const isPrimitive =
-        PRIMITIVE_TYPES.has(trimmedClean.toLowerCase()) ||
-        trimmedClean.toLowerCase() === "variant" ||
-        trimmedClean.toLowerCase() === "tobject" ||
-        trimmedClean.toLowerCase() === "void";
-      const isKnownClassOrStruct = this.isKnownType(trimmedClean, indexer);
-
-      if (isPrimitive || isKnownClassOrStruct) {
-        const start = lineText.indexOf(trimmedClean);
-        const range = new vscode.Range(
-          lineIdx,
-          start >= 0 ? start : 0,
-          lineIdx,
-          (start >= 0 ? start : 0) + trimmedClean.length,
-        );
-        const diag = new vscode.Diagnostic(
-          range,
-          `Nome de tipo avulso "${trimmedClean}" não é permitido como instrução standalone.`,
-          vscode.DiagnosticSeverity.Error,
-        );
-        diag.code = DiagnosticCodes.LooseTypeStatement;
-        diagnostics.push(diag);
-      }
-
-      // BUG-6: Detect member access on primitive types (e.g. `Integer.ToString()`).
-      // Primitive types have no static accessible members — such access is always
-      // an error and the linter must report it explicitly.
-      {
-        const dotAccessRegex = /([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)/g;
-        let dotMatch: RegExpExecArray | null;
-        while ((dotMatch = dotAccessRegex.exec(trimmedClean)) !== null) {
-          const typePart = dotMatch[1] ?? "";
-          const memberPart = dotMatch[2] ?? "";
-          if (PRIMITIVE_TYPES.has(typePart.toLowerCase())) {
-            const startCol = lineText.indexOf(dotMatch[0]);
-            const range = new vscode.Range(
-              lineIdx,
-              startCol >= 0 ? startCol : 0,
-              lineIdx,
-              startCol >= 0 ? startCol + dotMatch[0].length : dotMatch[0].length,
-            );
-            const diag = new vscode.Diagnostic(
-              range,
-              `O tipo primitivo "${typePart}" não possui membros estáticos acessíveis. Acesso ".${memberPart}" é inválido.`,
-              vscode.DiagnosticSeverity.Error,
-            );
-            diag.code = DiagnosticCodes.LooseTypeStatement;
-            diagnostics.push(diag);
-          }
-        }
-      }
-
-      const assignRegex = /^([^=+\-*/&?|]+)(?:\+|-|\*|\/|&|\?\?|\|\||&&)?=\s*(.+)$/i;
-      const match = assignRegex.exec(trimmedClean);
-      if (match) {
-        const lhs = match[1];
-        if (lhs && !/^(?:dim|const)\b/i.test(lhs.trim())) {
-          const resolvedLhs = resolveLhsSymbol(
-            lhs,
-            lineIdx,
-            activeClass,
-            activeMethod,
-            activeProperty,
-          );
-          if (resolvedLhs) {
-            const isAssignToConst = resolvedLhs.isConst === true;
-            const isAssignToReadOnly = resolvedLhs.isReadOnly === true;
-
-            if (isAssignToConst || isAssignToReadOnly) {
-              let isAllowed = false;
-              if (isAssignToReadOnly && activeClass && activeMethod?.name.toLowerCase() === "new") {
-                const declaringClass = resolvedLhs.containerName?.toLowerCase();
-                if (declaringClass === activeClass.name.toLowerCase()) {
-                  const cleanLhs = lhs.trim().toLowerCase();
-                  if (!cleanLhs.includes(".") || cleanLhs.startsWith("me.")) {
-                    isAllowed = true;
-                  }
-                }
-              }
-              if (!isAllowed) {
-                const start = lineText.indexOf(lhs);
-                const range = new vscode.Range(
-                  lineIdx,
-                  start >= 0 ? start : 0,
-                  lineIdx,
-                  (start >= 0 ? start : 0) + lhs.length,
-                );
-                const diag = new vscode.Diagnostic(
-                  range,
-                  isAssignToConst
-                    ? `Tentativa de atribuir valor à constante "${resolvedLhs.name}".`
-                    : `Tentativa de atribuir valor ao campo ReadOnly "${resolvedLhs.name}" fora do construtor.`,
-                  vscode.DiagnosticSeverity.Error,
-                );
-                diag.code = DiagnosticCodes.ReadOnlyAssignment;
-                diagnostics.push(diag);
-              }
-            }
-
-            const isMethod =
-              resolvedLhs.kind === "method" ||
-              resolvedLhs.kind === "declare_function" ||
-              resolvedLhs.kind === "declare_sub";
-            if (isMethod) {
-              const isCurrentFunction =
-                resolvedLhs.name.toLowerCase() === activeMethod?.name.toLowerCase();
-              const isSub = resolvedLhs.type.toLowerCase() === "void";
-
-              if (!isCurrentFunction || isSub) {
-                const start = lineText.indexOf(lhs);
-                const range = new vscode.Range(
-                  lineIdx,
-                  start >= 0 ? start : 0,
-                  lineIdx,
-                  (start >= 0 ? start : 0) + lhs.length,
-                );
-                const diag = new vscode.Diagnostic(
-                  range,
-                  `Tentativa de atribuir valor a um símbolo inválido (nome de outro método/função "${resolvedLhs.name}").`,
-                  vscode.DiagnosticSeverity.Error,
-                );
-                diag.code = DiagnosticCodes.InvalidAssignmentTarget;
-                diagnostics.push(diag);
-              }
-            }
-          }
-        }
-      }
-
-      if (activeMethod && activeMethod.type.toLowerCase() !== "void") {
-        const funcName = activeMethod.name;
-        const funcNameLower = funcName.toLowerCase();
-
-        const wordRegex = new RegExp(`\\b${funcName}\\b`, "g");
-        let match;
-        while ((match = wordRegex.exec(cleanLine)) !== null) {
-          const matchIndex = match.index;
-
-          const remainingText = cleanLine.substring(matchIndex + funcName.length).trimStart();
-          if (remainingText.startsWith("(")) {
-            continue;
-          }
-
-          const eqIdx = cleanLine.indexOf("=");
-          const plusEqIdx = cleanLine.indexOf("+=");
-          const minusEqIdx = cleanLine.indexOf("-=");
-
-          let isPlainAssignment = false;
-          if (
-            eqIdx !== -1 &&
-            (plusEqIdx === -1 || plusEqIdx > eqIdx) &&
-            (minusEqIdx === -1 || minusEqIdx > eqIdx)
-          ) {
-            if (matchIndex < eqIdx) {
-              const lhsPart = cleanLine.substring(0, eqIdx).trim().toLowerCase();
-              if (lhsPart === funcNameLower || lhsPart === "me." + funcNameLower) {
-                isPlainAssignment = true;
-              }
-            }
-          }
-
-          if (!isPlainAssignment) {
-            const range = new vscode.Range(
-              lineIdx,
-              matchIndex,
-              lineIdx,
-              matchIndex + funcName.length,
-            );
-            const diag = new vscode.Diagnostic(
-              range,
-              `Leitura do nome da função "${funcName}" dentro de seu próprio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
-              vscode.DiagnosticSeverity.Error,
-            );
-            diag.code = DiagnosticCodes.FunctionReadSelf;
-            diagnostics.push(diag);
-          }
-        }
-      }
-
-      const wordRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
-      let symbolMatch;
-      while ((symbolMatch = wordRegex.exec(cleanLine)) !== null) {
-        const name = symbolMatch[1];
-        if (!name) continue;
-        const nameLower = name.toLowerCase();
-
-        if (KEYWORDS.some((kw) => kw.toLowerCase() === nameLower)) continue;
-        if (
-          PRIMITIVE_TYPES.has(nameLower) ||
-          nameLower === "variant" ||
-          nameLower === "tobject" ||
-          nameLower === "void"
-        ) {
-          continue;
-        }
-        if (nameLower === "true" || nameLower === "false" || nameLower === "null") continue;
-
-        const charBefore = cleanLine.substring(0, symbolMatch.index).trimEnd().slice(-1);
-        if (charBefore === ".") continue;
-
-        const precedingText = cleanLine.substring(0, symbolMatch.index).trimEnd().toLowerCase();
-        if (
-          precedingText.endsWith("class") ||
-          precedingText.endsWith("structure") ||
-          precedingText.endsWith("namespace") ||
-          precedingText.endsWith("delegate") ||
-          precedingText.endsWith("sub") ||
-          precedingText.endsWith("function") ||
-          precedingText.endsWith("property") ||
-          precedingText.endsWith("dim") ||
-          precedingText.endsWith("const") ||
-          precedingText.endsWith("catch") ||
-          precedingText.endsWith("using") ||
-          precedingText.endsWith("each") ||
-          precedingText.endsWith("as") ||
-          precedingText.endsWith("new") ||
-          precedingText.endsWith("inherits") ||
-          precedingText.endsWith("implements")
-        ) {
-          continue;
-        }
-
-        if (!isKnownSymbol(name, lineIdx, activeClass, activeMethod, activeProperty)) {
-          const range = new vscode.Range(
-            lineIdx,
-            symbolMatch.index,
-            lineIdx,
-            symbolMatch.index + name.length,
-          );
-          const diag = new vscode.Diagnostic(
-            range,
-            `O símbolo "${name}" não foi encontrado no escopo atual.`,
-            vscode.DiagnosticSeverity.Error,
-          );
-          diag.code = DiagnosticCodes.UnknownSymbol;
-          diagnostics.push(diag);
-        }
-      }
-
-      const callWordRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
-      let callMatch;
-      while ((callMatch = callWordRegex.exec(cleanLine)) !== null) {
-        const name = callMatch[1];
-        if (!name) continue;
-        const nameLower = name.toLowerCase();
-
-        if (KEYWORDS.some((kw) => kw.toLowerCase() === nameLower)) continue;
-        if (
-          PRIMITIVE_TYPES.has(nameLower) ||
-          nameLower === "variant" ||
-          nameLower === "tobject" ||
-          nameLower === "void"
-        ) {
-          continue;
-        }
-
-        const precedingText = cleanLine.substring(0, callMatch.index).trimEnd().toLowerCase();
-        if (
-          precedingText.endsWith("sub") ||
-          precedingText.endsWith("function") ||
-          precedingText.endsWith("class") ||
-          precedingText.endsWith("structure") ||
-          precedingText.endsWith("delegate") ||
-          precedingText.endsWith("addressof") ||
-          precedingText.endsWith("property")
-        ) {
-          continue;
-        }
-
-        let isLhsOfPlainAssignment = false;
-        const eqIdx = cleanLine.indexOf("=");
-        if (eqIdx !== -1 && callMatch.index < eqIdx) {
-          const lhsPart = cleanLine.substring(0, eqIdx).trim().toLowerCase();
-          if (lhsPart === nameLower || lhsPart === "me." + nameLower) {
-            isLhsOfPlainAssignment = true;
-          }
-        }
-        if (isLhsOfPlainAssignment) continue;
-
-        let resolvedMethod: SymbolInfo | undefined;
-        const charBefore = cleanLine.substring(0, callMatch.index).trimEnd().slice(-1);
-        if (charBefore === ".") {
-          const dotIdx = cleanLine.substring(0, callMatch.index + 1).lastIndexOf(".");
-          if (dotIdx !== -1) {
-            const prefix = getChainPrefix(cleanLine, dotIdx);
-            if (prefix) {
-              const prefixLower = prefix.toLowerCase();
-              let typeName: string | undefined;
-              if (prefixLower === "me" || prefixLower === "mybase") {
-                typeName = activeClass?.name;
-              } else {
-                typeName = TypeResolver.inferExpressionType(prefix, document, lineIdx, indexer);
-              }
-              if (typeName) {
-                resolvedMethod = TypeResolver.findMember(typeName, name, indexer);
-              }
-            }
-          }
-        } else {
-          const localSym = fileSyms?.symbols.find(
-            (s) =>
-              s.name.toLowerCase() === nameLower &&
-              (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
-          );
-          if (localSym) {
-            resolvedMethod = localSym;
-          } else {
-            resolvedMethod =
-              SYSTEM_SYMBOLS.find(
-                (s) =>
-                  s.name.toLowerCase() === nameLower &&
-                  (s.kind === "method" ||
-                    s.kind === "declare_sub" ||
-                    s.kind === "declare_function"),
-              ) ??
-              indexer
-                .getAllSymbols()
-                .find(
-                  (s) =>
-                    s.name.toLowerCase() === nameLower &&
-                    (s.kind === "method" ||
-                      s.kind === "declare_sub" ||
-                      s.kind === "declare_function"),
-                );
-          }
-        }
-
-        if (
-          resolvedMethod &&
-          (resolvedMethod.kind === "method" ||
-            resolvedMethod.kind === "declare_sub" ||
-            resolvedMethod.kind === "declare_function")
-        ) {
-          const paramCount = resolvedMethod.parameters ? resolvedMethod.parameters.length : 0;
-          const remainingText = cleanLine.substring(callMatch.index + name.length).trimStart();
-          const usesParens = remainingText.startsWith("(");
-          const isSub = resolvedMethod.type.toLowerCase() === "void";
-
-          let isDelegateAssignment = false;
-          const assignIdx = cleanLine.indexOf("=");
-          if (assignIdx !== -1 && callMatch.index > assignIdx) {
-            const lhsPart = cleanLine.substring(0, assignIdx).trim().toLowerCase();
-            const lastDot = lhsPart.lastIndexOf(".");
-            const lastSegment = lastDot !== -1 ? lhsPart.substring(lastDot + 1) : lhsPart;
-            if (
-              lastSegment.startsWith("on") ||
-              lastSegment.endsWith("event") ||
-              lastSegment.endsWith("handler")
-            ) {
-              isDelegateAssignment = true;
-            }
-          }
-
-          if (!isDelegateAssignment) {
-            let hasMismatch = false;
-            if (!usesParens) {
-              if (isSub) {
-                if (paramCount > 1) {
-                  hasMismatch = true;
-                }
-              } else {
-                if (paramCount >= 1) {
-                  hasMismatch = true;
-                }
-              }
-            }
-
-            if (hasMismatch) {
-              const range = new vscode.Range(
-                lineIdx,
-                callMatch.index,
-                lineIdx,
-                callMatch.index + name.length,
-              );
-              const diag = new vscode.Diagnostic(
-                range,
-                `Chamada do método "${name}" viola as regras de parênteses. Métodos ${isSub ? "Sub (Void) com mais de 1 parâmetro" : "Function (com retorno) com 1 ou mais parâmetros"} exigem o uso de parênteses.`,
-                vscode.DiagnosticSeverity.Error,
-              );
-              diag.code = DiagnosticCodes.CallParenthesesMismatch;
-              diagnostics.push(diag);
-            }
-
-            if (isSub) {
-              const trimmedPreceding = precedingText.trim();
-              const isExprContext =
-                /[+\-*/&=,(]$/.test(trimmedPreceding) ||
-                /\b(?:return|if|elseif)$/i.test(trimmedPreceding);
-
-              // Also detect when the Sub is the RHS of an assignment or Dim:
-              //   `Dim x As T = obj.SubMethod(...)` — trimmedPreceding ends with "."
-              //   `x = obj.SubMethod(...)` — there is a "=" before the dot in the line
-              const fullLineUpToCall = cleanLine.substring(0, callMatch.index).trim();
-              const isAssignmentRhs =
-                /(?:^|\s)dim\s+\w+(?:\s+as\s+[\w.]+)?\s*=\s*[\w.]*$/i.test(fullLineUpToCall) ||
-                /^\s*[\w.]+\s*(?:\+|-|\*|\/|&)?\s*=\s*[\w.]*$/i.test(fullLineUpToCall);
-
-              if (isExprContext || isAssignmentRhs) {
-                const range = new vscode.Range(
-                  lineIdx,
-                  callMatch.index,
-                  lineIdx,
-                  callMatch.index + name.length,
-                );
-                const diag = new vscode.Diagnostic(
-                  range,
-                  `O método Sub "${name}" retorna Void e não pode ser usado em uma expressão ou atribuição.`,
-                  vscode.DiagnosticSeverity.Error,
-                );
-                diag.code = DiagnosticCodes.SubUsedAsFunction;
-                diagnostics.push(diag);
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (fileSyms) {
-      fileSyms.symbols.forEach((s) => {
-        if (s.kind === "method") {
-          runFlowAnalysis(s);
-        }
-      });
-    }
-  }
-
-  private static isSameSignature(
-    params1: ParameterInfo[] | undefined,
-    params2: ParameterInfo[] | undefined,
-  ): boolean {
-    const p1 = params1 ?? [];
-    const p2 = params2 ?? [];
-    if (p1.length !== p2.length) return false;
-    for (let i = 0; i < p1.length; i++) {
-      const type1 = p1[i]?.type.toLowerCase() ?? "variant";
-      const type2 = p2[i]?.type.toLowerCase() ?? "variant";
-      if (type1 !== type2) return false;
-    }
-    return true;
-  }
-
-  private static validateDuplicateDeclarations(
+  private validateDuplicateDeclarations(
+    unit: CompilationUnit,
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
     diagnostics: vscode.Diagnostic[],
@@ -2299,18 +469,13 @@ export class DiagnosticsLinter {
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     if (!fileSyms) return;
 
-    const text = document.getText();
-    const lines = text.split(/\r?\n/);
-
     const activeNamespace = fileSyms.symbols.find((s) => s.kind === "namespace")?.name;
     const activeNsLower = activeNamespace?.toLowerCase();
 
     const imports = fileSyms.imports;
     const importedNs = new Set(imports.map((imp) => imp.toLowerCase()));
 
-    // Collect all outer types/symbols that are visible
     const outerSymbols = new Map<string, { kind: string; container?: string }>();
-
     const primitives = ["string", "integer", "boolean", "double", "variant", "tobject", "void"];
     primitives.forEach((p) => outerSymbols.set(p, { kind: "tipo primitivo" }));
 
@@ -2356,12 +521,8 @@ export class DiagnosticsLinter {
         });
       }
     };
-    SYSTEM_SYMBOLS.forEach((s) => {
-      checkTopLevel(s);
-    });
-    indexer.getAllSymbols().forEach((s) => {
-      checkTopLevel(s);
-    });
+    SYSTEM_SYMBOLS.forEach((s) => checkTopLevel(s));
+    indexer.getAllSymbols().forEach((s) => checkTopLevel(s));
 
     const createConflictDiag = (
       range: vscode.Range,
@@ -2374,20 +535,16 @@ export class DiagnosticsLinter {
       diagnostics.push(diag);
     };
 
-    // Keep track of names declared at the top-level of this file
     const fileTopLevel = new Map<string, SymbolInfo>();
 
-    // LEVEL 3: File / Namespace level declarations
+    // Namespace level checks
     fileSyms.symbols.forEach((s) => {
       if (s.kind === "namespace") return;
-      // We only validate top-level declarations (containerName is the active namespace or undefined/global)
       const isTopLevel =
         !s.containerName || (activeNamespace && s.containerName === activeNamespace);
       if (!isTopLevel) return;
 
       const nameLower = s.name.toLowerCase();
-
-      // Check duplicates in the same file
       const existing = fileTopLevel.get(nameLower);
       if (existing) {
         createConflictDiag(
@@ -2409,7 +566,6 @@ export class DiagnosticsLinter {
       }
       fileTopLevel.set(nameLower, s);
 
-      // Check duplicates in the same namespace across the workspace
       const otherFileSymbol = indexer
         .getAllSymbols()
         .find(
@@ -2438,7 +594,6 @@ export class DiagnosticsLinter {
         return;
       }
 
-      // Check conflict with imported symbols or global symbols
       const outerSym = outerSymbols.get(nameLower);
       if (outerSym) {
         createConflictDiag(
@@ -2459,7 +614,7 @@ export class DiagnosticsLinter {
       }
     });
 
-    // LEVEL 2: Class/Structure level declarations
+    // Class members checks
     const classes = fileSyms.symbols.filter((s) => s.kind === "class" || s.kind === "structure");
     classes.forEach((C) => {
       const members = fileSyms.symbols.filter(
@@ -2475,7 +630,6 @@ export class DiagnosticsLinter {
         group.forEach((m) => {
           const nameLower = m.name.toLowerCase();
 
-          // Check against the class/structure name itself (excluding constructor 'New')
           if (nameLower === C.name.toLowerCase() && nameLower !== "new") {
             createConflictDiag(
               new vscode.Range(
@@ -2495,7 +649,6 @@ export class DiagnosticsLinter {
             return;
           }
 
-          // Check duplicates inside the same class context group
           const existingList = declaredInGroup.get(nameLower);
           if (existingList) {
             for (const existing of existingList) {
@@ -2520,7 +673,6 @@ export class DiagnosticsLinter {
                   return;
                 }
               } else {
-                // At least one is not a method -> absolute name collision
                 createConflictDiag(
                   new vscode.Range(
                     m.range.startLine,
@@ -2550,256 +702,233 @@ export class DiagnosticsLinter {
       validateMemberGroup(instanceMembers);
     });
 
-    // LEVEL 1: Local / Method level declarations
-    const methods = fileSyms.symbols.filter((s) => s.kind === "method");
-    methods.forEach((M) => {
-      const C = classes.find((c) => c.name.toLowerCase() === M.containerName?.toLowerCase());
+    // Local / Method level variable checks using AST collector
+    const walker = new class extends ASTWalker {
+      public override walk(node: Node): void {
+        if (node.kind === "MethodDeclaration") {
+          const C = classes.find((c) => c.name.toLowerCase() === node.modifiers?.find(() => true)?.toLowerCase() || c.name.toLowerCase() === fileSyms.symbols.find(s => s.name === node.name && s.kind === "method")?.containerName?.toLowerCase());
+          const collector = new LocalDeclarationCollector(node);
+          collector.collect();
 
-      const methodScopeDecls: { name: string; range: vscode.Range; isParameter: boolean }[] = [];
+          const declaredInMethod = new Map<string, SourceLocation>();
+          collector.declarations.forEach((v) => {
+            const nameLower = v.name.toLowerCase();
+            const range = new vscode.Range(
+              v.loc.startLine - 1,
+              v.loc.startChar,
+              v.loc.endLine - 1,
+              v.loc.endChar,
+            );
 
-      // Add parameters
-      if (M.parameters) {
-        const methodDeclLine = lines[M.range.startLine] ?? "";
-        M.parameters.forEach((p) => {
-          const start = methodDeclLine.indexOf(p.name);
-          const range =
-            start >= 0
-              ? new vscode.Range(M.range.startLine, start, M.range.startLine, start + p.name.length)
-              : new vscode.Range(
-                  M.range.startLine,
-                  M.range.startChar,
-                  M.range.startLine,
-                  M.range.endChar,
+            const existingRange = declaredInMethod.get(nameLower);
+            if (existingRange) {
+              createConflictDiag(
+                range,
+                `Declaração duplicada: o identificador '${v.name}' já foi declarado neste método.`,
+                {
+                  code: DiagnosticCodes.DuplicateDeclaration,
+                  name: v.name,
+                  scope: "method",
+                  conflictingWithName: v.name,
+                },
+              );
+              return;
+            }
+            declaredInMethod.set(nameLower, v.loc);
+
+            if (C) {
+              const members = fileSyms.symbols.filter(
+                (s) => s.containerName?.toLowerCase() === C.name.toLowerCase(),
+              );
+              const isShared = node.modifiers?.includes("shared") ?? false;
+              const visibleMembers = isShared ? members.filter((m) => m.isShared) : members;
+
+              const conflictingMember = visibleMembers.find((m) => m.name.toLowerCase() === nameLower);
+              if (conflictingMember) {
+                createConflictDiag(
+                  range,
+                  `O identificador '${v.name}' conflita com o membro '${conflictingMember.name}' da classe '${C.name}'.`,
+                  {
+                    code: DiagnosticCodes.DuplicateDeclaration,
+                    name: v.name,
+                    scope: "class",
+                    conflictingWithName: conflictingMember.name,
+                  },
                 );
-          methodScopeDecls.push({ name: p.name, range, isParameter: true });
-        });
-      }
+                return;
+              }
 
-      // Scan local variables in method body
-      for (let lineIdx = M.range.startLine + 1; lineIdx < M.range.endLine; lineIdx++) {
-        const lineRaw = lines[lineIdx];
-        if (lineRaw === undefined) continue;
-        const cleanLine = stripCommentsAndStringsLine(lineRaw);
-        const trimmedClean = cleanLine.trim();
-        if (!trimmedClean) continue;
-
-        let name: string | undefined;
-
-        // Check Dim
-        const dimMatch = /^\s*Dim\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-        if (dimMatch?.[1]) {
-          name = dimMatch[1];
-        }
-
-        // Check For Each
-        if (!name) {
-          const forEachMatch = /\bFor\s+Each\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-          if (forEachMatch?.[1]) {
-            name = forEachMatch[1];
-          }
-        }
-
-        // Check Using
-        if (!name) {
-          const usingMatch = /\bUsing\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-          if (usingMatch?.[1]) {
-            name = usingMatch[1];
-          }
-        }
-
-        // Check Catch
-        if (!name) {
-          const catchMatch = /\bCatch\s+([a-zA-Z0-9_]+)\b/i.exec(cleanLine);
-          if (catchMatch?.[1]) {
-            name = catchMatch[1];
-          }
-        }
-
-        if (name) {
-          const start = cleanLine.indexOf(name);
-          methodScopeDecls.push({
-            name,
-            range: new vscode.Range(lineIdx, start, lineIdx, start + name.length),
-            isParameter: false,
+              if (nameLower === C.name.toLowerCase()) {
+                createConflictDiag(
+                  range,
+                  `O identificador '${v.name}' conflita com o nome da classe envolvente '${C.name}'.`,
+                  {
+                    code: DiagnosticCodes.DuplicateDeclaration,
+                    name: v.name,
+                    scope: "class",
+                    conflictingWithName: C.name,
+                  },
+                );
+                return;
+              }
+            }
           });
         }
+        super.walk(node);
       }
+    };
+    walker.walk(unit);
+  }
 
-      // Validate method declarations
-      const declaredInMethod = new Map<string, vscode.Range>();
+  private static isSameSignature(
+    params1: ParameterInfo[] | undefined,
+    params2: ParameterInfo[] | undefined,
+  ): boolean {
+    const p1 = params1 ?? [];
+    const p2 = params2 ?? [];
+    if (p1.length !== p2.length) return false;
+    for (let i = 0; i < p1.length; i++) {
+      const type1 = p1[i]?.type.toLowerCase() ?? "variant";
+      const type2 = p2[i]?.type.toLowerCase() ?? "variant";
+      if (type1 !== type2) return false;
+    }
+    return true;
+  }
 
-      methodScopeDecls.forEach((v) => {
-        const nameLower = v.name.toLowerCase();
+  private validateMyBaseNewCalls(unit: CompilationUnit, diagnostics: vscode.Diagnostic[]): void {
+    const walker = new class extends ASTWalker {
+      private currentClassName = "";
 
-        // 1. Check duplicate inside the method itself
-        const existingRange = declaredInMethod.get(nameLower);
-        if (existingRange) {
-          createConflictDiag(
-            v.range,
-            `Declaração duplicada: o identificador '${v.name}' já foi declarado neste método.`,
-            {
-              code: DiagnosticCodes.DuplicateDeclaration,
-              name: v.name,
-              scope: "method",
-              conflictingWithName: v.name,
-            },
-          );
+      public override walk(node: Node): void {
+        if (node.kind === "ClassDeclaration") {
+          const prev = this.currentClassName;
+          this.currentClassName = node.name;
+          super.walk(node);
+          this.currentClassName = prev;
           return;
         }
-        declaredInMethod.set(nameLower, v.range);
 
-        // 2. Check conflict with class members (dependent on static/instance context)
-        if (C) {
-          const members = fileSyms.symbols.filter(
-            (s) => s.containerName?.toLowerCase() === C.name.toLowerCase(),
-          );
+        if (node.kind === "MethodDeclaration") {
+          if (node.isConstructor) {
+            let hasMyBaseNew = false;
+            const checkCalls = new class extends ASTWalker {
+              protected override visitMethodInvocation(call: MethodInvocation): void {
+                if (
+                  call.methodName.toLowerCase() === "new" &&
+                  call.callee?.kind === "Identifier" &&
+                  call.callee.name.toLowerCase() === "mybase"
+                ) {
+                  hasMyBaseNew = true;
+                }
+              }
+            };
+            for (const s of node.body) {
+              checkCalls.walk(s);
+            }
 
-          // Shared method only conflicts with Shared members.
-          // Instance method conflicts with BOTH Shared and instance members.
-          const visibleMembers = M.isShared ? members.filter((m) => m.isShared) : members;
-
-          const conflictingMember = visibleMembers.find((m) => m.name.toLowerCase() === nameLower);
-          if (conflictingMember) {
-            createConflictDiag(
-              v.range,
-              `O identificador '${v.name}' conflita com o membro '${conflictingMember.name}' da classe '${C.name}'.`,
-              {
-                code: DiagnosticCodes.DuplicateDeclaration,
-                name: v.name,
-                scope: "class",
-                conflictingWithName: conflictingMember.name,
-              },
-            );
-            return;
-          }
-
-          // 3. Check conflict with enclosing class name itself
-          if (nameLower === C.name.toLowerCase()) {
-            createConflictDiag(
-              v.range,
-              `O identificador '${v.name}' conflita com o nome da classe envolvente '${C.name}'.`,
-              {
-                code: DiagnosticCodes.DuplicateDeclaration,
-                name: v.name,
-                scope: "class",
-                conflictingWithName: C.name,
-              },
-            );
-            return;
+            if (!hasMyBaseNew && node.loc) {
+              const range = new vscode.Range(
+                node.loc.startLine - 1,
+                node.loc.startChar,
+                node.loc.startLine - 1,
+                node.loc.endChar,
+              );
+              const msg =
+                `Construtor 'Sub New' da classe '${this.currentClassName || "desconhecida"}' não chama ` +
+                `'MyBase.New()'. Toda classe Data7 deve inicializar o objeto base no construtor. ` +
+                `Se a classe herda de outra, passe os argumentos necessários: 'MyBase.New(pParam As String)'.`;
+              const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+              diag.code = DiagnosticCodes.MissingMyBaseNew;
+              setDiagnosticPayload(diag, {
+                code: DiagnosticCodes.MissingMyBaseNew,
+                className: this.currentClassName || "",
+              });
+              diagnostics.push(diag);
+            }
           }
         }
-      });
-    });
+        super.walk(node);
+      }
+    };
+    walker.walk(unit);
   }
 
-  /**
-   * Walks the raw source lines looking for `Sub New` constructor declarations
-   * and verifies that each body contains at least one `MyBase.New(` call.
-   *
-   * Uses a lightweight state-machine approach (tracking open/close of Sub/End
-   * Sub blocks) consistent with the rest of the linter. Nested blocks inside
-   * the constructor body (If/For/While/Try …) are handled via a depth counter
-   * so `End Sub` is only matched at depth 0.
-   */
-  private static validateMyBaseNewCalls(
-    lines: readonly string[],
+  private validateMyBaseFreeCalls(
+    unit: CompilationUnit,
+    fileSyms: ReturnType<WorkspaceSymbolIndexer["getFileSymbols"]>,
     diagnostics: vscode.Diagnostic[],
   ): void {
-    // Patterns (case-insensitive):
-    const subNewHeaderRe = /^\s*(?:public\s+|private\s+|protected\s+)*Sub\s+New\s*\(/i;
-    const myBaseNewCallRe = /\bMyBase\s*\.\s*New\s*\(/i;
-    // Keywords that open a new block depth (not Sub — Sub is handled
-    // separately since we detect Sub New explicitly).
-    const blockOpenRe = /^\s*(?:If|For|While|Do|Try|With|Using|Match)\b/i;
-    // Patterns for End <block> that reduce depth but are NOT End Sub.
-    const blockEndRe = /^\s*End\s+(?:If|For|While|Do|Try|With|Using|Match)\b/i;
-    const endSubRe = /^\s*End\s+Sub\b/i;
-    // Detect an enclosing class declaration.
-    const classHeaderRe = /^\s*(?:public\s+|private\s+|protected\s+)*Class\s+([A-Za-z_]\w*)/i;
-    const endClassRe = /^\s*End\s+Class\b/i;
+    if (!fileSyms) return;
 
-    let inConstructor = false;
-    let constructorLine = 0;
-    let constructorDepth = 0; // nesting depth inside the constructor body
-    let hasMyBaseNew = false;
-    let enclosingClass = "";
+    const classes = fileSyms.symbols.filter((s) => s.kind === "class");
 
-    for (let i = 0; i < lines.length; i++) {
-      const rawLine = lines[i] ?? "";
-      const cleanLine = stripCommentsAndStringsLine(rawLine);
-
-      // Track enclosing class name (last seen Class declaration).
-      const classMatch = classHeaderRe.exec(cleanLine);
-      if (classMatch) {
-        enclosingClass = classMatch[1] ?? "";
-        continue;
-      }
-      if (endClassRe.test(cleanLine)) {
-        enclosingClass = "";
-        continue;
-      }
-
-      if (!inConstructor) {
-        // Look for Sub New header.
-        if (subNewHeaderRe.test(cleanLine)) {
-          inConstructor = true;
-          constructorLine = i;
-          constructorDepth = 0;
-          hasMyBaseNew = false;
-        }
-      } else {
-        // We are inside a Sub New body.
-        if (myBaseNewCallRe.test(cleanLine)) {
-          hasMyBaseNew = true;
-        }
-
-        if (endSubRe.test(cleanLine) && constructorDepth === 0) {
-          // Constructor closed.
-          if (!hasMyBaseNew) {
-            const lineText = lines[constructorLine] ?? "";
-            const subIdx = lineText.search(/\bSub\b/i);
-            const startChar = subIdx >= 0 ? subIdx : 0;
-            const endChar = lineText.trimEnd().length;
-            const range = new vscode.Range(constructorLine, startChar, constructorLine, endChar);
-            const msg =
-              `Construtor 'Sub New' da classe '${enclosingClass || "desconhecida"}' não chama ` +
-              `'MyBase.New()'. Toda classe Data7 deve inicializar o objeto base no construtor. ` +
-              `Se a classe herda de outra, passe os argumentos necessários: 'MyBase.New(pParam As String)'.`;
-            const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
-            diag.code = DiagnosticCodes.MissingMyBaseNew;
-            const payload: MissingMyBaseNewPayload = {
-              code: DiagnosticCodes.MissingMyBaseNew,
-              className: enclosingClass || "",
-            };
-            setDiagnosticPayload(diag, payload);
-            diagnostics.push(diag);
+    const walker = new class extends ASTWalker {
+      public override walk(node: Node): void {
+        if (node.kind === "ClassDeclaration") {
+          if (node.baseType?.name.toLowerCase() === "baseenum") {
+            return;
           }
-          inConstructor = false;
-        } else if (endSubRe.test(cleanLine)) {
-          // End Sub closes a nested Sub, reduce depth.
-          constructorDepth = Math.max(0, constructorDepth - 1);
-        } else if (blockOpenRe.test(cleanLine)) {
-          constructorDepth++;
-        } else if (blockEndRe.test(cleanLine)) {
-          constructorDepth = Math.max(0, constructorDepth - 1);
+
+          const freeMethod = node.members.find(
+            (m): m is MethodDeclaration => m.kind === "MethodDeclaration" && m.name.toLowerCase() === "free",
+          );
+
+          if (!freeMethod && node.loc) {
+            const range = new vscode.Range(
+              node.loc.startLine - 1,
+              node.loc.startChar,
+              node.loc.startLine - 1,
+              node.loc.endChar,
+            );
+            const msg = `Classe '${node.name}' não possui o método 'Sub Free()'. Toda classe deve ter 'Sub Free()' para liberação de recursos.`;
+            const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+            diag.code = DiagnosticCodes.MissingMyBaseFree;
+            setDiagnosticPayload(diag, {
+              code: DiagnosticCodes.MissingMyBaseFree,
+              className: node.name,
+            });
+            diagnostics.push(diag);
+          } else if (freeMethod && freeMethod.loc) {
+            let hasMyBaseFree = false;
+            const checkCalls = new class extends ASTWalker {
+              protected override visitMethodInvocation(call: MethodInvocation): void {
+                if (
+                  call.methodName.toLowerCase() === "free" &&
+                  call.callee?.kind === "Identifier" &&
+                  call.callee.name.toLowerCase() === "mybase"
+                ) {
+                  hasMyBaseFree = true;
+                }
+              }
+            };
+            for (const s of freeMethod.body) {
+              checkCalls.walk(s);
+            }
+
+            if (!hasMyBaseFree) {
+              const range = new vscode.Range(
+                freeMethod.loc.startLine - 1,
+                freeMethod.loc.startChar,
+                freeMethod.loc.startLine - 1,
+                freeMethod.loc.endChar,
+              );
+              const msg = `O método 'Sub Free()' da classe '${node.name}' não chama 'MyBase.Free()'.`;
+              const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+              diag.code = DiagnosticCodes.MissingMyBaseFree;
+              setDiagnosticPayload(diag, {
+                code: DiagnosticCodes.MissingMyBaseFree,
+                className: node.name,
+              });
+              diagnostics.push(diag);
+            }
+          }
         }
+        super.walk(node);
       }
-    }
+    };
+    walker.walk(unit);
   }
 
-  /**
-   * Applies cross-cutting concerns to every diagnostic emitted by the linter:
-   *
-   *   1. Drops diagnostics whose line carries a `' data7:disable-line` directive
-   *      (or `' data7:disable-next-line` on the previous line) for the same
-   *      `code`.
-   *   2. Replaces the original severity with the user-configured override from
-   *      `data7.diagnosticSeverity`, when one is set. An `"off"` override drops
-   *      the diagnostic entirely.
-   *
-   * Keeping this as a single post-processing pass avoids sprinkling configuration
-   * lookups across every emit site and keeps the linter's hot loops cheap.
-   */
   private static postProcessDiagnostics(
     diagnostics: readonly vscode.Diagnostic[],
     text: string,
@@ -2809,9 +938,7 @@ export class DiagnosticsLinter {
     const output: vscode.Diagnostic[] = [];
 
     for (const diag of diagnostics) {
-      // `diag.code` may be string | number | { value, target } per the VS Code
-      // API. We only care about its string form for suppression matching.
-      const rawCode: string | number | { value: string | number } | undefined = diag.code;
+      const rawCode = diag.code;
       let codeStr: string;
       if (typeof rawCode === "string") {
         codeStr = rawCode;
@@ -2824,14 +951,12 @@ export class DiagnosticsLinter {
       }
       const lineIdx = diag.range.start.line;
 
-      // 1. Skip diagnostics suppressed by an inline directive.
       const target = suppressions.get(lineIdx);
       if (target === "*" || (target && codeStr && target.has(codeStr))) continue;
 
-      // 2. Apply severity overrides.
       const defaultSeverity = this.DEFAULT_SEVERITY[codeStr] ?? diag.severity;
       const resolved = resolveDiagnosticSeverity(codeStr, defaultSeverity, overrides);
-      if (resolved === undefined) continue; // user disabled this code
+      if (resolved === undefined) continue;
       diag.severity = resolved;
       output.push(diag);
     }
@@ -2840,7 +965,1374 @@ export class DiagnosticsLinter {
   }
 }
 
-/** Compute up to 3 candidate names within edit distance ≤ 2 of `query`. */
+class LocalDeclarationCollector extends ASTWalker {
+  public readonly declarations: { name: string; loc: SourceLocation; isParameter: boolean }[] = [];
+
+  constructor(private readonly methodNode: MethodDeclaration) {
+    super();
+  }
+
+  public collect(): void {
+    for (const p of this.methodNode.parameters) {
+      const loc = p.loc || p.type?.loc;
+      if (loc) {
+        this.declarations.push({ name: p.name, loc: loc, isParameter: true });
+      }
+    }
+    for (const s of this.methodNode.body) {
+      this.walk(s);
+    }
+  }
+
+  public override walk(node: Node): void {
+    if (node.kind === "VariableDeclaration") {
+      if (node.loc) {
+        this.declarations.push({ name: node.name, loc: node.loc, isParameter: false });
+      }
+    } else if (node.kind === "DestructuredVariableDeclaration") {
+      for (const binding of node.bindings) {
+        if (node.loc) {
+          this.declarations.push({ name: binding.name, loc: node.loc, isParameter: false });
+        }
+      }
+    } else if (node.kind === "ForEachStatement") {
+      if (node.elementVar.loc) {
+        this.declarations.push({ name: node.elementVar.name, loc: node.elementVar.loc, isParameter: false });
+      }
+    } else if (node.kind === "UsingStatement") {
+      if (node.resourceVar.loc) {
+        this.declarations.push({ name: node.resourceVar.name, loc: node.resourceVar.loc, isParameter: false });
+      }
+    } else if (node.kind === "TryCatchStatement" && node.catchVar) {
+      if (node.catchVar.loc) {
+        this.declarations.push({ name: node.catchVar.name, loc: node.catchVar.loc, isParameter: false });
+      }
+    }
+    super.walk(node);
+  }
+}
+
+class ASTWordCollector extends ASTWalker {
+  public readonly usedWords = new Set<string>();
+  public readonly qualifiedTypes = new Set<string>();
+
+  protected override visitTypeReference(node: TypeReference): void {
+    if (node.name) {
+      this.qualifiedTypes.add(node.name.toLowerCase());
+      const parts = node.name.toLowerCase().split(".");
+      for (const p of parts) this.usedWords.add(p);
+    }
+  }
+
+  protected override visitMethodInvocation(node: MethodInvocation): void {
+    if (node.methodName) {
+      this.usedWords.add(node.methodName.toLowerCase());
+    }
+  }
+
+  protected override visitOpaqueStatement(node: OpaqueStatement): void {
+    const wordRegex = /[A-Za-z_]\w*/g;
+    let match: RegExpExecArray | null;
+    while ((match = wordRegex.exec(node.text)) !== null) {
+      this.usedWords.add(match[0].toLowerCase());
+    }
+  }
+
+  walk(node: Node): void {
+    if (node.kind === "Identifier" && node.name) {
+      this.usedWords.add(node.name.toLowerCase());
+    }
+    if (node.kind === "MemberAccess" && node.member) {
+      this.usedWords.add(node.member.toLowerCase());
+    }
+    if (node.kind === "MethodInvocation" && node.methodName) {
+      this.usedWords.add(node.methodName.toLowerCase());
+    }
+    super.walk(node);
+  }
+}
+
+class DiagnosticsASTWalker extends ASTWalker {
+  private activeClass: ClassDeclaration | undefined;
+  private activeMethod: MethodDeclaration | undefined;
+  private activeProperty: PropertyDeclaration | undefined;
+
+  private readonly parentStack: Node[] = [];
+  private readonly scopes: Set<string>[] = [new Set()];
+  private readonly allowedTernaries = new Set<TernaryExpression>();
+  private readonly imports: { name: string; loc: SourceLocation }[] = [];
+
+  constructor(
+    private readonly document: vscode.TextDocument,
+    private readonly indexer: WorkspaceSymbolIndexer,
+    private readonly text: string,
+    private readonly lines: readonly string[],
+    private readonly diagnostics: vscode.Diagnostic[],
+  ) {
+    super();
+  }
+
+  public run(unit: CompilationUnit): void {
+    // Phase 1: Collect used words to identify unused imports
+    const wordCollector = new ASTWordCollector();
+    wordCollector.walk(unit);
+
+    // Phase 2: Walk AST for structure diagnostics
+    this.walk(unit);
+
+    // Phase 3: Unused and duplicate imports check
+    const seenImports = new Map<string, SourceLocation>();
+    this.imports.forEach((imp) => {
+      const key = imp.name.toLowerCase();
+      const firstLoc = seenImports.get(key);
+      const range = new vscode.Range(
+        imp.loc.startLine - 1,
+        imp.loc.startChar,
+        imp.loc.endLine - 1,
+        imp.loc.endChar,
+      );
+
+      if (firstLoc !== undefined) {
+        const diag = new vscode.Diagnostic(
+          range,
+          `Imports duplicado: "${imp.name}" já foi declarado na linha ${firstLoc.startLine}.`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.DuplicateImport;
+        setDiagnosticPayload(diag, {
+          code: DiagnosticCodes.UnusedImport,
+          namespace: imp.name,
+        } as UnusedImportPayload);
+        this.diagnostics.push(diag);
+        return;
+      }
+      seenImports.set(key, imp.loc);
+
+      // Check if reference exists
+      let isReferenced = false;
+      if (wordCollector.qualifiedTypes.has(key)) {
+        isReferenced = true;
+      } else {
+        const parts = key.split(".");
+        const lastPart = parts[parts.length - 1];
+        if (lastPart && wordCollector.usedWords.has(lastPart)) {
+          isReferenced = true;
+        }
+      }
+
+      if (!isReferenced) {
+        const symbolsInNamespace = [
+          ...this.indexer.getAllSymbols().filter((s) => s.containerName?.toLowerCase() === key),
+          ...lookupSystemByContainer(imp.name),
+        ];
+        isReferenced = symbolsInNamespace.some((s) => wordCollector.usedWords.has(s.name.toLowerCase()));
+      }
+
+      if (!isReferenced) {
+        const diag = new vscode.Diagnostic(
+          range,
+          `Importação desnecessária ou não utilizada: "${imp.name}".`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.UnusedImport;
+        setDiagnosticPayload(diag, {
+          code: DiagnosticCodes.UnusedImport,
+          namespace: imp.name,
+        } as UnusedImportPayload);
+        this.diagnostics.push(diag);
+      }
+    });
+  }
+
+  private pushScope(): void {
+    this.scopes.push(new Set());
+  }
+
+  private popScope(): void {
+    this.scopes.pop();
+  }
+
+  private addLocal(name: string): void {
+    this.scopes[this.scopes.length - 1]?.add(name.toLowerCase());
+  }
+
+  private isLocalDeclared(name: string): boolean {
+    return this.scopes.some((s) => s.has(name.toLowerCase()));
+  }
+
+  public override walk(node: Node): void {
+    const parent = this.parentStack[this.parentStack.length - 1];
+
+    if (node.kind === "VariableDeclaration" && node.initializer?.kind === "TernaryExpression") {
+      this.allowedTernaries.add(node.initializer);
+    }
+    if (node.kind === "Assignment" && node.value?.kind === "TernaryExpression") {
+      this.allowedTernaries.add(node.value);
+    }
+
+    if (node.kind === "VariableDeclaration" && node.name) {
+      this.addLocal(node.name);
+    }
+
+    const prevClass = this.activeClass;
+    const prevMethod = this.activeMethod;
+    const prevProp = this.activeProperty;
+
+    let pushedScope = false;
+
+    if (node.kind === "ClassDeclaration") {
+      this.activeClass = node;
+    } else if (node.kind === "MethodDeclaration") {
+      this.activeMethod = node;
+      this.pushScope();
+      pushedScope = true;
+      node.parameters.forEach((p) => this.addLocal(p.name));
+    } else if (node.kind === "PropertyDeclaration") {
+      this.activeProperty = node;
+      this.pushScope();
+      pushedScope = true;
+      node.parameters?.forEach((p) => this.addLocal(p.name));
+    } else if (node.kind === "ForStatement") {
+      this.pushScope();
+      pushedScope = true;
+      if (node.counter.name) this.addLocal(node.counter.name);
+    } else if (node.kind === "ForEachStatement") {
+      this.pushScope();
+      pushedScope = true;
+      if (node.elementVar.name) this.addLocal(node.elementVar.name);
+    } else if (node.kind === "UsingStatement") {
+      this.pushScope();
+      pushedScope = true;
+      if (node.resourceVar.name) this.addLocal(node.resourceVar.name);
+    } else if (node.kind === "TryCatchStatement") {
+      if (node.catchVar) {
+        this.pushScope();
+        pushedScope = true;
+        if (node.catchVar.name) this.addLocal(node.catchVar.name);
+      }
+    } else if (node.kind === "Block") {
+      this.pushScope();
+      pushedScope = true;
+    }
+
+    // AST custom checks dispatcher
+    switch (node.kind) {
+      case "MemberAccess":
+        this.checkMemberAccess(node);
+        break;
+      case "ForEachStatement":
+        this.checkForEachStatement(node);
+        break;
+      case "TaggedTemplateExpression":
+        this.checkTaggedTemplateExpression(node);
+        break;
+      case "TernaryExpression":
+        this.checkTernaryExpression(node);
+        break;
+      case "Assignment":
+        this.checkAssignment(node);
+        break;
+      case "VariableDeclaration":
+        this.checkVariableDeclaration(node);
+        break;
+      case "MethodDeclaration":
+        this.checkMethodDeclaration(node);
+        break;
+      case "DelegateDeclaration":
+        this.checkDelegateDeclaration(node);
+        break;
+      case "ExpressionStatement":
+        this.checkExpressionStatement(node);
+        break;
+    }
+
+    // Bare Identifier Unknown Symbol check
+    if (node.kind === "Identifier" && node.name && node.loc) {
+      const name = node.name;
+      const nameLower = name.toLowerCase();
+
+      let shouldSkip = false;
+
+      // Skip keywords and constants
+      if (
+        PRIMITIVE_TYPES.has(nameLower) ||
+        nameLower === "variant" ||
+        nameLower === "tobject" ||
+        nameLower === "void" ||
+        nameLower === "true" ||
+        nameLower === "false" ||
+        nameLower === "null" ||
+        nameLower === "nothing" ||
+        nameLower === "me" ||
+        nameLower === "mybase" ||
+        nameLower === "value" ||
+        nameLower === "addressof"
+      ) {
+        shouldSkip = true;
+      }
+
+      if (parent) {
+        // Skip MemberAccess member, MethodInvocation methodName (already verified, not bare identifier)
+        if (parent.kind === "MemberAccess" && parent.member === name) {
+          shouldSkip = true;
+        }
+        if (parent.kind === "MethodInvocation" && parent.methodName === name) {
+          shouldSkip = true;
+        }
+        // Skip declarations names themselves
+        if (
+          (parent.kind === "ClassDeclaration" && parent.name === name) ||
+          (parent.kind === "MethodDeclaration" && parent.name === name) ||
+          (parent.kind === "DelegateDeclaration" && parent.name === name) ||
+          (parent.kind === "PropertyDeclaration" && parent.name === name) ||
+          (parent.kind === "FieldDeclaration" && parent.name === name) ||
+          (parent.kind === "VariableDeclaration" && parent.name === name) ||
+          (parent.kind === "ParameterDeclaration" && parent.name === name)
+        ) {
+          shouldSkip = true;
+        }
+      }
+
+      if (!shouldSkip) {
+        const isDeclared =
+          this.isLocalDeclared(name) ||
+          (this.activeClass &&
+            (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
+              TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
+                (m) => m.name.toLowerCase() === nameLower,
+              ))) ||
+          this.indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower) ||
+          SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
+
+        if (!isDeclared) {
+          const range = new vscode.Range(node.loc.startLine - 1, node.loc.startChar, node.loc.endLine - 1, node.loc.endChar);
+          const diag = new vscode.Diagnostic(
+            range,
+            `O símbolo "${name}" não foi encontrado no escopo atual.`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.UnknownSymbol;
+          this.diagnostics.push(diag);
+        }
+      }
+    }
+
+    this.parentStack.push(node);
+    super.walk(node);
+    this.parentStack.pop();
+
+    if (pushedScope) {
+      this.popScope();
+    }
+
+    this.activeClass = prevClass;
+    this.activeMethod = prevMethod;
+    this.activeProperty = prevProp;
+  }
+
+  protected override visitImportsDeclaration(node: Node): void {
+    if (node.kind === "ImportsDeclaration" && node.loc) {
+      this.imports.push({ name: node.target, loc: node.loc });
+    }
+  }
+
+  protected override visitTypeReference(node: TypeReference): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const col = node.loc.startChar;
+
+    // Direct validate type reference
+    DiagnosticsLinter.validateTypeReference(node.name, lineIdx, col, this.document, this.indexer, this.diagnostics);
+  }
+
+  protected override visitMethodInvocation(node: MethodInvocation): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const lineText = this.lines[lineIdx] ?? "";
+    const dotIndex = lineText.indexOf(".", node.loc.startChar);
+    const startChar = dotIndex !== -1 ? dotIndex + 1 : node.loc.startChar;
+
+    let parent = this.parentStack[this.parentStack.length - 1];
+    if (parent === node) {
+      parent = this.parentStack[this.parentStack.length - 2];
+    }
+
+    // Check CallParenthesesMismatch & SubUsedAsFunction
+    const arity = node.arguments.length;
+    let resolvedMethod: SymbolInfo | undefined;
+
+    if (node.callee) {
+      const prefixLower = exprToString(node.callee)?.toLowerCase() ?? "";
+      let typeName: string | undefined;
+      if (prefixLower === "me") {
+        typeName = this.activeClass?.name;
+      } else if (prefixLower === "mybase") {
+        typeName = this.activeClass?.baseType?.name ?? "TObject";
+      } else {
+        typeName = TypeResolver.resolveExpressionType(node.callee, this.document, lineIdx, this.indexer);
+      }
+
+      if (typeName) {
+        resolvedMethod = TypeResolver.findMember(typeName, node.methodName, this.indexer, arity);
+
+        // Check UnknownMember for method call
+        if (node.callee && DiagnosticsLinter.isKnownType(typeName, this.indexer)) {
+          const exists = resolvedMethod || TypeResolver.findMember(typeName, node.methodName, this.indexer);
+          if (
+            !exists &&
+            typeName.toLowerCase() !== "variant" &&
+            typeName.toLowerCase() !== "tobject" &&
+            typeName.toLowerCase() !== "void"
+          ) {
+            const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+            const diag = new vscode.Diagnostic(
+              range,
+              `Membro "${node.methodName}" não encontrado na classe/tipo "${typeName}".`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.UnknownMember;
+            attachUnknownMemberSuggestions(
+              diag,
+              node.methodName,
+              DiagnosticsLinter.collectMemberNames(typeName, this.indexer),
+            );
+            this.diagnostics.push(diag);
+          }
+        }
+      }
+    } else {
+      const nameLower = node.methodName.toLowerCase();
+      const fileSyms = this.indexer.getFileSymbols(this.document.uri.toString());
+      const localSym = fileSyms?.symbols.find(
+        (s) =>
+          s.name.toLowerCase() === nameLower &&
+          (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
+      );
+      resolvedMethod =
+        localSym ??
+        SYSTEM_SYMBOLS.find(
+          (s) =>
+            s.name.toLowerCase() === nameLower &&
+            (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
+        ) ??
+        this.indexer.getAllSymbols().find(
+          (s) =>
+            s.name.toLowerCase() === nameLower &&
+            (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
+        );
+    }
+
+    if (resolvedMethod) {
+      const paramCount = resolvedMethod.parameters ? resolvedMethod.parameters.length : 0;
+      const isSub = resolvedMethod.type.toLowerCase() === "void";
+
+      if (node.noParentheses) {
+        let hasMismatch = false;
+        if (isSub) {
+          if (paramCount > 1) hasMismatch = true;
+        } else {
+          if (paramCount >= 1) hasMismatch = true;
+        }
+
+        if (hasMismatch) {
+          const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+          const diag = new vscode.Diagnostic(
+            range,
+            `Chamada do método "${node.methodName}" viola as regras de parênteses. Métodos ${isSub ? "Sub (Void) com mais de 1 parâmetro" : "Function (com retorno) com 1 ou mais parâmetros"} exigem o uso de parênteses.`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.CallParenthesesMismatch;
+          this.diagnostics.push(diag);
+        }
+      }
+
+      if (isSub && parent && parent.kind !== "ExpressionStatement") {
+        const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+        const diag = new vscode.Diagnostic(
+          range,
+          `O método Sub "${node.methodName}" retorna Void e não pode ser usado em uma expressão ou atribuição.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.SubUsedAsFunction;
+        this.diagnostics.push(diag);
+      }
+    }
+  }
+
+  private checkMemberAccess(node: MemberAccess): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const lineText = this.lines[lineIdx] ?? "";
+    const dotIndex = lineText.indexOf(".", node.loc.startChar);
+    const startChar = dotIndex !== -1 ? dotIndex + 1 : node.loc.startChar;
+
+    const prefixLower = exprToString(node.target)?.toLowerCase() ?? "";
+
+    if (prefixLower === "me" || prefixLower === "mybase") {
+      if (this.activeClass) {
+        const typeName = prefixLower === "me" ? this.activeClass.name : (this.activeClass.baseType?.name ?? "TObject");
+        const resolved = TypeResolver.findMember(typeName, node.member, this.indexer);
+
+        if (!resolved && !(node.member.toLowerCase() === "new" && prefixLower === "mybase")) {
+          const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.member.length);
+          const diag = new vscode.Diagnostic(
+            range,
+            `Membro "${node.member}" não encontrado na classe "${this.activeClass.name}".`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.UnknownMember;
+          attachUnknownMemberSuggestions(
+            diag,
+            node.member,
+            DiagnosticsLinter.collectMemberNames(this.activeClass.name, this.indexer),
+          );
+          this.diagnostics.push(diag);
+        } else if (resolved?.isUnsupported) {
+          DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
+            this.diagnostics,
+            lineIdx,
+            startChar,
+            node.member,
+            this.activeClass.name,
+          );
+        }
+      }
+      return;
+    }
+
+    if (prefixLower.startsWith("vcl") || prefixLower.startsWith("system")) {
+      return;
+    }
+
+    let typeName = TypeResolver.resolveExpressionType(node.target, this.document, lineIdx, this.indexer);
+    let isStaticAccess = false;
+
+    if (!typeName && node.target.kind === "Identifier") {
+      const staticSymbol = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
+      if (
+        staticSymbol &&
+        (staticSymbol.kind === "class" ||
+          staticSymbol.kind === "structure" ||
+          staticSymbol.kind === "namespace")
+      ) {
+        typeName = staticSymbol.name;
+        isStaticAccess = staticSymbol.kind === "class" || staticSymbol.kind === "structure";
+      } else {
+        const sysStaticSymbol = lookupSystemByName(node.target.name).find(
+          (s) => s.kind === "namespace" || s.kind === "class" || s.kind === "structure",
+        );
+        if (sysStaticSymbol) {
+          typeName = sysStaticSymbol.name;
+          isStaticAccess = sysStaticSymbol.kind === "class" || sysStaticSymbol.kind === "structure";
+        }
+      }
+    }
+
+    if (typeName && DiagnosticsLinter.isKnownType(typeName, this.indexer)) {
+      const resolved = TypeResolver.findMember(typeName, node.member, this.indexer);
+      if (
+        !resolved &&
+        typeName.toLowerCase() !== "variant" &&
+        typeName.toLowerCase() !== "tobject" &&
+        typeName.toLowerCase() !== "void"
+      ) {
+        const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.member.length);
+        const diag = new vscode.Diagnostic(
+          range,
+          `Membro "${node.member}" não encontrado na classe/tipo "${typeName}".`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.UnknownMember;
+        attachUnknownMemberSuggestions(
+          diag,
+          node.member,
+          DiagnosticsLinter.collectMemberNames(typeName, this.indexer),
+        );
+        this.diagnostics.push(diag);
+      } else if (resolved?.isUnsupported) {
+        DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
+          this.diagnostics,
+          lineIdx,
+          startChar,
+          node.member,
+          typeName,
+        );
+      } else if (
+        resolved &&
+        isStaticAccess &&
+        !resolved.isShared &&
+        resolved.kind !== "class" &&
+        resolved.kind !== "structure" &&
+        resolved.kind !== "delegate"
+      ) {
+        const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.member.length);
+        const diag = new vscode.Diagnostic(
+          range,
+          `Acesso a membro de instância "${node.member}" diretamente no tipo "${typeName}".`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.InstanceMemberAccessOnType;
+        this.diagnostics.push(diag);
+      } else if (resolved?.isPrivate || resolved?.isProtected) {
+        let hasAccess = false;
+        if (this.activeClass && resolved.containerName) {
+          const ownerLower = resolved.containerName.toLowerCase();
+          const enclosingLower = this.activeClass.name.toLowerCase();
+          if (ownerLower === enclosingLower) {
+            hasAccess = true;
+          } else if (resolved.isProtected) {
+            if (inheritsFromClass(this.activeClass.name, resolved.containerName, this.indexer)) {
+              hasAccess = true;
+            }
+          }
+        }
+        if (!hasAccess) {
+          const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.member.length);
+          const diag = new vscode.Diagnostic(
+            range,
+            resolved.isPrivate
+              ? `O membro "${node.member}" de "${typeName}" é Private e não pode ser acessado fora da classe.`
+              : `O membro "${node.member}" de "${typeName}" é Protected e só pode ser acessado na classe declarante ou suas subclasses.`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.PrivateMemberAccess;
+          this.diagnostics.push(diag);
+        }
+      }
+    }
+  }
+
+  private checkForEachStatement(node: ForEachStatement): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+
+    const enumerableType = TypeResolver.resolveExpressionType(node.enumerable, this.document, lineIdx, this.indexer);
+    const explicitType = node.elementType ? typeRefToString(node.elementType) : undefined;
+
+    const enumerable = enumerableType
+      ? detectEnumerable(
+          enumerableType,
+          (t) => TypeResolver.getAllMembersForType(t, this.indexer),
+          explicitType,
+        )
+      : undefined;
+
+    if (!enumerable) {
+      const typeName = enumerableType ?? "Variant";
+      const startChar = node.enumerable.loc ? node.enumerable.loc.startChar : 0;
+      const endChar = node.enumerable.loc ? node.enumerable.loc.endChar : 0;
+      const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+
+      const diag = new vscode.Diagnostic(
+        range,
+        `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
+          `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.NotEnumerable;
+      const payload: NotEnumerablePayload = {
+        code: DiagnosticCodes.NotEnumerable,
+        typeName,
+      };
+      setDiagnosticPayload(diag, payload);
+      this.diagnostics.push(diag);
+    }
+  }
+
+  private checkTaggedTemplateExpression(node: TaggedTemplateExpression): void {
+    if (!node.loc || node.tag !== "") return;
+    const lineIdx = node.loc.startLine - 1;
+
+    const result = parseInterpolation(node.body);
+    for (const d of result.diagnostics) {
+      const absCol = node.loc.startChar + d.column;
+      const range = new vscode.Range(lineIdx, absCol, lineIdx, node.loc.endChar);
+      const diag = new vscode.Diagnostic(
+        range,
+        `String interpolada \`$"..."\` mal formada (${d.reason}). O Builder não conseguirá expandir esta linha.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.InvalidInterpolation;
+      const payload: InvalidInterpolationPayload = {
+        code: DiagnosticCodes.InvalidInterpolation,
+        reason: d.reason,
+      };
+      setDiagnosticPayload(diag, payload);
+      this.diagnostics.push(diag);
+    }
+  }
+
+  private checkTernaryExpression(node: TernaryExpression): void {
+    if (!node.loc) return;
+    if (this.allowedTernaries.has(node)) return;
+
+    const lineIdx = node.loc.startLine - 1;
+    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+
+    const diag = new vscode.Diagnostic(
+      range,
+      `Ternário \`?:\` fora de contexto de assignment. O Builder só expande ternários em \`Dim x = c ? a : b\`, \`x = c ? a : b\` ou \`obj.prop = c ? a : b\` (forma nativa é \`If/Then/Else/End If\`).`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.TernaryContextUnsupported;
+    const payload: TernaryContextUnsupportedPayload = {
+      code: DiagnosticCodes.TernaryContextUnsupported,
+      context: "non-assignment",
+    };
+    setDiagnosticPayload(diag, payload);
+    this.diagnostics.push(diag);
+  }
+
+  private checkAssignment(node: Assignment): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+
+    // Event signature mismatch
+    if (node.target.kind === "MemberAccess" && node.target.member.toLowerCase().startsWith("on")) {
+      const eventName = node.target.member;
+      const targetType = TypeResolver.resolveExpressionType(node.target.target, this.document, lineIdx, this.indexer);
+
+      if (targetType) {
+        const eventMember = TypeResolver.findMember(targetType, eventName, this.indexer);
+        if (eventMember?.kind === "property") {
+          const delegateName = eventMember.type;
+          const delegate =
+            lookupSystemByName(delegateName).find((s) => s.kind === "delegate") ??
+            this.indexer.findSymbolByName(delegateName);
+
+          if (delegate?.kind === "delegate" && delegate.parameters) {
+            // Check if AddressOf handler is assigned
+            if (
+              node.value.kind === "MethodInvocation" &&
+              node.value.methodName.toLowerCase() === "addressof" &&
+              node.value.arguments.length === 1
+            ) {
+              const handlerArg = node.value.arguments[0];
+              let handlerName = "";
+              if (handlerArg?.kind === "Identifier") {
+                handlerName = handlerArg.name;
+              } else if (handlerArg?.kind === "MemberAccess") {
+                handlerName = handlerArg.member;
+              }
+
+              if (handlerName) {
+                const handler = this.indexer.findSymbolByName(handlerName);
+                if (
+                  handler &&
+                  (handler.kind === "method" ||
+                    handler.kind === "declare_sub" ||
+                    handler.kind === "declare_function")
+                ) {
+                  const handlerParams = handler.parameters ?? [];
+                  if (handlerParams.length !== delegate.parameters.length) {
+                    const startChar = node.value.loc ? node.value.loc.startChar : node.loc.startChar;
+                    const endChar = node.value.loc ? node.value.loc.endChar : node.loc.endChar;
+                    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+                    const diag = new vscode.Diagnostic(
+                      range,
+                      `Assinatura incompatível: o evento "${eventName}" espera ${delegate.parameters.length} parâmetro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
+                      vscode.DiagnosticSeverity.Error,
+                    );
+                    diag.code = DiagnosticCodes.EventSignatureMismatch;
+                    this.diagnostics.push(diag);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Type compatibility and ReadOnly assignment target checking
+    const lhsType = TypeResolver.resolveExpressionType(node.target, this.document, lineIdx, this.indexer);
+    const rhsType = TypeResolver.resolveExpressionType(node.value, this.document, lineIdx, this.indexer);
+
+    let resolvedLhs: SymbolInfo | undefined;
+    if (node.target.kind === "Identifier") {
+      resolvedLhs = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
+    } else if (node.target.kind === "MemberAccess") {
+      const type = TypeResolver.resolveExpressionType(node.target.target, this.document, lineIdx, this.indexer);
+      if (type) {
+        resolvedLhs = TypeResolver.findMember(type, node.target.member, this.indexer);
+      }
+    }
+
+    if (resolvedLhs) {
+      if (resolvedLhs.isConst || resolvedLhs.isReadOnly) {
+        let isAllowed = false;
+        if (resolvedLhs.isReadOnly && this.activeClass && this.activeMethod?.name.toLowerCase() === "new") {
+          const declaringClass = resolvedLhs.containerName?.toLowerCase();
+          if (declaringClass === this.activeClass.name.toLowerCase()) {
+            isAllowed = true;
+          }
+        }
+        if (!isAllowed) {
+          const range = new vscode.Range(lineIdx, node.target.loc?.startChar ?? 0, lineIdx, node.target.loc?.endChar ?? 0);
+          const diag = new vscode.Diagnostic(
+            range,
+            resolvedLhs.isConst
+              ? `Tentativa de atribuir valor à constante "${resolvedLhs.name}".`
+              : `Tentativa de atribuir valor ao campo ReadOnly "${resolvedLhs.name}" fora do construtor.`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.ReadOnlyAssignment;
+          this.diagnostics.push(diag);
+        }
+      }
+
+      // Check method/sub invalid assignment target
+      const isMethod =
+        resolvedLhs.kind === "method" ||
+        resolvedLhs.kind === "declare_function" ||
+        resolvedLhs.kind === "declare_sub";
+      if (isMethod) {
+        const isCurrentFunction =
+          resolvedLhs.name.toLowerCase() === this.activeMethod?.name.toLowerCase() ||
+          resolvedLhs.name.toLowerCase() === this.activeProperty?.name.toLowerCase();
+        const isSub = resolvedLhs.type.toLowerCase() === "void";
+
+        if (!isCurrentFunction || isSub) {
+          const range = new vscode.Range(lineIdx, node.target.loc?.startChar ?? 0, lineIdx, node.target.loc?.endChar ?? 0);
+          const diag = new vscode.Diagnostic(
+            range,
+            `Tentativa de atribuir valor a um símbolo inválido (nome de outro método/função "${resolvedLhs.name}").`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = DiagnosticCodes.InvalidAssignmentTarget;
+          this.diagnostics.push(diag);
+        }
+      }
+    }
+
+    if (lhsType && rhsType && rhsType.toLowerCase() !== "void" && lhsType.toLowerCase() !== "void") {
+      if (!DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, this.indexer)) {
+        const range = new vscode.Range(lineIdx, node.value.loc?.startChar ?? 0, lineIdx, node.value.loc?.endChar ?? 0);
+        const diag = new vscode.Diagnostic(
+          range,
+          `Incompatibilidade de tipos: não é possível atribuir "${rhsType}" para "${lhsType}".`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.TypeMismatch;
+        this.diagnostics.push(diag);
+      }
+    }
+  }
+
+  private checkVariableDeclaration(node: VariableDeclaration): void {
+    if (!node.loc || !node.type || !node.initializer) return;
+    const lineIdx = node.loc.startLine - 1;
+
+    const lhsType = typeRefToString(node.type);
+    const rhsType = TypeResolver.resolveExpressionType(node.initializer, this.document, lineIdx, this.indexer);
+
+    if (lhsType && rhsType && rhsType.toLowerCase() !== "void") {
+      if (!DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, this.indexer)) {
+        const range = new vscode.Range(
+          lineIdx,
+          node.initializer.loc?.startChar ?? 0,
+          lineIdx,
+          node.initializer.loc?.endChar ?? 0,
+        );
+        const diag = new vscode.Diagnostic(
+          range,
+          `Incompatibilidade de tipos: não é possível atribuir "${rhsType}" para "${lhsType}".`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.TypeMismatch;
+        this.diagnostics.push(diag);
+      }
+    }
+  }
+
+  private checkMethodDeclaration(node: MethodDeclaration): void {
+    // Check FunctionReadSelf in method bodies
+    const isFunction = node.returnType && typeRefToString(node.returnType)?.toLowerCase() !== "void";
+    if (isFunction) {
+      const funcName = node.name.toLowerCase();
+      const checkSelfRead = new class extends ASTWalker {
+        constructor(private readonly diags: vscode.Diagnostic[]) {
+          super();
+        }
+        public override walk(idNode: Node): void {
+          if (idNode.kind === "Identifier" && idNode.name.toLowerCase() === funcName && idNode.loc) {
+            // Check if this identifier is part of a Call/MethodInvocation or on the LHS of assignment
+            const p = this.parentStack[this.parentStack.length - 1];
+            let isPlainAssignment = false;
+            if (p && p.kind === "Assignment" && p.target === idNode) {
+              isPlainAssignment = true;
+            }
+            let isCall = false;
+            if (p && p.kind === "MethodInvocation" && p.methodName.toLowerCase() === funcName) {
+              isCall = true;
+            }
+
+            if (!isPlainAssignment && !isCall) {
+              const lineIdx = idNode.loc.startLine - 1;
+              const range = new vscode.Range(lineIdx, idNode.loc.startChar, lineIdx, idNode.loc.endChar);
+              const diag = new vscode.Diagnostic(
+                range,
+                `Leitura do nome da função "${idNode.name}" dentro de seu próprio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
+                vscode.DiagnosticSeverity.Error,
+              );
+              diag.code = DiagnosticCodes.FunctionReadSelf;
+              this.diags.push(diag);
+            }
+          }
+          this.parentStack.push(idNode);
+          super.walk(idNode);
+          this.parentStack.pop();
+        }
+        private parentStack: Node[] = [];
+      }(this.diagnostics);
+      checkSelfRead.walk(node);
+    }
+
+    // Run the AST-based Flow Analysis on method bodies
+    if (node.body.length > 0) {
+      const flowAnalyzer = new ASTFlowAnalyzer(node, this.lines, this.diagnostics);
+      flowAnalyzer.run();
+    }
+
+    // DeclarationParenthesesMismatch checking
+    if (node.noParentheses && node.parameters.length === 0 && node.loc) {
+      const nameLower = node.name.toLowerCase();
+      if (nameLower !== "get" && nameLower !== "set") {
+        const range = new vscode.Range(
+          node.loc.startLine - 1,
+          node.loc.startChar,
+          node.loc.startLine - 1,
+          node.loc.endChar,
+        );
+        const diag = new vscode.Diagnostic(
+          range,
+          `A declaração do método/função "${node.name}" não possui parênteses. Recomenda-se o uso de parênteses "()" para seguir o padrão da linguagem.`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.DeclarationParenthesesMismatch;
+        this.diagnostics.push(diag);
+      }
+    }
+  }
+
+  private checkDelegateDeclaration(node: DelegateDeclaration): void {
+    if (node.noParentheses && node.parameters.length === 0 && node.loc) {
+      const range = new vscode.Range(
+        node.loc.startLine - 1,
+        node.loc.startChar,
+        node.loc.startLine - 1,
+        node.loc.endChar,
+      );
+      const diag = new vscode.Diagnostic(
+        range,
+        `A declaração do método/função "${node.name}" não possui parênteses. Recomenda-se o uso de parênteses "()" para seguir o padrão da linguagem.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.DeclarationParenthesesMismatch;
+      this.diagnostics.push(diag);
+    }
+  }
+
+  private checkExpressionStatement(node: ExpressionStatement): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+
+    // Loose Type Statement
+    const expr = node.expression;
+    let isLooseType = false;
+    let typeName = "";
+    if (expr.kind === "Identifier") {
+      if (PRIMITIVE_TYPES.has(expr.name.toLowerCase()) || DiagnosticsLinter.isKnownType(expr.name, this.indexer)) {
+        isLooseType = true;
+        typeName = expr.name;
+      }
+    } else if (expr.kind === "MemberAccess") {
+      const fullPath = exprToString(expr);
+      if (fullPath && DiagnosticsLinter.isKnownType(fullPath, this.indexer)) {
+        isLooseType = true;
+        typeName = fullPath;
+      }
+    }
+
+    if (isLooseType) {
+      const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+      const diag = new vscode.Diagnostic(
+        range,
+        `Nome de tipo avulso "${typeName}" não é permitido como instrução standalone.`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.LooseTypeStatement;
+      this.diagnostics.push(diag);
+    } else if (node.expression.kind === "MemberAccess") {
+      const target = node.expression.target;
+      if (target.kind === "Identifier" && PRIMITIVE_TYPES.has(target.name.toLowerCase())) {
+        const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+        const diag = new vscode.Diagnostic(
+          range,
+          `O tipo primitivo "${target.name}" não possui membros estáticos acessíveis. Acesso ".${node.expression.member}" é inválido.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.LooseTypeStatement;
+        this.diagnostics.push(diag);
+      }
+    } else if (node.expression.kind === "MethodInvocation" && node.expression.callee?.kind === "Identifier") {
+      const calleeName = node.expression.callee.name;
+      if (PRIMITIVE_TYPES.has(calleeName.toLowerCase())) {
+        const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+        const diag = new vscode.Diagnostic(
+          range,
+          `O tipo primitivo "${calleeName}" não possui membros estáticos acessíveis. Acesso ".${node.expression.methodName}" é inválido.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.LooseTypeStatement;
+        this.diagnostics.push(diag);
+      }
+    }
+  }
+}
+
+interface FlowState {
+  reachable: boolean;
+  retValSet: boolean;
+}
+
+class ASTFlowAnalyzer {
+  private readonly isFunction: boolean;
+  private readonly reachableNodes = new Set<Node>();
+  private hasMissingReturnPath = false;
+
+  constructor(
+    private readonly methodNode: MethodDeclaration,
+    private readonly lines: readonly string[],
+    private readonly diagnostics: vscode.Diagnostic[],
+  ) {
+    this.isFunction = methodNode.returnType !== undefined && typeRefToString(methodNode.returnType)?.toLowerCase() !== "void";
+  }
+
+  public run(): void {
+    const initialState: FlowState = { reachable: true, retValSet: false };
+    this.checkStatements(this.methodNode.body, initialState);
+
+    // After analysis, check for unreachable statements and missing return paths
+    const checkUnreachable = new class extends ASTWalker {
+      constructor(private readonly analyzer: ASTFlowAnalyzer) {
+        super();
+      }
+
+      public override walk(node: Node): void {
+        const isStatement =
+          node.kind === "ExpressionStatement" ||
+          node.kind === "Assignment" ||
+          node.kind === "VariableDeclaration" ||
+          node.kind === "OpaqueStatement" ||
+          node.kind === "IfStatement" ||
+          node.kind === "ForStatement" ||
+          node.kind === "ForEachStatement" ||
+          node.kind === "WhileStatement" ||
+          node.kind === "TryCatchStatement" ||
+          node.kind === "UsingStatement" ||
+          node.kind === "MatchStatement" ||
+          node.kind === "ReturnStatement" ||
+          node.kind === "ExitStatement" ||
+          node.kind === "ThrowStatement" ||
+          node.kind === "Block" ||
+          node.kind === "WithStatement" ||
+          node.kind === "SelectCaseStatement";
+
+        if (isStatement && !this.analyzer.reachableNodes.has(node) && node.loc) {
+          const lineIdx = node.loc.startLine - 1;
+          const rawLine = this.analyzer.lines[lineIdx] ?? "";
+          const start = rawLine.length - rawLine.trimStart().length;
+          const end = rawLine.trimEnd().length;
+          const range = new vscode.Range(lineIdx, start, lineIdx, end);
+
+          const diag = new vscode.Diagnostic(
+            range,
+            `Código inalcançável detectado (dead-code).`,
+            vscode.DiagnosticSeverity.Warning,
+          );
+          diag.code = DiagnosticCodes.DeadCode;
+          diag.tags = [vscode.DiagnosticTag.Unnecessary];
+          this.analyzer.diagnostics.push(diag);
+          // Stop walking children since the parent is already marked dead code
+          return;
+        }
+
+        super.walk(node);
+      }
+    }(this);
+
+    for (const stmt of this.methodNode.body) {
+      checkUnreachable.walk(stmt);
+    }
+
+    if (this.isFunction && this.hasMissingReturnPath && this.methodNode.loc) {
+      const startLine = this.methodNode.loc.startLine - 1;
+      const rawLine = this.lines[startLine] ?? "";
+      const funcIdx = rawLine.search(/\bFunction\b/i);
+      const start = funcIdx >= 0 ? funcIdx : 0;
+      const end = rawLine.trimEnd().length;
+      const range = new vscode.Range(startLine, start, startLine, end);
+
+      const diag = new vscode.Diagnostic(
+        range,
+        `O método Function "${this.methodNode.name}" pode retornar sem definir um valor de retorno explícito em todas as ramificações de fluxo de controle.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.MissingReturnValue;
+      this.diagnostics.push(diag);
+    }
+  }
+
+  private checkStatements(stmts: Statement[], state: FlowState): FlowState {
+    let currState = { ...state };
+    for (const stmt of stmts) {
+      if (!currState.reachable) {
+        continue;
+      }
+      this.reachableNodes.add(stmt);
+      currState = this.checkStatement(stmt, currState);
+    }
+    return currState;
+  }
+
+  private checkStatement(stmt: Statement, state: FlowState): FlowState {
+    switch (stmt.kind) {
+      case "ReturnStatement": {
+        return { reachable: false, retValSet: true };
+      }
+      case "ThrowStatement": {
+        return { reachable: false, retValSet: true };
+      }
+      case "ExitStatement": {
+        if (stmt.target === "Sub" || stmt.target === "Function" || stmt.target === "Property") {
+          if (this.isFunction && !state.retValSet) {
+            this.hasMissingReturnPath = true;
+          }
+          return { reachable: false, retValSet: state.retValSet };
+        }
+        return state;
+      }
+      case "Assignment": {
+        const isRetAssign = this.isAssignmentToReturnValue(stmt);
+        return { reachable: true, retValSet: state.retValSet || isRetAssign };
+      }
+      case "Block": {
+        return this.checkStatements(stmt.statements, state);
+      }
+      case "WithStatement":
+      case "UsingStatement": {
+        return this.checkStatements(stmt.body, state);
+      }
+      case "IfStatement": {
+        const staticCond = this.evaluateStaticCondition(stmt.condition);
+
+        interface BranchInfo {
+          condition?: Expression;
+          body: Statement[];
+        }
+
+        const branches: BranchInfo[] = [{ condition: stmt.condition, body: stmt.thenBranch }];
+        stmt.elseIfBranches.forEach((b) => branches.push({ condition: b.condition, body: b.body }));
+        if (stmt.elseBranch) {
+          branches.push({ body: stmt.elseBranch });
+        }
+
+        let hasStaticallyTrueBranch = false;
+        let allPrecedingStaticallyFalse = true;
+
+        const branchStates: FlowState[] = [];
+        let hasElseCovered = false;
+
+        for (const branch of branches) {
+          let isBranchReachable = false;
+
+          if (hasStaticallyTrueBranch) {
+            isBranchReachable = false;
+          } else if (branch.condition) {
+            const condVal = this.evaluateStaticCondition(branch.condition);
+            if (condVal === true) {
+              if (allPrecedingStaticallyFalse) {
+                isBranchReachable = true;
+                hasStaticallyTrueBranch = true;
+                hasElseCovered = true; // behaves as else since condition is static true
+              }
+            } else if (condVal === false) {
+              isBranchReachable = false;
+            } else {
+              if (allPrecedingStaticallyFalse) {
+                isBranchReachable = true;
+              }
+              allPrecedingStaticallyFalse = false;
+            }
+          } else {
+            // Unconditional Else branch
+            if (allPrecedingStaticallyFalse) {
+              isBranchReachable = true;
+              hasElseCovered = true;
+            }
+          }
+
+          if (isBranchReachable) {
+            const bState = this.checkStatements(branch.body, state);
+            branchStates.push(bState);
+          } else {
+            // Collect dead code in unreachable branch
+            const checkUnreachableInBranch = new class extends ASTWalker {
+              constructor(private readonly analyzer: ASTFlowAnalyzer) {
+                super();
+              }
+              public override walk(node: Node): void {
+                if (node.loc) {
+                  const lineIdx = node.loc.startLine - 1;
+                  const rawLine = this.analyzer.lines[lineIdx] ?? "";
+                  const start = rawLine.length - rawLine.trimStart().length;
+                  const end = rawLine.trimEnd().length;
+                  const range = new vscode.Range(lineIdx, start, lineIdx, end);
+
+                  const diag = new vscode.Diagnostic(
+                    range,
+                    `Código inalcançável detectado (dead-code).`,
+                    vscode.DiagnosticSeverity.Warning,
+                  );
+                  diag.code = DiagnosticCodes.DeadCode;
+                  diag.tags = [vscode.DiagnosticTag.Unnecessary];
+                  this.analyzer.diagnostics.push(diag);
+                  return;
+                }
+                super.walk(node);
+              }
+            }(this);
+            branch.body.forEach((s) => checkUnreachableInBranch.walk(s));
+          }
+        }
+
+        if (branchStates.length === 0) {
+          return state;
+        }
+
+        const reachableAfter = branchStates.some((s) => s.reachable) || !hasElseCovered;
+        const retValSetAfter = hasElseCovered
+          ? branchStates.every((s) => s.retValSet)
+          : state.retValSet && branchStates.every((s) => s.retValSet);
+
+        // If paths run out and we return to outer scope with missing return, notify
+        if (!reachableAfter && this.isFunction) {
+          const terminatesWithMissing = branchStates.some((s) => !s.retValSet && !s.reachable);
+          if (terminatesWithMissing) {
+            this.hasMissingReturnPath = true;
+          }
+        }
+
+        return { reachable: reachableAfter, retValSet: retValSetAfter };
+      }
+      case "SelectCaseStatement": {
+        const caseStates: FlowState[] = [];
+        let hasCaseElse = false;
+
+        stmt.cases.forEach((c) => {
+          if (c.isElse) hasCaseElse = true;
+          const cState = this.checkStatements(c.body, state);
+          caseStates.push(cState);
+        });
+
+        if (caseStates.length === 0) {
+          return state;
+        }
+
+        const reachableAfter = caseStates.some((s) => s.reachable) || !hasCaseElse;
+        const retValSetAfter = hasCaseElse
+          ? caseStates.every((s) => s.retValSet)
+          : state.retValSet && caseStates.every((s) => s.retValSet);
+
+        return { reachable: reachableAfter, retValSet: retValSetAfter };
+      }
+      case "ForStatement":
+      case "ForEachStatement":
+      case "WhileStatement": {
+        // Body executes 0 or more times, analyze it conservatively
+        this.checkStatements(stmt.body, state);
+        return state;
+      }
+      case "TryCatchStatement": {
+        const tryState = this.checkStatements(stmt.tryBody, state);
+        const catchState = this.checkStatements(stmt.catchBody, state);
+
+        if (stmt.finallyBody) {
+          const incomingFinallyState = {
+            reachable: tryState.reachable || catchState.reachable,
+            retValSet: tryState.retValSet && catchState.retValSet,
+          };
+          return this.checkStatements(stmt.finallyBody, incomingFinallyState);
+        }
+
+        return {
+          reachable: tryState.reachable || catchState.reachable,
+          retValSet: tryState.retValSet && catchState.retValSet,
+        };
+      }
+      default: {
+        return state;
+      }
+    }
+  }
+
+  private isAssignmentToReturnValue(node: Assignment): boolean {
+    const target = node.target;
+    if (target.kind === "Identifier") {
+      return target.name.toLowerCase() === this.methodNode.name.toLowerCase();
+    }
+    if (target.kind === "MemberAccess") {
+      if (
+        target.member.toLowerCase() === this.methodNode.name.toLowerCase() &&
+        target.target.kind === "Identifier" &&
+        target.target.name.toLowerCase() === "me"
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private evaluateStaticCondition(expr: Expression): boolean | undefined {
+    if (expr.kind === "Literal") {
+      if (expr.value === true) return true;
+      if (expr.value === false) return false;
+      const strVal = String(expr.value).toLowerCase();
+      if (strVal === "true") return true;
+      if (strVal === "false") return false;
+    }
+    if (expr.kind === "BinaryExpression") {
+      const op = expr.operator;
+      if (op === "=") {
+        if (expr.left.kind === "Literal" && expr.right.kind === "Literal") {
+          return expr.left.value === expr.right.value;
+        }
+      }
+    }
+    return undefined;
+  }
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const prev = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let curr = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      const next = Math.min(curr + 1, (prev[j] ?? 0) + 1, (prev[j - 1] ?? 0) + cost);
+      prev[j - 1] = curr;
+      curr = next;
+    }
+    prev[b.length] = curr;
+  }
+  return prev[b.length] ?? 0;
+}
+
 function findClosest(query: string, candidates: readonly string[]): string[] {
   const q = query.toLowerCase();
   const ranked: { name: string; dist: number }[] = [];
@@ -2867,11 +2359,24 @@ function attachUnknownMemberSuggestions(
   setDiagnosticPayload(diag, payload);
 }
 
-/**
- * Maps a {@link GenericsPassWarning}'s `code` to the corresponding
- * `DiagnosticCodes` literal so the rest of the linter / Problems panel
- * sees the canonical kebab-case identifier.
- */
+function inheritsFromClass(
+  subClassName: string,
+  baseClassName: string,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  let current = subClassName.toLowerCase();
+  const target = baseClassName.toLowerCase();
+  const visited = new Set<string>();
+  while (current && current !== target && !visited.has(current)) {
+    visited.add(current);
+    const cls = TypeResolver.findClassSymbol(current, indexer);
+    if (!cls) break;
+    const parent = TypeResolver.resolveParent(cls);
+    current = parent ? parent.toLowerCase() : "";
+  }
+  return current === target;
+}
+
 function mapGenericWarningToDiagnosticCode(code: GenericsPassWarning["code"]): string {
   switch (code) {
     case "unknown-template":
@@ -2889,12 +2394,6 @@ function mapGenericWarningToDiagnosticCode(code: GenericsPassWarning["code"]): s
   }
 }
 
-/**
- * Computes the editor range for a generics warning. When the warning
- * carries source coordinates, we point at the offending token (template
- * name + `<...>` span when feasible); otherwise we fall back to the
- * first line so the Problems panel still surfaces the message.
- */
 function computeGenericWarningRange(
   warning: GenericsPassWarning,
   lines: readonly string[],
@@ -2902,9 +2401,6 @@ function computeGenericWarningRange(
   const line = warning.line ?? 0;
   const col = warning.column ?? 0;
   const lineText = lines[line] ?? "";
-  // The warning column points at the start of the base identifier. We
-  // extend the range to cover the `<...>` span when one is present on
-  // the same line so the squiggle aligns visually with the user input.
   const lt = lineText.indexOf("<", col);
   const gt = lt >= 0 ? lineText.indexOf(">", lt) : -1;
   const endCol = gt >= 0 ? gt + 1 : Math.max(col + 1, lineText.length);
@@ -2983,156 +2479,24 @@ function attachGenericWarningPayload(diag: vscode.Diagnostic, warning: GenericsP
   }
 }
 
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  // Indexed access into `prev` is always within bounds (`prev.length = b.length + 1`).
-  // `?? 0` keeps `noUncheckedIndexedAccess` quiet without changing runtime semantics.
-  const prev = new Array<number>(b.length + 1);
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    let curr = i;
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      const next = Math.min(curr + 1, (prev[j] ?? 0) + 1, (prev[j - 1] ?? 0) + cost);
-      prev[j - 1] = curr;
-      curr = next;
-    }
-    prev[b.length] = curr;
-  }
-  return prev[b.length] ?? 0;
+function typeRefToString(typeRef: TypeReference | undefined): string | undefined {
+  if (!typeRef?.name) return undefined;
+  if (typeRef.typeArguments.length === 0) return typeRef.name;
+  return `${typeRef.name}<${typeRef.typeArguments
+    .map((arg) => typeRefToString(arg) ?? "")
+    .join(", ")}>`;
 }
 
-function inheritsFromClass(
-  subClassName: string,
-  baseClassName: string,
-  indexer: WorkspaceSymbolIndexer,
-): boolean {
-  let current = subClassName.toLowerCase();
-  const target = baseClassName.toLowerCase();
-  const visited = new Set<string>();
-  while (current && current !== target && !visited.has(current)) {
-    visited.add(current);
-    const cls = TypeResolver.findClassSymbol(current, indexer);
-    if (!cls) break;
-    const parent = TypeResolver.resolveParent(cls);
-    current = parent ? parent.toLowerCase() : "";
+function exprToString(expr: Expression | undefined): string | undefined {
+  if (!expr) return undefined;
+  if (expr.kind === "Identifier") return expr.name;
+  if (expr.kind === "MemberAccess") {
+    const targetStr = exprToString(expr.target);
+    return targetStr ? `${targetStr}.${expr.member}` : expr.member;
   }
-  return current === target;
-}
-
-interface TernaryPositions {
-  readonly questionAt: number;
-  readonly colonAt: number;
-}
-
-function findTopLevelTernary(line: string): TernaryPositions | null {
-  let depth = 0;
-  let questionAt = -1;
-  let pendingNestedQuestions = 0;
-
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-
-    if (c === '"' || (c === "$" && line[i + 1] === '"')) {
-      i = skipStringLiteralForTernary(line, c === "$" ? i + 1 : i);
-      continue;
-    }
-
-    if (c === "'") return questionAt !== -1 ? null : null;
-
-    if (c === "(" || c === "[") {
-      depth++;
-      continue;
-    }
-    if (c === ")" || c === "]") {
-      depth--;
-      continue;
-    }
-
-    if (depth !== 0) continue;
-
-    if (c === "?") {
-      if (questionAt === -1) {
-        questionAt = i;
-      } else {
-        pendingNestedQuestions++;
-      }
-      continue;
-    }
-    if (c === ":" && questionAt !== -1) {
-      if (pendingNestedQuestions > 0) {
-        pendingNestedQuestions--;
-        continue;
-      }
-      return { questionAt, colonAt: i };
-    }
+  if (expr.kind === "MethodInvocation") {
+    const calleeStr = exprToString(expr.callee);
+    return calleeStr ? `${calleeStr}.${expr.methodName}` : expr.methodName;
   }
-
-  return null;
-}
-
-function skipStringLiteralForTernary(line: string, openQuoteIdx: number): number {
-  let i = openQuoteIdx + 1;
-  while (i < line.length) {
-    const c = line[i];
-    if (c === '"') {
-      if (line[i + 1] === '"') {
-        i += 2;
-        continue;
-      }
-      return i;
-    }
-    i++;
-  }
-  return line.length - 1;
-}
-
-function stripCommentsAndStringsLine(line: string): string {
-  const trimmed = line.trimStart().toLowerCase();
-  if (
-    trimmed.startsWith("'") ||
-    trimmed === "rem" ||
-    trimmed.startsWith("rem ") ||
-    trimmed.startsWith("rem\t")
-  ) {
-    return " ".repeat(line.length);
-  }
-
-  let result = "";
-  let i = 0;
-  let inString = false;
-  while (i < line.length) {
-    const ch = line[i] ?? "";
-    if (inString) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          result += "  ";
-          i += 2;
-          continue;
-        }
-        inString = false;
-        result += '"';
-        i++;
-        continue;
-      }
-      result += " ";
-      i++;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      result += '"';
-      i++;
-      continue;
-    }
-    if (ch === "'") {
-      result += " ".repeat(line.length - i);
-      break;
-    }
-    result += ch;
-    i++;
-  }
-  return result;
+  return undefined;
 }
