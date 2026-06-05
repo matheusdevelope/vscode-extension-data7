@@ -29,7 +29,7 @@ import {
   type TypeParameter,
   type TypeReference,
   type VariableDeclaration,
-} from "../../project/generics-monomorphizer";
+} from "../../project/generics";
 
 // ----------------------------------------------------------------------------
 // Tiny AST builder helpers (test-only; keeps each scenario readable and lets

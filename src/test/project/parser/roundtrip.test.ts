@@ -2,7 +2,7 @@ import "../../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { parse, serializeUnit } from "../../../project/parser";
-import type { CompilationUnit } from "../../../project/generics-monomorphizer/ast";
+import type { CompilationUnit } from "../../../project/ast/ast";
 
 /**
  * Structural comparison helper. We don't care about `loc` (positions

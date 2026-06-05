@@ -34,3 +34,12 @@ Cross-cutting concerns (telemetry, logging, configuration) belong in `src/infra/
 
 All language processing features (diagnostics, providers, transpilers, code actions) MUST derive their analysis from the central AST produced by `LanguageProcessor.getOrParse()`. Raw text regex scanning over source code is PROHIBITED for language analysis. The only sanctioned exceptions are comment-based directives (`' data7:disable-line`) which exist outside the AST.
 
+## Complex Sugars & Namespaces
+
+- Every sugar that requires shared logic/utilities across multiple materializations MUST declare them inside a dedicated, unique namespace (e.g. `core_sugars_enum` with class `CoreSugarBaseEnum`) and register it in `SugarRegistry` (`src/project/sugar-registry.ts`).
+- The sugar MUST materialize its specific resource locally (at the usage site) while referencing the shared helper/base class from the namespace.
+- The transpiler MUST automatically add `Imports <namespace>` at the top of the compilation unit for files utilizing the sugar.
+- During build, the builder resolves all transitive dependencies of used sugars, registers them in the build indexer (to satisfy the strict native linter), and appends the generated virtual files to the compilation bundle.
+- The global `WorkspaceSymbolIndexer` constructor indexes these virtual sugar files (with a `system://sugars/` URI) in runtime to prevent false-positive linter/navigation errors in the IDE.
+
+

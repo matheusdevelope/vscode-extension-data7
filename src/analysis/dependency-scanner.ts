@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { logger } from "../infra/logger";
 import { parseBasic, SugarsParserPlugin, GenericsParserPlugin } from "../project/parser";
-import type { Node } from "../project/generics-monomorphizer/ast";
+import type { Node } from "../project/ast/ast";
 
 // -----------------------------------------------------------------------------
 // Canonical `Imports <namespace>` regexes.
@@ -501,6 +501,13 @@ function collectModuleReferences(node: Node, callback: (name: string) => void): 
       break;
     case "ReturnStatement":
       if (node.expression) collectModuleReferences(node.expression, callback);
+      break;
+    case "ExpressionStatement":
+      if (node.expression) collectModuleReferences(node.expression, callback);
+      break;
+    case "Assignment":
+      if (node.target) collectModuleReferences(node.target, callback);
+      if (node.value) collectModuleReferences(node.value, callback);
       break;
     case "BinaryExpression":
       if (node.left) collectModuleReferences(node.left, callback);

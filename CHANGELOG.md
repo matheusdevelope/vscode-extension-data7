@@ -7,6 +7,15 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado (Infraestrutura de Açúcares Sintáticos Complexos e Namespaces Utilitários)
+
+- **Arquitetura de Sugars com Namespaces Compartilhados**: Implementada infraestrutura e diretrizes via `SugarRegistry` para apoiar sugars complexos que demandam utilitários compartilhados.
+  - Todo sugar complexo materializa a sua classe final no local de uso (ex: a classe `Color` gerada pelo sugar `Enum`) herdando ou referenciando classes utilitárias em um namespace virtual dedicado (ex: `core_sugars_enum.CoreSugarBaseEnum`, que herda de `BaseEnum`).
+  - O transpilador (`transpiler.ts`) rastreia o uso de sugars nos arquivos e injeta automaticamente `Imports <namespace>` no topo dos respectivos arquivos transpilados.
+  - O `Builder` resolve recursivamente as dependências transitivas entre sugars (ex: `enum` dependendo de `list`), injeta os módulos utilitários virtuais gerados no `buildIndexer` temporário para validação estrita do linter e empacota-os no XML do `.7Proj` final.
+  - O indexador do workspace (`WorkspaceSymbolIndexer`) agora pré-indexa os módulos virtuais de sugars sob URIs `system://sugars/` para que o linter em tempo real e o autocomplete do editor os reconheçam de forma nativa e sem erros.
+  - O linter (`diagnostics.ts`) foi ajustado para ignorar a obrigatoriedade de `Sub Free()` em classes que herdem de `CoreSugarBaseEnum`.
+
 ### Adicionado (Pipeline AST Completo: Parser, Transpilador, Serializador e Linter)
 
 - **Conversão Automática de Tipos na Concatenção de Strings**: Implementada a conversão automática de tipos não-string em concatenações de string (`&` e `+`) e na interpolação de strings (`$"..."`).

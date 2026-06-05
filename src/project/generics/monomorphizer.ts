@@ -57,11 +57,11 @@ import {
   type OpaqueStatement,
   type TopLevelMember,
   type TypeReference,
-} from "./ast";
-import { deepClone } from "./clone";
+} from "../ast/ast";
+import { deepClone } from "../ast/clone";
 import { type GenericTemplate, GlobalInstantiatedSet, TemplateRegistry } from "./registry";
 import type { MonomorphizationWarning, MonomorphizationWarningCode } from "./warnings";
-import { substituteTypeParamsInLine } from "../generics-pass";
+import { substituteTypeParamsInLine } from "./substitute";
 import { findInnerMostGenericUsage } from "../../analysis/generics-analyzer";
 
 // ============================================================================

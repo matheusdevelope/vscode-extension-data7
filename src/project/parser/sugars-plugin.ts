@@ -9,7 +9,7 @@ import type {
   EnumDeclaration,
   UsingStatement,
   MatchStatement,
-} from "../generics-monomorphizer/ast";
+} from "../ast/ast";
 import type { Token } from "./token-types";
 import type { Parser } from "./parser";
 import type { ParserPlugin } from "./plugin";
@@ -137,7 +137,7 @@ export class SugarsParserPlugin implements ParserPlugin {
       initializer,
       loc: locOf(startLoc),
       comment
-    } as any; // Cast as any because the types in generics-monomorphizer/ast are mapped
+    } as any; // Cast as any because the types in ast/ast are mapped
   }
 
   parseExpressionPrefix(parser: Parser): Expression | null {

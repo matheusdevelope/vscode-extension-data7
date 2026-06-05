@@ -62,7 +62,7 @@ import type {
   VariableDeclaration,
   SelectCaseStatement,
   SelectCaseBranch,
-} from "../generics-monomorphizer/ast";
+} from "../ast/ast";
 import { tokenize } from "./lexer";
 import { makeError, type ParseError, type ParseErrorCode } from "./parser-errors";
 import type { Token, TokenLocation } from "./token-types";
@@ -305,8 +305,11 @@ export class Parser {
       }
     }
 
-    // Anything else at top level becomes an opaque line. This includes
-    // comments-only lines and assignments.
+    // Try to parse the top-level member as a statement structurally first
+    // (e.g. assignments, loops, method calls).
+    const stmt = this.parseStatement();
+    if (stmt !== null) return stmt;
+
     return this.consumeLineAsOpaque();
   }
 
@@ -1788,6 +1791,8 @@ export class Parser {
   private parseField(): FieldDeclaration | null {
     const startLoc = this.peek().loc;
     const modifiers = this.parseModifiers();
+    this.consume("keyword", "dim");
+    this.consume("identifier", "dim");
     const nameToken = this.consume("identifier");
     if (nameToken === null) {
       this.skipToEndOfLine();
@@ -1991,7 +1996,6 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "overridable",
   "overrides",
   "readonly",
-  "dim",
 ]);
 
 function locOf(loc: TokenLocation, endLoc?: TokenLocation): {

@@ -4,7 +4,7 @@ import type {
   MethodDeclaration,
   TopLevelMember,
   TypeParameter,
-} from "./ast";
+} from "../ast/ast";
 
 /** Discriminator for entries in the {@link TemplateRegistry}. */
 export type TemplateKind = "ClassDeclaration" | "MethodDeclaration" | "DelegateDeclaration";

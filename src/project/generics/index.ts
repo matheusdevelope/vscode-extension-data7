@@ -1,9 +1,5 @@
 /**
  * Public surface of the generics monomorphization engine.
- *
- * Consumers should import from this barrel only — the internal split
- * (`ast.ts`, `clone.ts`, `monomorphizer.ts`, `registry.ts`, `warnings.ts`)
- * is an implementation detail and may change without notice.
  */
 
 export type {
@@ -33,10 +29,10 @@ export type {
   TypeParameter,
   TypeReference,
   VariableDeclaration,
-} from "./ast";
-export { ASTWalker } from "./ast";
+} from "../ast/ast";
+export { ASTWalker } from "../ast/ast";
 
-export { deepClone } from "./clone";
+export { deepClone } from "../ast/clone";
 
 export type { GenericTemplate, TemplateKind } from "./registry";
 export { GlobalInstantiatedSet, TemplateRegistry } from "./registry";

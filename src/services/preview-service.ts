@@ -3,7 +3,7 @@ import { SugarTranspiler } from "../project/transpiler";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { readConfiguration } from "../infra/configuration";
+
 
 export class D7PreviewContentProvider implements vscode.TextDocumentContentProvider {
   public static readonly scheme = "data7-preview";
@@ -74,7 +74,6 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
 
   private transpileCode(rawCode: string, sourceUriStr: string): string {
     const indexer = WorkspaceSymbolIndexer.getInstance();
-    const useAstGenerics = readConfiguration().experimentalUseAstGenerics;
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -82,7 +81,6 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
           (t) => TypeResolver.getAllMembersForType(t, indexer),
           preferredElementType,
         ),
-      useAstGenerics,
     };
 
     try {

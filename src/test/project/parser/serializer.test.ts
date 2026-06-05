@@ -5,7 +5,7 @@ import { parse, serializeUnit } from "../../../project/parser";
 import type {
   ClassDeclaration,
   CompilationUnit,
-} from "../../../project/generics-monomorphizer/ast";
+} from "../../../project/ast/ast";
 
 describe("parser/serializer", () => {
   test("serialises an empty unit to an empty string", () => {

@@ -10,12 +10,13 @@ import {
   type GenericUsageOccurrence,
 } from "./generics-analyzer";
 import { parseBasic } from "../project/parser";
+import { SugarRegistry } from "../project/sugar-registry";
 import {
   ASTWalker,
   type CompilationUnit,
   type TypeReference,
   type Node,
-} from "../project/generics-monomorphizer/ast";
+} from "../project/ast/ast";
 
 // Parameter info
 export interface ParameterInfo {
@@ -341,7 +342,7 @@ class SymbolIndexerWalker extends ASTWalker {
         fileUri: this.fileUri,
         containerName: this.activeNamespace,
         description: node.comment?.trim() || undefined,
-        inheritsFrom: "BaseEnum",
+        inheritsFrom: "CoreSugarBaseEnum",
       };
       this.symbols.push(enumSymbol);
 
@@ -434,6 +435,18 @@ export class WorkspaceSymbolIndexer {
   // Singleton — the private constructor prevents instantiation outside `getInstance`.
   private constructor() {
     /* intentional: enforces singleton */
+    this.indexVirtualSugarModules();
+  }
+
+  private indexVirtualSugarModules(): void {
+    for (const sugar of SugarRegistry.getAll()) {
+      if (sugar.namespace) {
+        const fileUri = `system://sugars/${sugar.namespace}.bas`;
+        const content = sugar.generateCode();
+        const parsed = SymbolParser.parseBasFile(fileUri, content);
+        this.cache.set(this.getCacheKey(fileUri), parsed);
+      }
+    }
   }
 
   public static getInstance(): WorkspaceSymbolIndexer {

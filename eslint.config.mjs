@@ -359,7 +359,7 @@ export default tseslint.config(
   // architecture.mdc: src/project/parser/ is a sub-leaf — the AST-based
   // lexer/parser/serializer for the generics monomorphizer. It may
   // depend ONLY on src/utils/ (for bas-tokenizer) and may import
-  // **types only** from src/project/generics-monomorphizer/ast.ts (so
+  // **types only** from src/project/ast/ast.ts (so
   // the parser produces / serializer consumes the monomorphizer's AST
   // shape). Any other src/ import is forbidden.
   {
@@ -382,12 +382,12 @@ export default tseslint.config(
                 "vscode",
               ],
               message:
-                "src/project/parser/ may only depend on src/utils/ and (type-only) src/project/generics-monomorphizer/ast (architecture.mdc).",
+                "src/project/parser/ may only depend on src/utils/ and (type-only) src/project/ast/ast (architecture.mdc).",
             },
             {
-              group: ["**/project/!(parser|generics-monomorphizer)/**", "**/project/*"],
+              group: ["**/project/!(parser|ast)/**", "**/project/*"],
               message:
-                "src/project/parser/ may only import from src/utils/ and src/project/generics-monomorphizer/ast (architecture.mdc).",
+                "src/project/parser/ may only import from src/utils/ and src/project/ast/ast (architecture.mdc).",
             },
             DOCS_EXEMPLE_BAN,
           ],

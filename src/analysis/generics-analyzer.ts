@@ -5,8 +5,7 @@ import {
   type TypeReference,
   type MethodInvocation,
   type OpaqueStatement,
-  type Node,
-} from "../project/generics-monomorphizer/ast";
+} from "../project/ast/ast";
 
 /**
  * Stable warning codes emitted by the generics analyzer.

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { parseBasic, tokenize, SugarsParserPlugin, GenericsParserPlugin, parseExpr } from "../project/parser";
-import type { CompilationUnit, Expression } from "../project/generics-monomorphizer/ast";
+import type { CompilationUnit, Expression } from "../project/ast/ast";
 import type { ParseError } from "../project/parser/parser-errors";
 import type { Token } from "../project/parser/token-types";
 import { logger } from "../infra/logger";

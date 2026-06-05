@@ -37,6 +37,14 @@ A arquitetura distingue dois tipos de transformação em `src/project/transpiler
 - **`InlineTransform`**: rewriters intra-linha (token-level) que rodam ANTES do registry. Use para açúcares que aparecem em qualquer coluna (ex.: string interpolation).
 - **`SugarRule`**: rules linha-por-linha que produzem expansões multi-linha. Use para açúcares "header" como `For Each ... In ... Next`.
 
+**Açúcares Complexos e Namespaces Utilitários**:
+Todo açúcar complexo que necessita de utilitários comuns a mais de uma materialização deve colocá-los em um namespace específico (ex: `core_sugars_enum` contendo `CoreSugarBaseEnum`, ou `core_sugars_list` contendo `CoreSugarBaseList`).
+- O sugar materializa a lógica final/classe específica no local declarado (ex: a classe `Color` herda de `core_sugars_enum.CoreSugarBaseEnum`).
+- O transpiler injeta automaticamente o respectivo `Imports <namespace>` no topo do arquivo que utiliza o sugar.
+- A base utilitária e as dependências entre sugars (ex: `enum` dependendo de `list`) são registradas no `SugarRegistry` (`src/project/sugar-registry.ts`).
+- Durante o build, as dependências são resolvidas transitivamente e os módulos utilitários virtuais correspondentes são gerados, indexados (para passar no linter estrito) e injetados na compilação final sob o XML do `.7proj`.
+- Para evitar erros de linter e navegação no editor, esses módulos virtuais também são pré-indexados automaticamente pelo `WorkspaceSymbolIndexer` em runtime.
+
 Açúcares atualmente suportados:
 
 #### `For Each <var>[ As <Tipo>] In <expr> ... Next` (enumerable)
@@ -111,7 +119,8 @@ Açúcares atualmente suportados:
 
 #### `Enum X As BaseEnum / V = "..." / End Enum` (multi-line)
 
-- Expandido para a classe completa do padrão `BaseEnum` (Initialize lazy, Shared Function por valor, Load por String, GetOptions). Reduz ~40 linhas para 4-6.
+- Expandido para a classe específica do Enum que herda de `CoreSugarBaseEnum` (do namespace `core_sugars_enum`) com Initialize lazy, Shared Function por valor, Load por String e GetOptions.
+- O linter ignora a verificação do método `Sub Free()` para classes que herdam de `CoreSugarBaseEnum` ou `BaseEnum`.
 
 #### `Match x / Case Is T : body / End Match` (multi-line)
 

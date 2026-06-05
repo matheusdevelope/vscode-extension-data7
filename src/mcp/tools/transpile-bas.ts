@@ -48,12 +48,6 @@ export function registerTranspileBas(server: McpServer, deps: TranspileToolDeps)
         "Recebe um trecho de .bas com açúcares (For Each, ternário, interpolação, optional chaining, destructuring, etc.) e devolve a expansão nativa + lista de diagnósticos do transpilador.",
       inputSchema: {
         code: z.string().min(1).describe("Conteúdo `.bas` a transpilar (uma ou mais linhas)."),
-        useAstGenerics: z
-          .boolean()
-          .optional()
-          .describe(
-            "Quando true, usa o pipeline AST experimental de generics (equivalente a data7.experimental.useAstGenerics).",
-          ),
       },
     },
     (args) => {
@@ -61,7 +55,6 @@ export function registerTranspileBas(server: McpServer, deps: TranspileToolDeps)
       const ctx: TranspileContext = {
         detectEnumerable: (typeName, preferredElementType) =>
           detectEnumerable(typeName, lookupMembers, preferredElementType),
-        useAstGenerics: args.useAstGenerics ?? false,
       };
       const result = SugarTranspiler.transpile(args.code, ctx);
       const text = JSON.stringify(

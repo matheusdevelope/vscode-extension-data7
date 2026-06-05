@@ -1,9 +1,9 @@
 import { parseInterpolation } from "../utils/interpolation";
 import { inferLiteralType } from "../utils/literal-type-infer";
 import { DependencyScanner } from "../analysis/dependency-scanner";
+import { SugarRegistry } from "./sugar-registry";
 import type { EnumerableInfo } from "../analysis/enumerable-detector";
-import { runGenericsViaAST } from "./generics-driver";
-import { runGenericsPass, type GenericsPassWarning } from "./generics-pass";
+import { GenericsMonomorphizer, type MonomorphizationWarning } from "./generics";
 import {
   parseBasic,
   parseExpr,
@@ -30,7 +30,7 @@ import {
   type Assignment,
   type BinaryExpression,
   type WithStatement,
-} from "./generics-monomorphizer/ast";
+} from "./ast/ast";
 
 export interface SugarDiagnostic {
   readonly code:
@@ -53,22 +53,33 @@ export interface SugarDiagnostic {
 
 export interface TranspileContext {
   detectEnumerable(typeName: string, preferredElementType?: string): EnumerableInfo | undefined;
-  readonly useAstGenerics?: boolean;
 }
 
-function mapGenericsWarning(warning: GenericsPassWarning): SugarDiagnostic {
+function mapGenericsWarning(warning: MonomorphizationWarning): SugarDiagnostic {
   let typeName: string;
-  if (warning.code === "generic-arity-mismatch") {
-    typeName = `${warning.templateName ?? ""} expected=${String(warning.expected ?? 0)} actual=${String(warning.actual ?? 0)}`;
-  } else if (warning.code === "flat-name-collision") {
-    typeName = warning.flatName ?? "";
-  } else {
+  let code: SugarDiagnostic["code"];
+
+  if (warning.code === "arity-mismatch") {
+    code = "generic-arity-mismatch";
     typeName = warning.templateName ?? "";
+  } else if (warning.code === "invalid-input") {
+    // Treat invalid-input as unknown-template or handle it cleanly.
+    // In builder.ts, invalid-input is low-level AST warning, so we can map it to unknown-template or keep a generic mapping.
+    code = "unknown-template";
+    typeName = warning.message;
+  } else {
+    code = warning.code;
+    if (warning.code === "flat-name-collision") {
+      typeName = warning.flatName ?? "";
+    } else {
+      typeName = warning.templateName ?? "";
+    }
   }
+
   return {
-    code: warning.code,
-    line: warning.line ?? 0,
-    column: warning.column ?? 0,
+    code,
+    line: 0,
+    column: 0,
     typeName,
   };
 }
@@ -77,6 +88,7 @@ export interface TranspileResult {
   readonly code: string;
   readonly diagnostics: readonly SugarDiagnostic[];
   readonly lineMap?: number[];
+  readonly usedSugars?: Set<string>;
 }
 
 function buildVarDeclRegex(varName: string): RegExp {
@@ -259,6 +271,7 @@ const NUMERIC_SEPARATOR_TRANSFORM = {
 
 export class ASTSugarTransformer extends ASTWalker {
   public diagnostics: SugarDiagnostic[] = [];
+  public readonly usedSugars = new Set<string>();
   private srcCounter = 0;
   private idxCounter = 0;
   private currentMethod: MethodDeclaration | null = null;
@@ -281,6 +294,30 @@ export class ASTSugarTransformer extends ASTWalker {
   override walk(node: Node): void {
     if (node.kind === "CompilationUnit") {
       node.members = this.transformMembers(node.members);
+      
+      // Auto-inject imports for all used sugars
+      for (const sugarId of this.usedSugars) {
+        const sugar = SugarRegistry.get(sugarId);
+        if (sugar?.namespace) {
+          const hasImport = node.members.some(
+            (m) => m.kind === "ImportsDeclaration" && m.target === sugar.namespace,
+          );
+          if (!hasImport) {
+            let insertIdx = 0;
+            for (let i = 0; i < node.members.length; i++) {
+              const member = node.members[i];
+              if (member?.kind === "ImportsDeclaration") {
+                insertIdx = i + 1;
+              }
+            }
+            node.members.splice(insertIdx, 0, {
+              kind: "ImportsDeclaration",
+              target: sugar.namespace,
+              loc: node.loc,
+            });
+          }
+        }
+      }
       return;
     }
     if (node.kind === "NamespaceDeclaration") {
@@ -733,6 +770,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "EnumDeclaration": {
+        this.usedSugars.add("enum");
         const enumName = s.name;
         const entries = s.entries.map((entry) => {
           let valueStr = `"${entry.name}"`;
@@ -765,7 +803,7 @@ export class ASTSugarTransformer extends ASTWalker {
         entries.forEach((entry, idx) => {
           initBody.push({
             kind: "OpaqueStatement",
-            text: `BaseEnum._AddEnumItem("${enumName}", New ${enumName}(${idx}, ${entry.value}))`,
+            text: `CoreSugarBaseEnum._AddEnumItem("${enumName}", New ${enumName}(${idx}, ${entry.value}))`,
             loc: s.loc,
           });
         });
@@ -813,7 +851,7 @@ export class ASTSugarTransformer extends ASTWalker {
             { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: s.loc },
             {
               kind: "OpaqueStatement",
-              text: `Load = CType(BaseEnum._GetCache("${enumName}", pValue), ${enumName})`,
+              text: `Load = CType(CoreSugarBaseEnum._GetCache("${enumName}", pValue), ${enumName})`,
               loc: s.loc,
             },
           ],
@@ -831,7 +869,7 @@ export class ASTSugarTransformer extends ASTWalker {
             { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: s.loc },
             {
               kind: "OpaqueStatement",
-              text: `GetOptions = BaseEnum._GetEnumOptions("${enumName}")`,
+              text: `GetOptions = CoreSugarBaseEnum._GetEnumOptions("${enumName}")`,
               loc: s.loc,
             },
           ],
@@ -843,7 +881,7 @@ export class ASTSugarTransformer extends ASTWalker {
           kind: "ClassDeclaration",
           name: enumName,
           typeParameters: [],
-          baseType: { kind: "TypeReference", name: "BaseEnum", typeArguments: [], loc: s.loc },
+          baseType: { kind: "TypeReference", name: "CoreSugarBaseEnum", typeArguments: [], loc: s.loc },
           members: classMembers,
           modifiers: s.modifiers ?? [],
           loc: s.loc,
@@ -1710,21 +1748,15 @@ export class ASTSugarTransformer extends ASTWalker {
 
 export class SugarTranspiler {
   public static transpile(code: string, ctx: TranspileContext): TranspileResult {
-    // 1. Run generics pass (monomorphization)
-    const useAst = ctx.useAstGenerics === true;
-    const genericsResult = useAst ? runGenericsViaAST(code) : runGenericsPass(code);
-    const monomorphic = genericsResult.code;
+    const eol = code.includes("\r\n") ? "\r\n" : "\n";
+    let lines = code.split(/\r?\n/);
 
-    const eol = monomorphic.includes("\r\n") ? "\r\n" : "\n";
-    let lines = monomorphic.split(/\r?\n/);
-
-    // 2. Pre-process lines with text pre-passes
+    // 1. Pre-process lines with text pre-passes
     // Numeric separators
     lines = lines.map((line) => NUMERIC_SEPARATOR_TRANSFORM.apply(line));
-
     const processedCode = lines.join(eol);
 
-    // 3. Parse to AST (Check if has structural definitions first)
+    // 2. Parse to AST (Check if has structural definitions first)
     const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
     const tempParse = parseBasic(processedCode, { plugins });
     const hasStructural = tempParse.unit.members.some(
@@ -1747,7 +1779,11 @@ export class SugarTranspiler {
       transformerLines = [`Sub __syntheticMethod()`, ...lines, `End Sub`];
     }
 
-    // 4. Transform AST-to-AST
+    // 3. Run generics monomorphizer directly on the AST
+    const monomorphizer = new GenericsMonomorphizer();
+    const genericsResult = monomorphizer.monomorphize(finalUnit);
+
+    // 4. Transform AST-to-AST for sugars
     const transformer = new ASTSugarTransformer(ctx, transformerLines);
     transformer.walk(finalUnit);
 
@@ -1792,6 +1828,8 @@ export class SugarTranspiler {
       code: serializeResult.code,
       diagnostics,
       lineMap: serializeResult.lineMap,
+      usedSugars: transformer.usedSugars,
     };
   }
 }
+

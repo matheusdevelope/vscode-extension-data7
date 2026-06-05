@@ -1,14 +1,5 @@
 /**
- * AST node types for the generics monomorphization engine.
- *
- * **Status: placeholder.** The Data7 codebase currently has no formal AST
- * for `.bas` source — `src/analysis/symbol-indexer.ts` is line-oriented and
- * regex-driven. The types declared here are a self-contained, minimal AST
- * sufficient to express the constructs the monomorphizer needs to manipulate
- * (declarations with type parameters, references with type arguments, usage
- * sites). When a full parser lands, this file should be reconciled with the
- * parser's output: either by aligning these types with the parser's own, or
- * by introducing an adapter at the parser/engine boundary.
+ * AST node types for the Data7 Basic compiler.
  *
  * Design notes:
  *  - Every node carries a `kind` literal (discriminated union). The engine

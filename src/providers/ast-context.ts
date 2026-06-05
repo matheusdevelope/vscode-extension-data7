@@ -4,7 +4,7 @@ import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { lookupSystemByName, lookupSystemNamespaceOrClassByName } from "../system-library";
 import { inferLiteralType } from "../utils/literal-type-infer";
-import { type Token } from "../project/parser";
+import type { Token } from "../project/parser";
 import { LanguageProcessor } from "../analysis/language-processor";
 import type {
   BinaryExpression,
@@ -22,7 +22,7 @@ import type {
   TypeReference,
   UnaryExpression,
   VariableDeclaration,
-} from "../project/generics-monomorphizer/ast";
+} from "../project/ast/ast";
 
 export interface AstLocalBinding {
   name: string;

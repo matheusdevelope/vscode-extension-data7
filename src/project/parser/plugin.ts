@@ -3,7 +3,7 @@ import type {
   Statement,
   TypeParameter,
   TypeReference,
-} from "../generics-monomorphizer/ast";
+} from "../ast/ast";
 import type { Parser } from "./parser";
 import type { Token } from "./token-types";
 

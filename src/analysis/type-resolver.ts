@@ -23,7 +23,7 @@ import type {
   Node,
   BinaryExpression,
   UnaryExpression,
-} from "../project/generics-monomorphizer/ast";
+} from "../project/ast/ast";
 
 /**
  * Shared scope and type resolution helpers used by every provider and by the

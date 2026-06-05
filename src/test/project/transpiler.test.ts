@@ -662,7 +662,7 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
 describe("SugarTranspiler — D1 Enum declarative (multi-line)", () => {
   const ctx = makeContext({});
 
-  test("expands `Enum X / V = ... / End Enum` into a BaseEnum class", () => {
+  test("expands `Enum X / V = ... / End Enum` into a CoreSugarBaseEnum class", () => {
     const code = [
       "Enum CardAdm As BaseEnum",
       '   Stone = "Stone"',
@@ -671,8 +671,9 @@ describe("SugarTranspiler — D1 Enum declarative (multi-line)", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /Imports core_sugars_enum/);
     assert.match(out, /Class CardAdm/);
-    assert.match(out, /Inherits BaseEnum/);
+    assert.match(out, /Inherits CoreSugarBaseEnum/);
     assert.match(out, /Shared Function Stone As CardAdm/);
     assert.match(out, /Shared Function Cielo As CardAdm/);
     assert.match(out, /Shared Function GetOptions\(\) As String/);

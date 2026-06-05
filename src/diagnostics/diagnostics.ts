@@ -56,7 +56,7 @@ import {
   type ExpressionStatement,
   type OpaqueStatement,
   type SourceLocation,
-} from "../project/generics-monomorphizer/ast";
+} from "../project/ast/ast";
 
 export class DiagnosticsLinter {
   private static resolveClassName(className: string): string {
@@ -865,7 +865,8 @@ export class DiagnosticsLinter {
     const walker = new class extends ASTWalker {
       public override walk(node: Node): void {
         if (node.kind === "ClassDeclaration") {
-          if (node.baseType?.name.toLowerCase() === "baseenum") {
+          const baseNameLower = node.baseType?.name.toLowerCase();
+          if (baseNameLower === "baseenum" || baseNameLower === "coresugarbaseenum") {
             return;
           }
 

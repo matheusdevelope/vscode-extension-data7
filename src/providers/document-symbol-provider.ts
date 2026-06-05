@@ -4,7 +4,7 @@ import type {
   TopLevelMember,
   ClassMember,
   SourceLocation,
-} from "../project/generics-monomorphizer/ast";
+} from "../project/ast/ast";
 
 /**
  * Provides hierarchical symbols (Namespace > Class > Method/Property/Field)

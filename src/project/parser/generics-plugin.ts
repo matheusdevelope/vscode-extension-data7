@@ -1,7 +1,7 @@
 import type {
   TypeParameter,
   TypeReference,
-} from "../generics-monomorphizer/ast";
+} from "../ast/ast";
 import type { Parser } from "./parser";
 import type { ParserPlugin } from "./plugin";
 

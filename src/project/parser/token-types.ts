@@ -4,7 +4,7 @@
  * Lives in `src/project/parser/`. Per the architecture rule in
  * `architecture.mdc#parser-isolation`, this folder is a sub-leaf that
  * depends only on `src/utils/` and may import **types only** from
- * `src/project/generics-monomorphizer/ast`. The fence is enforced by
+ * `src/project/ast`. The fence is enforced by
  * `data7/parser-isolation` in `eslint.config.mjs`.
  */
 

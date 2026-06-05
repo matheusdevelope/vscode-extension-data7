@@ -8,7 +8,7 @@ import type {
   MethodDeclaration,
   NamespaceDeclaration,
   VariableDeclaration,
-} from "../../../project/generics-monomorphizer/ast";
+} from "../../../project/ast/ast";
 
 describe("parser/parser", () => {
   test("empty input parses to an empty CompilationUnit with no errors", () => {

@@ -13,7 +13,7 @@ Class Nivel1
 End Sub
 
 Sub SubPrinte(pMessage As String)
-   print me.SubOverridablePrinte(pMessage, 1)
+   me.SubOverridablePrinte(pMessage, 1)
 End Sub
 
 Function FuncBuildMessage(pMessage As String, pLevel As Integer) As String
@@ -36,7 +36,7 @@ Class Nivel2
    End Sub
 
    Sub SubPrinte(pMessage As String)
-      print me.SubOverridablePrinte(pMessage, 2)
+      me.SubOverridablePrinte(pMessage, 2)
    End Sub
 
    Function FuncBuildMessage(pMessage As String, pLevel As Integer) As Integer

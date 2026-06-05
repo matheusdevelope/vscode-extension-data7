@@ -30,9 +30,9 @@ import type {
   DestructuredVariableDeclaration,
   SelectCaseStatement,
   SelectCaseBranch,
-} from "../generics-monomorphizer/ast";
-import { deepClone } from "../generics-monomorphizer/clone";
-import { ASTWalker } from "../generics-monomorphizer/ast";
+} from "../ast/ast";
+import { deepClone } from "../ast/clone";
+import { ASTWalker } from "../ast/ast";
 
 const INDENT_UNIT = "   ";
 

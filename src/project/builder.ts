@@ -14,6 +14,7 @@ import * as vscode from "vscode";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { readProjectConfig, writeProjectConfig } from "./project-config";
 import { SugarTranspiler, type TranspileContext, type SugarDiagnostic } from "./transpiler";
+import { SugarRegistry } from "./sugar-registry";
 
 /**
  * Packages a workspace tree (`src/Principal.bas`, modules under `src/**`, optional
@@ -119,15 +120,6 @@ export class Builder {
     // Read the experimental feature flag once per build. Falls back to
     // `false` when running outside the VS Code extension host (e.g. in
     // unit tests where `vscode.workspace.getConfiguration` is mocked).
-    let useAstGenerics = false;
-    try {
-      useAstGenerics = readConfiguration().experimentalUseAstGenerics;
-    } catch {
-      useAstGenerics = false;
-    }
-    if (useAstGenerics) {
-      logger.info("[Generics] AST pipeline active (experimental.useAstGenerics=true).");
-    }
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -135,7 +127,6 @@ export class Builder {
           (t) => TypeResolver.getAllMembersForType(t, indexer),
           preferredElementType,
         ),
-      useAstGenerics,
     };
     return { transpileCtx, indexer };
   }
@@ -222,12 +213,7 @@ export class Builder {
     const stripComments = !!metadata.opcoes.stripComments;
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(srcDir, data7ModulesDir);
 
-    const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
-    const mainTranspiled = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
-    this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics);
-    const mainUri = `file:///${mainCodePath.replace(/\\/g, "/")}`;
-    this.runStrictNativeLinter(mainUri, mainTranspiled.code, buildIndexer);
-    const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
+    const globalUsedSugars = new Set<string>();
 
     const getFilesRecursive = (dir: string, ext: string): string[] => {
       let results: string[] = [];
@@ -341,16 +327,23 @@ export class Builder {
       foldersByPath.set(relPath, newId);
     });
 
-    interface ModuleData {
+    // 1. Transpile all code to collect used sugars
+    const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
+    const mainTranspiled = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
+    if (mainTranspiled.usedSugars) {
+      for (const s of mainTranspiled.usedSugars) globalUsedSugars.add(s);
+    }
+
+    interface TranspiledModule {
       name: string;
+      fileUri: string;
       code: string;
+      diagnostics: readonly SugarDiagnostic[];
       folderId: string;
       aberto: boolean;
       ordemAbertura: number;
     }
-
-    const modulesToCompile: ModuleData[] = [];
-    const newModulesMetadata: Record<string, ModuleMetadata> = {};
+    const transpiledSrcModules: TranspiledModule[] = [];
 
     srcFiles.forEach((filePath) => {
       const filename = path.basename(filePath, ".bas");
@@ -360,35 +353,36 @@ export class Builder {
       const folderId = relFileDir ? (foldersByPath.get(relFileDir) ?? rootFolderId) : rootFolderId;
       const rawCode = fs.readFileSync(filePath, "utf-8");
       const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
-      this.reportSugarDiagnostics(`${filename}.bas`, transpiled.diagnostics);
-      const fileUri = `file:///${filePath.replace(/\\/g, "/")}`;
-      this.runStrictNativeLinter(fileUri, transpiled.code, buildIndexer);
-      const code = this.optimizeCode(transpiled.code, minify, stripComments);
+      if (transpiled.usedSugars) {
+        for (const s of transpiled.usedSugars) globalUsedSugars.add(s);
+      }
 
-      // With `noUncheckedIndexedAccess`, the record lookup is already typed
-      // `ModuleMetadata | undefined`; the `??` fallback applies naturally.
       const meta = metadata.modulesMetadata[filename] ?? {
         nome: filename,
         aberto: true,
         ordemAbertura: 0,
         pastaId: folderId,
       };
-      const moduleMeta: ModuleMetadata = {
-        nome: filename,
+
+      transpiledSrcModules.push({
+        name: filename,
+        fileUri: `file:///${filePath.replace(/\\/g, "/")}`,
+        code: transpiled.code,
+        diagnostics: transpiled.diagnostics,
+        folderId,
         aberto: meta.aberto,
         ordemAbertura: meta.ordemAbertura,
-        pastaId: folderId,
-      };
-      newModulesMetadata[filename] = moduleMeta;
-
-      modulesToCompile.push({
-        name: filename,
-        code,
-        folderId,
-        aberto: moduleMeta.aberto,
-        ordemAbertura: moduleMeta.ordemAbertura,
       });
     });
+
+    const transpiledDepModules: {
+      name: string;
+      fileUri: string;
+      code: string;
+      diagnostics: readonly SugarDiagnostic[];
+      folderId: string;
+    }[] = [];
+    let data7ModulesFolderId: string | undefined;
 
     if (fs.existsSync(data7ModulesDir)) {
       const dependencyFiles = fs.readdirSync(data7ModulesDir).filter((f) => f.endsWith(".bas"));
@@ -396,7 +390,7 @@ export class Builder {
         const data7ModulesFolder = virtualFolders.find(
           (f) => f.nome === "data7_modules" && f.pastaId === rootFolderId,
         );
-        let data7ModulesFolderId = data7ModulesFolder?.id;
+        data7ModulesFolderId = data7ModulesFolder?.id;
         if (!data7ModulesFolderId) {
           data7ModulesFolderId = generateProjectGuid();
           virtualFolders.push({
@@ -420,20 +414,91 @@ export class Builder {
           }
 
           const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
-          this.reportSugarDiagnostics(`data7_modules/${filename}.bas`, transpiled.diagnostics);
-          const fileUri = `file:///${path.join(data7ModulesDir, file).replace(/\\/g, "/")}`;
-          this.runStrictNativeLinter(fileUri, transpiled.code, buildIndexer);
-          const code = this.optimizeCode(transpiled.code, minify, stripComments);
-          modulesToCompile.push({
+          if (transpiled.usedSugars) {
+            for (const s of transpiled.usedSugars) globalUsedSugars.add(s);
+          }
+          transpiledDepModules.push({
             name: filename,
-            code,
-            folderId: data7ModulesFolderId,
-            aberto: false,
-            ordemAbertura: 0,
+            fileUri: `file:///${path.join(data7ModulesDir, file).replace(/\\/g, "/")}`,
+            code: transpiled.code,
+            diagnostics: transpiled.diagnostics,
+            folderId: data7ModulesFolderId!,
           });
         });
       }
     }
+
+    // 2. Resolve transitive sugar dependencies
+    const resolvedSugars = SugarRegistry.resolveDependencies(globalUsedSugars);
+
+    // 3. Register virtual sugar modules in build indexer and add to compile list
+    interface ModuleData {
+      name: string;
+      code: string;
+      folderId: string;
+      aberto: boolean;
+      ordemAbertura: number;
+    }
+    const modulesToCompile: ModuleData[] = [];
+    const newModulesMetadata: Record<string, ModuleMetadata> = {};
+
+    for (const sugarId of resolvedSugars) {
+      const sugar = SugarRegistry.get(sugarId);
+      if (sugar && sugar.namespace) {
+        const virtualSugarCode = sugar.generateCode();
+        const virtualSugarUri = `file:///synthetic/${sugar.namespace}.bas`;
+        buildIndexer.updateFileContent(virtualSugarUri, virtualSugarCode);
+
+        modulesToCompile.push({
+          name: sugar.namespace,
+          code: this.optimizeCode(virtualSugarCode, minify, stripComments),
+          folderId: rootFolderId,
+          aberto: false,
+          ordemAbertura: 0,
+        });
+      }
+    }
+
+    // 4. Run strict linter and optimize/add to compile list
+    this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics);
+    const mainUri = `file:///${mainCodePath.replace(/\\/g, "/")}`;
+    this.runStrictNativeLinter(mainUri, mainTranspiled.code, buildIndexer);
+    const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
+
+    transpiledSrcModules.forEach((m) => {
+      this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics);
+      this.runStrictNativeLinter(m.fileUri, m.code, buildIndexer);
+      const code = this.optimizeCode(m.code, minify, stripComments);
+
+      newModulesMetadata[m.name] = {
+        nome: m.name,
+        aberto: m.aberto,
+        ordemAbertura: m.ordemAbertura,
+        pastaId: m.folderId,
+      };
+
+      modulesToCompile.push({
+        name: m.name,
+        code,
+        folderId: m.folderId,
+        aberto: m.aberto,
+        ordemAbertura: m.ordemAbertura,
+      });
+    });
+
+    transpiledDepModules.forEach((m) => {
+      this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics);
+      this.runStrictNativeLinter(m.fileUri, m.code, buildIndexer);
+      const code = this.optimizeCode(m.code, minify, stripComments);
+
+      modulesToCompile.push({
+        name: m.name,
+        code,
+        folderId: m.folderId,
+        aberto: false,
+        ordemAbertura: 0,
+      });
+    });
 
     // Order virtual folders: root first, data7_modules folder next, then the rest.
     const orderedFolders: VirtualFolder[] = [];
