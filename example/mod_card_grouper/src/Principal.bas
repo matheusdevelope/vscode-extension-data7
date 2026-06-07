@@ -1,6 +1,6 @@
 
 Imports mod_card_form
-' Imports Collections
+Imports Collections
 
 Dim _form As New TFormCard("Processar retorno de cartões 3")
 _form.Show()
@@ -34,3 +34,4 @@ For Each name As String In outer
       ' acessa name e tag
    Next
 Next
+

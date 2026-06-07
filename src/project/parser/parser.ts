@@ -649,14 +649,34 @@ export class Parser {
   private parseSingleVariableDeclaration(startLoc: TokenLocation, isConst: boolean): VariableDeclaration {
     const nameToken = this.expect("identifier", "<variable-name>");
     const name = nameToken?.value ?? "";
+    let isListSugar = false;
+    if (this.match("punct", "[") && Parser.eq(this.peek(1), "]")) {
+      this.advance(); // consume '['
+      this.advance(); // consume ']'
+      isListSugar = true;
+    }
     let type: TypeReference | undefined;
     let hasAsNew = false;
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
+      if (!isListSugar && (this.consume("keyword", "new") || this.consume("identifier", "new"))) {
         hasAsNew = true;
       }
       const t = this.parseTypeReference();
-      if (t !== null) type = t;
+      if (t !== null) {
+        if (isListSugar) {
+          type = {
+            kind: "TypeReference",
+            name: "TList",
+            typeArguments: [t],
+            loc: t.loc,
+          };
+          if (!this.match("punct", "=")) {
+            hasAsNew = true;
+          }
+        } else {
+          type = t;
+        }
+      }
     }
     let initializer: Expression | undefined;
     if (this.consume("punct", "=")) {
@@ -1347,6 +1367,17 @@ export class Parser {
       return { kind: "Literal", value: strToken.value, loc: locOf(strToken.loc) };
     }
     if (token.kind === "identifier" || token.kind === "keyword") {
+      if (this.isGenericTypeArgumentsLookahead()) {
+        const startLoc = token.loc;
+        const typeRef = this.parseTypeReference(false);
+        if (typeRef !== null) {
+          return {
+            kind: "TypeReferenceExpression",
+            type: typeRef,
+            loc: locOf(startLoc, this.peek().loc),
+          };
+        }
+      }
       const lower = token.value.toLowerCase();
       if (lower === "true") {
         this.advance();
@@ -1799,14 +1830,45 @@ export class Parser {
       return null;
     }
     const name = nameToken.value;
+    let isListSugar = false;
+    if (this.match("punct", "[") && Parser.eq(this.peek(1), "]")) {
+      this.advance(); // consume '['
+      this.advance(); // consume ']'
+      isListSugar = true;
+    }
     let type: TypeReference = emptyTypeReference();
+    let hasAsNew = false;
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
+      if (!isListSugar && (this.consume("keyword", "new") || this.consume("identifier", "new"))) {
+        hasAsNew = true;
+      }
       const t = this.parseTypeReference();
-      if (t !== null) type = t;
+      if (t !== null) {
+        if (isListSugar) {
+          type = {
+            kind: "TypeReference",
+            name: "TList",
+            typeArguments: [t],
+            loc: t.loc,
+          };
+          if (!this.match("punct", "=")) {
+            hasAsNew = true;
+          }
+        } else {
+          type = t;
+        }
+      }
     }
     let initializer: Expression | undefined;
     if (this.consume("punct", "=")) {
       initializer = this.parseExpression();
+    } else if (hasAsNew && type) {
+      initializer = {
+        kind: "ObjectCreationExpression",
+        type: type,
+        arguments: [],
+        loc: type.loc,
+      };
     }
     const comment = this.skipToEndOfLine();
     return { kind: "FieldDeclaration", name, type, initializer, loc: locOf(startLoc), modifiers, comment };
@@ -1871,6 +1933,29 @@ export class Parser {
     }
     this.expect("punct", ")", { literal: true });
     return { params, hasParentheses: true };
+  }
+
+  private isGenericTypeArgumentsLookahead(): boolean {
+    const next = this.peek(1);
+    if (next.kind !== "punct" || next.value !== "<") return false;
+
+    let depth = 1;
+    let idx = 2;
+    while (true) {
+      const t = this.peek(idx);
+      if (t.kind === "eof" || t.kind === "newline") return false;
+      if (t.kind === "punct") {
+        if (t.value === "<") {
+          depth++;
+        } else if (t.value === ">") {
+          depth--;
+          if (depth === 0) {
+            return true;
+          }
+        }
+      }
+      idx++;
+    }
   }
 
   /**

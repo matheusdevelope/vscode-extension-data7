@@ -6,6 +6,7 @@ import {
   type MethodInvocation,
   type OpaqueStatement,
 } from "../project/ast/ast";
+import { VIRTUAL_TEMPLATES } from "./virtual-templates";
 
 /**
  * Stable warning codes emitted by the generics analyzer.
@@ -216,6 +217,11 @@ class ASTGenericsCollector extends ASTWalker {
   }
 
   public run(): void {
+    // Pre-populate with virtual templates (e.g. TList)
+    for (const [key, value] of Object.entries(VIRTUAL_TEMPLATES)) {
+      this.templates.set(key, value);
+    }
+
     // Collect all template declarations first
     this.collectTemplates(this.unit.members);
 

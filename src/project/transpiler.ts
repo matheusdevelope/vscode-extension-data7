@@ -30,6 +30,11 @@ import {
   type Assignment,
   type BinaryExpression,
   type WithStatement,
+  type NamespaceDeclaration,
+  type ArrayLiteralExpression,
+  type SpreadExpression,
+  type ArrowFunctionExpression,
+  type ParameterDeclaration,
 } from "./ast/ast";
 
 export interface SugarDiagnostic {
@@ -92,7 +97,7 @@ export interface TranspileResult {
 }
 
 function buildVarDeclRegex(varName: string): RegExp {
-  return new RegExp(`(?:^|[^A-Za-z0-9_])${varName}\\s+As\\s+(?:New\\s+)?([\\w.]+)`, "i");
+  return new RegExp(`(?:^|[^A-Za-z0-9_])${varName}(?:\\s*\\[\\])?\\s+As\\s+(?:New\\s+)?([\\w.]+)`, "i");
 }
 
 function buildNewExprRegex(varName: string): RegExp {
@@ -107,6 +112,8 @@ function inferOperandType(
   if (!/^[A-Za-z_]\w*$/.test(operand)) return undefined;
   const declRegex = buildVarDeclRegex(operand);
   const newRegex = buildNewExprRegex(operand);
+  const literalAssignRegex = new RegExp(`(?:^|[^A-Za-z0-9_])(?:dim\\s+)?${operand}\\s*=\\s*(.+)`, "i");
+
   for (let i = beforeLineIdx; i >= 0; i--) {
     const lineText = lines[i];
     if (lineText === undefined) continue;
@@ -116,6 +123,11 @@ function inferOperandType(
     if (declMatch?.[1]) return declMatch[1];
     const newMatch = cleanLine.match(newRegex);
     if (newMatch?.[1]) return newMatch[1];
+    const assignMatch = cleanLine.match(literalAssignRegex);
+    if (assignMatch?.[1]) {
+      const type = inferLiteralType(assignMatch[1]);
+      if (type) return type;
+    }
   }
   return undefined;
 }
@@ -265,6 +277,45 @@ const NUMERIC_SEPARATOR_TRANSFORM = {
   },
 };
 
+class FreeVariableCollector extends ASTWalker {
+  public readonly freeVars = new Set<string>();
+  private readonly declared = new Set<string>();
+
+  constructor(params: string[]) {
+    super();
+    for (const p of params) this.declared.add(p);
+  }
+
+  override walk(node: Node): void {
+    if (node.kind === "Identifier") {
+      if (!this.declared.has(node.name)) {
+        this.freeVars.add(node.name);
+      }
+      return;
+    }
+    if (node.kind === "VariableDeclaration") {
+      this.declared.add(node.name);
+      if (node.initializer) this.walk(node.initializer);
+      return;
+    }
+    if (node.kind === "ForEachStatement") {
+      this.declared.add(node.elementVar.name);
+      this.walk(node.enumerable);
+      for (const s of node.body) this.walk(s);
+      return;
+    }
+    if (node.kind === "ForStatement") {
+      this.declared.add(node.counter.name);
+      this.walk(node.start);
+      this.walk(node.end);
+      if (node.step) this.walk(node.step);
+      for (const s of node.body) this.walk(s);
+      return;
+    }
+    super.walk(node);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // AST Walker Transpiler
 // ---------------------------------------------------------------------------
@@ -275,6 +326,94 @@ export class ASTSugarTransformer extends ASTWalker {
   private srcCounter = 0;
   private idxCounter = 0;
   private currentMethod: MethodDeclaration | null = null;
+  private currentClass: ClassDeclaration | null = null;
+  private currentNamespace: NamespaceDeclaration | null = null;
+  private currentDeclaredType: TypeReference | undefined = undefined;
+  private currentMethodInvocation: MethodInvocation | null = null;
+  private currentPrependedStatements: Statement[] = [];
+  private lastClosureVarName: string | null = null;
+  private lambdasToInject = new Map<ClassDeclaration, MethodDeclaration[]>();
+  private topLevelLambdas: TopLevelMember[] = [];
+
+  private getListTypeName(expr: ArrayLiteralExpression, declaredType?: TypeReference, startLine?: number): string {
+    if (declaredType && declaredType.name.startsWith("TList_")) {
+      return declaredType.name;
+    }
+    if (expr.elements.length > 0) {
+      const firstEl = expr.elements[0];
+      if (firstEl) {
+        const elemExpr = firstEl.kind === "SpreadExpression" ? firstEl.expression : firstEl;
+        const elemType = this.inferType(elemExpr, startLine);
+        if (elemType) {
+          return `TList_${elemType}`;
+        }
+      }
+    }
+    return "TList_Variant";
+  }
+
+  private collectCapturedVars(arrow: ArrowFunctionExpression, startLine?: number): string[] {
+    const params = arrow.parameters.map((p) => p.name);
+    const collector = new FreeVariableCollector(params);
+    if (Array.isArray(arrow.body)) {
+      for (const s of arrow.body) collector.walk(s);
+    } else {
+      collector.walk(arrow.body);
+    }
+
+    const captured: string[] = [];
+    if (this.currentMethod) {
+      const outerScope = this.getOuterMethodDeclarations();
+      for (const fv of collector.freeVars) {
+        if (outerScope.has(fv)) {
+          captured.push(fv);
+        }
+      }
+    }
+    return captured;
+  }
+
+  private getOuterMethodDeclarations(): Set<string> {
+    const set = new Set<string>();
+    if (!this.currentMethod) return set;
+    for (const p of this.currentMethod.parameters) {
+      set.add(p.name);
+    }
+    const walker = new (class extends ASTWalker {
+      override walk(node: Node): void {
+        if (node.kind === "VariableDeclaration") {
+          set.add(node.name);
+        } else if (node.kind === "DestructuredVariableDeclaration") {
+          for (const b of node.bindings) {
+            set.add(b.name);
+          }
+        }
+        super.walk(node);
+      }
+    })();
+    for (const s of this.currentMethod.body) {
+      walker.walk(s);
+    }
+    return set;
+  }
+
+  private getDelegateContext(): { delegateName: string; returnType?: string; isSub: boolean } | null {
+    if (!this.currentMethodInvocation) return null;
+    const name = this.currentMethodInvocation.methodName.toLowerCase();
+    if (name === "filter") {
+      return { delegateName: "SugarFindDel", returnType: "Boolean", isSub: false };
+    }
+    if (name === "map") {
+      return { delegateName: "SugarMapDel", returnType: "CoreSugarBaseItem", isSub: false };
+    }
+    if (name === "foreach") {
+      return { delegateName: "SugarForEachDel", isSub: true };
+    }
+    if (name === "sort") {
+      return { delegateName: "SugarSortDel", returnType: "String", isSub: false };
+    }
+    return null;
+  }
 
   constructor(
     private readonly ctx: TranspileContext,
@@ -318,16 +457,34 @@ export class ASTSugarTransformer extends ASTWalker {
           }
         }
       }
+
+      // Inject top level lambdas if they weren't injected into a namespace
+      if (this.topLevelLambdas.length > 0 && !node.members.some((m) => m.kind === "NamespaceDeclaration")) {
+        node.members.push(...this.topLevelLambdas);
+      }
       return;
     }
     if (node.kind === "NamespaceDeclaration") {
+      const prevNamespace = this.currentNamespace;
+      this.currentNamespace = node;
       node.members = this.transformMembers(node.members);
+      if (this.topLevelLambdas.length > 0) {
+        node.members.push(...this.topLevelLambdas);
+      }
+      this.currentNamespace = prevNamespace;
       return;
     }
     if (node.kind === "ClassDeclaration") {
+      const prevClass = this.currentClass;
+      this.currentClass = node;
       for (const m of node.members) {
         this.walk(m);
       }
+      const list = this.lambdasToInject.get(node);
+      if (list && list.length > 0) {
+        node.members.push(...list);
+      }
+      this.currentClass = prevClass;
       return;
     }
     if (node.kind === "MethodDeclaration") {
@@ -383,6 +540,37 @@ export class ASTSugarTransformer extends ASTWalker {
   }
 
   private transformStatement(s: Statement): Statement | Statement[] {
+    const prevPrepended = this.currentPrependedStatements;
+    this.currentPrependedStatements = [];
+
+    const prevDeclType = this.currentDeclaredType;
+    if (s.kind === "VariableDeclaration") {
+      this.currentDeclaredType = s.type;
+    } else if (s.kind === "Assignment") {
+      const inferred = this.inferType(s.target, s.loc?.startLine);
+      if (inferred && inferred.startsWith("TList_")) {
+        this.currentDeclaredType = { kind: "TypeReference", name: inferred, typeArguments: [] };
+      }
+    }
+    
+    const transformed = this.transformStatementRaw(s);
+    
+    this.currentDeclaredType = prevDeclType;
+    
+    const prepended = this.currentPrependedStatements;
+    this.currentPrependedStatements = prevPrepended;
+    
+    if (prepended.length > 0) {
+      if (Array.isArray(transformed)) {
+        return [...prepended, ...transformed];
+      } else {
+        return [...prepended, transformed];
+      }
+    }
+    return transformed;
+  }
+
+  private transformStatementRaw(s: Statement): Statement | Statement[] {
     switch (s.kind) {
       case "VariableDeclaration": {
         if (s.initializer?.kind === "ObjectInitializerExpression") {
@@ -1397,7 +1585,43 @@ export class ASTSugarTransformer extends ASTWalker {
             startLine,
           );
         }
+
+        const mName = e.methodName.toLowerCase();
+        const isListMethod = ["filter", "map", "foreach", "sort"].includes(mName);
+
+        if (isListMethod) {
+          const prevCall = this.currentMethodInvocation;
+          this.currentMethodInvocation = e;
+          
+          const lambdaArg = e.arguments[0];
+          if (lambdaArg && lambdaArg.kind === "ArrowFunctionExpression") {
+            this.lastClosureVarName = null;
+            const transformedLambda = this.transformExpression(lambdaArg, false, startLine);
+            e.arguments[0] = transformedLambda;
+
+            const extraExpr: Expression = this.lastClosureVarName
+              ? { kind: "Identifier", name: this.lastClosureVarName, loc: e.loc }
+              : { kind: "Literal", value: null, loc: e.loc };
+
+            if (e.arguments.length > 1) {
+              e.arguments[1] = extraExpr;
+            } else {
+              e.arguments.push(extraExpr);
+            }
+
+            for (let i = 2; i < e.arguments.length; i++) {
+              e.arguments[i] = this.transformExpression(e.arguments[i]!, false, startLine);
+            }
+
+            this.currentMethodInvocation = prevCall;
+            return e;
+          }
+        }
+
+        const prevCall = this.currentMethodInvocation;
+        this.currentMethodInvocation = e;
         e.arguments = e.arguments.map((arg) => this.transformExpression(arg, false, startLine));
+        this.currentMethodInvocation = prevCall;
         return e;
       }
       case "MemberAccess":
@@ -1615,6 +1839,388 @@ export class ASTSugarTransformer extends ASTWalker {
           };
         }
       }
+      case "ArrayLiteralExpression": {
+        this.usedSugars.add("list");
+        const tempName = this.freshSource();
+        const listTypeName = this.getListTypeName(e, this.currentDeclaredType, startLine);
+        const typeRef: TypeReference = {
+          kind: "TypeReference",
+          name: listTypeName,
+          typeArguments: [],
+          loc: e.loc,
+        };
+        
+        this.currentPrependedStatements.push({
+          kind: "VariableDeclaration",
+          name: tempName,
+          type: typeRef,
+          initializer: {
+            kind: "ObjectCreationExpression",
+            type: typeRef,
+            arguments: [],
+            loc: e.loc,
+          },
+          loc: e.loc,
+        });
+
+        for (const el of e.elements) {
+          if (el.kind === "SpreadExpression") {
+            const transformedExpr = this.transformExpression(el.expression, false, startLine);
+            this.currentPrependedStatements.push({
+              kind: "ExpressionStatement",
+              expression: {
+                kind: "MethodInvocation",
+                callee: { kind: "Identifier", name: tempName, loc: e.loc },
+                methodName: "Add",
+                typeArguments: [],
+                arguments: [transformedExpr],
+                loc: e.loc,
+              },
+              loc: e.loc,
+            });
+          } else {
+            const transformedExpr = this.transformExpression(el, false, startLine);
+            this.currentPrependedStatements.push({
+              kind: "ExpressionStatement",
+              expression: {
+                kind: "MethodInvocation",
+                callee: { kind: "Identifier", name: tempName, loc: e.loc },
+                methodName: "Push",
+                typeArguments: [],
+                arguments: [transformedExpr],
+                loc: e.loc,
+              },
+              loc: e.loc,
+            });
+          }
+        }
+
+        return { kind: "Identifier", name: tempName, loc: e.loc };
+      }
+
+      case "ArrowFunctionExpression": {
+        this.usedSugars.add("list");
+        const arrow = e;
+        
+        // 1. Identify captured variables
+        const capturedVars = this.collectCapturedVars(arrow, startLine);
+        
+        // 2. Generate a unique name for the lambda method
+        const lambdaName = `__lambda${this.idxCounter++}`;
+        
+        // 3. Generate a closure class if there are captured variables
+        let closureTypeName: string | undefined;
+        let closureVarName: string | undefined;
+        
+        if (capturedVars.length > 0) {
+          closureTypeName = `__LambdaClosure_${lambdaName}`;
+          closureVarName = this.freshSource();
+          
+          // Generate the closure class declaration
+          const closureFields: ClassMember[] = capturedVars.map((v) => {
+            // Infer type of the captured variable
+            const vType = this.inferType({ kind: "Identifier", name: v, loc: arrow.loc }, startLine) ?? "Variant";
+            return {
+              kind: "FieldDeclaration",
+              name: v,
+              type: { kind: "TypeReference", name: vType, typeArguments: [], loc: arrow.loc },
+              modifiers: ["Public"],
+              loc: arrow.loc
+            };
+          });
+          
+          const closureClass: ClassDeclaration = {
+            kind: "ClassDeclaration",
+            name: closureTypeName,
+            typeParameters: [],
+            members: [
+              ...closureFields,
+              {
+                kind: "MethodDeclaration",
+                name: "New",
+                isConstructor: true,
+                typeParameters: [],
+                parameters: [],
+                body: [
+                  { kind: "OpaqueStatement", text: "MyBase.New()", loc: arrow.loc }
+                ],
+                loc: arrow.loc
+              }
+            ],
+            loc: arrow.loc
+          };
+          
+          // Add this closure class as a top-level member of the CompilationUnit
+          this.topLevelLambdas.push(closureClass);
+          
+          // At the call site, prepend the closure instantiation and population statements
+          const closureTypeRef: TypeReference = {
+            kind: "TypeReference",
+            name: closureTypeName,
+            typeArguments: [],
+            loc: arrow.loc
+          };
+          
+          this.currentPrependedStatements.push({
+            kind: "VariableDeclaration",
+            name: closureVarName,
+            type: closureTypeRef,
+            initializer: {
+              kind: "ObjectCreationExpression",
+              type: closureTypeRef,
+              arguments: [],
+              loc: arrow.loc
+            },
+            loc: arrow.loc
+          });
+          
+          for (const v of capturedVars) {
+            this.currentPrependedStatements.push({
+              kind: "Assignment",
+              target: {
+                kind: "MemberAccess",
+                target: { kind: "Identifier", name: closureVarName, loc: arrow.loc },
+                member: v,
+                loc: arrow.loc
+              },
+              value: { kind: "Identifier", name: v, loc: arrow.loc },
+              loc: arrow.loc
+            });
+          }
+        }
+        
+        // 4. Generate the delegate/lambda method definition
+        // Determine lambda method parameter types and return type based on delegate context
+        let isSub = false;
+        let returnTypeName = "Variant";
+        
+        const callContext = this.getDelegateContext();
+        if (callContext) {
+          isSub = callContext.isSub;
+          returnTypeName = callContext.returnType ?? "Variant";
+        }
+        
+        const lambdaParams: ParameterDeclaration[] = [
+          {
+            kind: "ParameterDeclaration",
+            name: "pValue",
+            type: { kind: "TypeReference", name: "CoreSugarBaseItem", typeArguments: [], loc: arrow.loc },
+            loc: arrow.loc
+          },
+          {
+            kind: "ParameterDeclaration",
+            name: "i",
+            type: { kind: "TypeReference", name: "Integer", typeArguments: [], loc: arrow.loc },
+            loc: arrow.loc
+          },
+          {
+            kind: "ParameterDeclaration",
+            name: "extra",
+            type: { kind: "TypeReference", name: "Variant", typeArguments: [], loc: arrow.loc },
+            loc: arrow.loc
+          }
+        ];
+        
+        const lambdaBody: Statement[] = [];
+        
+        // Cast extra to closure class if there are captured variables
+        if (closureTypeName && closureVarName) {
+          const closureTypeRef: TypeReference = {
+            kind: "TypeReference",
+            name: closureTypeName,
+            typeArguments: [],
+            loc: arrow.loc
+          };
+          lambdaBody.push({
+            kind: "VariableDeclaration",
+            name: "__closure",
+            type: closureTypeRef,
+            initializer: {
+              kind: "MethodInvocation",
+              callee: undefined,
+              methodName: "CType",
+              typeArguments: [],
+              arguments: [
+                { kind: "Identifier", name: "extra", loc: arrow.loc },
+                { kind: "Identifier", name: closureTypeName, loc: arrow.loc }
+              ],
+              loc: arrow.loc
+            },
+            loc: arrow.loc
+          });
+          
+          // Re-bind each captured variable locally in the lambda
+          for (const v of capturedVars) {
+            const vType = this.inferType({ kind: "Identifier", name: v, loc: arrow.loc }, startLine) ?? "Variant";
+            lambdaBody.push({
+              kind: "VariableDeclaration",
+              name: v,
+              type: { kind: "TypeReference", name: vType, typeArguments: [], loc: arrow.loc },
+              initializer: {
+                kind: "MethodInvocation",
+                callee: undefined,
+                methodName: "CType",
+                typeArguments: [],
+                arguments: [
+                  {
+                    kind: "MemberAccess",
+                    target: { kind: "Identifier", name: "__closure", loc: arrow.loc },
+                    member: v,
+                    loc: arrow.loc
+                  },
+                  { kind: "Identifier", name: vType, loc: arrow.loc }
+                ],
+                loc: arrow.loc
+              },
+              loc: arrow.loc
+            });
+          }
+        }
+        
+        // Re-bind lambda parameters by unwrapping pValue
+        arrow.parameters.forEach((param) => {
+          const pType = param.type.name;
+          let unwrapMethod = "UnwrapPrimitive";
+          if (pType.toLowerCase() === "tdatetime") {
+            unwrapMethod = "UnwrapDateTime";
+          } else if (!["string", "integer", "double", "boolean", "variant"].includes(pType.toLowerCase())) {
+            unwrapMethod = "UnwrapObject";
+          }
+          
+          const unwrapCall: MethodInvocation = {
+            kind: "MethodInvocation",
+            callee: { kind: "Identifier", name: "core_sugars_list.CoreSugarHelper", loc: arrow.loc },
+            methodName: unwrapMethod,
+            typeArguments: [],
+            arguments: [{ kind: "Identifier", name: "pValue", loc: arrow.loc }],
+            loc: arrow.loc
+          };
+          
+          lambdaBody.push({
+            kind: "VariableDeclaration",
+            name: param.name,
+            type: param.type,
+            initializer: {
+              kind: "MethodInvocation",
+              callee: undefined,
+              methodName: "CType",
+              typeArguments: [],
+              arguments: [unwrapCall, { kind: "Identifier", name: pType, loc: arrow.loc }],
+              loc: arrow.loc
+            },
+            loc: arrow.loc
+          });
+        });
+        
+        // Parse lambda body statement(s)
+        if (Array.isArray(arrow.body)) {
+          const transformedBody = this.transformStatements(arrow.body);
+          lambdaBody.push(...transformedBody);
+        } else {
+          const transformedExpr = this.transformExpression(arrow.body, false, startLine);
+          if (isSub) {
+            lambdaBody.push({
+              kind: "ExpressionStatement",
+              expression: transformedExpr,
+              loc: arrow.loc
+            });
+          } else {
+            let wrappedExpr = transformedExpr;
+            if (callContext?.delegateName === "SugarMapDel") {
+              const retType = this.inferType(transformedExpr, startLine) ?? "Variant";
+              const retTypeLower = retType.toLowerCase();
+              if (retTypeLower === "tdatetime") {
+                wrappedExpr = {
+                  kind: "ObjectCreationExpression",
+                  type: { kind: "TypeReference", name: "core_sugars_list.CoreSugarDateTimeWrapper", typeArguments: [], loc: arrow.loc },
+                  arguments: [transformedExpr],
+                  loc: arrow.loc
+                };
+              } else if (["string", "integer", "double", "boolean", "variant"].includes(retTypeLower)) {
+                wrappedExpr = {
+                  kind: "ObjectCreationExpression",
+                  type: { kind: "TypeReference", name: "core_sugars_list.CoreSugarValueWrapper", typeArguments: [], loc: arrow.loc },
+                  arguments: [transformedExpr],
+                  loc: arrow.loc
+                };
+              } else {
+                wrappedExpr = {
+                  kind: "ObjectCreationExpression",
+                  type: { kind: "TypeReference", name: "core_sugars_list.CoreSugarObjectWrapper", typeArguments: [], loc: arrow.loc },
+                  arguments: [transformedExpr],
+                  loc: arrow.loc
+                };
+              }
+            }
+            
+            lambdaBody.push({
+              kind: "Assignment",
+              target: { kind: "Identifier", name: lambdaName, loc: arrow.loc },
+              value: wrappedExpr,
+              loc: arrow.loc
+            });
+          }
+        }
+        
+        const returnTypeRef = isSub ? undefined : {
+          kind: "TypeReference" as const,
+          name: returnTypeName,
+          typeArguments: [],
+          loc: arrow.loc
+        };
+        
+        const lambdaMethod: MethodDeclaration = {
+          kind: "MethodDeclaration",
+          name: lambdaName,
+          typeParameters: [],
+          parameters: lambdaParams,
+          returnType: returnTypeRef,
+          body: lambdaBody,
+          modifiers: this.currentClass ? ["Private"] : ["Public", "Shared"],
+          loc: arrow.loc
+        };
+        
+        if (this.currentClass) {
+          let classList = this.lambdasToInject.get(this.currentClass);
+          if (!classList) {
+            classList = [];
+            this.lambdasToInject.set(this.currentClass, classList);
+          }
+          classList.push(lambdaMethod);
+        } else {
+          const containerName = `__LambdaContainer_${lambdaName}`;
+          const staticClass: ClassDeclaration = {
+            kind: "ClassDeclaration",
+            name: containerName,
+            typeParameters: [],
+            members: [lambdaMethod],
+            modifiers: ["Shared"],
+            loc: arrow.loc
+          };
+          this.topLevelLambdas.push(staticClass);
+        }
+        
+        if (closureVarName) {
+          this.lastClosureVarName = closureVarName;
+        }
+        
+        if (this.currentClass) {
+          return {
+            kind: "MemberAccess",
+            target: { kind: "Identifier", name: "me", loc: arrow.loc },
+            member: lambdaName,
+            loc: arrow.loc
+          };
+        } else {
+          return {
+            kind: "MemberAccess",
+            target: { kind: "Identifier", name: `__LambdaContainer_${lambdaName}`, loc: arrow.loc },
+            member: lambdaName,
+            loc: arrow.loc
+          };
+        }
+      }
+
       case "ObjectInitializerExpression": {
         return {
           kind: "ObjectCreationExpression",

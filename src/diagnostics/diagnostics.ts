@@ -307,6 +307,10 @@ export class DiagnosticsLinter {
     if (lhsLower === "variant") return rhsIsPrimitive;
     if (rhsLower === "variant") return lhsIsPrimitive;
 
+    if (lhsLower === "tprimitive" && (rhsIsPrimitive || rhsLower === "tprimitive" || TypeResolver.isSubclassOf(rhsType, lhsType, indexer))) {
+      return true;
+    }
+
     if (lhsIsPrimitive || rhsIsPrimitive) return false;
 
     if (lhsLower === "tobject") return true;
@@ -1062,6 +1066,15 @@ class DiagnosticsASTWalker extends ASTWalker {
   private readonly scopes: Set<string>[] = [new Set()];
   private readonly allowedTernaries = new Set<TernaryExpression>();
   private readonly imports: { name: string; loc: SourceLocation }[] = [];
+  private readonly typeParamStack: Set<string>[] = [];
+
+  private isGenericTypeParameter(name: string): boolean {
+    const nameLower = name.toLowerCase();
+    for (const set of this.typeParamStack) {
+      if (set.has(nameLower)) return true;
+    }
+    return false;
+  }
 
   constructor(
     private readonly document: vscode.TextDocument,
@@ -1180,14 +1193,34 @@ class DiagnosticsASTWalker extends ASTWalker {
     const prevProp = this.activeProperty;
 
     let pushedScope = false;
+    let pushedTypeParams = false;
 
     if (node.kind === "ClassDeclaration") {
       this.activeClass = node;
+      if (node.typeParameters && node.typeParameters.length > 0) {
+        const set = new Set<string>();
+        node.typeParameters.forEach((tp) => set.add(tp.name.toLowerCase()));
+        this.typeParamStack.push(set);
+        pushedTypeParams = true;
+      }
     } else if (node.kind === "MethodDeclaration") {
       this.activeMethod = node;
       this.pushScope();
       pushedScope = true;
       node.parameters.forEach((p) => this.addLocal(p.name));
+      if (node.typeParameters && node.typeParameters.length > 0) {
+        const set = new Set<string>();
+        node.typeParameters.forEach((tp) => set.add(tp.name.toLowerCase()));
+        this.typeParamStack.push(set);
+        pushedTypeParams = true;
+      }
+    } else if (node.kind === "DelegateDeclaration") {
+      if (node.typeParameters && node.typeParameters.length > 0) {
+        const set = new Set<string>();
+        node.typeParameters.forEach((tp) => set.add(tp.name.toLowerCase()));
+        this.typeParamStack.push(set);
+        pushedTypeParams = true;
+      }
     } else if (node.kind === "PropertyDeclaration") {
       this.activeProperty = node;
       this.pushScope();
@@ -1267,7 +1300,8 @@ class DiagnosticsASTWalker extends ASTWalker {
         nameLower === "me" ||
         nameLower === "mybase" ||
         nameLower === "value" ||
-        nameLower === "addressof"
+        nameLower === "addressof" ||
+        nameLower === "unassigned"
       ) {
         shouldSkip = true;
       }
@@ -1297,6 +1331,7 @@ class DiagnosticsASTWalker extends ASTWalker {
       if (!shouldSkip) {
         const isDeclared =
           this.isLocalDeclared(name) ||
+          this.isGenericTypeParameter(name) ||
           (this.activeClass &&
             (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
               TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
@@ -1326,6 +1361,10 @@ class DiagnosticsASTWalker extends ASTWalker {
       this.popScope();
     }
 
+    if (pushedTypeParams) {
+      this.typeParamStack.pop();
+    }
+
     this.activeClass = prevClass;
     this.activeMethod = prevMethod;
     this.activeProperty = prevProp;
@@ -1339,6 +1378,7 @@ class DiagnosticsASTWalker extends ASTWalker {
 
   protected override visitTypeReference(node: TypeReference): void {
     if (!node.loc) return;
+    if (this.isGenericTypeParameter(node.name)) return;
     const lineIdx = node.loc.startLine - 1;
     const col = node.loc.startChar;
 

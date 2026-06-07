@@ -5,8 +5,8 @@
 Namespace mod_demo
    Class TDemo
       Public Sub Run()
-         ' TList<T> never declared in this file -- linter flags the usage.
-         Dim _x As TList<Product>
+         ' TMyCustomList<T> never declared in this file -- linter flags the usage.
+         Dim _x As TMyCustomList<Product>
       End Sub
    End Class
 End Namespace

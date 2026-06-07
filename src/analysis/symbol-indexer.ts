@@ -966,7 +966,18 @@ function appendClonedMembers(
   subs: ReadonlyMap<string, string>,
 ): void {
   const templateLower = template.name.toLowerCase();
-  for (const sym of source) {
+  let lookupSource = source;
+  const hasTemplateMembers = source.some((sym) => sym.containerName?.toLowerCase() === templateLower);
+  if (!hasTemplateMembers) {
+    const virtualUri = "system://sugars/core_sugars_list.bas";
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const virtualSyms = indexer.getFileSymbols(virtualUri);
+    if (virtualSyms) {
+      lookupSource = virtualSyms.symbols;
+    }
+  }
+
+  for (const sym of lookupSource) {
     if (sym.containerName?.toLowerCase() !== templateLower) continue;
     const clone: SymbolInfo = {
       ...sym,

@@ -742,7 +742,7 @@ describe("GenericsMonomorphizer — robustness", () => {
     const result = new GenericsMonomorphizer().monomorphize(u);
     assert.equal(result.warnings.length, 0);
     assert.equal(result.instantiated.size, 0);
-    assert.equal(result.templates.size, 0);
+    assert.ok(result.templates.has("TList"));
     assert.equal(u.members.length, 0);
   });
 

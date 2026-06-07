@@ -57,12 +57,15 @@ import {
   type OpaqueStatement,
   type TopLevelMember,
   type TypeReference,
+  type Expression,
 } from "../ast/ast";
 import { deepClone } from "../ast/clone";
 import { type GenericTemplate, GlobalInstantiatedSet, TemplateRegistry } from "./registry";
 import type { MonomorphizationWarning, MonomorphizationWarningCode } from "./warnings";
 import { substituteTypeParamsInLine } from "./substitute";
 import { findInnerMostGenericUsage } from "../../analysis/generics-analyzer";
+import { parseBasic, SugarsParserPlugin, GenericsParserPlugin } from "../parser";
+import { SugarRegistry } from "../sugar-registry";
 
 // ============================================================================
 // Public API
@@ -97,6 +100,16 @@ export class GenericsMonomorphizer {
       flatToCanonical: new Map<string, string>(),
       warnings: [],
     };
+
+    // Pre-populate templates from SugarRegistry
+    for (const sugar of SugarRegistry.getAll()) {
+      if (sugar.namespace) {
+        const virtualCode = sugar.generateCode();
+        const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
+        const parsed = parseBasic(virtualCode, { plugins });
+        collectAndPruneIn(parsed.unit.members, ctx);
+      }
+    }
 
     // Step 1.
     validate(unit, ctx);
@@ -610,6 +623,21 @@ function instantiateTemplate(
   clone.name = flatName;
   clone.typeParameters = [];
 
+  // Rewriting baseType dynamically for TList<T> according to the type of T
+  if (clone.kind === "ClassDeclaration" && template.name.toLowerCase() === "tlist") {
+    const concreteT = concreteArgs[0];
+    if (concreteT) {
+      const typeName = concreteT.name.toLowerCase();
+      if (typeName === "tdatetime") {
+        clone.baseType = { kind: "TypeReference", name: "CoreSugarListDateTime", typeArguments: [] };
+      } else if (["string", "integer", "double", "boolean", "variant"].includes(typeName)) {
+        clone.baseType = { kind: "TypeReference", name: "CoreSugarListPrimitives", typeArguments: [] };
+      } else {
+        clone.baseType = { kind: "TypeReference", name: "CoreSugarListObjects", typeArguments: [] };
+      }
+    }
+  }
+
   return clone;
 }
 
@@ -640,12 +668,74 @@ class SubstitutionWalker extends ASTWalker {
     super();
   }
 
+  override walk(node: Node): void {
+    if (node.kind === "Identifier") {
+      const replacement = this.substitution.get(node.name);
+      if (replacement !== undefined) {
+        node.name = replacement.name;
+      }
+    }
+    super.walk(node);
+  }
+
   protected override visitTypeReference(node: TypeReference): void {
     if (node.typeArguments.length !== 0) return;
     const replacement = this.substitution.get(node.name);
     if (replacement === undefined) return;
     node.name = replacement.name;
     node.typeArguments = replacement.typeArguments.map(deepClone);
+  }
+
+  protected override visitMethodInvocation(node: MethodInvocation): void {
+    if (node.methodName.toLowerCase() === "ctype" && node.arguments.length === 2) {
+      const typeArg = node.arguments[1];
+      if (typeArg) {
+        if (typeArg.kind === "Identifier") {
+          const replacement = this.substitution.get(typeArg.name);
+          if (replacement !== undefined) {
+            typeArg.name = replacement.name;
+          }
+        } else if (typeArg.kind === "BinaryExpression") {
+          const rawExprStr = this.stringifyExpression(typeArg);
+          if (rawExprStr.includes("<") || rawExprStr.includes(">")) {
+            const substitutedStr = this.substituteParamsInString(rawExprStr);
+            const flatName = this.flattenGenericString(substitutedStr);
+            if (flatName) {
+              node.arguments[1] = {
+                kind: "Identifier",
+                name: flatName,
+                loc: typeArg.loc,
+              };
+            }
+          }
+        }
+      }
+    }
+    super.visitMethodInvocation(node);
+  }
+
+  private stringifyExpression(expr: Expression): string {
+    if (expr.kind === "Identifier") return expr.name;
+    if (expr.kind === "BinaryExpression") {
+      const leftStr = this.stringifyExpression(expr.left);
+      const rightStr = expr.right ? this.stringifyExpression(expr.right) : "";
+      return leftStr + expr.operator + rightStr;
+    }
+    return "";
+  }
+
+  private substituteParamsInString(str: string): string {
+    let result = str;
+    for (const [k, v] of this.substitution.entries()) {
+      const flatName = flatNameOf(v);
+      const regex = new RegExp(`\\b${k}\\b`, "g");
+      result = result.replace(regex, flatName);
+    }
+    return result;
+  }
+
+  private flattenGenericString(str: string): string {
+    return str.replace(/<|>/g, (m) => (m === "<" ? "_" : "")).replace(/,/g, "_");
   }
 
   protected override visitOpaqueStatement(node: OpaqueStatement): void {

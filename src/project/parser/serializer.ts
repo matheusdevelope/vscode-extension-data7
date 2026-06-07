@@ -494,7 +494,7 @@ function emitExpressionRaw(expr: Expression): string {
       const callArgs = expr.arguments.map(emitExpression).join(", ");
       const typeArgs =
         expr.typeArguments.length > 0 ? `<${expr.typeArguments.map(emitTypeRef).join(", ")}>` : "";
-      const receiver = expr.callee ? emitExpression(expr.callee) + "." : "";
+      const receiver = expr.callee ? emitExpression(expr.callee) + (expr.methodName ? "." : "") : "";
       if (expr.noParentheses) {
         return `${receiver}${expr.methodName}${typeArgs} ${callArgs}`;
       }
@@ -537,6 +537,20 @@ function emitExpressionRaw(expr: Expression): string {
         .join(", ");
       return `New ${emitTypeRef(expr.type)}(${argsStr}) With { ${assignmentsStr} }`;
     }
+    case "ArrayLiteralExpression":
+      return `[${expr.elements.map(emitExpression).join(", ")}]`;
+    case "SpreadExpression":
+      return `...${emitExpression(expr.expression)}`;
+    case "ArrowFunctionExpression": {
+      const params = expr.parameters.map(emitParameter).join(", ");
+      const retType = expr.returnType ? ` As ${emitTypeRef(expr.returnType)}` : "";
+      if (Array.isArray(expr.body)) {
+        return `(${params})${retType} => { ... }`;
+      }
+      return `(${params})${retType} => ${emitExpression(expr.body)}`;
+    }
+    case "TypeReferenceExpression":
+      return emitTypeRef(expr.type);
     default: {
       const exhaustive: never = expr;
       void exhaustive;

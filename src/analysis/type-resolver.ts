@@ -216,7 +216,22 @@ export class TypeResolver {
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
+    const rawType = TypeResolver.resolveExpressionTypeRaw(expr, document, lineIdx, indexer);
+    if (!rawType) return undefined;
+    const position = { line: lineIdx, character: 0 } as vscode.Position;
+    const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
+    return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+  }
+
+  private static resolveExpressionTypeRaw(
+    expr: Expression,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
     switch (expr.kind) {
+      case "TypeReferenceExpression":
+        return typeRefToString(expr.type);
       case "Literal":
         if (expr.value === null) return "Variant";
         return inferLiteralType(String(expr.value)) ?? typeofLiteral(expr.value);
@@ -844,6 +859,9 @@ function typeRefToString(typeRef: TypeReference | undefined): string | undefined
 }
 
 function expressionToTypeString(expr: Expression): string | undefined {
+  if (expr.kind === "TypeReferenceExpression") {
+    return typeRefToString(expr.type);
+  }
   if (expr.kind === "Identifier") {
     return expr.name;
   }

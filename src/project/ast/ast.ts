@@ -49,6 +49,7 @@ export type Node =
   | ParameterDeclaration
   | TypeParameter
   | TypeReference
+  | TypeReferenceExpression
   | VariableDeclaration
   | ObjectCreationExpression
   | MethodInvocation
@@ -82,7 +83,10 @@ export type Node =
   | ObjectInitializerExpression
   | ImportsDeclaration
   | SelectCaseStatement
-  | SelectCaseBranch;
+  | SelectCaseBranch
+  | ArrayLiteralExpression
+  | SpreadExpression
+  | ArrowFunctionExpression;
 
 export interface CompilationUnit extends BaseNode {
   readonly kind: "CompilationUnit";
@@ -180,6 +184,11 @@ export interface TypeReference extends BaseNode {
   typeArguments: TypeReference[];
 }
 
+export interface TypeReferenceExpression extends BaseNode {
+  readonly kind: "TypeReferenceExpression";
+  type: TypeReference;
+}
+
 export interface VariableDeclaration extends BaseNode {
   readonly kind: "VariableDeclaration";
   name: string;
@@ -201,7 +210,11 @@ export type Expression =
   | OptionalChainingExpression
   | PipeExpression
   | TaggedTemplateExpression
-  | ObjectInitializerExpression;
+  | ObjectInitializerExpression
+  | ArrayLiteralExpression
+  | SpreadExpression
+  | ArrowFunctionExpression
+  | TypeReferenceExpression;
 
 export interface ObjectCreationExpression extends BaseNode {
   readonly kind: "ObjectCreationExpression";
@@ -415,6 +428,25 @@ export interface TaggedTemplateExpression extends BaseNode {
   body: string;
 }
 
+export interface ArrayLiteralExpression extends BaseNode {
+  readonly kind: "ArrayLiteralExpression";
+  readonly elements: ArrayLiteralElement[];
+}
+
+export type ArrayLiteralElement = Expression | SpreadExpression;
+
+export interface SpreadExpression extends BaseNode {
+  readonly kind: "SpreadExpression";
+  readonly expression: Expression;
+}
+
+export interface ArrowFunctionExpression extends BaseNode {
+  readonly kind: "ArrowFunctionExpression";
+  readonly parameters: ParameterDeclaration[];
+  readonly body: Expression | Statement[];
+  readonly returnType?: TypeReference;
+}
+
 // ============================================================================
 // Visitor / Walker
 // ============================================================================
@@ -466,6 +498,10 @@ export abstract class ASTWalker {
       case "TypeReference":
         for (const t of node.typeArguments) this.walk(t);
         this.visitTypeReference(node);
+        return;
+      case "TypeReferenceExpression":
+        this.walk(node.type);
+        this.visitTypeReferenceExpression(node);
         return;
       case "VariableDeclaration":
         if (node.type) this.walk(node.type);
@@ -614,6 +650,21 @@ export abstract class ASTWalker {
         for (const arg of node.arguments) this.walk(arg);
         for (const assoc of node.assignments) this.walk(assoc.value);
         return;
+      case "ArrayLiteralExpression":
+        for (const el of node.elements) this.walk(el);
+        return;
+      case "SpreadExpression":
+        this.walk(node.expression);
+        return;
+      case "ArrowFunctionExpression":
+        for (const p of node.parameters) this.walk(p);
+        if (node.returnType) this.walk(node.returnType);
+        if (Array.isArray(node.body)) {
+          for (const s of node.body) this.walk(s);
+        } else {
+          this.walk(node.body);
+        }
+        return;
       default: {
         const _exhaustive: never = node;
         return _exhaustive;
@@ -623,6 +674,9 @@ export abstract class ASTWalker {
 
   protected visitTypeReference(_node: TypeReference): void {
     // No-op base hook; subclasses override to react to TypeReference nodes.
+  }
+  protected visitTypeReferenceExpression(_node: TypeReferenceExpression): void {
+    // No-op base hook; subclasses override to react to TypeReferenceExpression nodes.
   }
   protected visitMethodInvocation(_node: MethodInvocation): void {
     // No-op base hook; subclasses override to react to MethodInvocation nodes.

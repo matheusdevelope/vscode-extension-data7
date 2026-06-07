@@ -806,3 +806,63 @@ describe("SugarTranspiler — A6 numeric separator", () => {
     assert.equal(out, `Dim s As String = "a_b_c"`);
   });
 });
+
+describe("SugarTranspiler — List Sugar and Arrow Functions", () => {
+  const ctx = makeContext({});
+
+  test("transpiles basic array literal declaration and pushes elements", () => {
+    const code = `Dim x[] As String = ["a", "b"]`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim __src0 As TList_String = New TList_String\(\)/);
+    assert.match(out, /__src0\.Push\("a"\)/);
+    assert.match(out, /__src0\.Push\("b"\)/);
+    assert.match(out, /Dim x As TList_String = __src0/);
+  });
+
+  test("transpiles array literal with spread operator", () => {
+    const code = `Dim x[] As String = ["a", ...other]`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /__src0\.Push\("a"\)/);
+    assert.match(out, /__src0\.Add\(other\)/);
+  });
+
+  test("transpiles non-capturing arrow function inside method call", () => {
+    const code = [
+      "Class TTest",
+      "   Sub Run()",
+      "      Dim lista As TList_String",
+      "      Dim f = lista.Filter((x As String) => x = \"Item 1\")",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /lista\.Filter\(me\.__lambda0, NULL\)/);
+    assert.match(out, /Private Function __lambda0\(pValue As CoreSugarBaseItem, i As Integer, extra As Variant\) As Boolean/);
+    assert.match(out, /Dim x As String = CType\(core_sugars_list\.CoreSugarHelper\.UnwrapPrimitive\(pValue\), String\)/);
+    assert.match(out, /__lambda0 = x = "Item 1"/);
+  });
+
+  test("transpiles capturing arrow function (closure) using generated closure class", () => {
+    const code = [
+      "Class TTest",
+      "   Sub Run()",
+      "      Dim lista As TList_String",
+      "      Dim target = \"Item 1\"",
+      "      Dim f = lista.Filter((x As String) => x = target)",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class __LambdaClosure___lambda0/);
+    assert.match(out, /Public target As String/);
+    assert.match(out, /Dim __src0 As __LambdaClosure___lambda0 = New __LambdaClosure___lambda0\(\)/);
+    assert.match(out, /__src0\.target = target/);
+    assert.match(out, /lista\.Filter\(me\.__lambda0, __src0\)/);
+    assert.match(out, /Dim __closure As __LambdaClosure___lambda0 = CType\(extra, __LambdaClosure___lambda0\)/);
+    assert.match(out, /Dim target As String = CType\(__closure\.target, String\)/);
+  });
+});
