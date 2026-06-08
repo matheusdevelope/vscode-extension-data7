@@ -3,13 +3,53 @@ Imports mod_tobject
 '@Module
 Namespace mod_tlist
 
-   'Dim _listIntegers As TTList<Integer>
-   'Dim _listProdutos As TTList<Produto>
+   Class Produto
+      Inherits TTObject
+      Codigo As Integer
+      Nome As String
+      Sub New(pCodigo As Integer, pNome As String)
+         MyBase.New()
+         me.Codigo = pCodigo
+         me.Nome = pNome
+      End Sub
+      Sub New(pValue As Produto)
+         MyBase.New()
+         me.Assign(pValue)
+      End Sub
+      Sub Assign(pValue As Produto)
+         If Assigned(pValue) Then
+            me.Codigo = pValue.Codigo
+            me.Nome = pValue.Nome
+         End If
+      End Sub
+      Overrides Function Clone() As Produto
+         Clone = New Produto(me)
+      End Function
+      Overrides Function GetID() As String
+         GetID = CStr(me.Codigo)
+      End Function
+      Overrides Function ToString() As String
+         With me.BuildLogger(me.ClassName)
+            .Prop("Codigo", me.Codigo.ToString())
+            .Prop("Nome", me.Nome.ToString())
+            ToString = .Text()
+            .Free()
+         End With
+      End Function
+      Overrides Sub Dispose()
+         me.Codigo = Unassigned
+         me.Nome = Unassigned
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
 
    Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
    Delegate Function TMapDel<T>(pValue As T, i As Integer, extra As Variant) As T
    Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
 
+   <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>
    Class TTItem<T>
       Inherits TTObject
 
@@ -73,9 +113,7 @@ Namespace mod_tlist
 
       Overrides Sub Dispose()
          me._id = Unassigned
-         If TValue(me.Value).IsObject Then
-            TTObject(TValue(me.Value).AsObject).Free()
-         End If
+         me.Value = Unassigned
       End Sub
 
       Public Sub Free()
@@ -83,7 +121,8 @@ Namespace mod_tlist
       End Sub
 
    End Class
-   
+   <# End If #>
+
    Class TTList<T>
       Inherits TTComposerList
 
@@ -92,21 +131,19 @@ Namespace mod_tlist
       End Sub
 
       Private Function Wrap(pID As String, pValue As T) As TTObject
-         If TValue(pValue).IsObject Then
-            Wrap = TTObject(TValue(pValue).AsObject)
-         Else
-            Wrap = New TTItem<T>(pID, pValue)
-         End If
+         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         Wrap = pValue
+         <# Else #>
+         Wrap = New TTItem<T>(pID, pValue)
+         <# End If #>
       End Function
 
       Private Function Unwrap(pObj As TTObject) As T
-         If Assigned(pObj) Then
-            If TypeOf(pObj) Is TTItem<T> Then
-               Unwrap = TTItem<T>(pObj).Value
-            Else
-               Unwrap = CType(pObj, T)
-            End If
-         End If
+         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         Unwrap = CType(pObj, T)
+         <# Else #>
+         Unwrap = TTItem<T>(pObj).Value
+         <# End If #>
       End Function
 
       Function GetItem(pIndex As Integer) As T

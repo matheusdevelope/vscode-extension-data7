@@ -11,7 +11,7 @@
     <IdentificacaoBancoDados></IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>07/06/2026 14:42:27</Data>
+  <Data>07/06/2026 20:52:54</Data>
   <Codigo>Imports mod_tobject
 
 Imports mod_tlist
@@ -107,7 +107,7 @@ _produto1.Free()
 '_produto2.Free()</Codigo>
   <Aberto>true</Aberto>
   <OrdemAbertura>0</OrdemAbertura>
-  <ItemAberto>0</ItemAberto>
+  <ItemAberto>2</ItemAberto>
   <Pastas>
     <Pasta>
       <Nome>Unidades (2)</Nome>
@@ -878,24 +878,57 @@ End Namespace</Codigo>
 Namespace mod_tlist
    'Dim _listIntegers As TTList_Integer
    'Dim _listProdutos As TTList_Produto
+   Class Produto
+      Inherits TTObject
+      Codigo As Integer
+      Nome As String
+      Sub New(pCodigo As Integer, pNome As String)
+         MyBase.New()
+         me.Codigo = pCodigo
+         me.Nome = pNome
+      End Sub
+      Sub New(pValue As Produto)
+         MyBase.New()
+         me.Assign(pValue)
+      End Sub
+      Sub Assign(pValue As Produto)
+         If Assigned(pValue) Then
+            me.Codigo = pValue.Codigo
+            me.Nome = pValue.Nome
+         End If
+      End Sub
+      Overrides Function Clone() As Produto
+         Clone = New Produto(me)
+      End Function
+      Overrides Function GetID() As String
+         GetID = CStr(me.Codigo)
+      End Function
+      Overrides Function ToString() As String
+         With me.BuildLogger(me.ClassName)
+            .Prop("Codigo", me.Codigo.ToString())
+            .Prop("Nome", me.Nome.ToString())
+            ToString = .Text()
+            .Free()
+         End With
+      End Function
+      Overrides Sub Dispose()
+         me.Codigo = Unassigned
+         me.Nome = Unassigned
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
    Class TTList_Integer
       Inherits TTComposerList
       Sub New()
          MyBase.New(me.Classname(), True)
       End Sub
       Private Function Wrap(pID As String, pValue As Integer) As TTObject
-         If TValue(pValue).IsObject Then
-            Wrap = TTObject(TValue(pValue).AsObject)
-         Else
-            Wrap = New TTItem_Integer(pID, pValue)
-         End If
+         Wrap = New TTItem_Integer(pID, pValue)
       End Function
       Private Function Unwrap(pObj As TTObject) As Integer
-         If TypeOf pObj Is TTItem_Integer Then
          Unwrap = TTItem_Integer(pObj).Value
-         Else
-         Unwrap = CType(pObj, Integer)
-         End If
       End Function
       Function GetItem(pIndex As Integer) As Integer
          GetItem = me.Take(pIndex)
@@ -1021,18 +1054,10 @@ Namespace mod_tlist
          MyBase.New(me.Classname(), True)
       End Sub
       Private Function Wrap(pID As String, pValue As Produto) As TTObject
-         If TValue(pValue).IsObject Then
-            Wrap = TTObject(TValue(pValue).AsObject)
-         Else
-            Wrap = New TTItem_Produto(pID, pValue)
-         End If
+         Wrap = pValue
       End Function
       Private Function Unwrap(pObj As TTObject) As Produto
-         If TypeOf pObj Is TTItem_Produto Then
-         Unwrap = TTItem_Produto(pObj).Value
-         Else
          Unwrap = CType(pObj, Produto)
-         End If
       End Function
       Function GetItem(pIndex As Integer) As Produto
          GetItem = me.Take(pIndex)
@@ -1155,8 +1180,8 @@ Namespace mod_tlist
    Class TTItem_Integer
       Inherits TTObject
       Private _id As String
-      Public Value As Integer
-      Public Property ID As String
+      Value As Integer
+      Property ID As String
          Get
             ID = me._id
          End Get
@@ -1204,73 +1229,15 @@ Namespace mod_tlist
       End Function
       Overrides Sub Dispose()
          me._id = Unassigned
-         If TValue(me.Value).IsObject Then
-            TTObject(TValue(me.Value).AsObject).Free()
-         Else
-            me.Value = Unassigned
-         End If
+         me.Value = Unassigned
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
       End Sub
    End Class
    Delegate Function TFindDel_Integer(pValue As Integer, i As Integer, extra As Variant) As Boolean
    Delegate Sub TForEachDel_Integer(pValue As Integer, i As Integer, extra As Variant)
    Delegate Function TMapDel_Integer(pValue As Integer, i As Integer, extra As Variant) As Integer
-   Class TTItem_Produto
-      Inherits TTObject
-      Private _id As String
-      Public Value As Produto
-      Public Property ID As String
-         Get
-            ID = me._id
-         End Get
-      End Property
-      Sub New(pValue As Produto)
-         MyBase.New()
-         me._init("", pValue)
-      End Sub
-      Sub New(pID As String, pValue As Produto)
-         MyBase.New()
-         me._init(pID, pValue)
-      End Sub
-      Sub New(pValue As TTItem_Produto)
-         MyBase.New()
-         me.Assign(pValue)
-      End Sub
-      Private Sub _init(pID As String, pValue As Produto)
-         pID = pID.Trim()
-         If pID &lt;&gt; "" Then
-            me._id = pID
-         Else
-            me._id = CStr(me.GetHashCode)
-         End If
-         me.Value = pValue
-      End Sub
-      Sub Assign(pValue As TTItem_Produto)
-         If Assigned(pValue) Then
-            me._id = pValue.ID
-            me.Value = pValue.Value
-         End If
-      End Sub
-      Overrides Function Clone() As TTItem_Produto
-         Clone = New TTItem_Produto(me)
-      End Function
-      Overrides Function GetID() As String
-         GetID = me._id
-      End Function
-      Overrides Function ToString() As String
-         With me.BuildLogger(me.Classname)
-            .Prop("ID", me._id)
-            .Prop("Value", me.Value.ToString())
-            .Prop("Type", TypeName(me.Value))
-            ToString = .Text
-         End With
-      End Function
-      Overrides Sub Dispose()
-         me._id = Unassigned
-         If TValue(me.Value).IsObject Then
-            TTObject(TValue(me.Value).AsObject).Free()
-         End If
-      End Sub
-   End Class
    Delegate Function TFindDel_Produto(pValue As Produto, i As Integer, extra As Variant) As Boolean
    Delegate Sub TForEachDel_Produto(pValue As Produto, i As Integer, extra As Variant)
    Delegate Function TMapDel_Produto(pValue As Produto, i As Integer, extra As Variant) As Produto

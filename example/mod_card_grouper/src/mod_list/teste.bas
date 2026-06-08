@@ -1,10 +1,13 @@
 Imports mod_tlist
 
-Dim _list As TTList<Integer> = New TTList<Integer>()
 
-_list.Add(123)
-_list.Add(456)
-_list.Add(789)
+Dim _listq As TTList<Integer> = New TTList<Integer>()
 
-print _list.Count
-print _list.ToString()
+_listq.Add(123)
+_listq.Add(456)
+_listq.Add(789)
+print _listq.Count
+print _listq.ToString()
+
+Dim prods As TTList<Produto> = New TTList<Produto>()
+print prods.Count
