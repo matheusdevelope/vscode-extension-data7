@@ -62,6 +62,8 @@ export interface SymbolInfo {
    * destaca a que corresponde ao número de argumentos no call site.
    */
   overloads?: ParameterInfo[][];
+  genericTypeParameters?: string[];
+  isSyntheticGenericInstantiation?: boolean;
   range: {
     startLine: number;
     startChar: number;
@@ -86,6 +88,7 @@ export interface SymbolInfo {
 export interface FileSymbols {
   fileUri: string;
   filePath: string;
+  content: string;
   imports: string[];
   symbols: SymbolInfo[];
 }
@@ -171,6 +174,9 @@ class SymbolIndexerWalker extends ASTWalker {
         containerName: this.activeNamespace,
         description: node.comment?.trim() || undefined,
       };
+      if (node.typeParameters.length > 0) {
+        classSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
+      }
       if (node.baseType) {
         classSymbol.inheritsFrom = typeRefToString(node.baseType);
       }
@@ -213,6 +219,9 @@ class SymbolIndexerWalker extends ASTWalker {
         description: node.comment?.trim() || undefined,
         noParentheses: node.noParentheses,
       };
+      if (node.typeParameters.length > 0) {
+        methodSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
+      }
       this.symbols.push(methodSymbol);
       return;
     }
@@ -249,6 +258,9 @@ class SymbolIndexerWalker extends ASTWalker {
         description: node.comment?.trim() || undefined,
         noParentheses: node.noParentheses,
       };
+      if (node.typeParameters.length > 0) {
+        delegateSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
+      }
       this.symbols.push(delegateSymbol);
       return;
     }
@@ -403,6 +415,7 @@ export class SymbolParser {
     const fileSymbols: FileSymbols = {
       fileUri,
       filePath: vscode.Uri.parse(fileUri).fsPath,
+      content,
       imports: [],
       symbols: [],
     };
@@ -628,7 +641,7 @@ export class WorkspaceSymbolIndexer {
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, "utf-8");
         const parsed = SymbolParser.parseBasFile(fileUri, content);
-        appendGenericInstantiations(parsed, fileUri, content);
+        appendGenericInstantiations(parsed, fileUri, content, this);
         this.cache.set(key, parsed);
       } else {
         this.cache.delete(key);
@@ -654,7 +667,7 @@ export class WorkspaceSymbolIndexer {
   public updateFileContent(fileUri: string, content: string): void {
     try {
       const parsed = SymbolParser.parseBasFile(fileUri, content);
-      appendGenericInstantiations(parsed, fileUri, content);
+      appendGenericInstantiations(parsed, fileUri, content, this);
       this.cache.set(this.getCacheKey(fileUri), parsed);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);
@@ -828,15 +841,17 @@ function getOrComputeExpansion(
   fileUri: string,
   content: string,
   parsed: FileSymbols,
+  indexer: WorkspaceSymbolIndexer,
 ): SymbolInfo[] {
+  const cacheContent = `${content}\n/*external-generics:${genericTemplateCacheSignature(indexer.getAllSymbols(), fileUri)}*/`;
   const cached = expansionCacheKeys.get(fileUri);
-  if (cached?.content === content) {
+  if (cached?.content === cacheContent) {
     const hit = expansionCache.get(cached.ref);
     if (hit) return hit;
   }
-  const computed = computeGenericInstantiations(parsed, fileUri, content);
-  const ref = { fileUri, content };
-  expansionCacheKeys.set(fileUri, { ref, content });
+  const computed = computeGenericInstantiations(parsed, fileUri, content, indexer);
+  const ref = { fileUri, content: cacheContent };
+  expansionCacheKeys.set(fileUri, { ref, content: cacheContent });
   expansionCache.set(ref, computed);
   return computed;
 }
@@ -851,9 +866,14 @@ function getOrComputeExpansion(
  * indexer, the live linter, the textual pass and the AST driver all
  * agree on which usages exist and what their flat names are.
  */
-function appendGenericInstantiations(parsed: FileSymbols, fileUri: string, content: string): void {
+function appendGenericInstantiations(
+  parsed: FileSymbols,
+  fileUri: string,
+  content: string,
+  indexer: WorkspaceSymbolIndexer,
+): void {
   if (!hasGenericMarkers(content)) return;
-  const extra = getOrComputeExpansion(fileUri, content, parsed);
+  const extra = getOrComputeExpansion(fileUri, content, parsed, indexer);
   if (extra.length === 0) return;
   const known = new Set(parsed.symbols.map(symbolKey));
   for (const sym of extra) {
@@ -886,8 +906,11 @@ function computeGenericInstantiations(
   parsed: FileSymbols,
   fileUri: string,
   content: string,
+  indexer: WorkspaceSymbolIndexer,
 ): SymbolInfo[] {
-  const ctx = collectGenericsContext(content);
+  const ctx = collectGenericsContext(content, {
+    externalTemplates: collectGenericTemplatesFromSymbols(indexer.getAllSymbols(), fileUri),
+  });
   if (ctx.templates.size === 0 || ctx.usages.length === 0) return [];
 
   // The flat-class needs the namespace its template was declared
@@ -897,6 +920,13 @@ function computeGenericInstantiations(
   for (const sym of parsed.symbols) {
     if (sym.kind !== "class" && sym.kind !== "delegate") continue;
     namespaceOfTemplate.set(sym.name.toLowerCase(), sym.containerName);
+  }
+  for (const sym of indexer.getAllSymbols()) {
+    if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") continue;
+    if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
+    if (!namespaceOfTemplate.has(sym.name.toLowerCase())) {
+      namespaceOfTemplate.set(sym.name.toLowerCase(), sym.containerName);
+    }
   }
 
   const result: SymbolInfo[] = [];
@@ -914,10 +944,49 @@ function computeGenericInstantiations(
 
     const containerName = namespaceOfTemplate.get(template.name.toLowerCase());
     appendSyntheticClass(result, usage, fileUri, containerName);
-    appendClonedMembers(result, parsed.symbols, template, usage, subs);
+    appendClonedMembers(result, parsed.symbols, template, usage, subs, indexer);
   }
 
   return result;
+}
+
+function collectGenericTemplatesFromSymbols(
+  symbols: readonly SymbolInfo[],
+  currentFileUri: string,
+): GenericTemplateInfo[] {
+  const templates: GenericTemplateInfo[] = [];
+  const seen = new Set<string>();
+  for (const sym of symbols) {
+    if (sym.fileUri === currentFileUri) continue;
+    if (
+      sym.kind !== "class" &&
+      sym.kind !== "delegate" &&
+      sym.kind !== "method"
+    ) {
+      continue;
+    }
+    if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
+    const key = sym.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    templates.push({
+      kind: sym.kind,
+      name: sym.name,
+      typeParams: sym.genericTypeParameters,
+      line: sym.range.startLine,
+    });
+  }
+  return templates;
+}
+
+function genericTemplateCacheSignature(
+  symbols: readonly SymbolInfo[],
+  currentFileUri: string,
+): string {
+  return collectGenericTemplatesFromSymbols(symbols, currentFileUri)
+    .map((template) => `${template.kind}:${template.name}<${template.typeParams.join(",")}>`)
+    .sort()
+    .join("|");
 }
 
 function buildSubstitutions(
@@ -954,6 +1023,7 @@ function appendSyntheticClass(
     },
     fileUri,
     containerName,
+    isSyntheticGenericInstantiation: true,
     description: `Instanciacao monomorfica de ${usage.templateName}<${usage.typeArgs.join(", ")}>.`,
   });
 }
@@ -964,13 +1034,22 @@ function appendClonedMembers(
   template: GenericTemplateInfo,
   usage: GenericUsageOccurrence,
   subs: ReadonlyMap<string, string>,
+  indexer: WorkspaceSymbolIndexer,
 ): void {
   const templateLower = template.name.toLowerCase();
   let lookupSource = source;
   const hasTemplateMembers = source.some((sym) => sym.containerName?.toLowerCase() === templateLower);
   if (!hasTemplateMembers) {
+    const workspaceSymbols = indexer.getAllSymbols();
+    const hasWorkspaceTemplateMembers = workspaceSymbols.some(
+      (sym) => sym.containerName?.toLowerCase() === templateLower,
+    );
+    if (hasWorkspaceTemplateMembers) {
+      lookupSource = workspaceSymbols;
+    }
+  }
+  if (!hasTemplateMembers && lookupSource === source) {
     const virtualUri = "system://sugars/core_sugars_list.bas";
-    const indexer = WorkspaceSymbolIndexer.getInstance();
     const virtualSyms = indexer.getFileSymbols(virtualUri);
     if (virtualSyms) {
       lookupSource = virtualSyms.symbols;

@@ -3,6 +3,11 @@ import { SugarTranspiler } from "../project/transpiler";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
+import { collectGenericsContext } from "../analysis/generics-analyzer";
+import type {
+  ExternalGenericTemplate,
+  RequestedGenericInstantiation,
+} from "../project/generics";
 
 
 export class D7PreviewContentProvider implements vscode.TextDocumentContentProvider {
@@ -74,6 +79,9 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
 
   private transpileCode(rawCode: string, sourceUriStr: string): string {
     const indexer = WorkspaceSymbolIndexer.getInstance();
+    indexer.updateFileContent(sourceUriStr, rawCode);
+    refreshIndexerFromOpenDocuments(indexer);
+    const externalGenericTemplates = collectExternalGenericTemplates(indexer);
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -81,6 +89,13 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
           (t) => TypeResolver.getAllMembersForType(t, indexer),
           preferredElementType,
         ),
+      isTypeDescendantOf: (typeName: string, baseTypeName: string) =>
+        TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
+      externalGenericTemplates,
+      requestedGenericInstantiations: collectRequestedGenericInstantiations(
+        indexer,
+        externalGenericTemplates,
+      ),
     };
 
     try {
@@ -94,6 +109,94 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
       const msg = err instanceof Error ? err.message : String(err);
       return `Error transpiling code:\n${msg}`;
     }
+  }
+}
+
+function collectExternalGenericTemplates(
+  indexer: WorkspaceSymbolIndexer,
+): ExternalGenericTemplate[] {
+  const templates: ExternalGenericTemplate[] = [];
+  const seen = new Set<string>();
+  for (const sym of indexer.getAllSymbols()) {
+    if (
+      sym.kind !== "class" &&
+      sym.kind !== "delegate" &&
+      sym.kind !== "method"
+    ) {
+      continue;
+    }
+    if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
+    const key = sym.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    templates.push({ name: sym.name, typeParams: sym.genericTypeParameters });
+  }
+  return templates;
+}
+
+function collectRequestedGenericInstantiations(
+  indexer: WorkspaceSymbolIndexer,
+  externalGenericTemplates: readonly ExternalGenericTemplate[],
+): RequestedGenericInstantiation[] {
+  const requests: RequestedGenericInstantiation[] = [];
+  const seen = new Set<string>();
+  const workspaceTemplateNames = new Set(
+    externalGenericTemplates.map((template) => template.name.toLowerCase()),
+  );
+  const openTypeParams = collectOpenTypeParams(externalGenericTemplates);
+  const analysisTemplates = externalGenericTemplates.map((template) => ({
+    kind: "class" as const,
+    name: template.name,
+    typeParams: template.typeParams,
+    line: 0,
+  }));
+
+  for (const fileSyms of indexer.getAllFileSymbols()) {
+    const ctx = collectGenericsContext(fileSyms.content, {
+      externalTemplates: analysisTemplates,
+    });
+    for (const usage of ctx.usages) {
+      if (!workspaceTemplateNames.has(usage.templateName.toLowerCase())) continue;
+      if (hasOpenGenericTypeArgument(usage.typeArgs, openTypeParams)) continue;
+      const key = `${usage.templateName.toLowerCase()}<${usage.typeArgs.join(",")}>`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      requests.push({ templateName: usage.templateName, typeArgs: usage.typeArgs });
+    }
+  }
+  return requests;
+}
+
+function collectOpenTypeParams(
+  templates: readonly ExternalGenericTemplate[],
+): ReadonlySet<string> {
+  const result = new Set<string>();
+  for (const template of templates) {
+    for (const typeParam of template.typeParams) {
+      result.add(typeParam.toLowerCase());
+    }
+  }
+  return result;
+}
+
+function hasOpenGenericTypeArgument(
+  typeArgs: readonly string[],
+  openTypeParams: ReadonlySet<string>,
+): boolean {
+  return typeArgs.some((typeArg) => openTypeParams.has(typeArg.toLowerCase()));
+}
+
+function isData7SourceDocument(doc: vscode.TextDocument): boolean {
+  return (
+    (doc.languageId === "d7basic" || doc.fileName?.endsWith(".bas")) &&
+    doc.uri.scheme !== D7PreviewContentProvider.scheme
+  );
+}
+
+function refreshIndexerFromOpenDocuments(indexer: WorkspaceSymbolIndexer): void {
+  for (const doc of vscode.workspace.textDocuments) {
+    if (!isData7SourceDocument(doc)) continue;
+    indexer.updateFileContent(doc.uri.toString(), doc.getText());
   }
 }
 
@@ -113,16 +216,11 @@ export class PreviewService {
     // Re-transpile when the source file changes (existing behaviour).
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument((e) => {
-        if (
-          (e.document.languageId === "d7basic" || e.document.fileName?.endsWith(".bas")) &&
-          e.document.uri.scheme !== D7PreviewContentProvider.scheme
-        ) {
-          const previewUri = e.document.uri.with({
-            scheme: D7PreviewContentProvider.scheme,
-            query: `originalScheme=${e.document.uri.scheme}`,
-          });
-          this.provider.triggerUpdate(previewUri);
-        }
+        if (!isData7SourceDocument(e.document)) return;
+
+        const indexer = WorkspaceSymbolIndexer.getInstance();
+        indexer.updateFileContent(e.document.uri.toString(), e.document.getText());
+        this.triggerPreviewUpdates(e.document.uri);
       }),
     );
 
@@ -185,6 +283,38 @@ export class PreviewService {
     const targetRange = new vscode.Range(targetPosition, targetPosition);
 
     previewEditor.revealRange(targetRange, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  }
+
+  private static getPreviewUriForSource(sourceUri: vscode.Uri): vscode.Uri {
+    return sourceUri.with({
+      scheme: D7PreviewContentProvider.scheme,
+      query: `originalScheme=${sourceUri.scheme}`,
+    });
+  }
+
+  private static triggerPreviewUpdates(changedSourceUri: vscode.Uri): void {
+    const uris = new Map<string, vscode.Uri>();
+    const add = (uri: vscode.Uri): void => {
+      uris.set(uri.toString(), uri);
+    };
+
+    add(this.getPreviewUriForSource(changedSourceUri));
+
+    for (const doc of vscode.workspace.textDocuments) {
+      if (doc.uri.scheme === D7PreviewContentProvider.scheme) {
+        add(doc.uri);
+      }
+    }
+
+    for (const editor of vscode.window.visibleTextEditors) {
+      if (editor.document.uri.scheme === D7PreviewContentProvider.scheme) {
+        add(editor.document.uri);
+      }
+    }
+
+    for (const uri of uris.values()) {
+      this.provider.triggerUpdate(uri);
+    }
   }
 
   /**

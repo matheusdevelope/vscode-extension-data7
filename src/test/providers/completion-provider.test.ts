@@ -131,6 +131,48 @@ End Namespace`;
         `Add label.detail must mention substituted Product; got: ${addLabelDetail}`,
       );
     });
+
+    test("lists members for a generic template declared in another namespace file", async () => {
+      const usageCode = `Imports mod_tlist
+
+Dim _list As TTList<Integer> = New TTList<Integer>()
+_list.`;
+      const templateCode = `Namespace mod_tlist
+   Class TTList<T>
+      Count As Integer
+      Sub Add(pValue As T)
+      End Sub
+      Function Get(pIndex As Integer) As T
+      End Function
+   End Class
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const usageUri = "file:///teste.bas";
+      indexer.updateFileContent(usageUri, usageCode);
+      indexer.updateFileContent("file:///mod_tlist.bas", templateCode);
+      const doc = createMockDoc(usageUri, usageCode);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          pos(3, 6),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("Add"), `Add must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Get"), `Get must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Count"), `Count must appear; got ${labels.join(", ")}`);
+
+      const add = items.find((i) => labelOf(i) === "Add");
+      assert.ok(add, "Add completion entry expected");
+      const addLabelDetail = typeof add.label === "string" ? "" : (add.label.detail ?? "");
+      assert.match(addLabelDetail, /Integer/);
+    });
   });
 
   describe("AST-backed local scope", () => {

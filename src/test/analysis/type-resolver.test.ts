@@ -537,12 +537,28 @@ End Namespace`;
       assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "BaseItem");
     });
 
-    test("resolves generic parameter to TObject if no constraint specified", () => {
+    test("preserves unconstrained generic parameter type inside class scope", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       indexer.__resetForTests();
       const uri = "file:///generic_no_constraint_test.bas";
       const code = `Namespace mod_app
    Class MyCollection<T>
+      Private item As T
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 3, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "T");
+    });
+
+    test("resolves explicitly TObject-constrained generic parameter to TObject", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_tobject_constraint_test.bas";
+      const code = `Namespace mod_app
+   Class MyCollection<T As TObject>
       Private item As T
    End Class
 End Namespace`;
@@ -644,4 +660,3 @@ End Namespace`;
     });
   });
 });
-

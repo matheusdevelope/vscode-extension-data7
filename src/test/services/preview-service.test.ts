@@ -241,6 +241,42 @@ describe("PreviewService and D7PreviewContentProvider", () => {
       assert.equal(updatedUri.toString(), "data7-preview:///path/to/my.bas?originalScheme=file");
     });
 
+    test("workspace change listener refreshes already-open previews when generic usages change elsewhere", () => {
+      const context = { subscriptions: [] as any[] } as vscode.ExtensionContext;
+      PreviewService.initialize(context);
+
+      const provider = (PreviewService as any).provider;
+      const updatedUris: string[] = [];
+      provider.onDidChange((uri: vscode.Uri) => {
+        updatedUris.push(uri.toString());
+      });
+
+      const templateUri = vscode.Uri.parse("file:///path/to/mod_tlist.bas");
+      const templatePreviewUri = templateUri.with({
+        scheme: D7PreviewContentProvider.scheme,
+        query: `originalScheme=${templateUri.scheme}`,
+      });
+      createMockDoc(templatePreviewUri.toString(), "transpiled template preview", {
+        languageId: "d7basic",
+      });
+
+      const consumerDoc = createMockDoc(
+        "file:///path/to/teste.bas",
+        "Dim _listq As TTList<Produto>",
+      );
+      const changeEvent = {
+        document: consumerDoc,
+        contentChanges: [],
+      } as unknown as vscode.TextDocumentChangeEvent;
+
+      documentChangeListeners[0]!(changeEvent);
+
+      assert.deepEqual(new Set(updatedUris), new Set([
+        "data7-preview:///path/to/teste.bas?originalScheme=file",
+        "data7-preview:///path/to/mod_tlist.bas?originalScheme=file",
+      ]));
+    });
+
     test("workspace change listener ignores non-d7basic documents and preview documents themselves", () => {
       const context = { subscriptions: [] as any[] } as vscode.ExtensionContext;
       PreviewService.initialize(context);

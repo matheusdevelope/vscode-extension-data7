@@ -6,6 +6,7 @@ import { generateProjectGuid } from "../utils/guid";
 import { DependencyScanner } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
+import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { isExcluded, readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
@@ -15,6 +16,29 @@ import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { readProjectConfig, writeProjectConfig } from "./project-config";
 import { SugarTranspiler, type TranspileContext, type SugarDiagnostic } from "./transpiler";
 import { SugarRegistry } from "./sugar-registry";
+import type {
+  ExternalGenericTemplate,
+  RequestedGenericInstantiation,
+} from "./generics";
+
+function collectOpenTypeParams(
+  templates: readonly ExternalGenericTemplate[],
+): ReadonlySet<string> {
+  const result = new Set<string>();
+  for (const template of templates) {
+    for (const typeParam of template.typeParams) {
+      result.add(typeParam.toLowerCase());
+    }
+  }
+  return result;
+}
+
+function hasOpenGenericTypeArgument(
+  typeArgs: readonly string[],
+  openTypeParams: ReadonlySet<string>,
+): boolean {
+  return typeArgs.some((typeArg) => openTypeParams.has(typeArg.toLowerCase()));
+}
 
 /**
  * Packages a workspace tree (`src/Principal.bas`, modules under `src/**`, optional
@@ -120,6 +144,11 @@ export class Builder {
     // Read the experimental feature flag once per build. Falls back to
     // `false` when running outside the VS Code extension host (e.g. in
     // unit tests where `vscode.workspace.getConfiguration` is mocked).
+    const externalGenericTemplates = this.collectExternalGenericTemplates(indexer);
+    const requestedGenericInstantiations = this.collectRequestedGenericInstantiations(
+      indexer,
+      externalGenericTemplates,
+    );
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -127,8 +156,70 @@ export class Builder {
           (t) => TypeResolver.getAllMembersForType(t, indexer),
           preferredElementType,
         ),
+      isTypeDescendantOf: (typeName: string, baseTypeName: string) =>
+        TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
+      externalGenericTemplates,
+      requestedGenericInstantiations,
     };
     return { transpileCtx, indexer };
+  }
+
+  private static collectExternalGenericTemplates(
+    indexer: WorkspaceSymbolIndexer,
+  ): ExternalGenericTemplate[] {
+    const templates: ExternalGenericTemplate[] = [];
+    const seen = new Set<string>();
+    for (const sym of indexer.getAllSymbols()) {
+      if (
+        sym.kind !== "class" &&
+        sym.kind !== "delegate" &&
+        sym.kind !== "method"
+      ) {
+        continue;
+      }
+      if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
+      const key = sym.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      templates.push({ name: sym.name, typeParams: sym.genericTypeParameters });
+    }
+    return templates;
+  }
+
+  private static collectRequestedGenericInstantiations(
+    indexer: WorkspaceSymbolIndexer,
+    externalGenericTemplates: readonly ExternalGenericTemplate[],
+  ): RequestedGenericInstantiation[] {
+    const requests: RequestedGenericInstantiation[] = [];
+    const seen = new Set<string>();
+    const workspaceTemplateNames = new Set(
+      externalGenericTemplates.map((template) => template.name.toLowerCase()),
+    );
+    const openTypeParams = collectOpenTypeParams(externalGenericTemplates);
+    const analysisTemplates = externalGenericTemplates.map((template) => ({
+      kind: "class" as const,
+      name: template.name,
+      typeParams: template.typeParams,
+      line: 0,
+    }));
+
+    for (const fileSyms of indexer.getAllFileSymbols()) {
+      const ctx = collectGenericsContext(fileSyms.content, {
+        externalTemplates: analysisTemplates,
+      });
+      for (const usage of ctx.usages) {
+        if (!workspaceTemplateNames.has(usage.templateName.toLowerCase())) continue;
+        if (hasOpenGenericTypeArgument(usage.typeArgs, openTypeParams)) continue;
+        const key = `${usage.templateName.toLowerCase()}<${usage.typeArgs.join(",")}>`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        requests.push({
+          templateName: usage.templateName,
+          typeArgs: usage.typeArgs,
+        });
+      }
+    }
+    return requests;
   }
 
   private static preIndexDirectory(indexer: WorkspaceSymbolIndexer, dir: string): void {

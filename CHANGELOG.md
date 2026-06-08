@@ -7,6 +7,33 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado (Generics — metaprogramação e monomorfização por workspace)
+
+- **Diretivas de metaprogramação em templates genéricos**: O parser e o monomorfizador AST agora reconhecem blocos `<# IF ... THEN #>`, `<# ELSE #>` e `<# END IF #>` dentro de templates genéricos.
+  - Suporte inicial para `TypeSystem.InheritsFrom(T, "Base")` e `NOT TypeSystem.InheritsFrom(...)`, avaliados em tempo de build/preview para cada instanciação concreta.
+  - Permite gerar código especializado sem wrappers para tipos descendentes de `TTObject` e manter wrappers apenas para primitivos, `Variant` e tipos que não herdam da base indicada.
+  - O transpiler normaliza placeholders como `TTItem_<T>` e `<T>` antes do parse, permitindo escrever templates legíveis no código fonte.
+
+- **Materialização de generics declarados em outros arquivos/namespaces**: Builder, preview, linter e indexador passaram a montar um contexto global de templates genéricos do workspace.
+  - Usos como `TTList<Produto>` em um arquivo consumidor agora solicitam a materialização correspondente no arquivo que declara `TTList<T>`.
+  - Referências a templates externos são reescritas para nomes monomorfizados (`TTList_Produto`) sem tentar materializar cópias no arquivo consumidor.
+  - Instanciações abertas, como `TTList<T>`, são ignoradas como pedido de materialização concreta para evitar saída espúria como `TTList_T`.
+
+- **IntelliSense para generics externos**: O `WorkspaceSymbolIndexer` guarda conteúdo do arquivo, parâmetros genéricos declarados e símbolos sintéticos de instanciações monomórficas.
+  - Hover, autocomplete e resolução de membros funcionam para variáveis top-level e para tipos genéricos importados de outro namespace.
+  - Instanciações sintéticas são marcadas internamente para não gerar falso `duplicate-declaration`.
+
+### Alterado (Generics — semântica de constraints e serialização)
+
+- **Parâmetros genéricos sem constraint permanecem abertos**: Declarações como `<T>` ou `<T, K>` não inferem mais `TObject`; apenas `<T As Foo>` restringe `T` a `Foo`/descendentes no linter e no resolvedor.
+- **Serialização do build sem `Public` redundante**: Campos e propriedades materializados não emitem mais o modificador `Public` explícito quando esse é o padrão da linguagem; modificadores como `Private`, `Protected`, `Shared`, `Overrides` etc. continuam preservados.
+- **Preservação de sintaxe `TypeOf ... Is ...`**: Usos como `If TypeOf pObj Is TTItem<T> Then` e `If TypeOf(pObj) Is TTItem<T> Then` agora são serializados corretamente após monomorfização, sem virar chamada `TypeOf(...)`.
+
+### Corrigido (Preview — generics entre arquivos)
+
+- **Atualização em tempo real do preview com usos genéricos globais**: O preview atualiza o `WorkspaceSymbolIndexer` com os documentos `.bas` abertos antes de transpilar e, quando qualquer fonte muda, dispara refresh também para previews já abertos.
+  - Ao adicionar `TTList<Produto>` em `teste.bas`, o preview de `mod_tlist.bas` passa a materializar imediatamente `TTList_Produto`, sem reload da janela.
+
 ### Adicionado (Infraestrutura de Açúcares Sintáticos Complexos e Namespaces Utilitários)
 
 - **Arquitetura de Sugars com Namespaces Compartilhados**: Implementada infraestrutura e diretrizes via `SugarRegistry` para apoiar sugars complexos que demandam utilitários compartilhados.

@@ -39,7 +39,12 @@ export { GlobalInstantiatedSet, TemplateRegistry } from "./registry";
 
 export type { MonomorphizationWarning, MonomorphizationWarningCode } from "./warnings";
 
-export type { MonomorphizationResult } from "./monomorphizer";
+export type {
+  ExternalGenericTemplate,
+  MonomorphizationResult,
+  MonomorphizerOptions,
+  RequestedGenericInstantiation,
+} from "./monomorphizer";
 export {
   canonicalNameOf,
   flatNameFromParts,

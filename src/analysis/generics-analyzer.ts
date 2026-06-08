@@ -54,7 +54,7 @@ export interface GenericUsageOccurrence {
  * Public shape of a registered template.
  */
 export interface GenericTemplateInfo {
-  readonly kind: "class" | "delegate";
+  readonly kind: "class" | "delegate" | "method";
   readonly name: string;
   readonly typeParams: readonly string[];
   readonly line: number;
@@ -69,16 +69,23 @@ export interface GenericsContext {
   readonly warnings: readonly GenericsPassWarning[];
 }
 
+export interface GenericsAnalysisOptions {
+  readonly externalTemplates?: Iterable<GenericTemplateInfo>;
+}
+
 /**
  * Visits every generic declaration + usage in `code` using AST walking and returns the
  * full context.
  */
-export function collectGenericsContext(code: string): GenericsContext {
+export function collectGenericsContext(
+  code: string,
+  options: GenericsAnalysisOptions = {},
+): GenericsContext {
   const lines = code.split(/\r?\n/);
   const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
   const { unit } = parseBasic(code, { plugins });
 
-  const collector = new ASTGenericsCollector(unit, lines);
+  const collector = new ASTGenericsCollector(unit, lines, options.externalTemplates);
   collector.run();
 
   return {
@@ -91,8 +98,11 @@ export function collectGenericsContext(code: string): GenericsContext {
 /**
  * Backwards-compatible wrapper.
  */
-export function analyzeGenericsPass(code: string): readonly GenericsPassWarning[] {
-  return collectGenericsContext(code).warnings;
+export function analyzeGenericsPass(
+  code: string,
+  options: GenericsAnalysisOptions = {},
+): readonly GenericsPassWarning[] {
+  return collectGenericsContext(code, options).warnings;
 }
 
 /**
@@ -208,12 +218,19 @@ class ASTGenericsCollector extends ASTWalker {
   public readonly usages: GenericUsageOccurrence[] = [];
   public readonly warnings: GenericsPassWarning[] = [];
   private readonly flatToCanonical = new Map<string, string>();
+  private readonly externalTemplateKeys = new Set<string>();
 
   constructor(
     private readonly unit: CompilationUnit,
     private readonly lines: readonly string[],
+    externalTemplates: Iterable<GenericTemplateInfo> = [],
   ) {
     super();
+    for (const template of externalTemplates) {
+      const key = template.name.toLowerCase();
+      this.templates.set(key, template);
+      this.externalTemplateKeys.add(key);
+    }
   }
 
   public run(): void {
@@ -239,7 +256,7 @@ class ASTGenericsCollector extends ASTWalker {
         if (member.typeParameters.length > 0) {
           const key = member.name.toLowerCase();
           const line = member.loc ? member.loc.startLine - 1 : 0;
-          if (this.templates.has(key)) {
+          if (this.templates.has(key) && !this.externalTemplateKeys.has(key)) {
             this.warnings.push({
               code: "duplicate-template",
               message: `Generics: template '${member.name}' declarado mais de uma vez; a última declaração prevalece.`,
@@ -247,6 +264,7 @@ class ASTGenericsCollector extends ASTWalker {
               line,
             });
           }
+          this.externalTemplateKeys.delete(key);
           this.templates.set(key, {
             kind: "class",
             name: member.name,
@@ -267,10 +285,10 @@ class ASTGenericsCollector extends ASTWalker {
           }
         }
       }
-      if (member.kind === "DelegateDeclaration" && member.typeParameters.length > 0) {
+      if (member.kind === "MethodDeclaration" && member.typeParameters.length > 0) {
         const key = member.name.toLowerCase();
         const line = member.loc ? member.loc.startLine - 1 : 0;
-        if (this.templates.has(key)) {
+        if (this.templates.has(key) && !this.externalTemplateKeys.has(key)) {
           this.warnings.push({
             code: "duplicate-template",
             message: `Generics: template '${member.name}' declarado mais de uma vez; a última declaração prevalece.`,
@@ -278,6 +296,26 @@ class ASTGenericsCollector extends ASTWalker {
             line,
           });
         }
+        this.externalTemplateKeys.delete(key);
+        this.templates.set(key, {
+          kind: "method",
+          name: member.name,
+          typeParams: member.typeParameters.map((tp: any) => tp.name),
+          line,
+        });
+      }
+      if (member.kind === "DelegateDeclaration" && member.typeParameters.length > 0) {
+        const key = member.name.toLowerCase();
+        const line = member.loc ? member.loc.startLine - 1 : 0;
+        if (this.templates.has(key) && !this.externalTemplateKeys.has(key)) {
+          this.warnings.push({
+            code: "duplicate-template",
+            message: `Generics: template '${member.name}' declarado mais de uma vez; a última declaração prevalece.`,
+            templateName: member.name,
+            line,
+          });
+        }
+        this.externalTemplateKeys.delete(key);
         this.templates.set(key, {
           kind: "delegate",
           name: member.name,
@@ -323,7 +361,7 @@ class ASTGenericsCollector extends ASTWalker {
     if (!this.templates.has(key)) {
       this.warnings.push({
         code: "unknown-template",
-        message: `Generics: template '${node.name}' não foi declarado neste arquivo. O Builder deixará a referência inalterada e o compilador surfará erro.`,
+        message: `Generics: template '${node.name}' não foi encontrado no contexto de generics. O Builder deixará a referência inalterada e o compilador surfará erro.`,
         templateName: node.name,
         line,
         column,
@@ -373,7 +411,7 @@ class ASTGenericsCollector extends ASTWalker {
     if (!this.templates.has(key)) {
       this.warnings.push({
         code: "unknown-template",
-        message: `Generics: template '${node.methodName}' não foi declarado neste arquivo. O Builder deixará a referência inalterada e o compilador surfará erro.`,
+        message: `Generics: template '${node.methodName}' não foi encontrado no contexto de generics. O Builder deixará a referência inalterada e o compilador surfará erro.`,
         templateName: node.methodName,
         line,
         column,
@@ -433,7 +471,7 @@ class ASTGenericsCollector extends ASTWalker {
       if (!hit.known) {
         this.warnings.push({
           code: "unknown-template",
-          message: `Generics: template '${hit.base}' não foi declarado neste arquivo. O Builder deixará a referência inalterada e o compilador surfará erro.`,
+          message: `Generics: template '${hit.base}' não foi encontrado no contexto de generics. O Builder deixará a referência inalterada e o compilador surfará erro.`,
           templateName: hit.base,
           line,
           column: absCol,

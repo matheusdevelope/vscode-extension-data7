@@ -573,6 +573,9 @@ export class Parser {
 
   public parseStatement(): Statement | null {
     const startLoc = this.peek().loc;
+    if (this.currentLineIsMetaDirective()) {
+      return this.consumeLineAsOpaque();
+    }
     if (this.peek().kind === "comment") {
       const commentToken = this.advance();
       this.consume("newline");
@@ -2050,6 +2053,13 @@ export class Parser {
     const text = this.sourceLines[lineNo - 1] ?? "";
     if (text.trim().length === 0) return null;
     return { kind: "OpaqueStatement", text, loc: locOf(startLoc) };
+  }
+
+  private currentLineIsMetaDirective(): boolean {
+    if (this.isEOF()) return false;
+    const loc = this.peek().loc;
+    const text = this.sourceLines[loc.line - 1] ?? "";
+    return /^\s*<#/.test(text);
   }
 
   public parseModifiers(): string[] {

@@ -95,6 +95,35 @@ End Namespace`;
       );
     });
 
+    test("renders substituted member hover for a generic template declared in another namespace file", async () => {
+      const usageCode = `Imports mod_tlist
+
+Dim _list As TTList<Integer> = New TTList<Integer>()
+_list.Add(1)`;
+      const templateCode = `Namespace mod_tlist
+   Class TTList<T>
+      Count As Integer
+      Sub Add(pValue As T)
+      End Sub
+   End Class
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const usageUri = "file:///teste_hover.bas";
+      indexer.updateFileContent(usageUri, usageCode);
+      indexer.updateFileContent("file:///mod_tlist_hover.bas", templateCode);
+      const doc = createMockDoc(usageUri, usageCode);
+
+      const provider = new D7BasicHoverProvider();
+      const hover = (await Promise.resolve(provider.provideHover(doc, pos(3, 7), noopToken))) as
+        | { contents: readonly ({ value?: string } | string)[] }
+        | undefined;
+
+      assert.ok(hover, "hover must not be undefined for Add on external TTList<Integer>");
+      const text = JSON.stringify(hover.contents);
+      assert.match(text, /pValue\s+As\s+Integer/i);
+    });
+
     test("resolves a Property Set parameter from the AST", async () => {
       const code = `Namespace mod_hset
    Class C

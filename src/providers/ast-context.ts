@@ -135,6 +135,8 @@ export class D7AstContext {
     const methodDecl = activeMethod ? this.findMethodDeclaration(activeMethod) : undefined;
     const propertyDecl = activeProperty ? this.findPropertyDeclaration(activeProperty) : undefined;
 
+    this.collectStatementBindings(collectTopLevelStatements(this.unit.members), locals);
+
     if (methodDecl) {
       addParameters(locals, methodDecl.parameters, `Parametro de \`${methodDecl.name}\``);
       this.collectStatementBindings(methodDecl.body, locals);
@@ -186,14 +188,14 @@ export class D7AstContext {
 
     if (methodDecl) {
       for (const tp of methodDecl.typeParameters) {
-        params.set(tp.name.toLowerCase(), typeRefToString(tp.constraint) ?? "TObject");
+        params.set(tp.name.toLowerCase(), typeRefToString(tp.constraint) ?? tp.name);
       }
     }
     if (classDecl) {
       for (const tp of classDecl.typeParameters) {
         const lower = tp.name.toLowerCase();
         if (!params.has(lower)) {
-          params.set(lower, typeRefToString(tp.constraint) ?? "TObject");
+          params.set(lower, typeRefToString(tp.constraint) ?? tp.name);
         }
       }
     }
@@ -618,6 +620,7 @@ export class D7AstContext {
 
   private getAllStatements(): Statement[] {
     const statements: Statement[] = [];
+    collectStatements(collectTopLevelStatements(this.unit.members), statements);
     walkTopLevel(this.unit.members, (member) => {
       if (member.kind === "MethodDeclaration") collectStatements(member.body, statements);
       if (member.kind === "ClassDeclaration") {
@@ -729,6 +732,46 @@ function collectProperties(member: ClassDeclaration | NamespaceDeclaration): Pro
     }
   }
   return result;
+}
+
+function collectTopLevelStatements(members: readonly TopLevelMember[]): Statement[] {
+  const result: Statement[] = [];
+  for (const member of members) {
+    if (member.kind === "NamespaceDeclaration") {
+      result.push(...collectTopLevelStatements(member.members));
+      continue;
+    }
+    if (isStatement(member)) {
+      result.push(member);
+    }
+  }
+  return result;
+}
+
+function isStatement(member: TopLevelMember): member is Statement {
+  switch (member.kind) {
+    case "VariableDeclaration":
+    case "DestructuredVariableDeclaration":
+    case "Assignment":
+    case "ExpressionStatement":
+    case "OpaqueStatement":
+    case "IfStatement":
+    case "ForStatement":
+    case "ForEachStatement":
+    case "WhileStatement":
+    case "TryCatchStatement":
+    case "UsingStatement":
+    case "MatchStatement":
+    case "ReturnStatement":
+    case "ExitStatement":
+    case "ThrowStatement":
+    case "Block":
+    case "WithStatement":
+    case "SelectCaseStatement":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function collectStatements(statements: readonly Statement[], out: Statement[]): void {

@@ -10,11 +10,20 @@ import type { EnumerableInfo } from "../../analysis/enumerable-detector";
  * the transpiler's own logic (line walking, temp materialization, diagnostic
  * emission, indent preservation).
  */
-function makeContext(map: Record<string, EnumerableInfo>): TranspileContext {
+function makeContext(
+  map: Record<string, EnumerableInfo>,
+  descendants: Record<string, readonly string[]> = {},
+  overrides: Partial<TranspileContext> = {},
+): TranspileContext {
   return {
     detectEnumerable(typeName, _preferredElementType) {
       return map[typeName];
     },
+    isTypeDescendantOf(typeName, baseTypeName) {
+      if (typeName.toLowerCase() === baseTypeName.toLowerCase()) return true;
+      return descendants[typeName]?.some((base) => base.toLowerCase() === baseTypeName.toLowerCase());
+    },
+    ...overrides,
   };
 }
 
@@ -286,6 +295,152 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /If TypeOf pObj Is TTItem_Integer Then/);
     assert.match(out, /If TypeOf\(pObj\) Is TTItem_Integer Then/);
     assert.doesNotMatch(out, /TypeOf\(\(?pObj\)?, TTItem_Integer\)/);
+  });
+
+  test("rewrites generic usage when the template is declared in another file", () => {
+    const ctx = makeContext({}, {}, {
+      externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+    });
+    const code = [
+      "Imports mod_tlist",
+      "",
+      "Dim _list As TTList<Integer> = New TTList<Integer>()",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim _list As TTList_Integer = New TTList_Integer\(\)/);
+    assert.doesNotMatch(out, /TTList<Integer>/);
+  });
+
+  test("materializes requested generic instantiations in the template file", () => {
+    const ctx = makeContext({}, {}, {
+      requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["Integer"] }],
+    });
+    const code = [
+      "Namespace mod_tlist",
+      "   Class TTList<T>",
+      "      Value As T",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class TTList_Integer/);
+    assert.match(out, /Value As Integer/);
+    assert.doesNotMatch(out, /Class TTList<T>/);
+  });
+
+  test("ignores requested generic instantiations that still use open type parameters", () => {
+    const ctx = makeContext({}, {}, {
+      requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["T"] }],
+    });
+    const code = [
+      "Namespace mod_tlist",
+      "   Class TTList<T>",
+      "      Function Clone() As TTList<T>",
+      "      End Function",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.doesNotMatch(out, /Class TTList_T\b/);
+    assert.doesNotMatch(out, /TTList_T/);
+  });
+
+  test("evaluates metaprogramming blocks without wrapper when T descends from TTObject", () => {
+    const ctx = makeContext({}, { Produto: ["TTObject"] });
+    const code = [
+      "Class TTObject",
+      "End Class",
+      "Class Produto",
+      "   Inherits TTObject",
+      "End Class",
+      '<# IF NOT TypeSystem.InheritsFrom(T, "TTObject") THEN #>',
+      "Class TTItem_<T>",
+      "   Inherits TTObject",
+      "   Value As <T>",
+      "   Sub New(pID As String, pValue As <T>)",
+      "   End Sub",
+      "End Class",
+      "<# END IF #>",
+      "Class TTList_<T>",
+      "   Private Function Wrap(pID As String, pValue As <T>) As TTObject",
+      '      <# IF TypeSystem.InheritsFrom(T, "TTObject") THEN #>',
+      "      Wrap = pValue",
+      "      <# ELSE #>",
+      "      Wrap = New TTItem_<T>(pID, pValue)",
+      "      <# END IF #>",
+      "   End Function",
+      "   Private Function Unwrap(pObj As TTObject) As <T>",
+      '      <# IF TypeSystem.InheritsFrom(T, "TTObject") THEN #>',
+      "      Unwrap = CType(pObj, <T>)",
+      "      <# ELSE #>",
+      "      Unwrap = TTItem_<T>(pObj).Value",
+      "      <# END IF #>",
+      "   End Function",
+      "End Class",
+      "Dim produtos As TTList<Produto>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class TTList_Produto/);
+    assert.match(out, /Wrap = pValue/);
+    assert.match(out, /Unwrap = CType\(pObj, Produto\)/);
+    assert.doesNotMatch(out, /Class TTItem_Produto/);
+    assert.doesNotMatch(out, /TTItem_Produto/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("evaluates metaprogramming blocks with wrapper when T does not descend from TTObject", () => {
+    const ctx = makeContext({}, { Integer: [] });
+    const code = [
+      "Class TTObject",
+      "End Class",
+      '<# IF NOT TypeSystem.InheritsFrom(T, "TTObject") THEN #>',
+      "Class TTItem_<T>",
+      "   Inherits TTObject",
+      "   Value As <T>",
+      "   Sub New(pID As String, pValue As <T>)",
+      "   End Sub",
+      "End Class",
+      "<# END IF #>",
+      "Class TTList_<T>",
+      "   Private Function Wrap(pID As String, pValue As <T>) As TTObject",
+      '      <# IF TypeSystem.InheritsFrom(T, "TTObject") THEN #>',
+      "      Wrap = pValue",
+      "      <# ELSE #>",
+      "      Wrap = New TTItem_<T>(pID, pValue)",
+      "      <# END IF #>",
+      "   End Function",
+      "   Private Function Unwrap(pObj As TTObject) As <T>",
+      '      <# IF TypeSystem.InheritsFrom(T, "TTObject") THEN #>',
+      "      Unwrap = CType(pObj, <T>)",
+      "      <# ELSE #>",
+      "      Unwrap = TTItem_<T>(pObj).Value",
+      "      <# END IF #>",
+      "   End Function",
+      "End Class",
+      "Dim valores As TTList<Integer>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class TTList_Integer/);
+    assert.match(out, /Class TTItem_Integer/);
+    assert.match(out, /Wrap = New TTItem_Integer\(pID, pValue\)/);
+    assert.match(out, /Unwrap = TTItem_Integer\(pObj\)\.Value/);
+    assert.doesNotMatch(out, /Wrap = pValue/);
+    assert.doesNotMatch(out, /<#/);
   });
 });
 

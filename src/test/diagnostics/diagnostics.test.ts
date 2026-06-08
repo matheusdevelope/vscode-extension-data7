@@ -1240,6 +1240,94 @@ End Namespace`,
       );
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
+
+    test("does not treat unconstrained generic T as TObject for assignment checks", () => {
+      const diags = runLinter(
+        "file:///generic_unconstrained_assignment.bas",
+        `Namespace mod_generic_open
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTItem<T>
+      Inherits TTObject
+      Value As T
+
+      Sub Dispose()
+         me.Value = Unassigned
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Private Function Wrap(pValue As T) As TTObject
+         Wrap = pValue
+      End Function
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("accepts generic templates declared in another namespace file", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const templateUri = "file:///mod_tlist.bas";
+      const templateCode = `Namespace mod_tlist
+   Class TTList<T>
+      Sub Add(pValue As T)
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(templateUri, templateCode);
+
+      const usageUri = "file:///teste.bas";
+      const usageCode = `Imports mod_tlist
+
+Dim _list As TTList<Integer> = New TTList<Integer>()`;
+      indexer.updateFileContent(usageUri, usageCode);
+      const doc = createMockDoc(usageUri, usageCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownTemplate);
+      expectNoDiagnostic(diags, DiagnosticCodes.GenericArityMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("validates arity for generic templates declared in another namespace file", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const templateUri = "file:///mod_pair.bas";
+      const templateCode = `Namespace mod_pair
+   Class TPair<T, K>
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(templateUri, templateCode);
+
+      const usageUri = "file:///pair_user.bas";
+      const usageCode = `Imports mod_pair
+
+Dim _pair As TPair<Integer>`;
+      indexer.updateFileContent(usageUri, usageCode);
+      const doc = createMockDoc(usageUri, usageCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectDiagnostic(diags, DiagnosticCodes.GenericArityMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownTemplate);
+    });
   });
 
   test("returns empty diagnostics array for data7-preview documents", () => {

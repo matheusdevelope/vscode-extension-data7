@@ -55,6 +55,7 @@ import {
   type NamespaceDeclaration,
   type Node,
   type OpaqueStatement,
+  type Statement,
   type TopLevelMember,
   type TypeReference,
   type Expression,
@@ -81,6 +82,22 @@ export interface MonomorphizationResult {
   readonly warnings: readonly MonomorphizationWarning[];
 }
 
+export interface MonomorphizerOptions {
+  readonly isTypeDescendantOf?: (typeName: string, baseTypeName: string) => boolean | undefined;
+  readonly externalTemplates?: readonly ExternalGenericTemplate[];
+  readonly requestedInstantiations?: readonly RequestedGenericInstantiation[];
+}
+
+export interface ExternalGenericTemplate {
+  readonly name: string;
+  readonly typeParams: readonly string[];
+}
+
+export interface RequestedGenericInstantiation {
+  readonly templateName: string;
+  readonly typeArgs: readonly string[];
+}
+
 /**
  * Pure-AST engine that rewrites a {@link CompilationUnit} so it contains
  * **no** generic declarations or generic usages.
@@ -90,6 +107,8 @@ export interface MonomorphizationResult {
  * calls (the per-run state lives on a private context object).
  */
 export class GenericsMonomorphizer {
+  constructor(private readonly options: MonomorphizerOptions = {}) {}
+
   monomorphize(unit: CompilationUnit): MonomorphizationResult {
     const ctx: MonoContext = {
       unit,
@@ -99,6 +118,9 @@ export class GenericsMonomorphizer {
       worklist: [],
       flatToCanonical: new Map<string, string>(),
       warnings: [],
+      options: this.options,
+      externalTemplates: buildExternalTemplateMap(this.options.externalTemplates ?? []),
+      requestableTemplateNames: new Set<string>(),
     };
 
     // Pre-populate templates from SugarRegistry
@@ -107,7 +129,7 @@ export class GenericsMonomorphizer {
         const virtualCode = sugar.generateCode();
         const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
         const parsed = parseBasic(virtualCode, { plugins });
-        collectAndPruneIn(parsed.unit.members, ctx);
+        collectAndPruneIn(parsed.unit.members, ctx, false);
       }
     }
 
@@ -119,9 +141,11 @@ export class GenericsMonomorphizer {
 
     // Step 3.
     rewriteGenericUsages(unit, ctx);
+    enqueueRequestedInstantiations(ctx);
 
     // Step 4.
     drainWorklist(ctx);
+    stripMetaDirectiveMembers(unit.members);
 
     return {
       unit,
@@ -195,6 +219,9 @@ interface MonoContext {
   /** Flat name → canonical string (collision detection). */
   readonly flatToCanonical: Map<string, string>;
   readonly warnings: MonomorphizationWarning[];
+  readonly options: MonomorphizerOptions;
+  readonly externalTemplates: ReadonlyMap<string, ExternalGenericTemplate>;
+  readonly requestableTemplateNames: Set<string>;
 }
 
 interface PendingInstantiation {
@@ -202,6 +229,12 @@ interface PendingInstantiation {
   /** Concrete type arguments (already flat-named, no `<...>` left). */
   readonly concreteArgs: readonly TypeReference[];
   readonly flatName: string;
+}
+
+interface KnownTemplate {
+  readonly name: string;
+  readonly typeParamCount: number;
+  readonly internal: boolean;
 }
 
 function warn(
@@ -258,16 +291,20 @@ function validate(unit: CompilationUnit, ctx: MonoContext): void {
  * warning (see `Out of scope` in `ast.ts`).
  */
 function collectAndPrune(unit: CompilationUnit, ctx: MonoContext): void {
-  collectAndPruneIn(unit.members, ctx);
+  collectAndPruneIn(unit.members, ctx, true);
 }
 
-function collectAndPruneIn(members: TopLevelMember[], ctx: MonoContext): void {
+function collectAndPruneIn(
+  members: TopLevelMember[],
+  ctx: MonoContext,
+  requestable: boolean,
+): void {
   for (let i = members.length - 1; i >= 0; i--) {
     const member = members[i];
     if (member === undefined) continue;
 
     if (member.kind === "NamespaceDeclaration") {
-      collectAndPruneIn(member.members, ctx);
+      collectAndPruneIn(member.members, ctx, requestable);
       continue;
     }
 
@@ -280,7 +317,7 @@ function collectAndPruneIn(members: TopLevelMember[], ctx: MonoContext): void {
           members.splice(i, 1);
           continue;
         }
-        registerTemplate(member, members, ctx);
+        registerTemplate(member, members, ctx, requestable);
         members.splice(i, 1);
       }
       continue;
@@ -295,7 +332,7 @@ function collectAndPruneIn(members: TopLevelMember[], ctx: MonoContext): void {
         members.splice(i, 1);
         continue;
       }
-      registerTemplate(member, members, ctx);
+      registerTemplate(member, members, ctx, requestable);
       members.splice(i, 1);
     }
   }
@@ -321,6 +358,7 @@ function registerTemplate(
   member: ClassDeclaration | MethodDeclaration | DelegateDeclaration,
   host: TopLevelMember[],
   ctx: MonoContext,
+  requestable: boolean,
 ): void {
   if (ctx.templates.has(member.name)) {
     warn(
@@ -346,6 +384,9 @@ function registerTemplate(
     node: deepClone(member),
     host,
   });
+  if (requestable) {
+    ctx.requestableTemplateNames.add(member.name.toLowerCase());
+  }
 }
 
 // ============================================================================
@@ -384,7 +425,8 @@ class GenericUsageRewriter extends ASTWalker {
 
   protected override visitTypeReference(node: TypeReference): void {
     if (node.typeArguments.length === 0) return;
-    if (!this.ctx.templates.has(node.name)) {
+    const template = getKnownTemplate(this.ctx, node.name);
+    if (!template) {
       // Unknown template — leave the usage alone so the downstream compiler
       // can surface an error. The walker has already recursed into
       // typeArguments, so any nested *known* generic was rewritten correctly.
@@ -396,13 +438,24 @@ class GenericUsageRewriter extends ASTWalker {
       );
       return;
     }
+    if (template.typeParamCount !== node.typeArguments.length) {
+      warn(
+        this.ctx,
+        "arity-mismatch",
+        `Arity mismatch for '${template.name}': expected ${String(template.typeParamCount)} type arguments, got ${String(node.typeArguments.length)}.`,
+        { templateName: template.name },
+      );
+      return;
+    }
 
     const canonical = canonicalNameOf(node);
     const flat = flatNameOf(node);
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
-    enqueue(this.ctx, { templateName: node.name, concreteArgs, flatName: flat });
+    if (template.internal) {
+      enqueue(this.ctx, { templateName: template.name, concreteArgs, flatName: flat });
+    }
 
     node.name = flat;
     node.typeArguments = [];
@@ -410,12 +463,22 @@ class GenericUsageRewriter extends ASTWalker {
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
     if (node.typeArguments.length === 0) return;
-    if (!this.ctx.templates.has(node.methodName)) {
+    const template = getKnownTemplate(this.ctx, node.methodName);
+    if (!template) {
       warn(
         this.ctx,
         "unknown-template",
         `Generic invocation references unknown template '${node.methodName}'; left untouched.`,
         { templateName: node.methodName },
+      );
+      return;
+    }
+    if (template.typeParamCount !== node.typeArguments.length) {
+      warn(
+        this.ctx,
+        "arity-mismatch",
+        `Arity mismatch for '${template.name}': expected ${String(template.typeParamCount)} type arguments, got ${String(node.typeArguments.length)}.`,
+        { templateName: template.name },
       );
       return;
     }
@@ -432,11 +495,13 @@ class GenericUsageRewriter extends ASTWalker {
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
-    enqueue(this.ctx, {
-      templateName: node.methodName,
-      concreteArgs,
-      flatName: flat,
-    });
+    if (template.internal) {
+      enqueue(this.ctx, {
+        templateName: template.name,
+        concreteArgs,
+        flatName: flat,
+      });
+    }
 
     node.methodName = flat;
     node.typeArguments = [];
@@ -444,24 +509,24 @@ class GenericUsageRewriter extends ASTWalker {
 
   protected override visitOpaqueStatement(node: OpaqueStatement): void {
     let current = node.text;
-    const names = new Set(Array.from(this.ctx.templates.names()).map((n) => n.toLowerCase()));
+    const names = new Set([
+      ...Array.from(this.ctx.templates.names()).map((n) => n.toLowerCase()),
+      ...Array.from(this.ctx.externalTemplates.keys()),
+    ]);
 
     for (let iter = 0; iter < 100; iter++) {
       const hit = findInnerMostGenericUsage(current, names);
       if (!hit) break;
       if (!hit.known) break;
 
-      const templateName = Array.from(this.ctx.templates.names()).find(
-        (n) => n.toLowerCase() === hit.base.toLowerCase(),
-      );
-      const template = templateName ? this.ctx.templates.get(templateName) : undefined;
+      const template = getKnownTemplate(this.ctx, hit.base);
       if (!template) break;
 
-      if (template.typeParameters.length !== hit.typeArgs.length) {
+      if (template.typeParamCount !== hit.typeArgs.length) {
         warn(
           this.ctx,
           "arity-mismatch",
-          `Arity mismatch for '${template.name}': expected ${String(template.typeParameters.length)} type arguments, got ${String(hit.typeArgs.length)}.`,
+          `Arity mismatch for '${template.name}': expected ${String(template.typeParamCount)} type arguments, got ${String(hit.typeArgs.length)}.`,
           { templateName: template.name },
         );
         break;
@@ -475,7 +540,9 @@ class GenericUsageRewriter extends ASTWalker {
       const canonical = `${template.name}<${hit.typeArgs.join(",")}>`;
       detectCollision(this.ctx, flat, canonical);
 
-      enqueue(this.ctx, { templateName: template.name, concreteArgs, flatName: flat });
+      if (template.internal) {
+        enqueue(this.ctx, { templateName: template.name, concreteArgs, flatName: flat });
+      }
 
       current = current.slice(0, hit.start) + flat + current.slice(hit.end);
     }
@@ -496,6 +563,70 @@ function detectCollision(ctx: MonoContext, flat: string, canonical: string): voi
     `Two distinct generic usages '${existing}' and '${canonical}' both flatten to '${flat}'. Rename a source type containing '_' to disambiguate.`,
     { flatName: flat },
   );
+}
+
+function buildExternalTemplateMap(
+  templates: readonly ExternalGenericTemplate[],
+): ReadonlyMap<string, ExternalGenericTemplate> {
+  const result = new Map<string, ExternalGenericTemplate>();
+  for (const template of templates) {
+    if (!template.name || template.typeParams.length === 0) continue;
+    result.set(template.name.toLowerCase(), template);
+  }
+  return result;
+}
+
+function getKnownTemplate(ctx: MonoContext, name: string): KnownTemplate | undefined {
+  const internal = ctx.templates.get(name);
+  if (internal) {
+    return {
+      name: internal.name,
+      typeParamCount: internal.typeParameters.length,
+      internal: true,
+    };
+  }
+  const external = ctx.externalTemplates.get(name.toLowerCase());
+  if (external) {
+    return {
+      name: external.name,
+      typeParamCount: external.typeParams.length,
+      internal: false,
+    };
+  }
+  return undefined;
+}
+
+function enqueueRequestedInstantiations(ctx: MonoContext): void {
+  for (const request of ctx.options.requestedInstantiations ?? []) {
+    const template = ctx.templates.get(request.templateName);
+    if (!template) continue;
+    if (!ctx.requestableTemplateNames.has(template.name.toLowerCase())) continue;
+    if (hasOpenTemplateTypeArgument(template, request.typeArgs)) continue;
+    if (template.typeParameters.length !== request.typeArgs.length) {
+      warn(
+        ctx,
+        "arity-mismatch",
+        `Arity mismatch for '${template.name}': expected ${String(template.typeParameters.length)} type arguments, got ${String(request.typeArgs.length)}.`,
+        { templateName: template.name },
+      );
+      continue;
+    }
+    const concreteArgs = request.typeArgs.map((arg) => ({
+      kind: "TypeReference" as const,
+      name: arg,
+      typeArguments: [],
+    }));
+    const flatName = flatNameFromParts(template.name, concreteArgs);
+    enqueue(ctx, { templateName: template.name, concreteArgs, flatName });
+  }
+}
+
+function hasOpenTemplateTypeArgument(
+  template: GenericTemplate,
+  typeArgs: readonly string[],
+): boolean {
+  const openParams = new Set(template.typeParameters.map((tp) => tp.name.toLowerCase()));
+  return typeArgs.some((typeArg) => openParams.has(typeArg.toLowerCase()));
 }
 
 function enqueue(ctx: MonoContext, pending: PendingInstantiation): void {
@@ -569,7 +700,7 @@ function drainWorklist(ctx: MonoContext): void {
       template,
       pending.concreteArgs,
       pending.flatName,
-      ctx.templates,
+      ctx,
     );
 
     // If there is a namespace declaration in the compilation unit,
@@ -606,7 +737,7 @@ function instantiateTemplate(
   template: GenericTemplate,
   concreteArgs: readonly TypeReference[],
   flatName: string,
-  templates: { has(name: string): boolean },
+  ctx: MonoContext,
 ): ClassDeclaration | MethodDeclaration | DelegateDeclaration {
   const clone = deepClone(template.node);
   const substitution = new Map<string, TypeReference>();
@@ -618,7 +749,8 @@ function instantiateTemplate(
     substitution.set(param.name, arg);
   }
 
-  applySubstitution(clone, substitution, templates);
+  applySubstitution(clone, substitution, ctx.templates);
+  evaluateMetaProgramming(clone, substitution, ctx);
 
   clone.name = flatName;
   clone.typeParameters = [];
@@ -639,6 +771,138 @@ function instantiateTemplate(
   }
 
   return clone;
+}
+
+function typeRefToSource(typeRef: TypeReference): string {
+  if (typeRef.typeArguments.length === 0) return typeRef.name;
+  return `${typeRef.name}<${typeRef.typeArguments.map(typeRefToSource).join(", ")}>`;
+}
+
+function evaluateMetaProgramming(
+  node: ClassDeclaration | MethodDeclaration | DelegateDeclaration,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): void {
+  if (node.kind === "ClassDeclaration") {
+    for (const member of node.members) {
+      if (member.kind === "MethodDeclaration") {
+        member.body = filterMetaStatements(member.body, substitution, ctx);
+      } else if (member.kind === "PropertyDeclaration") {
+        if (member.getter) {
+          member.getter.body = filterMetaStatements(member.getter.body, substitution, ctx);
+        }
+        if (member.setter) {
+          member.setter.body = filterMetaStatements(member.setter.body, substitution, ctx);
+        }
+      }
+    }
+    return;
+  }
+  if (node.kind === "MethodDeclaration") {
+    node.body = filterMetaStatements(node.body, substitution, ctx);
+  }
+}
+
+interface MetaFrame {
+  readonly parentActive: boolean;
+  conditionActive: boolean;
+}
+
+function filterMetaStatements(
+  statements: Statement[],
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): Statement[] {
+  const filtered: Statement[] = [];
+  const stack: MetaFrame[] = [];
+
+  const isActive = (): boolean => stack.every((frame) => frame.parentActive && frame.conditionActive);
+
+  for (const statement of statements) {
+    if (statement.kind === "OpaqueStatement") {
+      const directive = parseMetaDirective(statement.text);
+      if (directive) {
+        if (directive.kind === "if") {
+          const parentActive = isActive();
+          stack.push({
+            parentActive,
+            conditionActive:
+              parentActive && evaluateMetaCondition(directive.condition, substitution, ctx),
+          });
+        } else if (directive.kind === "else") {
+          const current = stack[stack.length - 1];
+          if (current) {
+            current.conditionActive = current.parentActive && !current.conditionActive;
+          }
+        } else {
+          stack.pop();
+        }
+        continue;
+      }
+    }
+
+    if (isActive()) filtered.push(statement);
+  }
+
+  return filtered;
+}
+
+type MetaDirective =
+  | { readonly kind: "if"; readonly condition: string }
+  | { readonly kind: "else" }
+  | { readonly kind: "end" };
+
+function parseMetaDirective(text: string): MetaDirective | undefined {
+  const trimmed = text.trim();
+  const ifMatch = /^<#\s*if\s+(.+?)\s+then\s*#>$/i.exec(trimmed);
+  if (ifMatch?.[1]) return { kind: "if", condition: ifMatch[1] };
+  if (/^<#\s*else\s*#>$/i.test(trimmed)) return { kind: "else" };
+  if (/^<#\s*end\s+if\s*#>$/i.test(trimmed)) return { kind: "end" };
+  return undefined;
+}
+
+function evaluateMetaCondition(
+  condition: string,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): boolean {
+  let source = condition.trim();
+  let negate = false;
+  if (/^not\b/i.test(source)) {
+    negate = true;
+    source = source.replace(/^not\b/i, "").trim();
+  }
+
+  const call = /^TypeSystem\.InheritsFrom\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(
+    source,
+  );
+  if (!call) return !negate;
+
+  const paramName = call[1];
+  const baseTypeName = call[2];
+  if (!paramName || !baseTypeName) return !negate;
+
+  const typeRef = substitution.get(paramName);
+  if (!typeRef) return !negate;
+
+  const typeName = typeRefToSource(typeRef);
+  const result = ctx.options.isTypeDescendantOf?.(typeName, baseTypeName);
+  const value = result ?? false;
+  return negate ? !value : value;
+}
+
+function stripMetaDirectiveMembers(members: TopLevelMember[]): void {
+  for (let i = members.length - 1; i >= 0; i--) {
+    const member = members[i];
+    if (!member) continue;
+    if (member.kind === "NamespaceDeclaration") {
+      stripMetaDirectiveMembers(member.members);
+      continue;
+    }
+    if (member.kind === "OpaqueStatement" && parseMetaDirective(member.text)) {
+      members.splice(i, 1);
+    }
+  }
 }
 
 /**

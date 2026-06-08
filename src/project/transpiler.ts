@@ -3,7 +3,12 @@ import { inferLiteralType } from "../utils/literal-type-infer";
 import { DependencyScanner } from "../analysis/dependency-scanner";
 import { SugarRegistry } from "./sugar-registry";
 import type { EnumerableInfo } from "../analysis/enumerable-detector";
-import { GenericsMonomorphizer, type MonomorphizationWarning } from "./generics";
+import {
+  GenericsMonomorphizer,
+  type ExternalGenericTemplate,
+  type MonomorphizationWarning,
+  type RequestedGenericInstantiation,
+} from "./generics";
 import {
   parseBasic,
   parseExpr,
@@ -58,6 +63,9 @@ export interface SugarDiagnostic {
 
 export interface TranspileContext {
   detectEnumerable(typeName: string, preferredElementType?: string): EnumerableInfo | undefined;
+  isTypeDescendantOf?(typeName: string, baseTypeName: string): boolean | undefined;
+  externalGenericTemplates?: readonly ExternalGenericTemplate[];
+  requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
 }
 
 function mapGenericsWarning(warning: MonomorphizationWarning): SugarDiagnostic {
@@ -102,6 +110,13 @@ function buildVarDeclRegex(varName: string): RegExp {
 
 function buildNewExprRegex(varName: string): RegExp {
   return new RegExp(`\\b${varName}\\s*=\\s*New\\s+([\\w.]+)\\s*\\(`, "i");
+}
+
+function normalizeMetaProgrammingSyntax(line: string): string {
+  if (/^\s*<#/.test(line)) return line;
+  return line
+    .replace(/\b([A-Za-z_]\w*)_<\s*([A-Za-z_]\w*)\s*>/g, "$1<$2>")
+    .replace(/(?<![A-Za-z0-9_])<\s*([A-Za-z_]\w*)\s*>/g, "$1");
 }
 
 function inferOperandType(
@@ -2360,6 +2375,7 @@ export class SugarTranspiler {
     // 1. Pre-process lines with text pre-passes
     // Numeric separators
     lines = lines.map((line) => NUMERIC_SEPARATOR_TRANSFORM.apply(line));
+    lines = lines.map(normalizeMetaProgrammingSyntax);
     const processedCode = lines.join(eol);
 
     // 2. Parse to AST (Check if has structural definitions first)
@@ -2386,7 +2402,11 @@ export class SugarTranspiler {
     }
 
     // 3. Run generics monomorphizer directly on the AST
-    const monomorphizer = new GenericsMonomorphizer();
+    const monomorphizer = new GenericsMonomorphizer({
+      isTypeDescendantOf: ctx.isTypeDescendantOf,
+      externalTemplates: ctx.externalGenericTemplates,
+      requestedInstantiations: ctx.requestedGenericInstantiations,
+    });
     const genericsResult = monomorphizer.monomorphize(finalUnit);
 
     // 4. Transform AST-to-AST for sugars

@@ -9,7 +9,11 @@ import {
 import { TypeResolver } from "../analysis/type-resolver";
 import { parseBasic } from "../project/parser";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { analyzeGenericsPass, type GenericsPassWarning } from "../analysis/generics-analyzer";
+import {
+  analyzeGenericsPass,
+  type GenericsPassWarning,
+  type GenericTemplateInfo,
+} from "../analysis/generics-analyzer";
 import type {
   ClassGenericMethodUnsupportedPayload,
   DuplicateTemplatePayload,
@@ -427,7 +431,9 @@ export class DiagnosticsLinter {
     this.validateMyBaseFreeCalls(unit, indexer.getFileSymbols(document.uri.toString()), diagnostics);
 
     // Textual generic pre-pass remains backward-compatible via AST analyzer warnings
-    const genericWarnings = analyzeGenericsPass(text);
+    const genericWarnings = analyzeGenericsPass(text, {
+      externalTemplates: collectWorkspaceGenericTemplates(indexer, document.uri.toString()),
+    });
     for (const warning of genericWarnings) {
       const range = computeGenericWarningRange(warning, lines);
       const diag = new vscode.Diagnostic(
@@ -518,6 +524,7 @@ export class DiagnosticsLinter {
 
     const checkTopLevel = (s: SymbolInfo): void => {
       if (s.kind === "namespace") return;
+      if (s.isSyntheticGenericInstantiation) return;
       if (!s.containerName) return;
       if (s.fileUri && s.fileUri === document.uri.toString()) return;
 
@@ -575,6 +582,7 @@ export class DiagnosticsLinter {
     // Namespace level checks
     fileSyms.symbols.forEach((s) => {
       if (s.kind === "namespace") return;
+      if (s.isSyntheticGenericInstantiation) return;
       const isTopLevel =
         !s.containerName || (activeNamespace && s.containerName === activeNamespace);
       if (!isTopLevel) return;
@@ -612,6 +620,7 @@ export class DiagnosticsLinter {
           (other) =>
             other.name.toLowerCase() === nameLower &&
             other.kind === s.kind &&
+            !other.isSyntheticGenericInstantiation &&
             other.containerName?.toLowerCase() === s.containerName?.toLowerCase() &&
             other.fileUri !== s.fileUri,
         );
@@ -2644,6 +2653,35 @@ function mapGenericWarningToDiagnosticCode(code: GenericsPassWarning["code"]): s
   }
 }
 
+function collectWorkspaceGenericTemplates(
+  indexer: WorkspaceSymbolIndexer,
+  currentFileUri: string,
+): GenericTemplateInfo[] {
+  const templates: GenericTemplateInfo[] = [];
+  const seen = new Set<string>();
+  for (const sym of indexer.getAllSymbols()) {
+    if (sym.fileUri === currentFileUri) continue;
+    if (
+      sym.kind !== "class" &&
+      sym.kind !== "delegate" &&
+      sym.kind !== "method"
+    ) {
+      continue;
+    }
+    if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
+    const key = sym.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    templates.push({
+      kind: sym.kind,
+      name: sym.name,
+      typeParams: sym.genericTypeParameters,
+      line: sym.range.startLine,
+    });
+  }
+  return templates;
+}
+
 function computeGenericWarningRange(
   warning: GenericsPassWarning,
   lines: readonly string[],
@@ -2660,7 +2698,7 @@ function computeGenericWarningRange(
 function formatGenericWarningMessage(warning: GenericsPassWarning): string {
   switch (warning.code) {
     case "unknown-template":
-      return `Generics: template '${warning.templateName ?? ""}' não foi declarado neste arquivo. O Builder deixará a referência inalterada e o compilador surfará erro.`;
+      return `Generics: template '${warning.templateName ?? ""}' não foi encontrado no contexto de generics. O Builder deixará a referência inalterada e o compilador surfará erro.`;
     case "generic-arity-mismatch":
       return `Generics: '${warning.templateName ?? ""}' espera ${String(warning.expected ?? 0)} argumento(s) de tipo, mas recebeu ${String(warning.actual ?? 0)}.`;
     case "duplicate-template":

@@ -106,9 +106,27 @@ Açúcares atualmente suportados:
 
 - **Pipeline default (textual)**: pre-pass em `src/project/generics-pass.ts` que detecta declarações `Class TList<T>`, `Delegate Function Pred<T>(...)`, free functions `Sub Foo<T>` no nível do namespace, e usos `T<X>` (incluindo invocações `obj.Foo<Product>(item)`) no código. Remove os templates do output e injeta uma cópia concreta por instanciação (`TList_Product`, `TList_Integer`). A substituição de `T` no corpo usa `src/utils/bas-tokenizer.ts` (lexical-aware), então variáveis locais chamadas `T`, comentários e literais são preservados.
 - **Pipeline AST opcional**: ativado por `data7.experimental.useAstGenerics`, dirigido por `src/project/generics-driver.ts`: `parser → GenericsMonomorphizer → serializer`. Os componentes vivem em `src/project/parser/` (lexer + parser + serializer) e `src/project/generics-monomorphizer/` (AST nodes + clone + registry + monomorphizer + warnings). O driver mapeia `MonomorphizationWarning` para `GenericsPassWarning` para que o output do linter e do builder fique idêntico.
+- **Contexto global de templates**: o Builder, o preview, o linter e o `WorkspaceSymbolIndexer` coletam templates genéricos declarados em todo o workspace, não apenas no arquivo atual. Um uso `TTList<Produto>` em `teste.bas` pode solicitar que o arquivo que declara `TTList<T>` materialize `TTList_Produto`; o arquivo consumidor apenas reescreve a referência para o nome plano.
+- **Templates externos são conhecidos, não donos da materialização local**: ao transpilar um arquivo consumidor, templates vindos de outro arquivo são usados para validar aridade e reescrever `Foo<Bar>` para `Foo_Bar`, mas não geram classes/delegates naquele arquivo. A materialização concreta acontece somente no arquivo que declara o template real.
+- **Pedidos abertos são ignorados**: usos que ainda dependem de parâmetro genérico aberto (`TTList<T>`, `Map<K>`) não entram na fila global de materialização. Isso evita classes inválidas como `TTList_T` ou wrappers para parâmetros que ainda serão resolvidos por outra instanciação.
 - Suporta generics aninhados (`TList<TList<Integer>>` → `TList_TList_Integer`).
-- O linter live (`src/diagnostics/diagnostics.ts`) chama `analyzeGenericsPass` para emitir os 6 warnings de generics no editor sem rodar o Builder: `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`.
-- IntelliSense design-time: `WorkspaceSymbolIndexer.updateFileContent` detecta `Class T<T>` + cada usage `As TList<Product>` e injeta cópias monomórficas planas (`TList_Product`) no índice de símbolos. O `TypeResolver` normaliza `TList<Product>` → `TList_Product` em `findMember`/`findClassSymbol`/`getAllMembersForType`, então hover, completion e signature-help mostram `Add(pValue As Product)` corretamente.
+- **Metaprogramação em templates genéricos**: o parser preserva diretivas `<# IF ... THEN #>`, `<# ELSE #>` e `<# END IF #>` como statements opacos, e o monomorfizador AST as avalia depois da substituição dos argumentos concretos. A expressão suportada inicialmente é `TypeSystem.InheritsFrom(T, "Base")`, com `NOT` opcional. Exemplo:
+
+```basic
+<# IF NOT TypeSystem.InheritsFrom(T, "TTObject") THEN #>
+Class TTItem_<T>
+   Inherits TTObject
+   Value As <T>
+End Class
+<# END IF #>
+```
+
+- **Uso de wrappers condicionado em build-time**: templates podem usar metaprogramação para gerar caminhos diferentes para objetos e primitivos. Para `T` descendente de `TTObject`, `Wrap`/`Unwrap` podem operar diretamente sobre o objeto; para tipos primitivos ou `Variant`, o template pode materializar `TTItem_<T>`. Essa decisão é tomada no build/preview, removendo verificações runtime repetidas como `TValue(...).IsObject`.
+- **Semântica de constraints**: parâmetros sem constraint explícita permanecem abertos (`<T>` resolve como `T`, não como `TObject`). Apenas `T As Foo` define a restrição usada pelo linter, hover e resolução de herança.
+- **Serialização canônica de saída**: a materialização remove `Public` redundante de campos e properties, preserva os demais modificadores e mantém a sintaxe nativa `TypeOf obj Is Tipo` / `TypeOf(obj) Is Tipo` após substituição genérica.
+- O linter live (`src/diagnostics/diagnostics.ts`) chama `analyzeGenericsPass` com templates externos do workspace para emitir os 6 warnings de generics no editor sem rodar o Builder: `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`.
+- IntelliSense design-time: `WorkspaceSymbolIndexer.updateFileContent` detecta templates e usos genéricos no arquivo atual e no contexto do workspace, injeta cópias monomórficas planas (`TList_Product`) no índice de símbolos quando necessário e marca esses símbolos como sintéticos para não conflitar com declarações reais. O `TypeResolver` normaliza `TList<Product>` → `TList_Product` e também consegue resolver membros diretamente do template externo quando a cópia sintética ainda não existe no cache local; hover, completion e signature-help mostram `Add(pValue As Product)` corretamente.
+- Preview: `D7PreviewContentProvider` reindexa o arquivo renderizado e os documentos `.bas` abertos antes de transpilar. O `PreviewService` dispara atualização para os previews abertos quando qualquer fonte `.bas` muda, garantindo que novos usos genéricos em outro namespace materializem imediatamente no preview do template, sem reload da janela.
 - Detalhes do pipeline: [docs/linguagem-basic/07-generics.md](docs/linguagem-basic/07-generics.md).
 
 #### `Dim { Nome, Idade } = pessoa` / `Dim [a, b] = lista` (destructuring)

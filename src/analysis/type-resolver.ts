@@ -488,6 +488,7 @@ export class TypeResolver {
   ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const visited = new Set<string>();
+    const rawTypeName = typeName;
     typeName = normalizeGenericTypeName(typeName);
 
     const search = (currentTypeName: string): SymbolInfo | undefined => {
@@ -530,6 +531,15 @@ export class TypeResolver {
 
       if (allWsHits.length > 0) return allWsHits[0];
       if (allSysHits.length > 0) return allSysHits[0];
+
+      const genericHits = getGenericTemplateMembersForType(rawTypeName, indexer).filter(
+        (s) => s.name.toLowerCase() === memberLower,
+      );
+      if (arity !== undefined) {
+        const arityHit = genericHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
+        if (arityHit) return arityHit;
+      }
+      if (genericHits.length > 0) return genericHits[0];
 
       const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
       if (!classSymbol) return undefined;
@@ -590,25 +600,13 @@ export class TypeResolver {
     // Usamos um Map para evitar a duplicação na cadeia de herança.
     const membersMap = new Map<string, SymbolInfo>();
     const visited = new Set<string>();
+    const rawTypeName = typeName;
     typeName = normalizeGenericTypeName(typeName);
 
     const collect = (currentTypeName: string): void => {
       const key = currentTypeName.toLowerCase();
       if (visited.has(key)) return;
       visited.add(key);
-
-      const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
-      if (!classSymbol) return;
-
-      const shortName = currentTypeName.includes(".")
-        ? (currentTypeName.split(".").pop() ?? currentTypeName).toLowerCase()
-        : currentTypeName.toLowerCase();
-
-      const containerMatch = (containerName: string | undefined): boolean => {
-        if (containerName === undefined) return false;
-        const c = containerName.toLowerCase();
-        return c === key || c === shortName || c.endsWith("." + shortName);
-      };
 
       const addSymbol = (s: SymbolInfo): void => {
         const namePart = s.name.toLowerCase();
@@ -632,11 +630,29 @@ export class TypeResolver {
         }
       };
 
+      const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
+      if (!classSymbol) {
+        getGenericTemplateMembersForType(rawTypeName, indexer).forEach(addSymbol);
+        return;
+      }
+
+      const shortName = currentTypeName.includes(".")
+        ? (currentTypeName.split(".").pop() ?? currentTypeName).toLowerCase()
+        : currentTypeName.toLowerCase();
+
+      const containerMatch = (containerName: string | undefined): boolean => {
+        if (containerName === undefined) return false;
+        const c = containerName.toLowerCase();
+        return c === key || c === shortName || c.endsWith("." + shortName);
+      };
+
       SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
       indexer
         .getAllSymbols()
         .filter((s) => containerMatch(s.containerName))
         .forEach(addSymbol);
+
+      getGenericTemplateMembersForType(rawTypeName, indexer).forEach(addSymbol);
 
       const parent = TypeResolver.resolveParent(classSymbol);
       if (parent) collect(parent);
@@ -668,7 +684,7 @@ export class TypeResolver {
 
   /**
    * Parses a `<T As Constraint, U>` declaration into an array of parameter names and constraints.
-   * Defaults constraint to `TObject` if omitted.
+   * Generic parameters without an explicit `As` constraint remain open (`T -> T`).
    */
   public static parseGenericDeclaration(lineText: string): { name: string; constraint: string }[] {
     const openBracket = lineText.indexOf("<");
@@ -682,7 +698,7 @@ export class TypeResolver {
       .map((p) => {
         const parts = p.trim().split(/\s+As\s+/i);
         const name = parts[0]?.trim() ?? "";
-        const constraint = parts[1]?.trim() ?? "TObject";
+        const constraint = parts[1]?.trim() || name;
         return { name, constraint };
       })
       .filter((item) => item.name.length > 0);
@@ -777,6 +793,102 @@ export class TypeResolver {
     }
     return current === target;
   }
+}
+
+function getGenericTemplateMembersForType(
+  typeName: string,
+  indexer: WorkspaceSymbolIndexer,
+): SymbolInfo[] {
+  const parsed = parseGenericTypeReference(typeName);
+  if (!parsed) return [];
+
+  const template = indexer
+    .getAllSymbols()
+    .find(
+      (s) =>
+        (s.kind === "class" || s.kind === "delegate" || s.kind === "method") &&
+        s.name.toLowerCase() === parsed.base.toLowerCase() &&
+        s.genericTypeParameters !== undefined &&
+        s.genericTypeParameters.length === parsed.args.length,
+    );
+  if (!template?.genericTypeParameters) return [];
+
+  const substitutions = new Map<string, string>();
+  for (let i = 0; i < template.genericTypeParameters.length; i++) {
+    const param = template.genericTypeParameters[i];
+    const arg = parsed.args[i];
+    if (!param || !arg) return [];
+    substitutions.set(param.toLowerCase(), normalizeGenericTypeName(arg));
+  }
+
+  const templateContainer = template.name.toLowerCase();
+  const concreteContainer = normalizeGenericTypeName(typeName);
+  return indexer
+    .getAllSymbols()
+    .filter((s) => s.containerName?.toLowerCase() === templateContainer)
+    .map((s) => {
+      const clone: SymbolInfo = {
+        ...s,
+        type: substituteGenericParametersInType(s.type, substitutions),
+        containerName: concreteContainer,
+      };
+      if (s.parameters !== undefined) {
+        clone.parameters = s.parameters.map((p) => ({
+          ...p,
+          type: substituteGenericParametersInType(p.type, substitutions),
+        }));
+      }
+      if (s.overloads !== undefined) {
+        clone.overloads = s.overloads.map((overload) =>
+          overload.map((p) => ({
+            ...p,
+            type: substituteGenericParametersInType(p.type, substitutions),
+          })),
+        );
+      }
+      return clone;
+    });
+}
+
+function substituteGenericParametersInType(
+  typeName: string,
+  substitutions: ReadonlyMap<string, string>,
+): string {
+  let current = typeName;
+  for (const [param, concrete] of substitutions.entries()) {
+    const escaped = param.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    current = current.replace(new RegExp(`\\b${escaped}\\b`, "gi"), concrete);
+  }
+  return normalizeGenericTypeName(current);
+}
+
+function parseGenericTypeReference(
+  typeName: string,
+): { base: string; args: string[] } | undefined {
+  const trimmed = typeName.trim();
+  const lt = trimmed.indexOf("<");
+  if (lt <= 0 || !trimmed.endsWith(">")) return undefined;
+  const base = trimmed.slice(0, lt).trim();
+  const inner = trimmed.slice(lt + 1, -1);
+  if (!base || !inner.trim()) return undefined;
+
+  const args: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === "<") {
+      depth++;
+    } else if (ch === ">") {
+      depth--;
+    } else if (ch === "," && depth === 0) {
+      args.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  args.push(inner.slice(start).trim());
+  if (args.some((arg) => arg.length === 0)) return undefined;
+  return { base, args };
 }
 
 /**
