@@ -90,6 +90,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         case "expected-token":
           if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
             this.addMissingThenFix(actions, document, diagnostic);
+            this.addMissingThenBulkFix(actions, document, diagnostic);
           }
           break;
         default:
@@ -566,7 +567,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     action.isPreferred = true;
 
     const edit = new vscode.WorkspaceEdit();
-    edit.insert(document.uri, diagnostic.range.end, "()");
+    edit.insert(document.uri, findDeclarationParenthesesInsertPosition(document, diagnostic), "()");
     action.edit = edit;
     actions.push(action);
   }
@@ -610,7 +611,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     const edit = new vscode.WorkspaceEdit();
     for (const match of mismatches) {
-      edit.insert(document.uri, match.range.end, "()");
+      edit.insert(document.uri, findDeclarationParenthesesInsertPosition(document, match), "()");
     }
     action.edit = edit;
     actions.push(action);
@@ -805,22 +806,31 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     action.diagnostics = [diagnostic];
     action.isPreferred = true;
 
-    const line = diagnostic.range.start.line;
-    const lineText = document.lineAt(line).text;
-    
-    // Find the end of the expression or end of line before any comments
-    let endChar = lineText.length;
-    const commentIdx = lineText.indexOf("'");
-    if (commentIdx !== -1) {
-      endChar = commentIdx;
-    }
-    // Trim trailing whitespace from the insertion point
-    const textBeforeComment = lineText.substring(0, endChar);
-    const trimmedLen = textBeforeComment.trimEnd().length;
-    const insertPos = new vscode.Position(line, trimmedLen);
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(document.uri, findMissingThenInsertPosition(document, diagnostic), " Then");
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addMissingThenBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const missingThen = dedupeDiagnostics([diagnostic, ...allDiags.filter(isMissingThenDiagnostic)]);
+    if (missingThen.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Adicionar 'Then' em todas as ocorrências deste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
 
     const edit = new vscode.WorkspaceEdit();
-    edit.insert(document.uri, insertPos, " Then");
+    for (const match of missingThen) {
+      edit.insert(document.uri, findMissingThenInsertPosition(document, match), " Then");
+    }
     action.edit = edit;
     actions.push(action);
   }
@@ -861,4 +871,58 @@ function findImportInsertLine(document: vscode.TextDocument): number {
     }
   }
   return insertLine;
+}
+
+function findDeclarationParenthesesInsertPosition(
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic,
+): vscode.Position {
+  const line = diagnostic.range.start.line;
+  const lineText = document.lineAt(line).text;
+  const match = /\b(?:delegate\s+(?:sub|function)|sub|function)\s+([A-Za-z_]\w*)/i.exec(
+    lineText,
+  );
+  const name = match?.[1];
+  if (match && name) {
+    const nameStart = match.index + match[0].lastIndexOf(name);
+    return new vscode.Position(line, nameStart + name.length);
+  }
+  return diagnostic.range.end;
+}
+
+function findMissingThenInsertPosition(
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic,
+): vscode.Position {
+  const line = diagnostic.range.start.line;
+  const lineText = document.lineAt(line).text;
+
+  // Find the end of the expression or end of line before any comments.
+  let endChar = lineText.length;
+  const commentIdx = lineText.indexOf("'");
+  if (commentIdx !== -1) {
+    endChar = commentIdx;
+  }
+  const textBeforeComment = lineText.substring(0, endChar);
+  const trimmedLen = textBeforeComment.trimEnd().length;
+  return new vscode.Position(line, trimmedLen);
+}
+
+function isMissingThenDiagnostic(diagnostic: vscode.Diagnostic): boolean {
+  return (
+    diagnostic.code === "expected-token" &&
+    diagnostic.message.toLowerCase().includes("expected 'then'")
+  );
+}
+
+function dedupeDiagnostics(diagnostics: readonly vscode.Diagnostic[]): vscode.Diagnostic[] {
+  const seen = new Set<string>();
+  const result: vscode.Diagnostic[] = [];
+  for (const diagnostic of diagnostics) {
+    const key = `${String(diagnostic.code)}:${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(diagnostic);
+  }
+  return result;
 }

@@ -149,9 +149,16 @@ Namespace mod_tobject
          BuildLogger = New TTObjectPrinter(pTitle, pSize)
       End Function
 
+     Public Sub Free()
+       MyBase.Free()
+     End Sub
+
    End Class
 
    Class TTBaseList
+      Sub New()
+         MyBase.New()
+      End Sub
       Sub Free()
          MyBase.Free()
       End Sub
@@ -180,7 +187,7 @@ Namespace mod_tobject
          me.OwnsObjects = pOwnsObjects
       End Sub
 
-      Private Function CreateInstance As TTObjectList
+      Private Function CreateInstance() As TTObjectList
          CreateInstance = New TTObjectList(me.Name)
       End Function
 
@@ -286,7 +293,7 @@ Namespace mod_tobject
          Dim value As Integer = -1
          Dim i As Integer, _count As Integer = me.Count
          For i = 0 To _count - 1
-             If pHandler(me.Take(i), i, extra)
+             If pHandler(me.Take(i), i, extra) Then
                 value = i
                 Exit For
              End IF
@@ -302,7 +309,7 @@ Namespace mod_tobject
          Dim value As TObject
          Dim i As Integer, _count As Integer = me.Count
          For i = 0 To _count - 1
-             If pHandler(me.Take(i), i, extra)
+             If pHandler(me.Take(i), i, extra) Then
                 value = me.Take(i)
                 Exit For
              End IF
@@ -318,7 +325,7 @@ Namespace mod_tobject
          Dim _new As TTObjectList = me.CreateInstance()
          Dim i As Integer, _count As Integer = me.Count
          For i = 0 To _count - 1
-             If pHandler(me.Take(i), i, extra)
+             If pHandler(me.Take(i), i, extra) Then
                 _new.Add(me.Take(i))
              End IF
          Next
@@ -349,24 +356,24 @@ Namespace mod_tobject
          Map = _new
       End Function
 
-      Function First As TTObject
-         If me.Count > 0
+      Function First() As TTObject
+         If me.Count > 0 Then
             First = me.Take(0)
             Exit Function
          End If
          First = NULL
       End Function
 
-      Function Last As TTObject
+      Function Last() As TTObject
          Dim _count As Integer = me.Count
-         If _count > 0
+         If _count > 0 Then
             Last = me.Take(_count - 1)
             Exit Function
          End If
          Last = NULL
       End Function
 
-      Function Clone As TTObjectList
+      Function Clone() As TTObjectList
          Dim _Clone As New TTObjectList(), i As Integer, _count As Integer = me.Count
          For i = 0 To _count - 1
             _Clone.Add(CType(me.Take(i).Clone(), TTObject))
@@ -377,30 +384,30 @@ Namespace mod_tobject
       Function Range(pLimit As Integer, fromEnd As Boolean) As TTObjectList
          Dim result As TTObjectList = me.CreateInstance()
          Dim _count As Integer = me.Count
-         If pLimit <= 0 Or _count = 0
+         If pLimit <= 0 Or _count = 0 Then
             Range = result
          End If
          Dim i As Integer, startIndex As Integer = 0, idx As Integer
-         If fromEnd
+         If fromEnd Then
             startIndex = _count - pLimit
          End If
-         If startIndex < 0
+         If startIndex < 0 Then
             startIndex = 0
          End If
          For i = 0 To pLimit - 1
-            If fromEnd
+            If fromEnd Then
                idx = startIndex + i
             Else
                idx = i
             End If
-            If idx >= 0 And idx < _count
+            If idx >= 0 And idx < _count Then
                result.Add(me.Take(idx))
             End If
          Next
          Range = result
       End Function
 
-      Function Count As Integer
+      Function Count() As Integer
          Count = me._list.Count
       End Function
 
@@ -418,7 +425,7 @@ Namespace mod_tobject
 
       Sub Clean(pDispose As Boolean = True)
          me.DispatchBeforeClean(me, NULL, -1)
-         If pDispose
+         If pDispose Then
             me.Dispose()
             me._disposed = False
          End If
@@ -431,13 +438,13 @@ Namespace mod_tobject
       End Sub
 
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True, pExtra As Variant)
-         If pHandler <> NULL
+         If pHandler <> NULL Then
             Dim listTemp As New StringList, i As Integer
             Dim _count As Integer = me.Count
             For i = 0 To _count - 1
-               Dim item As TObject = me._list.Objects(i)
-               Dim prop_value As String = pHandler(CType(item, TTObject), i, pExtra)
-               listTemp.AddObject(prop_value, item)
+               Dim _item As TObject = me._list.Objects(i)
+               Dim prop_value As String = pHandler(CType(_item, TTObject), i, pExtra)
+               listTemp.AddObject(prop_value, _item)
             Next
             listTemp.Sorted = True
             Dim tempOwnsObjects As Boolean = me.OwnsObjects
@@ -446,7 +453,7 @@ Namespace mod_tobject
             _count = listTemp.Count
             For i = 0 To _count - 1
                Dim idx As Integer = i
-               If Not pAsc
+               If Not pAsc Then
                   idx = _count - i - 1
                End If
                me.Add(CType(listTemp.Objects(idx), TTObject))
@@ -456,6 +463,7 @@ Namespace mod_tobject
          Else
             Throw New Exception("You must send a handler")
          End If
+         Exit Sub
       End Sub
 
       Function ToString() As String
@@ -531,11 +539,11 @@ Namespace mod_tobject
       End Sub
 
       Sub Dispose()
-         If Not me._disposed
+         If Not me._disposed Then
             Dim i As Integer, _count As Integer = me.Count
             For i = 0 To _count - 1
                Dim _item As TTObject = me.Take(i)
-               If Not _item.Disposed
+               If Not _item.Disposed Then
                   me.DispatchBeforeDispose(me, _item, i)
                   _item.Dispose()
                   _item.Disposed = True
@@ -547,7 +555,7 @@ Namespace mod_tobject
 
       Sub Free(pDispose As Boolean = True)
          If pDispose Then me.Dispose()
-         If Assigned(me._list)
+         If Assigned(me._list) Then
             Try
                me._list.Free()
             Catch ex As Exception

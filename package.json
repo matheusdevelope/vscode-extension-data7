@@ -45,6 +45,8 @@
   "contributes": {
     "configurationDefaults": {
       "[d7basic]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4,
         "editor.quickSuggestions": {
           "other": false,
           "comments": false,

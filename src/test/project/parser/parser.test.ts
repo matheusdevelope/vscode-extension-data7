@@ -488,6 +488,23 @@ describe("parser/parser", () => {
     assert.equal((m.body[3] as any).operator, "/=");
   });
 
+  test("parses TypeOf ... Is generic type checks as boolean expressions", () => {
+    const src = [
+      "Class TTList<T>",
+      "   Function Unwrap(pObj As TObject) As T",
+      "      If TypeOf pObj Is TTItem<T> Then",
+      "         Unwrap = TTItem<T>(pObj).Value",
+      "      End If",
+      "   End Function",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    const method = klass.members[0] as MethodDeclaration;
+    assert.equal(method.body[0]?.kind, "IfStatement");
+  });
+
   test("parses multi-variable declarations as a Block of VariableDeclarations (GAP-04)", () => {
     const src = [
       "Sub TestMultiDim()",
@@ -556,4 +573,3 @@ describe("parser/parser", () => {
     assert.equal((klass.members[0] as any).initializer.kind, "Literal");
   });
 });
-

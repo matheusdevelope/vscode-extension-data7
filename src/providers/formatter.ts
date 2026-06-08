@@ -1,127 +1,121 @@
 import * as vscode from "vscode";
+import { tokenizeLine } from "../project/parser/lexer";
 
 const keywordCasingMap = new Map<string, string>([
-  ["imports", "Imports"],
-  ["namespace", "Namespace"],
-  ["class", "Class"],
-  ["structure", "Structure"],
-  ["delegate", "Delegate"],
-  ["property", "Property"],
-  ["get", "Get"],
-  ["set", "Set"],
-  ["shared", "Shared"],
-  ["sub", "Sub"],
-  ["function", "Function"],
-  ["dim", "Dim"],
+  ["and", "And"],
+  ["andalso", "AndAlso"],
+  ["alias", "Alias"],
   ["as", "As"],
-  ["if", "If"],
-  ["then", "Then"],
+  ["byref", "ByRef"],
+  ["byval", "ByVal"],
+  ["case", "Case"],
+  ["catch", "Catch"],
+  ["class", "Class"],
+  ["const", "Const"],
+  ["declare", "Declare"],
+  ["delegate", "Delegate"],
+  ["dim", "Dim"],
+  ["do", "Do"],
+  ["each", "Each"],
   ["else", "Else"],
   ["elseif", "ElseIf"],
-  ["end if", "End If"],
-  ["select case", "Select Case"],
-  ["case", "Case"],
-  ["end select", "End Select"],
-  ["for", "For"],
-  ["to", "To"],
-  ["step", "Step"],
-  ["next", "Next"],
-  ["each", "Each"],
-  ["in", "In"],
-  ["do", "Do"],
-  ["loop", "Loop"],
-  ["while", "While"],
-  ["until", "Until"],
-  ["try", "Try"],
-  ["catch", "Catch"],
-  ["finally", "Finally"],
-  ["end try", "End Try"],
-  ["return", "Return"],
-  ["new", "New"],
-  ["inherits", "Inherits"],
-  ["mybase", "MyBase"],
-  ["me", "me"],
-  ["null", "NULL"],
+  ["end", "End"],
+  ["enum", "Enum"],
   ["exit", "Exit"],
-  ["overrides", "Overrides"],
-  ["overridable", "Overridable"],
-  ["private", "Private"],
-  ["public", "Public"],
-  ["protected", "Protected"],
-  ["declare", "Declare"],
+  ["false", "False"],
+  ["finally", "Finally"],
+  ["for", "For"],
+  ["function", "Function"],
+  ["get", "Get"],
+  ["if", "If"],
+  ["imports", "Imports"],
+  ["in", "In"],
+  ["inherits", "Inherits"],
+  ["is", "Is"],
+  ["let", "Let"],
   ["lib", "Lib"],
-  ["alias", "Alias"],
+  ["loop", "Loop"],
+  ["match", "Match"],
+  ["me", "me"],
+  ["mod", "Mod"],
+  ["mybase", "MyBase"],
+  ["namespace", "Namespace"],
+  ["new", "New"],
+  ["next", "Next"],
+  ["not", "Not"],
+  ["nothing", "Nothing"],
+  ["null", "NULL"],
+  ["or", "Or"],
+  ["orelse", "OrElse"],
+  ["overridable", "Overridable"],
+  ["overrides", "Overrides"],
+  ["private", "Private"],
+  ["property", "Property"],
+  ["protected", "Protected"],
+  ["public", "Public"],
+  ["readonly", "ReadOnly"],
+  ["return", "Return"],
+  ["select", "Select"],
+  ["set", "Set"],
+  ["shared", "Shared"],
+  ["step", "Step"],
+  ["structure", "Structure"],
+  ["sub", "Sub"],
+  ["then", "Then"],
+  ["throw", "Throw"],
+  ["to", "To"],
+  ["true", "True"],
+  ["try", "Try"],
+  ["until", "Until"],
+  ["using", "Using"],
+  ["when", "When"],
+  ["while", "While"],
+  ["with", "With"],
+  ["xor", "Xor"],
 ]);
+
+export interface CodeFormatterOptions {
+  readonly insertSpaces?: boolean;
+  readonly tabSize?: number;
+}
+
+type IndentFrame =
+  | "namespace"
+  | "class"
+  | "structure"
+  | "enum"
+  | "property"
+  | "get"
+  | "set"
+  | "sub"
+  | "function"
+  | "if"
+  | "select"
+  | "match"
+  | "case"
+  | "for"
+  | "do"
+  | "while"
+  | "try"
+  | "using"
+  | "with";
+
+const DEFAULT_TAB_SIZE = 4;
+const DECLARATION_MODIFIERS =
+  "(?:(?:public|private|protected|shared|overrides|overridable|readonly)\\s+)*";
 
 export class CodeFormatter {
   public static formatKeywordsInLine(lineText: string): string {
-    // Separate comment first
-    let comment = "";
-    let code = lineText;
-    const quoteIdx = lineText.indexOf("'");
-    if (quoteIdx !== -1) {
-      comment = lineText.substring(quoteIdx);
-      code = lineText.substring(0, quoteIdx);
-    } else {
-      const remIdx = lineText.toLowerCase().indexOf("rem ");
-      if (remIdx !== -1) {
-        comment = lineText.substring(remIdx);
-        code = lineText.substring(0, remIdx);
-      }
-    }
-
-    let result = "";
-    let i = 0;
-    while (i < code.length) {
-      // `i < code.length` guarantees `code[i]` is defined.
-      const char = code[i] ?? "";
-      if (char === '"') {
-        const endQuote = code.indexOf('"', i + 1);
-        if (endQuote !== -1) {
-          result += code.substring(i, endQuote + 1);
-          i = endQuote + 1;
-        } else {
-          result += code.substring(i);
-          break;
-        }
-      } else {
-        if (/[a-zA-Z0-9_]/.test(char)) {
-          const start = i;
-          while (i < code.length && /[a-zA-Z0-9_]/.test(code[i] ?? "")) {
-            i++;
-          }
-          const word = code.substring(start, i);
-          const lowerWord = word.toLowerCase();
-          const replacement = keywordCasingMap.get(lowerWord);
-          result += replacement ?? word;
-        } else {
-          result += char;
-          i++;
-        }
-      }
-    }
-
-    // Replace multi-word keywords
-    result = result
-      .replace(/\bend\s+if\b/gi, "End If")
-      .replace(/\bselect\s+case\b/gi, "Select Case")
-      .replace(/\bend\s+select\b/gi, "End Select")
-      .replace(/\bend\s+try\b/gi, "End Try")
-      .replace(/\bend\s+sub\b/gi, "End Sub")
-      .replace(/\bend\s+function\b/gi, "End Function")
-      .replace(/\bend\s+property\b/gi, "End Property")
-      .replace(/\bend\s+class\b/gi, "End Class")
-      .replace(/\bend\s+structure\b/gi, "End Structure")
-      .replace(/\bend\s+namespace\b/gi, "End Namespace");
-
-    return result + comment;
+    return tokenizeLine(lineText, { includeWhitespace: true })
+      .map((token) => keywordCasingMap.get(token.value.toLowerCase()) ?? token.value)
+      .join("");
   }
 
-  public static formatCode(text: string): string {
+  public static formatCode(text: string, options: CodeFormatterOptions = {}): string {
     const lines = text.split(/\r?\n/);
     const formattedLines: string[] = [];
-    let indentLevel = 0;
-    const indentSize = 3;
+    const indentStack: IndentFrame[] = [];
+    const indentUnit = getIndentUnit(options);
 
     for (const lineText of lines) {
       const trimmed = lineText.trim();
@@ -130,82 +124,39 @@ export class CodeFormatter {
         continue;
       }
 
-      let cleanLine = trimmed;
-      const quoteIdx = trimmed.indexOf("'");
-      if (quoteIdx !== -1) {
-        cleanLine = trimmed.substring(0, quoteIdx).trim();
+      const cleanLine = stripTrailingComment(trimmed);
+      const lowerClean = cleanLine.toLowerCase();
+      let handledIndent = false;
+
+      if (isCaseLine(lowerClean)) {
+        popIfTop(indentStack, ["case"]);
+        formattedLines.push(
+          indentUnit.repeat(indentStack.length) + this.formatKeywordsInLine(trimmed),
+        );
+        indentStack.push("case");
+        handledIndent = true;
       } else {
-        const remIdx = trimmed.toLowerCase().indexOf("rem ");
-        if (remIdx !== -1) {
-          cleanLine = trimmed.substring(0, remIdx).trim();
+        const branchDepth = getBranchDepth(lowerClean, indentStack);
+        if (branchDepth !== undefined) {
+          formattedLines.push(indentUnit.repeat(branchDepth) + this.formatKeywordsInLine(trimmed));
+          handledIndent = true;
+        } else {
+          const closingFrame = getClosingFrame(lowerClean);
+          if (closingFrame) {
+            closeFrame(indentStack, closingFrame);
+          }
         }
       }
 
-      const lowerClean = cleanLine.toLowerCase();
-
-      // Closing elements decrease indent before printing
-      const isClosing =
-        lowerClean === "end namespace" ||
-        lowerClean === "end class" ||
-        lowerClean === "end structure" ||
-        lowerClean === "end property" ||
-        lowerClean === "end sub" ||
-        lowerClean === "end function" ||
-        lowerClean === "end if" ||
-        lowerClean === "next" ||
-        lowerClean === "loop" ||
-        lowerClean === "end try" ||
-        lowerClean === "end select" ||
-        lowerClean === "end get" ||
-        lowerClean === "end set" ||
-        lowerClean === "else" ||
-        lowerClean.startsWith("elseif ") ||
-        lowerClean.startsWith("elseif\t") ||
-        lowerClean.startsWith("catch ") ||
-        lowerClean.startsWith("catch\t") ||
-        lowerClean === "catch" ||
-        lowerClean.startsWith("finally") ||
-        lowerClean === "finally";
-
-      if (isClosing && indentLevel > 0) {
-        indentLevel--;
+      if (!handledIndent) {
+        formattedLines.push(
+          indentUnit.repeat(indentStack.length) + this.formatKeywordsInLine(trimmed),
+        );
       }
 
-      const casedLine = this.formatKeywordsInLine(trimmed);
-      const indentStr = " ".repeat(indentLevel * indentSize);
-      formattedLines.push(indentStr + casedLine);
-
-      // Opening elements increase indent after printing
-      const isOpening =
-        lowerClean.startsWith("namespace ") ||
-        /^(?:public\s+|private\s+|protected\s+)?class\s+/i.test(lowerClean) ||
-        /^(?:public\s+|private\s+|protected\s+)?structure\s+/i.test(lowerClean) ||
-        /^(?:public\s+|private\s+|protected\s+)?property\s+/i.test(lowerClean) ||
-        (/^(?:public\s+|private\s+|protected\s+|shared\s+)*sub\s+/i.test(lowerClean) &&
-          !lowerClean.includes("declare sub") &&
-          !lowerClean.includes("delegate sub")) ||
-        (/^(?:public\s+|private\s+|protected\s+|shared\s+)*function\s+/i.test(lowerClean) &&
-          !lowerClean.includes("declare function") &&
-          !lowerClean.includes("delegate function")) ||
-        /^\s*if\s+.*\s+then$/i.test(lowerClean) ||
-        lowerClean.startsWith("for ") ||
-        lowerClean.startsWith("do ") ||
-        lowerClean === "do" ||
-        lowerClean.startsWith("try") ||
-        lowerClean.startsWith("select case ") ||
-        lowerClean === "get" ||
-        lowerClean === "set" ||
-        lowerClean === "else" ||
-        lowerClean.startsWith("elseif ") ||
-        lowerClean.startsWith("elseif\t") ||
-        lowerClean.startsWith("catch ") ||
-        lowerClean.startsWith("catch\t") ||
-        lowerClean === "catch" ||
-        lowerClean.startsWith("finally") ||
-        lowerClean === "finally";
-
-      if (isOpening) {
-        indentLevel++;
+      const openingFrame = getOpeningFrame(lowerClean);
+      if (openingFrame) {
+        indentStack.push(openingFrame);
       }
     }
 
@@ -216,17 +167,172 @@ export class CodeFormatter {
 export class D7BasicFormattingProvider implements vscode.DocumentFormattingEditProvider {
   public provideDocumentFormattingEdits(
     document: vscode.TextDocument,
-    _options: vscode.FormattingOptions,
+    options: vscode.FormattingOptions,
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.TextEdit[]> {
     if (token.isCancellationRequested) return undefined;
     const text = document.getText();
-    const formatted = CodeFormatter.formatCode(text);
+    const formatted = CodeFormatter.formatCode(text, options);
 
     const lastLine = document.lineCount - 1;
     const lastLineRange = document.lineAt(lastLine).range;
     const fullRange = new vscode.Range(new vscode.Position(0, 0), lastLineRange.end);
 
     return [vscode.TextEdit.replace(fullRange, formatted)];
+  }
+}
+
+function getIndentUnit(options: CodeFormatterOptions): string {
+  if (options.insertSpaces === false) return "\t";
+
+  const requestedTabSize = options.tabSize;
+  const tabSize =
+    typeof requestedTabSize === "number" &&
+    Number.isInteger(requestedTabSize) &&
+    requestedTabSize > 0
+      ? requestedTabSize
+      : DEFAULT_TAB_SIZE;
+  return " ".repeat(tabSize);
+}
+
+function stripTrailingComment(line: string): string {
+  const tokens = tokenizeLine(line, { includeWhitespace: true });
+  const commentIndex = tokens.findIndex((token) => token.kind === "comment");
+  const codeTokens = commentIndex === -1 ? tokens : tokens.slice(0, commentIndex);
+  return codeTokens
+    .map((token) => token.value)
+    .join("")
+    .trim();
+}
+
+function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
+  if (lowerClean.startsWith("namespace ")) return "namespace";
+  if (new RegExp(`^${DECLARATION_MODIFIERS}class\\s+`).test(lowerClean)) return "class";
+  if (new RegExp(`^${DECLARATION_MODIFIERS}structure\\s+`).test(lowerClean)) return "structure";
+  if (new RegExp(`^${DECLARATION_MODIFIERS}enum\\s+`).test(lowerClean)) return "enum";
+  if (new RegExp(`^${DECLARATION_MODIFIERS}property\\s+`).test(lowerClean)) return "property";
+  if (isSubDeclaration(lowerClean)) return "sub";
+  if (isFunctionDeclaration(lowerClean)) return "function";
+  if (/^if\s+.*\sthen$/.test(lowerClean)) return "if";
+  if (lowerClean.startsWith("select case ")) return "select";
+  if (lowerClean.startsWith("match ")) return "match";
+  if (lowerClean.startsWith("for ")) return "for";
+  if (lowerClean === "do" || lowerClean.startsWith("do ")) return "do";
+  if (lowerClean.startsWith("while ")) return "while";
+  if (lowerClean === "try") return "try";
+  if (lowerClean.startsWith("using ")) return "using";
+  if (lowerClean.startsWith("with ")) return "with";
+  if (lowerClean === "get") return "get";
+  if (lowerClean === "set" || lowerClean.startsWith("set(")) return "set";
+  return undefined;
+}
+
+function isSubDeclaration(lowerClean: string): boolean {
+  return new RegExp(`^${DECLARATION_MODIFIERS}sub\\s+`).test(lowerClean);
+}
+
+function isFunctionDeclaration(lowerClean: string): boolean {
+  return new RegExp(`^${DECLARATION_MODIFIERS}function\\s+`).test(lowerClean);
+}
+
+function getClosingFrame(lowerClean: string): IndentFrame[] | undefined {
+  if (lowerClean.startsWith("next ")) return ["for"];
+  if (lowerClean.startsWith("loop ")) return ["do"];
+
+  switch (lowerClean) {
+    case "end namespace":
+      return ["namespace"];
+    case "end class":
+      return ["class"];
+    case "end structure":
+      return ["structure"];
+    case "end enum":
+      return ["enum"];
+    case "end property":
+      return ["property"];
+    case "end get":
+      return ["get"];
+    case "end set":
+      return ["set"];
+    case "end sub":
+      return ["sub"];
+    case "end function":
+      return ["function"];
+    case "end if":
+      return ["if"];
+    case "next":
+      return ["for"];
+    case "loop":
+      return ["do"];
+    case "end while":
+      return ["while"];
+    case "end try":
+      return ["try"];
+    case "end select":
+      return ["select"];
+    case "end match":
+      return ["match"];
+    case "end using":
+      return ["using"];
+    case "end with":
+      return ["with"];
+    default:
+      return undefined;
+  }
+}
+
+function getBranchDepth(
+  lowerClean: string,
+  indentStack: readonly IndentFrame[],
+): number | undefined {
+  if (
+    lowerClean === "else" ||
+    lowerClean.startsWith("elseif ") ||
+    lowerClean.startsWith("elseif\t") ||
+    lowerClean === "catch" ||
+    lowerClean.startsWith("catch ") ||
+    lowerClean.startsWith("catch\t") ||
+    lowerClean === "finally"
+  ) {
+    return Math.max(0, indentStack.length - 1);
+  }
+
+  return undefined;
+}
+
+function isCaseLine(lowerClean: string): boolean {
+  return lowerClean === "case" || lowerClean.startsWith("case ") || lowerClean.startsWith("case\t");
+}
+
+function closeFrame(indentStack: IndentFrame[], frames: readonly IndentFrame[]): void {
+  for (const frame of frames) {
+    if (frame === "select" || frame === "match") {
+      popIfTop(indentStack, ["case"]);
+    }
+    popFrame(indentStack, frame);
+  }
+}
+
+function popIfTop(indentStack: IndentFrame[], frames: readonly IndentFrame[]): void {
+  const top = indentStack[indentStack.length - 1];
+  if (top && frames.includes(top)) {
+    indentStack.pop();
+  }
+}
+
+function popFrame(indentStack: IndentFrame[], frame: IndentFrame): void {
+  if (indentStack[indentStack.length - 1] === frame) {
+    indentStack.pop();
+    return;
+  }
+
+  const index = indentStack.lastIndexOf(frame);
+  if (index !== -1) {
+    indentStack.splice(index, 1);
+    return;
+  }
+
+  if (indentStack.length > 0) {
+    indentStack.pop();
   }
 }

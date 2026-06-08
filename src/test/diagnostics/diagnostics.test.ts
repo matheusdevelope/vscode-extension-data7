@@ -548,11 +548,13 @@ End Namespace`;
       const uri = "file:///dup_local.bas";
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-      expectDiagnostic(
+      const diag = expectDiagnostic(
         diags,
         DiagnosticCodes.DuplicateDeclaration,
         "Declaração duplicada: o identificador 'x'",
       );
+      assert.equal(diag.relatedInformation?.length, 1);
+      assert.equal(diag.relatedInformation?.[0]?.location.range.start.line, 3);
     });
 
     test("emits error for local variable with same name as parameter inside the same method", () => {
@@ -587,11 +589,13 @@ End Namespace`;
       const uri = "file:///dup_member.bas";
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-      expectDiagnostic(
+      const diag = expectDiagnostic(
         diags,
         DiagnosticCodes.DuplicateDeclaration,
         "conflita com o membro 'value'",
       );
+      assert.equal(diag.relatedInformation?.length, 1);
+      assert.equal(diag.relatedInformation?.[0]?.location.range.start.line, 2);
     });
 
     test("does NOT emit error for local variable matching class member of different context (Shared vs Instance)", () => {
@@ -995,6 +999,246 @@ End Namespace`);
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+  });
+
+  describe("scope and type compatibility regressions", () => {
+    const runLinter = (uri: string, code: string) => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+    };
+
+    test("keeps every variable from a multi-variable Dim declaration in the current scope", () => {
+      const diags = runLinter(
+        "file:///multi_dim_scope.bas",
+        `Imports Collections
+Namespace mod_scope
+   Class C
+      Public Sub Run()
+         Dim listTemp As New StringList, i As Integer
+         listTemp.Add("x")
+         Dim j As Integer, _count As Integer = 10
+         i = _count
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    });
+
+    test("allows assigning a workspace class to TObject through implicit inheritance", () => {
+      const diags = runLinter(
+        "file:///implicit_tobject_assignment.bas",
+        `Namespace mod_assign
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class C
+      Function Take() As TTObject
+         Take = New TTObject()
+      End Function
+
+      Public Sub Run()
+         Dim value As TObject = me.Take()
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("treats NULL as object-null, not Variant", () => {
+      const diags = runLinter(
+        "file:///null_object_assignment.bas",
+        `Namespace mod_null
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class C
+      Function First() As TTObject
+         First = NULL
+      End Function
+
+      Public Sub Run()
+         Dim value As TTObject = NULL
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("allows Unassigned for primitive and Variant values", () => {
+      const diags = runLinter(
+        "file:///unassigned_primitives.bas",
+        `Namespace mod_unassigned
+   Class C
+      Public Sub Run()
+         Dim i As Integer = Unassigned
+         Dim s As String = Unassigned
+         Dim v As Variant = Unassigned
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    });
+
+    test("does not mark an Else branch dead when an object/null comparison is unknown", () => {
+      const diags = runLinter(
+        "file:///unknown_null_condition.bas",
+        `Namespace mod_dead_unknown
+   Class C
+      Public Sub Run(pHandler As Variant)
+         If pHandler <> NULL Then
+            pHandler = pHandler
+         Else
+            Throw New Exception("missing")
+         End If
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.DeadCode);
+    });
+
+    test("marks a branch dead when a variable is known to be NULL", () => {
+      const diags = runLinter(
+        "file:///known_null_condition.bas",
+        `Namespace mod_dead_known
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim obj As TTObject = New TTObject()
+         obj = NULL
+         If obj <> NULL Then
+            obj.Free()
+         End If
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectDiagnostic(diags, DiagnosticCodes.DeadCode);
+    });
+
+    test("accepts TypeOf ... Is checks against generic type references", () => {
+      const diags = runLinter(
+        "file:///generic_typeof.bas",
+        `Namespace mod_generic_typeof
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTItem<T>
+      Inherits TTObject
+      Value As T
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Function Unwrap(pObj As TTObject) As T
+         If TypeOf pObj Is TTItem<T> Then
+            Unwrap = TTItem<T>(pObj).Value
+         Else
+            Unwrap = CType(pObj, T)
+         End If
+      End Function
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("does not flag template-local generic assignments as concrete TObject mismatches", () => {
+      const diags = runLinter(
+        "file:///generic_template_assignments.bas",
+        `Namespace mod_generic_assign
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTItem<T>
+      Inherits TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Private Function Wrap(pValue As T) As TTObject
+         Wrap = New TTItem<T>()
+      End Function
+
+      Function Take() As T
+         Take = CType(NULL, T)
+      End Function
+
+      Function Clone() As TTList<T>
+         Dim _new As New TTList<T>()
+         Clone = _new
+      End Function
+
+      Function Filter() As TTList<T>
+         Dim _new As New TTList<T>()
+         Dim _value As T = me.Take()
+         Filter = _new
+      End Function
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
   });
 

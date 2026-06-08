@@ -8,10 +8,10 @@
     <CodFilial>1</CodFilial>
     <NomeUsuario>Administrador</NomeUsuario>
     <PreScript></PreScript>
-    <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
+    <IdentificacaoBancoDados></IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>06/06/2026 21:13:54</Data>
+  <Data>07/06/2026 14:42:27</Data>
   <Codigo>Imports mod_tobject
 
 Imports mod_tlist
@@ -96,7 +96,8 @@ print assigned(_produto1)
 Dim _pa As Integer = 123
 Dim _vl As TValue
 print TValue(_pa).IsObject
-print TypeOf TValue(_produto1).AsObject Is TTObject
+print TypeOf(TValue(_produto1).AsObject) Is TTObject
+
 '_produto1.Assign
 'print _produto1.ToString()
 'Dim _produto2 As Produto = _produto1.Clone()
@@ -106,7 +107,7 @@ _produto1.Free()
 '_produto2.Free()</Codigo>
   <Aberto>true</Aberto>
   <OrdemAbertura>0</OrdemAbertura>
-  <ItemAberto>2</ItemAberto>
+  <ItemAberto>0</ItemAberto>
   <Pastas>
     <Pasta>
       <Nome>Unidades (2)</Nome>

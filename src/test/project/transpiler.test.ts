@@ -241,6 +241,52 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /^\s{6}For __idx0 = 0 To list\.Count - 1$/m);
     assert.match(out, /^\s{9}Dim item As String = list\.Strings\(__idx0\)$/m);
   });
+
+  test("omits Public from built class fields and properties while preserving other modifiers", () => {
+    const ctx = makeContext({});
+    const code = [
+      "Class Box<T>",
+      "   Public Value As T",
+      "   Public Property Current As T",
+      "   Private Hidden As T",
+      "   Public Shared Total As Integer",
+      "End Class",
+      "Dim x As Box<Integer>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^\s{3}Value As Integer$/m);
+    assert.match(out, /^\s{3}Property Current As Integer$/m);
+    assert.match(out, /^\s{3}Private Hidden As Integer$/m);
+    assert.match(out, /^\s{3}Shared Total As Integer$/m);
+    assert.doesNotMatch(out, /Public (Value|Property Current|Shared Total)/);
+  });
+
+  test("keeps TypeOf ... Is syntax after generic monomorphization", () => {
+    const ctx = makeContext({});
+    const code = [
+      "Class TTItem<T>",
+      "End Class",
+      "Class TTList<T>",
+      "   Function Unwrap(pObj As TObject) As T",
+      "      If TypeOf pObj Is TTItem<T> Then",
+      "      End If",
+      "      If TypeOf(pObj) Is TTItem<T> Then",
+      "      End If",
+      "   End Function",
+      "End Class",
+      "Dim list As TTList<Integer>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /If TypeOf pObj Is TTItem_Integer Then/);
+    assert.match(out, /If TypeOf\(pObj\) Is TTItem_Integer Then/);
+    assert.doesNotMatch(out, /TypeOf\(\(?pObj\)?, TTItem_Integer\)/);
+  });
 });
 
 describe("SugarTranspiler — For Each range (`0..N`)", () => {
@@ -858,7 +904,7 @@ describe("SugarTranspiler — List Sugar and Arrow Functions", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.match(out, /Class __LambdaClosure___lambda0/);
-    assert.match(out, /Public target As String/);
+    assert.match(out, /^\s{3}target As String$/m);
     assert.match(out, /Dim __src0 As __LambdaClosure___lambda0 = New __LambdaClosure___lambda0\(\)/);
     assert.match(out, /__src0\.target = target/);
     assert.match(out, /lista\.Filter\(me\.__lambda0, __src0\)/);

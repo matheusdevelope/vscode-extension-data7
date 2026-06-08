@@ -22,7 +22,7 @@
     ["'", "'"]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "(?i)^\\s*(Namespace|Class|Sub|Function|Property|For|If|Else|ElseIf|Select|Do|With|Try|Catch)\\b",
-    "decreaseIndentPattern": "(?i)^\\s*(End|Next|Loop|Else|ElseIf|Catch|Finally)\\b"
+    "increaseIndentPattern": "(?i)^\\s*(Namespace|Class|Structure|Enum|Sub|Function|Property|Get|Set|For|If|Else|ElseIf|Select\\s+Case|Case|Do|While|With|Using|Match|Try|Catch|Finally)\\b",
+    "decreaseIndentPattern": "(?i)^\\s*(End|Next|Loop|Else|ElseIf|Case|Catch|Finally)\\b"
   }
 }

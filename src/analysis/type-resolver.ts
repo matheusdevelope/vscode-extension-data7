@@ -158,6 +158,7 @@ export class TypeResolver {
     qualifiedOrSimpleName: string,
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo | undefined {
+    const genericBaseName = genericBaseNameOf(qualifiedOrSimpleName);
     qualifiedOrSimpleName = normalizeGenericTypeName(qualifiedOrSimpleName);
     if (qualifiedOrSimpleName.includes(".")) {
       const lastDot = qualifiedOrSimpleName.lastIndexOf(".");
@@ -172,13 +173,16 @@ export class TypeResolver {
       const byName = lookupSystemClassByName(namePart)[0];
       if (byName) return byName;
 
-      return indexer.findSymbolByName(namePart);
+      return indexer.findSymbolByName(namePart) ?? findGenericBaseSymbol(genericBaseName, indexer);
     }
 
     const sys = lookupSystemClassByName(qualifiedOrSimpleName)[0];
     if (sys) return sys;
 
-    return indexer.findSymbolByName(qualifiedOrSimpleName);
+    return (
+      indexer.findSymbolByName(qualifiedOrSimpleName) ??
+      findGenericBaseSymbol(genericBaseName, indexer)
+    );
   }
 
   /**
@@ -233,7 +237,7 @@ export class TypeResolver {
       case "TypeReferenceExpression":
         return typeRefToString(expr.type);
       case "Literal":
-        if (expr.value === null) return "Variant";
+        if (expr.value === null) return "Null";
         return inferLiteralType(String(expr.value)) ?? typeofLiteral(expr.value);
       case "TaggedTemplateExpression":
         return "String";
@@ -247,6 +251,9 @@ export class TypeResolver {
         return TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
       }
       case "MethodInvocation": {
+        if (expr.methodName.toLowerCase() === "typeof" && !expr.callee) {
+          return "Boolean";
+        }
         if (expr.methodName.toLowerCase() === "ctype" && expr.arguments.length === 2 && !expr.callee) {
           const targetArg = expr.arguments[1];
           if (targetArg) {
@@ -306,6 +313,8 @@ export class TypeResolver {
     const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
     const genericConstraint = genericParams.get(lower);
     if (genericConstraint) return genericConstraint;
+
+    if (lower === "unassigned") return "Unassigned";
 
     if (lower === "me" || lower === "mybase") {
       const fileSyms = indexer.getFileSymbols(document.uri.toString());
@@ -844,6 +853,30 @@ class AcceptAllSet extends Set<string> {
 }
 const ACCEPT_ALL_PASCAL_NAMES: ReadonlySet<string> = new AcceptAllSet();
 
+function genericBaseNameOf(typeName: string): string | undefined {
+  const lt = typeName.indexOf("<");
+  if (lt === -1) return undefined;
+  return typeName.slice(0, lt).trim();
+}
+
+function findGenericBaseSymbol(
+  genericBaseName: string | undefined,
+  indexer: WorkspaceSymbolIndexer,
+): SymbolInfo | undefined {
+  if (!genericBaseName) return undefined;
+  if (genericBaseName.includes(".")) {
+    const lastDot = genericBaseName.lastIndexOf(".");
+    const namePart = genericBaseName.substring(lastDot + 1);
+    const nsPart = genericBaseName.substring(0, lastDot);
+    return (
+      lookupSystemClassByName(namePart).find(
+        (s) => s.containerName?.toLowerCase() === nsPart.toLowerCase(),
+      ) ?? indexer.findSymbolByName(namePart)
+    );
+  }
+  return lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
+}
+
 function typeofLiteral(value: string | number | boolean): string {
   if (typeof value === "boolean") return "Boolean";
   if (typeof value === "number") return Number.isInteger(value) ? "Integer" : "Double";
@@ -1120,4 +1153,3 @@ function collectLocalDeclarations(
       break;
   }
 }
-

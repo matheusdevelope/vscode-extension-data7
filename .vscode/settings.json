@@ -32,7 +32,8 @@
   },
   "[d7basic]": {
     "editor.formatOnSave": true,
-    "editor.tabSize": 3
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
   },
   "[data7project]": {
     "editor.tabSize": 2

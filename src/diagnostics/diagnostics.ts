@@ -298,22 +298,32 @@ export class DiagnosticsLinter {
   ): boolean {
     const lhsLower = lhsType.toLowerCase();
     const rhsLower = rhsType.toLowerCase();
+    const lhsIsTObjectRoot = lhsLower === "tobject" || lhsLower.endsWith(".tobject");
 
     if (lhsLower === rhsLower) return true;
+    if (isLikelyGenericTypeParameter(lhsType) || isLikelyGenericTypeParameter(rhsType)) return true;
+    if (areSameGenericTemplateCompatible(rhsType, lhsType, indexer)) return true;
 
     const lhsIsPrimitive = PRIMITIVE_TYPES.has(lhsLower);
     const rhsIsPrimitive = PRIMITIVE_TYPES.has(rhsLower);
 
+    if (rhsLower === "null") return !lhsIsPrimitive || lhsIsTObjectRoot;
+    if (rhsLower === "unassigned") return lhsIsPrimitive && !lhsIsTObjectRoot;
+
     if (lhsLower === "variant") return rhsIsPrimitive;
     if (rhsLower === "variant") return lhsIsPrimitive;
+
+    // Every Data7 workspace class implicitly descends from TObject. TObject is
+    // listed in PRIMITIVE_TYPES because it is globally available, but assignment
+    // compatibility must treat it as the root object type before the generic
+    // primitive-vs-object rejection below.
+    if (lhsIsTObjectRoot) return !rhsIsPrimitive;
 
     if (lhsLower === "tprimitive" && (rhsIsPrimitive || rhsLower === "tprimitive" || TypeResolver.isSubclassOf(rhsType, lhsType, indexer))) {
       return true;
     }
 
     if (lhsIsPrimitive || rhsIsPrimitive) return false;
-
-    if (lhsLower === "tobject") return true;
 
     return TypeResolver.isSubclassOf(rhsType, lhsType, indexer);
   }
@@ -525,19 +535,40 @@ export class DiagnosticsLinter {
         });
       }
     };
-    SYSTEM_SYMBOLS.forEach((s) => checkTopLevel(s));
-    indexer.getAllSymbols().forEach((s) => checkTopLevel(s));
+    SYSTEM_SYMBOLS.forEach((s) => {
+      checkTopLevel(s);
+    });
+    indexer.getAllSymbols().forEach((s) => {
+      checkTopLevel(s);
+    });
 
     const createConflictDiag = (
       range: vscode.Range,
       message: string,
       payload: DuplicateDeclarationPayload,
+      related?: { uri?: string; range: vscode.Range; message: string },
     ): void => {
       const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
       diag.code = DiagnosticCodes.DuplicateDeclaration;
+      if (related) {
+        diag.relatedInformation = [
+          {
+            location: new vscode.Location(
+              related.uri ? vscode.Uri.parse(related.uri) : document.uri,
+              related.range,
+            ),
+            message: related.message,
+          },
+        ];
+      }
       setDiagnosticPayload(diag, payload);
       diagnostics.push(diag);
     };
+
+    const symbolRange = (s: SymbolInfo): vscode.Range =>
+      new vscode.Range(s.range.startLine, s.range.startChar, s.range.startLine, s.range.endChar);
+    const locRange = (loc: SourceLocation): vscode.Range =>
+      new vscode.Range(loc.startLine - 1, loc.startChar, loc.endLine - 1, loc.endChar);
 
     const fileTopLevel = new Map<string, SymbolInfo>();
 
@@ -564,6 +595,11 @@ export class DiagnosticsLinter {
             name: s.name,
             scope: "namespace",
             conflictingWithName: existing.name,
+          },
+          {
+            uri: existing.fileUri,
+            range: symbolRange(existing),
+            message: `Declaração anterior de '${existing.name}'.`,
           },
         );
         return;
@@ -593,6 +629,11 @@ export class DiagnosticsLinter {
             name: s.name,
             scope: "namespace",
             conflictingWithName: otherFileSymbol.name,
+          },
+          {
+            uri: otherFileSymbol.fileUri,
+            range: symbolRange(otherFileSymbol),
+            message: `Declaração anterior de '${otherFileSymbol.name}'.`,
           },
         );
         return;
@@ -673,6 +714,11 @@ export class DiagnosticsLinter {
                       scope: "class",
                       conflictingWithName: existing.name,
                     },
+                    {
+                      uri: existing.fileUri,
+                      range: symbolRange(existing),
+                      message: `Membro anterior '${existing.name}'.`,
+                    },
                   );
                   return;
                 }
@@ -690,6 +736,11 @@ export class DiagnosticsLinter {
                     name: m.name,
                     scope: "class",
                     conflictingWithName: existing.name,
+                  },
+                  {
+                    uri: existing.fileUri,
+                    range: symbolRange(existing),
+                    message: `Membro anterior '${existing.name}'.`,
                   },
                 );
                 return;
@@ -735,6 +786,10 @@ export class DiagnosticsLinter {
                   scope: "method",
                   conflictingWithName: v.name,
                 },
+                {
+                  range: locRange(existingRange),
+                  message: `Declaração anterior de '${v.name}'.`,
+                },
               );
               return;
             }
@@ -758,6 +813,11 @@ export class DiagnosticsLinter {
                     scope: "class",
                     conflictingWithName: conflictingMember.name,
                   },
+                  {
+                    uri: conflictingMember.fileUri,
+                    range: symbolRange(conflictingMember),
+                    message: `Membro declarado aqui: '${conflictingMember.name}'.`,
+                  },
                 );
                 return;
               }
@@ -771,6 +831,11 @@ export class DiagnosticsLinter {
                     name: v.name,
                     scope: "class",
                     conflictingWithName: C.name,
+                  },
+                  {
+                    uri: C.fileUri,
+                    range: symbolRange(C),
+                    message: `Classe declarada aqui: '${C.name}'.`,
                   },
                 );
                 return;
@@ -1245,8 +1310,13 @@ class DiagnosticsASTWalker extends ASTWalker {
         if (node.catchVar.name) this.addLocal(node.catchVar.name);
       }
     } else if (node.kind === "Block") {
-      this.pushScope();
-      pushedScope = true;
+      const isSyntheticMultiDeclaration = node.statements.every(
+        (stmt) => stmt.kind === "VariableDeclaration",
+      );
+      if (!isSyntheticMultiDeclaration) {
+        this.pushScope();
+        pushedScope = true;
+      }
     }
 
     // AST custom checks dispatcher
@@ -2035,7 +2105,11 @@ class DiagnosticsASTWalker extends ASTWalker {
 interface FlowState {
   reachable: boolean;
   retValSet: boolean;
+  nullFacts: Map<string, "null" | "non-null">;
 }
+
+const STATIC_NON_NULL = Symbol("static-non-null");
+type StaticValue = string | number | boolean | null | typeof STATIC_NON_NULL;
 
 class ASTFlowAnalyzer {
   private readonly isFunction: boolean;
@@ -2051,7 +2125,7 @@ class ASTFlowAnalyzer {
   }
 
   public run(): void {
-    const initialState: FlowState = { reachable: true, retValSet: false };
+    const initialState: FlowState = { reachable: true, retValSet: false, nullFacts: new Map() };
     this.checkStatements(this.methodNode.body, initialState);
 
     // After analysis, check for unreachable statements and missing return paths
@@ -2126,7 +2200,7 @@ class ASTFlowAnalyzer {
   }
 
   private checkStatements(stmts: Statement[], state: FlowState): FlowState {
-    let currState = { ...state };
+    let currState = this.cloneState(state);
     for (const stmt of stmts) {
       if (!currState.reachable) {
         continue;
@@ -2140,23 +2214,32 @@ class ASTFlowAnalyzer {
   private checkStatement(stmt: Statement, state: FlowState): FlowState {
     switch (stmt.kind) {
       case "ReturnStatement": {
-        return { reachable: false, retValSet: true };
+        return { ...state, reachable: false, retValSet: true };
       }
       case "ThrowStatement": {
-        return { reachable: false, retValSet: true };
+        return { ...state, reachable: false, retValSet: true };
       }
       case "ExitStatement": {
         if (stmt.target === "Sub" || stmt.target === "Function" || stmt.target === "Property") {
           if (this.isFunction && !state.retValSet) {
             this.hasMissingReturnPath = true;
           }
-          return { reachable: false, retValSet: state.retValSet };
+          return { ...state, reachable: false, retValSet: state.retValSet };
         }
         return state;
       }
       case "Assignment": {
         const isRetAssign = this.isAssignmentToReturnValue(stmt);
-        return { reachable: true, retValSet: state.retValSet || isRetAssign };
+        this.updateNullFactFromAssignment(stmt.target, stmt.value, state);
+        return { ...state, reachable: true, retValSet: state.retValSet || isRetAssign };
+      }
+      case "VariableDeclaration": {
+        if (stmt.initializer) {
+          this.updateNullFactForName(stmt.name, stmt.initializer, state);
+        } else {
+          state.nullFacts.delete(stmt.name.toLowerCase());
+        }
+        return state;
       }
       case "Block": {
         return this.checkStatements(stmt.statements, state);
@@ -2166,8 +2249,6 @@ class ASTFlowAnalyzer {
         return this.checkStatements(stmt.body, state);
       }
       case "IfStatement": {
-        const staticCond = this.evaluateStaticCondition(stmt.condition);
-
         interface BranchInfo {
           condition?: Expression;
           body: Statement[];
@@ -2180,7 +2261,6 @@ class ASTFlowAnalyzer {
         }
 
         let hasStaticallyTrueBranch = false;
-        let allPrecedingStaticallyFalse = true;
 
         const branchStates: FlowState[] = [];
         let hasElseCovered = false;
@@ -2191,31 +2271,25 @@ class ASTFlowAnalyzer {
           if (hasStaticallyTrueBranch) {
             isBranchReachable = false;
           } else if (branch.condition) {
-            const condVal = this.evaluateStaticCondition(branch.condition);
+            const condVal = this.evaluateStaticCondition(branch.condition, state);
             if (condVal === true) {
-              if (allPrecedingStaticallyFalse) {
-                isBranchReachable = true;
-                hasStaticallyTrueBranch = true;
-                hasElseCovered = true; // behaves as else since condition is static true
-              }
+              isBranchReachable = true;
+              hasStaticallyTrueBranch = true;
+              hasElseCovered = true; // The current branch covers every remaining path.
             } else if (condVal === false) {
               isBranchReachable = false;
             } else {
-              if (allPrecedingStaticallyFalse) {
-                isBranchReachable = true;
-              }
-              allPrecedingStaticallyFalse = false;
+              isBranchReachable = true;
             }
           } else {
             // Unconditional Else branch
-            if (allPrecedingStaticallyFalse) {
-              isBranchReachable = true;
-              hasElseCovered = true;
-            }
+            isBranchReachable = true;
+            hasElseCovered = true;
+            hasStaticallyTrueBranch = true;
           }
 
           if (isBranchReachable) {
-            const bState = this.checkStatements(branch.body, state);
+            const bState = this.checkStatements(branch.body, this.cloneState(state));
             branchStates.push(bState);
           } else {
             // Collect dead code in unreachable branch
@@ -2244,7 +2318,9 @@ class ASTFlowAnalyzer {
                 super.walk(node);
               }
             }(this);
-            branch.body.forEach((s) => checkUnreachableInBranch.walk(s));
+            branch.body.forEach((s) => {
+              checkUnreachableInBranch.walk(s);
+            });
           }
         }
 
@@ -2265,7 +2341,7 @@ class ASTFlowAnalyzer {
           }
         }
 
-        return { reachable: reachableAfter, retValSet: retValSetAfter };
+        return { ...state, reachable: reachableAfter, retValSet: retValSetAfter };
       }
       case "SelectCaseStatement": {
         const caseStates: FlowState[] = [];
@@ -2286,7 +2362,7 @@ class ASTFlowAnalyzer {
           ? caseStates.every((s) => s.retValSet)
           : state.retValSet && caseStates.every((s) => s.retValSet);
 
-        return { reachable: reachableAfter, retValSet: retValSetAfter };
+        return { ...state, reachable: reachableAfter, retValSet: retValSetAfter };
       }
       case "ForStatement":
       case "ForEachStatement":
@@ -2303,6 +2379,7 @@ class ASTFlowAnalyzer {
           const incomingFinallyState = {
             reachable: tryState.reachable || catchState.reachable,
             retValSet: tryState.retValSet && catchState.retValSet,
+            nullFacts: new Map(state.nullFacts),
           };
           return this.checkStatements(stmt.finallyBody, incomingFinallyState);
         }
@@ -2310,6 +2387,7 @@ class ASTFlowAnalyzer {
         return {
           reachable: tryState.reachable || catchState.reachable,
           retValSet: tryState.retValSet && catchState.retValSet,
+          nullFacts: new Map(state.nullFacts),
         };
       }
       default: {
@@ -2335,7 +2413,40 @@ class ASTFlowAnalyzer {
     return false;
   }
 
-  private evaluateStaticCondition(expr: Expression): boolean | undefined {
+  private cloneState(state: FlowState): FlowState {
+    return {
+      reachable: state.reachable,
+      retValSet: state.retValSet,
+      nullFacts: new Map(state.nullFacts),
+    };
+  }
+
+  private updateNullFactFromAssignment(
+    target: Expression,
+    value: Expression,
+    state: FlowState,
+  ): void {
+    if (target.kind !== "Identifier") return;
+    this.updateNullFactForName(target.name, value, state);
+  }
+
+  private updateNullFactForName(name: string, value: Expression, state: FlowState): void {
+    const key = name.toLowerCase();
+    if (value.kind === "Literal" && value.value === null) {
+      state.nullFacts.set(key, "null");
+      return;
+    }
+    if (value.kind === "ObjectCreationExpression") {
+      state.nullFacts.set(key, "non-null");
+      return;
+    }
+    state.nullFacts.delete(key);
+  }
+
+  private evaluateStaticCondition(
+    expr: Expression,
+    state: FlowState,
+  ): boolean | undefined {
     if (expr.kind === "Literal") {
       if (expr.value === true) return true;
       if (expr.value === false) return false;
@@ -2344,12 +2455,60 @@ class ASTFlowAnalyzer {
       if (strVal === "false") return false;
     }
     if (expr.kind === "BinaryExpression") {
-      const op = expr.operator;
-      if (op === "=") {
-        if (expr.left.kind === "Literal" && expr.right.kind === "Literal") {
-          return expr.left.value === expr.right.value;
+      const op = expr.operator.toLowerCase();
+      if (op === "and" || op === "andalso") {
+        const left = this.evaluateStaticCondition(expr.left, state);
+        const right = this.evaluateStaticCondition(expr.right, state);
+        if (left === false || right === false) return false;
+        if (left === true && right === true) return true;
+        return undefined;
+      }
+      if (op === "or" || op === "orelse") {
+        const left = this.evaluateStaticCondition(expr.left, state);
+        const right = this.evaluateStaticCondition(expr.right, state);
+        if (left === true || right === true) return true;
+        if (left === false && right === false) return false;
+        return undefined;
+      }
+
+      const left = this.evaluateStaticValue(expr.left, state);
+      const right = this.evaluateStaticValue(expr.right, state);
+      if (left !== undefined && right !== undefined) {
+        if (op === "=") return left === right;
+        if (op === "<>") return left !== right;
+        if (typeof left === "number" && typeof right === "number") {
+          if (op === "<") return left < right;
+          if (op === "<=") return left <= right;
+          if (op === ">") return left > right;
+          if (op === ">=") return left >= right;
         }
       }
+    }
+    return undefined;
+  }
+
+  private evaluateStaticValue(expr: Expression, state: FlowState): StaticValue | undefined {
+    if (expr.kind === "Literal") return expr.value;
+    if (expr.kind === "Identifier") {
+      const fact = state.nullFacts.get(expr.name.toLowerCase());
+      if (fact === "null") return null;
+      if (fact === "non-null") return STATIC_NON_NULL;
+      return undefined;
+    }
+    if (expr.kind === "ObjectCreationExpression") return STATIC_NON_NULL;
+    if (expr.kind === "UnaryExpression" && expr.operator === "-") {
+      const value = this.evaluateStaticValue(expr.argument, state);
+      return typeof value === "number" ? -value : undefined;
+    }
+    if (expr.kind === "BinaryExpression") {
+      const left = this.evaluateStaticValue(expr.left, state);
+      const right = this.evaluateStaticValue(expr.right, state);
+      if (typeof left !== "number" || typeof right !== "number") return undefined;
+      const op = expr.operator.toLowerCase();
+      if (op === "+") return left + right;
+      if (op === "-") return left - right;
+      if (op === "*") return left * right;
+      if (op === "/" && right !== 0) return left / right;
     }
     return undefined;
   }
@@ -2416,6 +2575,56 @@ function inheritsFromClass(
     current = parent ? parent.toLowerCase() : "";
   }
   return current === target;
+}
+
+function isLikelyGenericTypeParameter(typeName: string): boolean {
+  return /^[A-Z]$/.test(typeName.trim());
+}
+
+function areSameGenericTemplateCompatible(
+  rhsType: string,
+  lhsType: string,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  const rhs = parseGenericTypeName(rhsType);
+  const lhs = parseGenericTypeName(lhsType);
+  if (!rhs || !lhs) return false;
+  if (rhs.base.toLowerCase() !== lhs.base.toLowerCase()) return false;
+  if (rhs.args.length !== lhs.args.length) return false;
+
+  return rhs.args.every((rhsArg, idx) => {
+    const lhsArg = lhs.args[idx];
+    if (!lhsArg) return false;
+    if (rhsArg.toLowerCase() === lhsArg.toLowerCase()) return true;
+    if (isLikelyGenericTypeParameter(rhsArg) || isLikelyGenericTypeParameter(lhsArg)) return true;
+    return DiagnosticsLinter.isTypeCompatible(rhsArg, lhsArg, indexer);
+  });
+}
+
+function parseGenericTypeName(typeName: string): { base: string; args: string[] } | undefined {
+  const trimmed = typeName.trim();
+  const lt = trimmed.indexOf("<");
+  if (lt === -1 || !trimmed.endsWith(">")) return undefined;
+  const base = trimmed.slice(0, lt).trim();
+  const inner = trimmed.slice(lt + 1, -1);
+  if (!base || !inner.trim()) return undefined;
+
+  const args: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === "<") {
+      depth++;
+    } else if (ch === ">") {
+      depth--;
+    } else if (ch === "," && depth === 0) {
+      args.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  args.push(inner.slice(start).trim());
+  return { base, args: args.filter((arg) => arg.length > 0) };
 }
 
 function mapGenericWarningToDiagnosticCode(code: GenericsPassWarning["code"]): string {

@@ -2394,7 +2394,7 @@ export class SugarTranspiler {
     transformer.walk(finalUnit);
 
     // 5. Serialize AST back to code text, generating the lineMap!
-    let serializeResult = serializeUnitWithMap(finalUnit, { eol });
+    let serializeResult = serializeUnitWithMap(finalUnit, { eol, omitPublicFieldModifiers: true });
 
     if (wrapped) {
       // Strip Sub __syntheticMethod() and End Sub
@@ -2438,4 +2438,3 @@ export class SugarTranspiler {
     };
   }
 }
-

@@ -1379,6 +1379,31 @@ export class Parser {
         }
       }
       const lower = token.value.toLowerCase();
+      if (lower === "typeof") {
+        this.advance();
+        const checkedExpr = this.parseExpression(Precedence.Comparison);
+        this.expect("keyword", "is", { literal: true });
+        const typeRef = this.parseTypeReference(false) ?? {
+          kind: "TypeReference",
+          name: "",
+          typeArguments: [],
+          loc: locOf(token.loc),
+        };
+        return {
+          kind: "MethodInvocation",
+          methodName: "TypeOf",
+          typeArguments: [],
+          arguments: [
+            checkedExpr,
+            {
+              kind: "TypeReferenceExpression",
+              type: typeRef,
+              loc: typeRef.loc,
+            },
+          ],
+          loc: locOf(token.loc),
+        };
+      }
       if (lower === "true") {
         this.advance();
         return { kind: "Literal", value: true, loc: locOf(token.loc) };

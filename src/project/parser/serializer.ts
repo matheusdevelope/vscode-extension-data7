@@ -29,7 +29,7 @@ import type {
   EnumDeclaration,
   DestructuredVariableDeclaration,
   SelectCaseStatement,
-  SelectCaseBranch,
+  MethodInvocation,
 } from "../ast/ast";
 import { deepClone } from "../ast/clone";
 import { ASTWalker } from "../ast/ast";
@@ -43,6 +43,8 @@ export interface SerializeOptions {
   readonly minify?: boolean;
   /** Obfuscate method-local variables. */
   readonly obfuscate?: boolean;
+  /** Omit explicit/default Public on class fields and properties. */
+  readonly omitPublicFieldModifiers?: boolean;
 }
 
 export interface SerializeResult {
@@ -171,10 +173,15 @@ function emitModifiers(mods?: string[]): string {
   return "";
 }
 
-function emitFieldModifiers(mods?: string[]): string {
+function emitFieldModifiers(mods: string[] | undefined, options: SerializeOptions): string {
   if (mods && mods.length > 0) {
-    return mods.map(capitalize).join(" ") + " ";
+    const visibleMods = options.omitPublicFieldModifiers
+      ? mods.filter((m) => m.toLowerCase() !== "public")
+      : mods;
+    if (visibleMods.length === 0) return "";
+    return visibleMods.map(capitalize).join(" ") + " ";
   }
+  if (options.omitPublicFieldModifiers) return "";
   return "Public ";
 }
 
@@ -283,7 +290,7 @@ function serializeProperty(
 
   out.push(
     indent(depth, options) +
-      `${emitFieldModifiers(p.modifiers)}Property ${p.name}${paramsStr} As ${emitTypeRef(p.type)}` +
+      `${emitFieldModifiers(p.modifiers, options)}Property ${p.name}${paramsStr} As ${emitTypeRef(p.type)}` +
       (p.comment && !options.minify ? " " + p.comment : ""),
   );
 
@@ -336,7 +343,7 @@ function serializeField(
   const initStr = f.initializer ? ` = ${emitExpression(f.initializer)}` : "";
   out.push(
     indent(depth, options) +
-      `${emitFieldModifiers(f.modifiers)}${f.name} As ${emitTypeRef(f.type)}${initStr}` +
+      `${emitFieldModifiers(f.modifiers, options)}${f.name} As ${emitTypeRef(f.type)}${initStr}` +
       (f.comment && !options.minify ? " " + f.comment : ""),
   );
 }
@@ -491,6 +498,8 @@ function emitExpressionRaw(expr: Expression): string {
       return `New ${emitTypeRef(expr.type)}(${newArgs})`;
     }
     case "MethodInvocation": {
+      const typeOfExpr = emitTypeOfExpression(expr);
+      if (typeOfExpr !== undefined) return typeOfExpr;
       const callArgs = expr.arguments.map(emitExpression).join(", ");
       const typeArgs =
         expr.typeArguments.length > 0 ? `<${expr.typeArguments.map(emitTypeRef).join(", ")}>` : "";
@@ -557,6 +566,22 @@ function emitExpressionRaw(expr: Expression): string {
       return "";
     }
   }
+}
+
+function emitTypeOfExpression(expr: MethodInvocation): string | undefined {
+  if (expr.callee || expr.methodName.toLowerCase() !== "typeof" || expr.arguments.length !== 2) {
+    return undefined;
+  }
+
+  const checkedExpr = expr.arguments[0];
+  const typeExpr = expr.arguments[1];
+  if (checkedExpr === undefined || typeExpr?.kind !== "TypeReferenceExpression") {
+    return undefined;
+  }
+
+  const checked = emitExpression(checkedExpr);
+  const separator = checkedExpr.parenthesized ? "" : " ";
+  return `TypeOf${separator}${checked} Is ${emitTypeRef(typeExpr.type)}`;
 }
 
 function emitStatementInline(s: Statement): string {

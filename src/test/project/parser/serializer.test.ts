@@ -69,6 +69,22 @@ describe("parser/serializer", () => {
     assert.match(out, /As TList<TList<Integer>>/);
   });
 
+  test("serialises TypeOf checks with Data7 syntax", () => {
+    const src = [
+      "Sub Run(pObj As TObject)",
+      "   If TypeOf pObj Is TTItem<T> Then",
+      "   End If",
+      "   If TypeOf(pObj) Is TTItem<T> Then",
+      "   End If",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /If TypeOf pObj Is TTItem<T> Then/);
+    assert.match(out, /If TypeOf\(pObj\) Is TTItem<T> Then/);
+    assert.doesNotMatch(out, /TypeOf\(\(?pObj\)?,/);
+  });
+
   test("uses 3-space indentation per nesting level", () => {
     const src = [
       "Namespace m",

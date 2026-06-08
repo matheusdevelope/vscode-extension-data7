@@ -265,7 +265,7 @@ describe("D7BasicCodeActionProvider", () => {
   });
 
   describe("declaration-parentheses-mismatch", () => {
-    test("emits an edit to insert parentheses () at the end of the diagnostic range", async () => {
+    test("emits an edit to insert parentheses () after the declaration name", async () => {
       const doc = mockDoc("Shared Function BandeiraProduto As TObject\n");
       const range = new vscode.Range(0, 16, 0, 31); // range of "BandeiraProduto"
       const provider = new D7BasicCodeActionProvider();
@@ -291,6 +291,27 @@ describe("D7BasicCodeActionProvider", () => {
       assert.equal(fix.edit.edits[0]?.position.character, 31);
     });
 
+    test("does not trust a broad diagnostic range when inserting parentheses", async () => {
+      const doc = mockDoc("      Private Function CreateInstance As TTObjectList\n");
+      const range = new vscode.Range(0, 6, 0, 49); // broad range covering the whole declaration
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.DeclarationParenthesesMismatch, undefined, range)] } as any,
+          noopToken,
+        ),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        edit: { edits: { type: string; text?: string; position: vscode.Position }[] };
+      }[];
+      const fix = onlyQuickFixes(all).find((a) => a.title.includes("Adicionar parênteses"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "insert", textIncludes: "()" });
+      assert.equal(fix.edit.edits[0]?.position.character, 37);
+    });
   });
 
   describe("unknown-type spelling suggestions", () => {
@@ -401,6 +422,47 @@ describe("D7BasicCodeActionProvider", () => {
       const fix = actions.find((a) => a.title.includes("Adicionar 'Then'"));
       assert.ok(fix);
       expectEdit(fix.edit, { type: "insert", textIncludes: " Then" });
+    });
+
+    test("emits a bulk fix for every missing Then diagnostic in the file", async () => {
+      const doc = mockDoc("If x <> 1\nIf y <> 2\n");
+      const firstRange = new vscode.Range(0, 9, 0, 10);
+      const secondRange = new vscode.Range(1, 9, 1, 10);
+      const first = new vscode.Diagnostic(
+        firstRange,
+        "Expected 'then', got '\\n'.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      first.code = "expected-token";
+      const second = new vscode.Diagnostic(
+        secondRange,
+        "Expected 'then', got '\\n'.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      second.code = "expected-token";
+
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [first, second];
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(
+            doc,
+            firstRange,
+            { diagnostics: [first] } as any,
+            noopToken,
+          ),
+        )) as any[];
+        const bulk = onlyQuickFixes(all).find((a) =>
+          a.title.includes("todas as ocorrências"),
+        );
+        assert.ok(bulk);
+        assert.equal(bulk.edit.edits.length, 2);
+        expectEdit(bulk.edit, { type: "insert", line: 0, textIncludes: " Then" });
+        expectEdit(bulk.edit, { type: "insert", line: 1, textIncludes: " Then" });
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
     });
   });
 
