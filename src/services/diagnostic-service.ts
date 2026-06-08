@@ -13,6 +13,7 @@ import { debounceKeyed } from "../utils/debounce";
 import { isExcluded, isReadOnlyModuleFile } from "../infra/configuration";
 import { logger } from "../infra/logger";
 import { DIAGNOSTIC_SOURCE, LANGUAGE_IDS, PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig } from "../project/project-config";
 
 /**
@@ -46,12 +47,12 @@ export class DiagnosticService {
     context.subscriptions.push(
       vscode.commands.registerCommand("data7.refreshDiagnostics", (uriStr: string) => {
         const doc = vscode.workspace.textDocuments.find(
-          (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase()
+          (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase(),
         );
         if (doc) {
           this.refreshDiagnosticsNow(doc);
         }
-      })
+      }),
     );
 
     const handleDocument = (doc: vscode.TextDocument): void => {
@@ -214,16 +215,11 @@ export class DiagnosticService {
         const col = Math.max(0, err.loc.column);
         const range = new vscode.Range(line, col, line, col + 1);
         const isMissingThen =
-          err.code === "expected-token" &&
-          err.message.toLowerCase().includes("expected 'then'");
+          err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
         const severity = isMissingThen
           ? vscode.DiagnosticSeverity.Warning
           : vscode.DiagnosticSeverity.Error;
-        const diag = new vscode.Diagnostic(
-          range,
-          err.message,
-          severity
-        );
+        const diag = new vscode.Diagnostic(range, err.message, severity);
         diag.code = err.code;
         diag.source = DIAGNOSTIC_SOURCE;
         diagnostics.push(diag);
@@ -292,6 +288,7 @@ export class DiagnosticService {
     const isDeclared = Object.keys(wsCache.dependencies).some(
       (k) => k.toLowerCase() === resolvedKey,
     );
+    if (wsCache.coreModules.has(resolvedKey)) return;
     if (!isDeclared) {
       const range = new vscode.Range(lineIndex, charIndex, lineIndex, charIndex + modName.length);
       const moduleInfo = wsCache.sharedModules.get(resolvedKey);
@@ -332,6 +329,10 @@ export class DiagnosticService {
 
     const repoBasPath = RepositoryService.getRepoBasPath();
     const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
+    const coreModules = DependencyScanner.scanSharedModules(getCoreModulesPath());
+    for (const [key, info] of coreModules.entries()) {
+      sharedModules.set(key, info);
+    }
 
     const srcDir = path.join(workspaceDir, "src");
     const localModules = new Set<string>();
@@ -349,7 +350,12 @@ export class DiagnosticService {
       }
     }
 
-    const snapshot: WorkspaceDiagnosticCache = { dependencies, sharedModules, localModules };
+    const snapshot: WorkspaceDiagnosticCache = {
+      dependencies,
+      sharedModules,
+      coreModules,
+      localModules,
+    };
     this.workspaceCache.set(workspaceDir, snapshot);
     return snapshot;
   }
@@ -375,5 +381,6 @@ export class DiagnosticService {
 interface WorkspaceDiagnosticCache {
   dependencies: Record<string, string>;
   sharedModules: Map<string, SharedModuleInfo>;
+  coreModules: Map<string, SharedModuleInfo>;
   localModules: Set<string>;
 }

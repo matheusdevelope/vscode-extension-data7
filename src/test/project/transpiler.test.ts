@@ -314,6 +314,47 @@ describe("SugarTranspiler.transpile", () => {
     assert.doesNotMatch(out, /TTList<Integer>/);
   });
 
+  test("preserves array access after method calls", () => {
+    const ctx = makeContext({});
+    const code = [
+      "Sub Run()",
+      '   Dim time_str As String = _timers.Values(pLabel)',
+      '   Dim hours As Integer = CInt(time_str.Split(":")[0])',
+      '   Dim mins As Integer = CInt(time_str.Split(":")[1])',
+      '   Dim secs As Integer = CInt(time_str.Split(":")[2].Split(".")[0])',
+      '   Dim millisecs As Integer = CInt(time_str.Split(".")[1])',
+      "End Sub",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.ok(out.includes('CInt(time_str.Split(":")[0])'));
+    assert.ok(out.includes('CInt(time_str.Split(":")[1])'));
+    assert.ok(out.includes('CInt(time_str.Split(":")[2].Split(".")[0])'));
+    assert.ok(out.includes('CInt(time_str.Split(".")[1])'));
+  });
+
+  test("does not wrap expressions that already produce strings in concatenations", () => {
+    const ctx = makeContext({});
+    const code = [
+      "Sub Run(pMessage As Variant, pMessage1 As Variant, pMessage2 As Variant)",
+      '   console.Printe("[LOG] " & CStr(pMessage))',
+      '   console.Printe("[LOG] " & CStr(pMessage1) & Char(13) & CStr(pMessage2))',
+      "End Sub",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.ok(out.includes('console.Printe("[LOG] " & CStr(pMessage))'));
+    assert.ok(
+      out.includes('console.Printe("[LOG] " & CStr(pMessage1) & Char(13) & CStr(pMessage2))'),
+    );
+    assert.ok(!out.includes("CStr(CStr("));
+    assert.ok(!out.includes("CStr(Char("));
+  });
+
   test("materializes requested generic instantiations in the template file", () => {
     const ctx = makeContext({}, {}, {
       requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["Integer"] }],
@@ -332,6 +373,31 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Class TTList_Integer/);
     assert.match(out, /Value As Integer/);
     assert.doesNotMatch(out, /Class TTList<T>/);
+  });
+
+  test("imports concrete type argument namespaces for materialized generic templates", () => {
+    const ctx = makeContext({}, {}, {
+      requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["Product"] }],
+      resolveTypeImport(typeName) {
+        return typeName === "Product" ? "mod_product" : undefined;
+      },
+    });
+    const code = [
+      "Imports mod_tobject",
+      "",
+      "Namespace mod_tlist",
+      "   Class TTList<T>",
+      "      Value As T",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Imports mod_tobject\r?\nImports mod_product/);
+    assert.match(out, /Class TTList_Product/);
+    assert.match(out, /Value As Product/);
   });
 
   test("ignores requested generic instantiations that still use open type parameters", () => {

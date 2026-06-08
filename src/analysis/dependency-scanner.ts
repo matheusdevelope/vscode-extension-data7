@@ -29,6 +29,14 @@ export interface SharedModuleInfo {
   version?: string; // Version string (from XML or file)
 }
 
+export interface SyncDependenciesOptions {
+  /**
+   * Additional shared-module directories whose `.bas` files are always copied
+   * into `data7_modules/`, independent of `data7.json#dependencies`.
+   */
+  alwaysSyncDirs?: string[];
+}
+
 export class DependencyScanner {
   // Find all files in a directory recursively
   public static getFilesRecursive(dir: string, extensions: string[]): string[] {
@@ -158,8 +166,6 @@ export class DependencyScanner {
     return null;
   }
 
-
-
   // Scan local src/ files for any references to modules
   public static detectReferencedModules(
     srcDir: string,
@@ -206,7 +212,11 @@ export class DependencyScanner {
         for (const member of unit.members) {
           if (member.kind === "ImportsDeclaration") {
             const firstSegment = member.target.split(".")[0] ?? member.target;
-            const resolved = this.resolveModuleName(firstSegment, localModules, availableSharedModules);
+            const resolved = this.resolveModuleName(
+              firstSegment,
+              localModules,
+              availableSharedModules,
+            );
             if (resolved) {
               referenced.add(resolved);
             }
@@ -234,11 +244,9 @@ export class DependencyScanner {
     data7ModulesDir: string,
     sharedDir: string,
     dependencies?: Record<string, string>,
+    options: SyncDependenciesOptions = {},
   ): string[] {
     const synced: string[] = [];
-    if (!sharedDir || !fs.existsSync(sharedDir)) {
-      return synced;
-    }
 
     // 1. Scan shared directory
     const sharedModules = this.scanSharedModules(sharedDir);
@@ -263,6 +271,12 @@ export class DependencyScanner {
         sourceFilePaths.add(info.sourceFilePath);
       }
     });
+    for (const alwaysSyncDir of options.alwaysSyncDirs ?? []) {
+      const alwaysModules = this.scanSharedModules(alwaysSyncDir);
+      for (const info of alwaysModules.values()) {
+        sourceFilePaths.add(info.sourceFilePath);
+      }
+    }
 
     if (sourceFilePaths.size === 0) {
       // Clean data7_modules folder if empty
@@ -552,4 +566,3 @@ function collectModuleReferences(node: Node, callback: (name: string) => void): 
     }
   }
 }
-

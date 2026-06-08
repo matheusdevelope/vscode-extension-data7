@@ -648,6 +648,24 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
+    test("does NOT emit error for namespace-level method overloads", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace console
+   Sub log(pMessage As Variant)
+   End Sub
+   Sub log(pMessage1 As Variant, pMessage2 As Variant)
+   End Sub
+   Sub time(pMessage As Variant)
+   End Sub
+   Sub time(pTime As TDateTime, pMessage As Variant)
+   End Sub
+End Namespace`;
+      const uri = "file:///dup_namespace_overload.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
     test("does NOT emit error for method with same name/params but different isShared state", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
@@ -863,7 +881,11 @@ End Namespace`);
    Class C
    End Class
 End Namespace`);
-      expectDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree, "não possui o método 'Sub Free()'");
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.MissingMyBaseFree,
+        "não possui o método 'Sub Free()'",
+      );
     });
 
     test("emits warning when Sub Free has no MyBase.Free()", () => {

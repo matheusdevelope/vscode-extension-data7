@@ -54,6 +54,7 @@ export type Node =
   | ObjectCreationExpression
   | MethodInvocation
   | MemberAccess
+  | ArrayAccessExpression
   | Identifier
   | Literal
   | Assignment
@@ -201,6 +202,7 @@ export type Expression =
   | ObjectCreationExpression
   | MethodInvocation
   | MemberAccess
+  | ArrayAccessExpression
   | Identifier
   | Literal
   | BinaryExpression
@@ -235,6 +237,12 @@ export interface MemberAccess extends BaseNode {
   readonly kind: "MemberAccess";
   target: Expression;
   member: string;
+}
+
+export interface ArrayAccessExpression extends BaseNode {
+  readonly kind: "ArrayAccessExpression";
+  target: Expression;
+  index: Expression;
 }
 
 export interface Identifier extends BaseNode {
@@ -519,6 +527,10 @@ export abstract class ASTWalker {
         return;
       case "MemberAccess":
         this.walk(node.target);
+        return;
+      case "ArrayAccessExpression":
+        this.walk(node.target);
+        this.walk(node.index);
         return;
       case "Identifier":
       case "Literal":

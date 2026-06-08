@@ -8,7 +8,7 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { isExcluded, readConfiguration } from "../infra/configuration";
+import { isExcluded } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { logger } from "../infra/logger";
 import * as vscode from "vscode";
@@ -16,14 +16,9 @@ import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { readProjectConfig, writeProjectConfig } from "./project-config";
 import { SugarTranspiler, type TranspileContext, type SugarDiagnostic } from "./transpiler";
 import { SugarRegistry } from "./sugar-registry";
-import type {
-  ExternalGenericTemplate,
-  RequestedGenericInstantiation,
-} from "./generics";
+import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./generics";
 
-function collectOpenTypeParams(
-  templates: readonly ExternalGenericTemplate[],
-): ReadonlySet<string> {
+function collectOpenTypeParams(templates: readonly ExternalGenericTemplate[]): ReadonlySet<string> {
   const result = new Set<string>();
   for (const template of templates) {
     for (const typeParam of template.typeParams) {
@@ -39,6 +34,21 @@ function hasOpenGenericTypeArgument(
 ): boolean {
   return typeArgs.some((typeArg) => openTypeParams.has(typeArg.toLowerCase()));
 }
+
+const BUILDER_PRIMITIVE_TYPE_NAMES = new Set([
+  "boolean",
+  "byte",
+  "currency",
+  "date",
+  "double",
+  "integer",
+  "long",
+  "single",
+  "string",
+  "tdatetime",
+  "variant",
+  "void",
+]);
 
 /**
  * Packages a workspace tree (`src/Principal.bas`, modules under `src/**`, optional
@@ -158,10 +168,38 @@ export class Builder {
         ),
       isTypeDescendantOf: (typeName: string, baseTypeName: string) =>
         TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
+      resolveTypeImport: (typeName: string) => this.resolveTypeImport(typeName, indexer),
       externalGenericTemplates,
       requestedGenericInstantiations,
     };
     return { transpileCtx, indexer };
+  }
+
+  private static resolveTypeImport(
+    typeName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    const trimmed = typeName.trim();
+    if (!trimmed) return undefined;
+
+    const simpleName = trimmed.includes(".") ? trimmed.substring(trimmed.lastIndexOf(".") + 1) : trimmed;
+    if (BUILDER_PRIMITIVE_TYPE_NAMES.has(simpleName.toLowerCase())) return undefined;
+
+    const symbol = indexer.findSymbolByName(simpleName);
+    if (!symbol) return undefined;
+    if (symbol.isSyntheticGenericInstantiation) return undefined;
+    if (
+      symbol.kind !== "class" &&
+      symbol.kind !== "structure" &&
+      symbol.kind !== "delegate" &&
+      symbol.kind !== "namespace"
+    ) {
+      return undefined;
+    }
+
+    if (symbol.containerName) return symbol.containerName;
+    if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
+    return undefined;
   }
 
   private static collectExternalGenericTemplates(
@@ -170,11 +208,7 @@ export class Builder {
     const templates: ExternalGenericTemplate[] = [];
     const seen = new Set<string>();
     for (const sym of indexer.getAllSymbols()) {
-      if (
-        sym.kind !== "class" &&
-        sym.kind !== "delegate" &&
-        sym.kind !== "method"
-      ) {
+      if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") {
         continue;
       }
       if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
@@ -244,7 +278,7 @@ export class Builder {
         const content = fs.readFileSync(full, "utf-8");
         // File URIs use the `file://` scheme so `SymbolParser.parseBasFile`
         // (which calls `vscode.Uri.parse(...).fsPath`) is happy.
-        const uri = `file:///${full.replace(/\\/g, "/")}`;
+        const uri = vscode.Uri.file(full).toString();
         indexer.updateFileContent(uri, content);
       } catch (err: unknown) {
         logger.warn(
@@ -302,7 +336,10 @@ export class Builder {
 
     const minify = !!metadata.opcoes.minify;
     const stripComments = !!metadata.opcoes.stripComments;
-    const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(srcDir, data7ModulesDir);
+    const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
+      srcDir,
+      data7ModulesDir,
+    );
 
     const globalUsedSugars = new Set<string>();
 
@@ -457,7 +494,7 @@ export class Builder {
 
       transpiledSrcModules.push({
         name: filename,
-        fileUri: `file:///${filePath.replace(/\\/g, "/")}`,
+        fileUri: vscode.Uri.file(filePath).toString(),
         code: transpiled.code,
         diagnostics: transpiled.diagnostics,
         folderId,
@@ -510,7 +547,7 @@ export class Builder {
           }
           transpiledDepModules.push({
             name: filename,
-            fileUri: `file:///${path.join(data7ModulesDir, file).replace(/\\/g, "/")}`,
+            fileUri: vscode.Uri.file(path.join(data7ModulesDir, file)).toString(),
             code: transpiled.code,
             diagnostics: transpiled.diagnostics,
             folderId: data7ModulesFolderId!,
@@ -535,7 +572,7 @@ export class Builder {
 
     for (const sugarId of resolvedSugars) {
       const sugar = SugarRegistry.get(sugarId);
-      if (sugar && sugar.namespace) {
+      if (sugar?.namespace) {
         const virtualSugarCode = sugar.generateCode();
         const virtualSugarUri = `file:///synthetic/${sugar.namespace}.bas`;
         buildIndexer.updateFileContent(virtualSugarUri, virtualSugarCode);
@@ -550,9 +587,17 @@ export class Builder {
       }
     }
 
+    const mainUri = vscode.Uri.file(mainCodePath).toString();
+    buildIndexer.updateFileContent(mainUri, mainTranspiled.code);
+    transpiledSrcModules.forEach((m) => {
+      buildIndexer.updateFileContent(m.fileUri, m.code);
+    });
+    transpiledDepModules.forEach((m) => {
+      buildIndexer.updateFileContent(m.fileUri, m.code);
+    });
+
     // 4. Run strict linter and optimize/add to compile list
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics);
-    const mainUri = `file:///${mainCodePath.replace(/\\/g, "/")}`;
     this.runStrictNativeLinter(mainUri, mainTranspiled.code, buildIndexer);
     const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
 

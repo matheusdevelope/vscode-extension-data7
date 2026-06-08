@@ -88,6 +88,48 @@ End Namespace
         assert.doesNotMatch(xml, /For\s+Each/i);
       });
     });
+
+    test("monomorphizes generic modules copied into data7_modules", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_box
+
+Namespace mod_principal
+   Class TPrincipalClass
+      Public Sub Main()
+         Dim box As Box<Integer> = New Box<Integer>()
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_box.bas"),
+          `'@Module
+Namespace mod_box
+   Class Box<T>
+      Value As T
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Class Box_Integer/);
+        assert.match(xml, /Dim box As Box_Integer = New Box_Integer\(\)/);
+        assert.doesNotMatch(xml, /Class Box&lt;T&gt;/);
+      });
+    });
   });
 });
 

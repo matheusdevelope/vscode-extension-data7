@@ -669,8 +669,8 @@ export class Parser {
         if (isListSugar) {
           type = {
             kind: "TypeReference",
-            name: "TList",
-            typeArguments: [t],
+            name: `TList_${flatTypeNameOf(t)}`,
+            typeArguments: [],
             loc: t.loc,
           };
           if (!this.match("punct", "=")) {
@@ -1312,6 +1312,9 @@ export class Parser {
     if (token.kind === "punct" && token.value === "(") {
       return Precedence.Call;
     }
+    if (token.kind === "punct" && token.value === "[") {
+      return Precedence.Call;
+    }
     if (token.kind === "punct" && token.value === ".") {
       return Precedence.Call;
     }
@@ -1525,6 +1528,17 @@ export class Parser {
         methodName: "",
         typeArguments: [],
         arguments: args,
+        loc: left.loc,
+      };
+    }
+    if (token.kind === "punct" && token.value === "[") {
+      this.advance();
+      const index = this.parseExpression();
+      this.expect("punct", "]", { literal: true });
+      return {
+        kind: "ArrayAccessExpression",
+        target: left,
+        index,
         loc: left.loc,
       };
     }
@@ -2130,6 +2144,11 @@ function locOf(loc: TokenLocation, endLoc?: TokenLocation): {
     endLine: endLoc ? endLoc.line : loc.line,
     endChar: endLoc ? endLoc.column : loc.column,
   };
+}
+
+function flatTypeNameOf(typeRef: TypeReference): string {
+  if (typeRef.typeArguments.length === 0) return typeRef.name;
+  return `${typeRef.name}_${typeRef.typeArguments.map(flatTypeNameOf).join("_")}`;
 }
 
 function emptyTypeReference(): TypeReference {

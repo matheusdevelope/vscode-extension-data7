@@ -3,9 +3,8 @@ import * as path from "path";
 import * as fs from "fs";
 import { spawn } from "child_process";
 import { Builder } from "../project/builder";
-import { DependencyScanner } from "../analysis/dependency-scanner";
+import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
-import { RepositoryService } from "./repository-service";
 import { logger } from "../infra/logger";
 import { readConfiguration, getRawConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
@@ -32,8 +31,6 @@ export class BuildService {
       return;
     }
 
-    const repoBasPath = RepositoryService.getRepoBasPath();
-
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -43,11 +40,8 @@ export class BuildService {
       () =>
         Promise.resolve().then(() => {
           try {
-            const srcDir = path.join(project.workspaceDir, "src");
-            const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
-
             const dependencies = this.readDependencies(project.workspaceDir);
-            DependencyScanner.syncDependencies(srcDir, data7ModulesDir, repoBasPath, dependencies);
+            DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
 
             Builder.buildProject(project.workspaceDir, project.projectFilePath);
             vscode.window.showInformationMessage(
@@ -82,8 +76,6 @@ export class BuildService {
       );
       return;
     }
-
-    const repoBasPath = RepositoryService.getRepoBasPath();
 
     let dbIdFromProject = "";
     let dependencies: Record<string, string> = {};
@@ -124,9 +116,7 @@ export class BuildService {
     }
 
     try {
-      const srcDir = path.join(project.workspaceDir, "src");
-      const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
-      DependencyScanner.syncDependencies(srcDir, data7ModulesDir, repoBasPath, dependencies);
+      DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       Builder.buildProject(project.workspaceDir, project.projectFilePath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -224,13 +214,8 @@ export class BuildService {
     }
 
     try {
-      const srcDir = path.join(project.workspaceDir, "src");
-      const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
       const dependencies = this.readDependencies(project.workspaceDir);
-      const repoBasPath = RepositoryService.getRepoBasPath();
-      if (repoBasPath && fs.existsSync(repoBasPath)) {
-        DependencyScanner.syncDependencies(srcDir, data7ModulesDir, repoBasPath, dependencies);
-      }
+      DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       Builder.buildProject(project.workspaceDir, project.projectFilePath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

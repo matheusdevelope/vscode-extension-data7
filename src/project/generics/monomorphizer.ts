@@ -755,20 +755,6 @@ function instantiateTemplate(
   clone.name = flatName;
   clone.typeParameters = [];
 
-  // Rewriting baseType dynamically for TList<T> according to the type of T
-  if (clone.kind === "ClassDeclaration" && template.name.toLowerCase() === "tlist") {
-    const concreteT = concreteArgs[0];
-    if (concreteT) {
-      const typeName = concreteT.name.toLowerCase();
-      if (typeName === "tdatetime") {
-        clone.baseType = { kind: "TypeReference", name: "CoreSugarListDateTime", typeArguments: [] };
-      } else if (["string", "integer", "double", "boolean", "variant"].includes(typeName)) {
-        clone.baseType = { kind: "TypeReference", name: "CoreSugarListPrimitives", typeArguments: [] };
-      } else {
-        clone.baseType = { kind: "TypeReference", name: "CoreSugarListObjects", typeArguments: [] };
-      }
-    }
-  }
 
   return clone;
 }

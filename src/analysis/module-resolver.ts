@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
-import { getRepoBasPath } from "../infra/extension-paths";
+import { getCoreModulesPath, getRepoBasPath } from "../infra/extension-paths";
 import { escapeForRegex } from "../utils/regex-helpers";
 
 /**
@@ -41,13 +41,16 @@ export function resolveNamespaceFile(
     }
   }
 
-  const repoPath = getRepoBasPath();
-  if (!fs.existsSync(repoPath)) return undefined;
-  try {
-    return findNamespaceInDirectory(repoPath, namespace);
-  } catch {
-    return undefined;
+  for (const modulePath of [getCoreModulesPath(), getRepoBasPath()]) {
+    if (!fs.existsSync(modulePath)) continue;
+    try {
+      const found = findNamespaceInDirectory(modulePath, namespace);
+      if (found) return found;
+    } catch {
+      return undefined;
+    }
   }
+  return undefined;
 }
 
 function findNamespaceInDirectory(dir: string, namespace: string): string | undefined {

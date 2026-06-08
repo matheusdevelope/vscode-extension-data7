@@ -22,14 +22,12 @@ import type {
   InstantiationLimitExceededPayload,
   InvalidInterpolationPayload,
   MissingImportPayload,
-  MissingMyBaseNewPayload,
   NotEnumerablePayload,
   TernaryContextUnsupportedPayload,
   UnknownMemberPayload,
   UnknownSuppressionCodePayload,
   UnknownTemplatePayload,
   UnsupportedMemberPayload,
-  UnusedImportPayload,
   DuplicateDeclarationPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
@@ -45,7 +43,6 @@ import {
   type MethodDeclaration,
   type DelegateDeclaration,
   type PropertyDeclaration,
-  type FieldDeclaration,
   type VariableDeclaration,
   type Expression,
   type Statement,
@@ -323,7 +320,12 @@ export class DiagnosticsLinter {
     // primitive-vs-object rejection below.
     if (lhsIsTObjectRoot) return !rhsIsPrimitive;
 
-    if (lhsLower === "tprimitive" && (rhsIsPrimitive || rhsLower === "tprimitive" || TypeResolver.isSubclassOf(rhsType, lhsType, indexer))) {
+    if (
+      lhsLower === "tprimitive" &&
+      (rhsIsPrimitive ||
+        rhsLower === "tprimitive" ||
+        TypeResolver.isSubclassOf(rhsType, lhsType, indexer))
+    ) {
       return true;
     }
 
@@ -428,7 +430,11 @@ export class DiagnosticsLinter {
     this.validateMyBaseNewCalls(unit, diagnostics);
 
     // Validate destructor resource cleanup (Sub Free calls MyBase.Free) using AST structure
-    this.validateMyBaseFreeCalls(unit, indexer.getFileSymbols(document.uri.toString()), diagnostics);
+    this.validateMyBaseFreeCalls(
+      unit,
+      indexer.getFileSymbols(document.uri.toString()),
+      diagnostics,
+    );
 
     // Textual generic pre-pass remains backward-compatible via AST analyzer warnings
     const genericWarnings = analyzeGenericsPass(text, {
@@ -590,6 +596,10 @@ export class DiagnosticsLinter {
       const nameLower = s.name.toLowerCase();
       const existing = fileTopLevel.get(nameLower);
       if (existing) {
+        const bothMethods = s.kind === "method" && existing.kind === "method";
+        if (bothMethods && !DiagnosticsLinter.isSameSignature(s.parameters, existing.parameters)) {
+          return;
+        }
         createConflictDiag(
           new vscode.Range(
             s.range.startLine,
@@ -767,10 +777,17 @@ export class DiagnosticsLinter {
     });
 
     // Local / Method level variable checks using AST collector
-    const walker = new class extends ASTWalker {
+    const walker = new (class extends ASTWalker {
       public override walk(node: Node): void {
         if (node.kind === "MethodDeclaration") {
-          const C = classes.find((c) => c.name.toLowerCase() === node.modifiers?.find(() => true)?.toLowerCase() || c.name.toLowerCase() === fileSyms.symbols.find(s => s.name === node.name && s.kind === "method")?.containerName?.toLowerCase());
+          const C = classes.find(
+            (c) =>
+              c.name.toLowerCase() === node.modifiers?.[0]?.toLowerCase() ||
+              c.name.toLowerCase() ===
+                fileSyms.symbols
+                  .find((s) => s.name === node.name && s.kind === "method")
+                  ?.containerName?.toLowerCase(),
+          );
           const collector = new LocalDeclarationCollector(node);
           collector.collect();
 
@@ -811,7 +828,9 @@ export class DiagnosticsLinter {
               const isShared = node.modifiers?.includes("shared") ?? false;
               const visibleMembers = isShared ? members.filter((m) => m.isShared) : members;
 
-              const conflictingMember = visibleMembers.find((m) => m.name.toLowerCase() === nameLower);
+              const conflictingMember = visibleMembers.find(
+                (m) => m.name.toLowerCase() === nameLower,
+              );
               if (conflictingMember) {
                 createConflictDiag(
                   range,
@@ -854,7 +873,7 @@ export class DiagnosticsLinter {
         }
         super.walk(node);
       }
-    };
+    })();
     walker.walk(unit);
   }
 
@@ -874,7 +893,7 @@ export class DiagnosticsLinter {
   }
 
   private validateMyBaseNewCalls(unit: CompilationUnit, diagnostics: vscode.Diagnostic[]): void {
-    const walker = new class extends ASTWalker {
+    const walker = new (class extends ASTWalker {
       private currentClassName = "";
 
       public override walk(node: Node): void {
@@ -889,7 +908,7 @@ export class DiagnosticsLinter {
         if (node.kind === "MethodDeclaration") {
           if (node.isConstructor) {
             let hasMyBaseNew = false;
-            const checkCalls = new class extends ASTWalker {
+            const checkCalls = new (class extends ASTWalker {
               protected override visitMethodInvocation(call: MethodInvocation): void {
                 if (
                   call.methodName.toLowerCase() === "new" &&
@@ -899,11 +918,12 @@ export class DiagnosticsLinter {
                   hasMyBaseNew = true;
                 }
               }
-            };
+            })();
             for (const s of node.body) {
               checkCalls.walk(s);
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
             if (!hasMyBaseNew && node.loc) {
               const range = new vscode.Range(
                 node.loc.startLine - 1,
@@ -927,7 +947,7 @@ export class DiagnosticsLinter {
         }
         super.walk(node);
       }
-    };
+    })();
     walker.walk(unit);
   }
 
@@ -938,9 +958,7 @@ export class DiagnosticsLinter {
   ): void {
     if (!fileSyms) return;
 
-    const classes = fileSyms.symbols.filter((s) => s.kind === "class");
-
-    const walker = new class extends ASTWalker {
+    const walker = new (class extends ASTWalker {
       public override walk(node: Node): void {
         if (node.kind === "ClassDeclaration") {
           const baseNameLower = node.baseType?.name.toLowerCase();
@@ -949,7 +967,8 @@ export class DiagnosticsLinter {
           }
 
           const freeMethod = node.members.find(
-            (m): m is MethodDeclaration => m.kind === "MethodDeclaration" && m.name.toLowerCase() === "free",
+            (m): m is MethodDeclaration =>
+              m.kind === "MethodDeclaration" && m.name.toLowerCase() === "free",
           );
 
           if (!freeMethod && node.loc) {
@@ -967,9 +986,9 @@ export class DiagnosticsLinter {
               className: node.name,
             });
             diagnostics.push(diag);
-          } else if (freeMethod && freeMethod.loc) {
+          } else if (freeMethod?.loc) {
             let hasMyBaseFree = false;
-            const checkCalls = new class extends ASTWalker {
+            const checkCalls = new (class extends ASTWalker {
               protected override visitMethodInvocation(call: MethodInvocation): void {
                 if (
                   call.methodName.toLowerCase() === "free" &&
@@ -979,11 +998,12 @@ export class DiagnosticsLinter {
                   hasMyBaseFree = true;
                 }
               }
-            };
+            })();
             for (const s of freeMethod.body) {
               checkCalls.walk(s);
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
             if (!hasMyBaseFree) {
               const range = new vscode.Range(
                 freeMethod.loc.startLine - 1,
@@ -1004,7 +1024,7 @@ export class DiagnosticsLinter {
         }
         super.walk(node);
       }
-    };
+    })();
     walker.walk(unit);
   }
 
@@ -1053,7 +1073,7 @@ class LocalDeclarationCollector extends ASTWalker {
 
   public collect(): void {
     for (const p of this.methodNode.parameters) {
-      const loc = p.loc || p.type?.loc;
+      const loc = p.loc ?? p.type.loc;
       if (loc) {
         this.declarations.push({ name: p.name, loc: loc, isParameter: true });
       }
@@ -1076,15 +1096,27 @@ class LocalDeclarationCollector extends ASTWalker {
       }
     } else if (node.kind === "ForEachStatement") {
       if (node.elementVar.loc) {
-        this.declarations.push({ name: node.elementVar.name, loc: node.elementVar.loc, isParameter: false });
+        this.declarations.push({
+          name: node.elementVar.name,
+          loc: node.elementVar.loc,
+          isParameter: false,
+        });
       }
     } else if (node.kind === "UsingStatement") {
       if (node.resourceVar.loc) {
-        this.declarations.push({ name: node.resourceVar.name, loc: node.resourceVar.loc, isParameter: false });
+        this.declarations.push({
+          name: node.resourceVar.name,
+          loc: node.resourceVar.loc,
+          isParameter: false,
+        });
       }
     } else if (node.kind === "TryCatchStatement" && node.catchVar) {
       if (node.catchVar.loc) {
-        this.declarations.push({ name: node.catchVar.name, loc: node.catchVar.loc, isParameter: false });
+        this.declarations.push({
+          name: node.catchVar.name,
+          loc: node.catchVar.loc,
+          isParameter: false,
+        });
       }
     }
     super.walk(node);
@@ -1190,7 +1222,7 @@ class DiagnosticsASTWalker extends ASTWalker {
         setDiagnosticPayload(diag, {
           code: DiagnosticCodes.UnusedImport,
           namespace: imp.name,
-        } as UnusedImportPayload);
+        });
         this.diagnostics.push(diag);
         return;
       }
@@ -1213,7 +1245,9 @@ class DiagnosticsASTWalker extends ASTWalker {
           ...this.indexer.getAllSymbols().filter((s) => s.containerName?.toLowerCase() === key),
           ...lookupSystemByContainer(imp.name),
         ];
-        isReferenced = symbolsInNamespace.some((s) => wordCollector.usedWords.has(s.name.toLowerCase()));
+        isReferenced = symbolsInNamespace.some((s) =>
+          wordCollector.usedWords.has(s.name.toLowerCase()),
+        );
       }
 
       if (!isReferenced) {
@@ -1226,7 +1260,7 @@ class DiagnosticsASTWalker extends ASTWalker {
         setDiagnosticPayload(diag, {
           code: DiagnosticCodes.UnusedImport,
           namespace: imp.name,
-        } as UnusedImportPayload);
+        });
         this.diagnostics.push(diag);
       }
     });
@@ -1254,7 +1288,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     if (node.kind === "VariableDeclaration" && node.initializer?.kind === "TernaryExpression") {
       this.allowedTernaries.add(node.initializer);
     }
-    if (node.kind === "Assignment" && node.value?.kind === "TernaryExpression") {
+    if (node.kind === "Assignment" && node.value.kind === "TernaryExpression") {
       this.allowedTernaries.add(node.value);
     }
 
@@ -1271,6 +1305,7 @@ class DiagnosticsASTWalker extends ASTWalker {
 
     if (node.kind === "ClassDeclaration") {
       this.activeClass = node;
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (node.typeParameters && node.typeParameters.length > 0) {
         const set = new Set<string>();
         node.typeParameters.forEach((tp) => set.add(tp.name.toLowerCase()));
@@ -1281,7 +1316,10 @@ class DiagnosticsASTWalker extends ASTWalker {
       this.activeMethod = node;
       this.pushScope();
       pushedScope = true;
-      node.parameters.forEach((p) => this.addLocal(p.name));
+      node.parameters.forEach((p) => {
+        this.addLocal(p.name);
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (node.typeParameters && node.typeParameters.length > 0) {
         const set = new Set<string>();
         node.typeParameters.forEach((tp) => set.add(tp.name.toLowerCase()));
@@ -1289,6 +1327,7 @@ class DiagnosticsASTWalker extends ASTWalker {
         pushedTypeParams = true;
       }
     } else if (node.kind === "DelegateDeclaration") {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (node.typeParameters && node.typeParameters.length > 0) {
         const set = new Set<string>();
         node.typeParameters.forEach((tp) => set.add(tp.name.toLowerCase()));
@@ -1299,7 +1338,9 @@ class DiagnosticsASTWalker extends ASTWalker {
       this.activeProperty = node;
       this.pushScope();
       pushedScope = true;
-      node.parameters?.forEach((p) => this.addLocal(p.name));
+      node.parameters?.forEach((p) => {
+        this.addLocal(p.name);
+      });
     } else if (node.kind === "ForStatement") {
       this.pushScope();
       pushedScope = true;
@@ -1409,18 +1450,23 @@ class DiagnosticsASTWalker extends ASTWalker {
 
       if (!shouldSkip) {
         const isDeclared =
-          this.isLocalDeclared(name) ||
-          this.isGenericTypeParameter(name) ||
-          (this.activeClass &&
-            (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
-              TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
-                (m) => m.name.toLowerCase() === nameLower,
-              ))) ||
-          this.indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower) ||
+          ((this.isLocalDeclared(name) ||
+            this.isGenericTypeParameter(name) ||
+            (this.activeClass &&
+              (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
+                TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
+                  (m) => m.name.toLowerCase() === nameLower,
+                )))) ??
+            this.indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower)) ||
           SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
 
         if (!isDeclared) {
-          const range = new vscode.Range(node.loc.startLine - 1, node.loc.startChar, node.loc.endLine - 1, node.loc.endChar);
+          const range = new vscode.Range(
+            node.loc.startLine - 1,
+            node.loc.startChar,
+            node.loc.endLine - 1,
+            node.loc.endChar,
+          );
           const diag = new vscode.Diagnostic(
             range,
             `O símbolo "${name}" não foi encontrado no escopo atual.`,
@@ -1462,7 +1508,14 @@ class DiagnosticsASTWalker extends ASTWalker {
     const col = node.loc.startChar;
 
     // Direct validate type reference
-    DiagnosticsLinter.validateTypeReference(node.name, lineIdx, col, this.document, this.indexer, this.diagnostics);
+    DiagnosticsLinter.validateTypeReference(
+      node.name,
+      lineIdx,
+      col,
+      this.document,
+      this.indexer,
+      this.diagnostics,
+    );
   }
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
@@ -1489,22 +1542,34 @@ class DiagnosticsASTWalker extends ASTWalker {
       } else if (prefixLower === "mybase") {
         typeName = this.activeClass?.baseType?.name ?? "TObject";
       } else {
-        typeName = TypeResolver.resolveExpressionType(node.callee, this.document, lineIdx, this.indexer);
+        typeName = TypeResolver.resolveExpressionType(
+          node.callee,
+          this.document,
+          lineIdx,
+          this.indexer,
+        );
       }
 
       if (typeName) {
         resolvedMethod = TypeResolver.findMember(typeName, node.methodName, this.indexer, arity);
 
         // Check UnknownMember for method call
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (node.callee && DiagnosticsLinter.isKnownType(typeName, this.indexer)) {
-          const exists = resolvedMethod || TypeResolver.findMember(typeName, node.methodName, this.indexer);
+          const exists =
+            resolvedMethod ?? TypeResolver.findMember(typeName, node.methodName, this.indexer);
           if (
             !exists &&
             typeName.toLowerCase() !== "variant" &&
             typeName.toLowerCase() !== "tobject" &&
             typeName.toLowerCase() !== "void"
           ) {
-            const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+            const range = new vscode.Range(
+              lineIdx,
+              startChar,
+              lineIdx,
+              startChar + node.methodName.length,
+            );
             const diag = new vscode.Diagnostic(
               range,
               `Membro "${node.methodName}" não encontrado na classe/tipo "${typeName}".`,
@@ -1535,11 +1600,13 @@ class DiagnosticsASTWalker extends ASTWalker {
             s.name.toLowerCase() === nameLower &&
             (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
         ) ??
-        this.indexer.getAllSymbols().find(
-          (s) =>
-            s.name.toLowerCase() === nameLower &&
-            (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
-        );
+        this.indexer
+          .getAllSymbols()
+          .find(
+            (s) =>
+              s.name.toLowerCase() === nameLower &&
+              (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
+          );
     }
 
     if (resolvedMethod) {
@@ -1555,7 +1622,12 @@ class DiagnosticsASTWalker extends ASTWalker {
         }
 
         if (hasMismatch) {
-          const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+          const range = new vscode.Range(
+            lineIdx,
+            startChar,
+            lineIdx,
+            startChar + node.methodName.length,
+          );
           const diag = new vscode.Diagnostic(
             range,
             `Chamada do método "${node.methodName}" viola as regras de parênteses. Métodos ${isSub ? "Sub (Void) com mais de 1 parâmetro" : "Function (com retorno) com 1 ou mais parâmetros"} exigem o uso de parênteses.`,
@@ -1567,7 +1639,12 @@ class DiagnosticsASTWalker extends ASTWalker {
       }
 
       if (isSub && parent && parent.kind !== "ExpressionStatement") {
-        const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+        const range = new vscode.Range(
+          lineIdx,
+          startChar,
+          lineIdx,
+          startChar + node.methodName.length,
+        );
         const diag = new vscode.Diagnostic(
           range,
           `O método Sub "${node.methodName}" retorna Void e não pode ser usado em uma expressão ou atribuição.`,
@@ -1590,11 +1667,19 @@ class DiagnosticsASTWalker extends ASTWalker {
 
     if (prefixLower === "me" || prefixLower === "mybase") {
       if (this.activeClass) {
-        const typeName = prefixLower === "me" ? this.activeClass.name : (this.activeClass.baseType?.name ?? "TObject");
+        const typeName =
+          prefixLower === "me"
+            ? this.activeClass.name
+            : (this.activeClass.baseType?.name ?? "TObject");
         const resolved = TypeResolver.findMember(typeName, node.member, this.indexer);
 
         if (!resolved && !(node.member.toLowerCase() === "new" && prefixLower === "mybase")) {
-          const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.member.length);
+          const range = new vscode.Range(
+            lineIdx,
+            startChar,
+            lineIdx,
+            startChar + node.member.length,
+          );
           const diag = new vscode.Diagnostic(
             range,
             `Membro "${node.member}" não encontrado na classe "${this.activeClass.name}".`,
@@ -1624,11 +1709,19 @@ class DiagnosticsASTWalker extends ASTWalker {
       return;
     }
 
-    let typeName = TypeResolver.resolveExpressionType(node.target, this.document, lineIdx, this.indexer);
+    let typeName = TypeResolver.resolveExpressionType(
+      node.target,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
     let isStaticAccess = false;
 
     if (!typeName && node.target.kind === "Identifier") {
-      const staticSymbol = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
+      const staticSymbol = this.indexer.findSymbolByName(
+        node.target.name,
+        this.document.uri.toString(),
+      );
       if (
         staticSymbol &&
         (staticSymbol.kind === "class" ||
@@ -1707,7 +1800,12 @@ class DiagnosticsASTWalker extends ASTWalker {
           }
         }
         if (!hasAccess) {
-          const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.member.length);
+          const range = new vscode.Range(
+            lineIdx,
+            startChar,
+            lineIdx,
+            startChar + node.member.length,
+          );
           const diag = new vscode.Diagnostic(
             range,
             resolved.isPrivate
@@ -1726,7 +1824,12 @@ class DiagnosticsASTWalker extends ASTWalker {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
 
-    const enumerableType = TypeResolver.resolveExpressionType(node.enumerable, this.document, lineIdx, this.indexer);
+    const enumerableType = TypeResolver.resolveExpressionType(
+      node.enumerable,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
     const explicitType = node.elementType ? typeRefToString(node.elementType) : undefined;
 
     const enumerable = enumerableType
@@ -1810,7 +1913,12 @@ class DiagnosticsASTWalker extends ASTWalker {
     // Event signature mismatch
     if (node.target.kind === "MemberAccess" && node.target.member.toLowerCase().startsWith("on")) {
       const eventName = node.target.member;
-      const targetType = TypeResolver.resolveExpressionType(node.target.target, this.document, lineIdx, this.indexer);
+      const targetType = TypeResolver.resolveExpressionType(
+        node.target.target,
+        this.document,
+        lineIdx,
+        this.indexer,
+      );
 
       if (targetType) {
         const eventMember = TypeResolver.findMember(targetType, eventName, this.indexer);
@@ -1845,7 +1953,9 @@ class DiagnosticsASTWalker extends ASTWalker {
                 ) {
                   const handlerParams = handler.parameters ?? [];
                   if (handlerParams.length !== delegate.parameters.length) {
-                    const startChar = node.value.loc ? node.value.loc.startChar : node.loc.startChar;
+                    const startChar = node.value.loc
+                      ? node.value.loc.startChar
+                      : node.loc.startChar;
                     const endChar = node.value.loc ? node.value.loc.endChar : node.loc.endChar;
                     const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
                     const diag = new vscode.Diagnostic(
@@ -1865,14 +1975,29 @@ class DiagnosticsASTWalker extends ASTWalker {
     }
 
     // Type compatibility and ReadOnly assignment target checking
-    const lhsType = TypeResolver.resolveExpressionType(node.target, this.document, lineIdx, this.indexer);
-    const rhsType = TypeResolver.resolveExpressionType(node.value, this.document, lineIdx, this.indexer);
+    const lhsType = TypeResolver.resolveExpressionType(
+      node.target,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
+    const rhsType = TypeResolver.resolveExpressionType(
+      node.value,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
 
     let resolvedLhs: SymbolInfo | undefined;
     if (node.target.kind === "Identifier") {
       resolvedLhs = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
     } else if (node.target.kind === "MemberAccess") {
-      const type = TypeResolver.resolveExpressionType(node.target.target, this.document, lineIdx, this.indexer);
+      const type = TypeResolver.resolveExpressionType(
+        node.target.target,
+        this.document,
+        lineIdx,
+        this.indexer,
+      );
       if (type) {
         resolvedLhs = TypeResolver.findMember(type, node.target.member, this.indexer);
       }
@@ -1881,14 +2006,23 @@ class DiagnosticsASTWalker extends ASTWalker {
     if (resolvedLhs) {
       if (resolvedLhs.isConst || resolvedLhs.isReadOnly) {
         let isAllowed = false;
-        if (resolvedLhs.isReadOnly && this.activeClass && this.activeMethod?.name.toLowerCase() === "new") {
+        if (
+          resolvedLhs.isReadOnly &&
+          this.activeClass &&
+          this.activeMethod?.name.toLowerCase() === "new"
+        ) {
           const declaringClass = resolvedLhs.containerName?.toLowerCase();
           if (declaringClass === this.activeClass.name.toLowerCase()) {
             isAllowed = true;
           }
         }
         if (!isAllowed) {
-          const range = new vscode.Range(lineIdx, node.target.loc?.startChar ?? 0, lineIdx, node.target.loc?.endChar ?? 0);
+          const range = new vscode.Range(
+            lineIdx,
+            node.target.loc?.startChar ?? 0,
+            lineIdx,
+            node.target.loc?.endChar ?? 0,
+          );
           const diag = new vscode.Diagnostic(
             range,
             resolvedLhs.isConst
@@ -1913,7 +2047,12 @@ class DiagnosticsASTWalker extends ASTWalker {
         const isSub = resolvedLhs.type.toLowerCase() === "void";
 
         if (!isCurrentFunction || isSub) {
-          const range = new vscode.Range(lineIdx, node.target.loc?.startChar ?? 0, lineIdx, node.target.loc?.endChar ?? 0);
+          const range = new vscode.Range(
+            lineIdx,
+            node.target.loc?.startChar ?? 0,
+            lineIdx,
+            node.target.loc?.endChar ?? 0,
+          );
           const diag = new vscode.Diagnostic(
             range,
             `Tentativa de atribuir valor a um símbolo inválido (nome de outro método/função "${resolvedLhs.name}").`,
@@ -1925,9 +2064,19 @@ class DiagnosticsASTWalker extends ASTWalker {
       }
     }
 
-    if (lhsType && rhsType && rhsType.toLowerCase() !== "void" && lhsType.toLowerCase() !== "void") {
+    if (
+      lhsType &&
+      rhsType &&
+      rhsType.toLowerCase() !== "void" &&
+      lhsType.toLowerCase() !== "void"
+    ) {
       if (!DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, this.indexer)) {
-        const range = new vscode.Range(lineIdx, node.value.loc?.startChar ?? 0, lineIdx, node.value.loc?.endChar ?? 0);
+        const range = new vscode.Range(
+          lineIdx,
+          node.value.loc?.startChar ?? 0,
+          lineIdx,
+          node.value.loc?.endChar ?? 0,
+        );
         const diag = new vscode.Diagnostic(
           range,
           `Incompatibilidade de tipos: não é possível atribuir "${rhsType}" para "${lhsType}".`,
@@ -1944,7 +2093,12 @@ class DiagnosticsASTWalker extends ASTWalker {
     const lineIdx = node.loc.startLine - 1;
 
     const lhsType = typeRefToString(node.type);
-    const rhsType = TypeResolver.resolveExpressionType(node.initializer, this.document, lineIdx, this.indexer);
+    const rhsType = TypeResolver.resolveExpressionType(
+      node.initializer,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
 
     if (lhsType && rhsType && rhsType.toLowerCase() !== "void") {
       if (!DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, this.indexer)) {
@@ -1967,29 +2121,39 @@ class DiagnosticsASTWalker extends ASTWalker {
 
   private checkMethodDeclaration(node: MethodDeclaration): void {
     // Check FunctionReadSelf in method bodies
-    const isFunction = node.returnType && typeRefToString(node.returnType)?.toLowerCase() !== "void";
+    const isFunction =
+      node.returnType && typeRefToString(node.returnType)?.toLowerCase() !== "void";
     if (isFunction) {
       const funcName = node.name.toLowerCase();
-      const checkSelfRead = new class extends ASTWalker {
+      const checkSelfRead = new (class extends ASTWalker {
         constructor(private readonly diags: vscode.Diagnostic[]) {
           super();
         }
         public override walk(idNode: Node): void {
-          if (idNode.kind === "Identifier" && idNode.name.toLowerCase() === funcName && idNode.loc) {
+          if (
+            idNode.kind === "Identifier" &&
+            idNode.name.toLowerCase() === funcName &&
+            idNode.loc
+          ) {
             // Check if this identifier is part of a Call/MethodInvocation or on the LHS of assignment
             const p = this.parentStack[this.parentStack.length - 1];
             let isPlainAssignment = false;
-            if (p && p.kind === "Assignment" && p.target === idNode) {
+            if (p?.kind === "Assignment" && p.target === idNode) {
               isPlainAssignment = true;
             }
             let isCall = false;
-            if (p && p.kind === "MethodInvocation" && p.methodName.toLowerCase() === funcName) {
+            if (p?.kind === "MethodInvocation" && p.methodName.toLowerCase() === funcName) {
               isCall = true;
             }
 
             if (!isPlainAssignment && !isCall) {
               const lineIdx = idNode.loc.startLine - 1;
-              const range = new vscode.Range(lineIdx, idNode.loc.startChar, lineIdx, idNode.loc.endChar);
+              const range = new vscode.Range(
+                lineIdx,
+                idNode.loc.startChar,
+                lineIdx,
+                idNode.loc.endChar,
+              );
               const diag = new vscode.Diagnostic(
                 range,
                 `Leitura do nome da função "${idNode.name}" dentro de seu próprio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
@@ -2004,7 +2168,7 @@ class DiagnosticsASTWalker extends ASTWalker {
           this.parentStack.pop();
         }
         private parentStack: Node[] = [];
-      }(this.diagnostics);
+      })(this.diagnostics);
       checkSelfRead.walk(node);
     }
 
@@ -2062,7 +2226,10 @@ class DiagnosticsASTWalker extends ASTWalker {
     let isLooseType = false;
     let typeName = "";
     if (expr.kind === "Identifier") {
-      if (PRIMITIVE_TYPES.has(expr.name.toLowerCase()) || DiagnosticsLinter.isKnownType(expr.name, this.indexer)) {
+      if (
+        PRIMITIVE_TYPES.has(expr.name.toLowerCase()) ||
+        DiagnosticsLinter.isKnownType(expr.name, this.indexer)
+      ) {
         isLooseType = true;
         typeName = expr.name;
       }
@@ -2095,7 +2262,10 @@ class DiagnosticsASTWalker extends ASTWalker {
         diag.code = DiagnosticCodes.LooseTypeStatement;
         this.diagnostics.push(diag);
       }
-    } else if (node.expression.kind === "MethodInvocation" && node.expression.callee?.kind === "Identifier") {
+    } else if (
+      node.expression.kind === "MethodInvocation" &&
+      node.expression.callee?.kind === "Identifier"
+    ) {
       const calleeName = node.expression.callee.name;
       if (PRIMITIVE_TYPES.has(calleeName.toLowerCase())) {
         const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
@@ -2130,7 +2300,9 @@ class ASTFlowAnalyzer {
     private readonly lines: readonly string[],
     private readonly diagnostics: vscode.Diagnostic[],
   ) {
-    this.isFunction = methodNode.returnType !== undefined && typeRefToString(methodNode.returnType)?.toLowerCase() !== "void";
+    this.isFunction =
+      methodNode.returnType !== undefined &&
+      typeRefToString(methodNode.returnType)?.toLowerCase() !== "void";
   }
 
   public run(): void {
@@ -2138,7 +2310,7 @@ class ASTFlowAnalyzer {
     this.checkStatements(this.methodNode.body, initialState);
 
     // After analysis, check for unreachable statements and missing return paths
-    const checkUnreachable = new class extends ASTWalker {
+    const checkUnreachable = new (class extends ASTWalker {
       constructor(private readonly analyzer: ASTFlowAnalyzer) {
         super();
       }
@@ -2184,7 +2356,7 @@ class ASTFlowAnalyzer {
 
         super.walk(node);
       }
-    }(this);
+    })(this);
 
     for (const stmt of this.methodNode.body) {
       checkUnreachable.walk(stmt);
@@ -2302,7 +2474,7 @@ class ASTFlowAnalyzer {
             branchStates.push(bState);
           } else {
             // Collect dead code in unreachable branch
-            const checkUnreachableInBranch = new class extends ASTWalker {
+            const checkUnreachableInBranch = new (class extends ASTWalker {
               constructor(private readonly analyzer: ASTFlowAnalyzer) {
                 super();
               }
@@ -2326,7 +2498,7 @@ class ASTFlowAnalyzer {
                 }
                 super.walk(node);
               }
-            }(this);
+            })(this);
             branch.body.forEach((s) => {
               checkUnreachableInBranch.walk(s);
             });
@@ -2367,6 +2539,7 @@ class ASTFlowAnalyzer {
         }
 
         const reachableAfter = caseStates.some((s) => s.reachable) || !hasCaseElse;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         const retValSetAfter = hasCaseElse
           ? caseStates.every((s) => s.retValSet)
           : state.retValSet && caseStates.every((s) => s.retValSet);
@@ -2452,10 +2625,7 @@ class ASTFlowAnalyzer {
     state.nullFacts.delete(key);
   }
 
-  private evaluateStaticCondition(
-    expr: Expression,
-    state: FlowState,
-  ): boolean | undefined {
+  private evaluateStaticCondition(expr: Expression, state: FlowState): boolean | undefined {
     if (expr.kind === "Literal") {
       if (expr.value === true) return true;
       if (expr.value === false) return false;
@@ -2661,11 +2831,7 @@ function collectWorkspaceGenericTemplates(
   const seen = new Set<string>();
   for (const sym of indexer.getAllSymbols()) {
     if (sym.fileUri === currentFileUri) continue;
-    if (
-      sym.kind !== "class" &&
-      sym.kind !== "delegate" &&
-      sym.kind !== "method"
-    ) {
+    if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") {
       continue;
     }
     if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;

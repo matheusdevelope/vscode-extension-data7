@@ -28,6 +28,7 @@ function pickFirstRecord(
 import { logger } from "../infra/logger";
 import { readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig, isRecord } from "../project/project-config";
 
 export interface DbConnection {
@@ -396,11 +397,20 @@ export class ProjectService {
         "utf-8",
       );
       await this.protectProjectFolder(projectDir);
+      DependencyService.syncProjectData7Modules(projectDir, {});
 
       const projectFilePath = path.join(projectDir, `${projectName}.7Proj`);
-      Builder.buildProject(projectDir, projectFilePath);
+      try {
+        Builder.buildProject(projectDir, projectFilePath);
+        vscode.window.showInformationMessage(`Projeto "${projectName}" criado com sucesso!`);
+      } catch (buildErr: unknown) {
+        const buildMessage = buildErr instanceof Error ? buildErr.message : String(buildErr);
+        logger.error("Projeto criado, mas o build inicial falhou.", buildErr);
+        vscode.window.showWarningMessage(
+          `Projeto "${projectName}" criado, mas o build inicial falhou: ${buildMessage}`,
+        );
+      }
 
-      vscode.window.showInformationMessage(`Projeto "${projectName}" criado com sucesso!`);
       await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(projectDir), {
         forceNewWindow: false,
       });
@@ -491,6 +501,10 @@ export class ProjectService {
                 `Falha ao escanear módulos compartilhados: ${err instanceof Error ? err.message : String(err)}`,
               );
             }
+          }
+          knownSharedModules ??= new Set<string>();
+          for (const key of DependencyScanner.scanSharedModules(getCoreModulesPath()).keys()) {
+            knownSharedModules.add(key);
           }
 
           Decompiler.decompileProject(finalProjFile, workspaceDir, knownSharedModules);
@@ -616,6 +630,10 @@ export class ProjectService {
               );
             }
           }
+          knownSharedModules ??= new Set<string>();
+          for (const key of DependencyScanner.scanSharedModules(getCoreModulesPath()).keys()) {
+            knownSharedModules.add(key);
+          }
 
           Decompiler.decompileProject(targetProjFile, targetWorkspace, knownSharedModules);
 
@@ -636,8 +654,12 @@ export class ProjectService {
               path.join(targetWorkspace, "data7_modules"),
               repoBasPath,
               dependencies,
+              { alwaysSyncDirs: [getCoreModulesPath()] },
             );
           }
+          await DependencyService.detectAndSyncProjectDependencies(targetWorkspace, {
+            silent: true,
+          });
 
           await WorkspaceSymbolIndexer.getInstance().indexWorkspace(
             vscode.workspace.workspaceFolders,

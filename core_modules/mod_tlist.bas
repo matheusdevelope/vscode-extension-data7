@@ -3,48 +3,6 @@ Imports mod_tobject
 '@Module
 Namespace mod_tlist
 
-   Class Produto
-      Inherits TTObject
-      Codigo As Integer
-      Nome As String
-      Sub New(pCodigo As Integer, pNome As String)
-         MyBase.New()
-         me.Codigo = pCodigo
-         me.Nome = pNome
-      End Sub
-      Sub New(pValue As Produto)
-         MyBase.New()
-         me.Assign(pValue)
-      End Sub
-      Sub Assign(pValue As Produto)
-         If Assigned(pValue) Then
-            me.Codigo = pValue.Codigo
-            me.Nome = pValue.Nome
-         End If
-      End Sub
-      Overrides Function Clone() As Produto
-         Clone = New Produto(me)
-      End Function
-      Overrides Function GetID() As String
-         GetID = CStr(me.Codigo)
-      End Function
-      Overrides Function ToString() As String
-         With me.BuildLogger(me.ClassName)
-            .Prop("Codigo", me.Codigo.ToString())
-            .Prop("Nome", me.Nome.ToString())
-            ToString = .Text()
-            .Free()
-         End With
-      End Function
-      Overrides Sub Dispose()
-         me.Codigo = Unassigned
-         me.Nome = Unassigned
-      End Sub
-      Sub Free()
-         MyBase.Free()
-      End Sub
-   End Class
-
    Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
    Delegate Function TMapDel<T>(pValue As T, i As Integer, extra As Variant) As T
    Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)

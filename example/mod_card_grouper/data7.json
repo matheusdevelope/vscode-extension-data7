@@ -11,7 +11,7 @@
     "codFilial": 1,
     "nomeUsuario": "Administrador",
     "preScript": "",
-    "identificacaoBancoDados": "05B54E6D-D75B-4A7F-9943-5521A91747C9"
+    "identificacaoBancoDados": "6B3204FB-3574-45D3-84F1-57F413F10C4E"
   },
   "virtualFolders": [
     {
@@ -102,8 +102,6 @@
     }
   },
   "dependencies": {
-    "console": "1.0.0.0",
-    "mod_base_list": "1.0.0.0",
     "mod_enum": "1.0.0.0",
     "mod_pipeline_field": "1.0.0.0",
     "mod_pipeline_datasource": "1.0.0.0",
@@ -114,6 +112,7 @@
     "mod_pipeline_grouper": "1.0.0.0",
     "mod_pipeline_controller": "1.0.0.0",
     "mod_pipeline_form": "1.0.0.0",
+    "mod_base_list": "1.0.0.0",
     "mod_pipeline_option": "1.0.0.0",
     "mod_pipeline_datasource_grid": "1.0.0.0",
     "mod_pipeline_datasource_excel": "1.0.0.0",

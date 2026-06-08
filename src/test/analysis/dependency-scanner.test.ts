@@ -82,4 +82,75 @@ describe("DependencyScanner", () => {
       });
     });
   });
+
+  describe("syncDependencies", () => {
+    test("syncs declared repository dependencies together with always-on core modules", async () => {
+      await withTempDir(async (tmp) => {
+        const srcDir = path.join(tmp, "src");
+        const repoDir = path.join(tmp, "repo");
+        const coreDir = path.join(tmp, "core");
+        const data7ModulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(srcDir);
+        fs.mkdirSync(repoDir);
+        fs.mkdirSync(coreDir);
+        fs.mkdirSync(data7ModulesDir);
+
+        fs.writeFileSync(
+          path.join(repoDir, "mod_feature.bas"),
+          "'@Module\nNamespace mod_feature\nEnd Namespace\n",
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(coreDir, "mod_core.bas"),
+          "'@Module\nNamespace mod_core\nEnd Namespace\n",
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(data7ModulesDir, "stale.bas"),
+          "Namespace stale\nEnd Namespace\n",
+          "utf-8",
+        );
+
+        const synced = DependencyScanner.syncDependencies(
+          srcDir,
+          data7ModulesDir,
+          repoDir,
+          { mod_feature: "1.0.0.0" },
+          { alwaysSyncDirs: [coreDir] },
+        );
+
+        assert.deepEqual(new Set(synced), new Set(["mod_feature", "mod_core"]));
+        assert.ok(fs.existsSync(path.join(data7ModulesDir, "mod_feature.bas")));
+        assert.ok(fs.existsSync(path.join(data7ModulesDir, "mod_core.bas")));
+        assert.equal(fs.existsSync(path.join(data7ModulesDir, "stale.bas")), false);
+      });
+    });
+
+    test("syncs always-on core modules even when no repository directory exists", async () => {
+      await withTempDir(async (tmp) => {
+        const srcDir = path.join(tmp, "src");
+        const coreDir = path.join(tmp, "core");
+        const data7ModulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(srcDir);
+        fs.mkdirSync(coreDir);
+
+        fs.writeFileSync(
+          path.join(coreDir, "mod_core.bas"),
+          "'@Module\nNamespace mod_core\nEnd Namespace\n",
+          "utf-8",
+        );
+
+        const synced = DependencyScanner.syncDependencies(
+          srcDir,
+          data7ModulesDir,
+          path.join(tmp, "missing-repo"),
+          {},
+          { alwaysSyncDirs: [coreDir] },
+        );
+
+        assert.deepEqual(synced, ["mod_core"]);
+        assert.ok(fs.existsSync(path.join(data7ModulesDir, "mod_core.bas")));
+      });
+    });
+  });
 });

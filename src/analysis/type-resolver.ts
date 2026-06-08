@@ -250,6 +250,8 @@ export class TypeResolver {
         if (!targetType) return undefined;
         return TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
       }
+      case "ArrayAccessExpression":
+        return undefined;
       case "MethodInvocation": {
         if (expr.methodName.toLowerCase() === "typeof" && !expr.callee) {
           return "Boolean";

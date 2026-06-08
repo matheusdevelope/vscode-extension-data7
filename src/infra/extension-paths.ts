@@ -21,8 +21,10 @@ import type * as vscode from "vscode";
  */
 
 let initializedRepoBasPath: string | undefined;
+let initializedExtensionRootPath: string | undefined;
 
 const FALLBACK_REPO_DIR = path.join(os.homedir(), ".data7_extension", "repository");
+const FALLBACK_CORE_MODULES_DIR = path.resolve(__dirname, "..", "..", "core_modules");
 
 /**
  * Computes and caches the per-extension repository path. Should be called once
@@ -30,6 +32,7 @@ const FALLBACK_REPO_DIR = path.join(os.homedir(), ".data7_extension", "repositor
  * {@link getRepoBasPath}.
  */
 export function initializeExtensionPaths(context: vscode.ExtensionContext): void {
+  initializedExtensionRootPath = context.extensionUri.fsPath;
   initializedRepoBasPath = path.join(context.globalStorageUri.fsPath, "repository");
   ensureDirectory(initializedRepoBasPath);
 }
@@ -46,11 +49,24 @@ export function getRepoBasPath(): string {
 }
 
 /**
+ * Returns the versioned internal core modules folder shipped with the extension.
+ * These `.bas` files are copied into every project's `data7_modules/` during
+ * dependency sync so they follow the normal Builder transpilation pipeline.
+ */
+export function getCoreModulesPath(): string {
+  if (initializedExtensionRootPath) {
+    return path.join(initializedExtensionRootPath, "core_modules");
+  }
+  return FALLBACK_CORE_MODULES_DIR;
+}
+
+/**
  * Test-only hook: clears the cached path so the next call recomputes the
  * fallback. Production code never calls this.
  */
 export function __resetExtensionPathsForTests(): void {
   initializedRepoBasPath = undefined;
+  initializedExtensionRootPath = undefined;
 }
 
 function ensureDirectory(dir: string): void {

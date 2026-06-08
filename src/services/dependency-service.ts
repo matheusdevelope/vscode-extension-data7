@@ -10,6 +10,7 @@ import { RepositoryService } from "./repository-service";
 import { DiagnosticService } from "./diagnostic-service";
 import { logger } from "../infra/logger";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig } from "../project/project-config";
 
 interface ProjectMetadataJson {
@@ -45,6 +46,20 @@ export interface DependencyDetectionResult {
 }
 
 export class DependencyService {
+  public static syncProjectData7Modules(
+    workspaceDir: string,
+    dependencies?: Record<string, string>,
+  ): string[] {
+    const srcDir = path.join(workspaceDir, "src");
+    const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+    const repoBasPath = RepositoryService.getRepoBasPath();
+    const projectDeps = dependencies ?? this.readDependencies(workspaceDir);
+
+    return DependencyScanner.syncDependencies(srcDir, data7ModulesDir, repoBasPath, projectDeps, {
+      alwaysSyncDirs: [getCoreModulesPath()],
+    });
+  }
+
   /**
    * Detects modules referenced by the project and syncs the corresponding
    * `.bas` files into `data7_modules/`. Updates `data7.json#dependencies` when
@@ -76,9 +91,13 @@ export class DependencyService {
     if (!fs.existsSync(srcDir)) return empty;
 
     const repoBasPath = RepositoryService.getRepoBasPath();
-    if (!repoBasPath || !fs.existsSync(repoBasPath)) return empty;
-
+    const coreModulesPath = getCoreModulesPath();
     const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
+    const coreModules = DependencyScanner.scanSharedModules(coreModulesPath);
+    const availableModules = new Map(sharedModules);
+    for (const [key, info] of coreModules.entries()) {
+      availableModules.set(key, info);
+    }
 
     const localModules = new Set<string>();
     const basFiles = DependencyScanner.getFilesRecursive(srcDir, [".bas"]);
@@ -111,19 +130,22 @@ export class DependencyService {
       if (localModules.has(lowerModName)) return;
 
       let resolvedKey = lowerModName;
-      let found = sharedModules.has(resolvedKey);
+      let found = availableModules.has(resolvedKey);
       if (!found) {
-        if (sharedModules.has("mod_" + resolvedKey)) {
+        if (availableModules.has("mod_" + resolvedKey)) {
           resolvedKey = "mod_" + resolvedKey;
           found = true;
-        } else if (resolvedKey.startsWith("mod_") && sharedModules.has(resolvedKey.substring(4))) {
+        } else if (
+          resolvedKey.startsWith("mod_") &&
+          availableModules.has(resolvedKey.substring(4))
+        ) {
           resolvedKey = resolvedKey.substring(4);
           found = true;
         }
       }
 
       if (found) {
-        const resolvedInfo = sharedModules.get(resolvedKey);
+        const resolvedInfo = availableModules.get(resolvedKey);
         if (resolvedInfo && !resolvedDependencies.has(resolvedKey)) {
           resolvedDependencies.set(resolvedKey, resolvedInfo);
           filesToScan.push(resolvedInfo.sourceFilePath);
@@ -160,7 +182,8 @@ export class DependencyService {
     let dependenciesUpdated = false;
     const newDeps: Record<string, string> = {};
 
-    for (const [, info] of resolvedDependencies.entries()) {
+    for (const [key, info] of resolvedDependencies.entries()) {
+      if (coreModules.has(key)) continue;
       const actualName = info.moduleName;
       const version = info.version ?? "1.0.0.0";
       newDeps[actualName.toLowerCase()] = version;
@@ -186,13 +209,7 @@ export class DependencyService {
       }
     }
 
-    const data7ModulesDir = path.join(workspaceDir, "data7_modules");
-    const synced = DependencyScanner.syncDependencies(
-      srcDir,
-      data7ModulesDir,
-      repoBasPath,
-      projectMeta.dependencies,
-    );
+    const synced = this.syncProjectData7Modules(workspaceDir, projectMeta.dependencies);
 
     const missing = Array.from(missingModules);
     if (missing.length > 0 && !opts.silent) {
@@ -202,6 +219,12 @@ export class DependencyService {
     }
 
     return { synced, missing };
+  }
+
+  private static readDependencies(workspaceDir: string): Record<string, string> {
+    const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
+    const projectMeta = readProjectMeta(configJsonPath);
+    return projectMeta?.dependencies ? { ...projectMeta.dependencies } : {};
   }
 
   /**
@@ -348,7 +371,10 @@ export class DependencyService {
     const projectMeta = readProjectMeta(configJsonPath) ?? { dependencies: {} };
     const deps = projectMeta.dependencies ?? {};
     if (Object.keys(deps).length === 0) {
-      vscode.window.showWarningMessage("Nenhuma dependência declarada em data7.json.");
+      await this.refreshActiveProject();
+      vscode.window.showInformationMessage(
+        "Módulos core sincronizados. Nenhuma dependência declarada em data7.json.",
+      );
       return;
     }
 

@@ -12,6 +12,7 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { logger } from "../infra/logger";
 import { readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig } from "../project/project-config";
 import { debounce } from "../utils/debounce";
 
@@ -105,6 +106,7 @@ export class SyncWatcher {
               path.join(hiddenFolderDir, "data7_modules"),
               repoBasPath,
               {},
+              { alwaysSyncDirs: [getCoreModulesPath()] },
             );
             knownSharedModules = new Set(synced);
           } catch (err) {
@@ -136,8 +138,10 @@ export class SyncWatcher {
             path.join(hiddenFolderDir, "data7_modules"),
             repoBasPath,
             dependencies,
+            { alwaysSyncDirs: [getCoreModulesPath()] },
           );
         }
+        await DependencyService.detectAndSyncProjectDependencies(hiddenFolderDir, { silent: true });
 
         await WorkspaceSymbolIndexer.getInstance().indexWorkspace(
           vscode.workspace.workspaceFolders,
