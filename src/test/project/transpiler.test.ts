@@ -1074,28 +1074,28 @@ describe("SugarTranspiler — A6 numeric separator", () => {
   });
 });
 
-describe("SugarTranspiler — List Sugar and Arrow Functions", () => {
+describe("SugarTranspiler — removed list sugar remnants", () => {
   const ctx = makeContext({});
 
-  test("transpiles basic array literal declaration and pushes elements", () => {
+  test("does not materialize Dim x[] list sugar into TList_*", () => {
     const code = `Dim x[] As String = ["a", "b"]`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Dim __src0 As TList_String = New TList_String\(\)/);
-    assert.match(out, /__src0\.Push\("a"\)/);
-    assert.match(out, /__src0\.Push\("b"\)/);
-    assert.match(out, /Dim x As TList_String = __src0/);
+    assert.doesNotMatch(out, /TList_String/);
+    assert.doesNotMatch(out, /__src0/);
+    assert.doesNotMatch(out, /\.Push\(/);
   });
 
-  test("transpiles array literal with spread operator", () => {
+  test("does not materialize array literal with spread operator", () => {
     const code = `Dim x[] As String = ["a", ...other]`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /__src0\.Push\("a"\)/);
-    assert.match(out, /__src0\.Add\(other\)/);
+    assert.doesNotMatch(out, /__src0/);
+    assert.doesNotMatch(out, /\.Push\(/);
+    assert.doesNotMatch(out, /\.Add\(other\)/);
   });
 
-  test("transpiles non-capturing arrow function inside method call", () => {
+  test("does not synthesize non-capturing arrow functions inside method calls", () => {
     const code = [
       "Class TTest",
       "   Sub Run()",
@@ -1106,13 +1106,12 @@ describe("SugarTranspiler — List Sugar and Arrow Functions", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /lista\.Filter\(me\.__lambda0, NULL\)/);
-    assert.match(out, /Private Function __lambda0\(pValue As CoreSugarBaseItem, i As Integer, extra As Variant\) As Boolean/);
-    assert.match(out, /Dim x As String = CType\(core_sugars_list\.CoreSugarHelper\.UnwrapPrimitive\(pValue\), String\)/);
-    assert.match(out, /__lambda0 = x = "Item 1"/);
+    assert.match(out, /lista\.Filter\(\(x As String\) => x = "Item 1"\)/);
+    assert.doesNotMatch(out, /__lambda0/);
+    assert.doesNotMatch(out, /core_sugars_list/);
   });
 
-  test("transpiles capturing arrow function (closure) using generated closure class", () => {
+  test("does not synthesize capturing arrow functions or closure classes", () => {
     const code = [
       "Class TTest",
       "   Sub Run()",
@@ -1124,12 +1123,9 @@ describe("SugarTranspiler — List Sugar and Arrow Functions", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Class __LambdaClosure___lambda0/);
-    assert.match(out, /^\s{3}target As String$/m);
-    assert.match(out, /Dim __src0 As __LambdaClosure___lambda0 = New __LambdaClosure___lambda0\(\)/);
-    assert.match(out, /__src0\.target = target/);
-    assert.match(out, /lista\.Filter\(me\.__lambda0, __src0\)/);
-    assert.match(out, /Dim __closure As __LambdaClosure___lambda0 = CType\(extra, __LambdaClosure___lambda0\)/);
-    assert.match(out, /Dim target As String = CType\(__closure\.target, String\)/);
+    assert.match(out, /lista\.Filter\(\(x As String\) => x = target\)/);
+    assert.doesNotMatch(out, /__LambdaClosure/);
+    assert.doesNotMatch(out, /__lambda0/);
+    assert.doesNotMatch(out, /__closure/);
   });
 });

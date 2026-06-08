@@ -452,13 +452,11 @@ export class WorkspaceSymbolIndexer {
   }
 
   private indexVirtualSugarModules(): void {
-    for (const sugar of SugarRegistry.getAll()) {
-      if (sugar.namespace) {
-        const fileUri = `system://sugars/${sugar.namespace}.bas`;
-        const content = sugar.generateCode();
-        const parsed = SymbolParser.parseBasFile(fileUri, content);
-        this.cache.set(this.getCacheKey(fileUri), parsed);
-      }
+    for (const utility of SugarRegistry.getUtilityModules()) {
+      const fileUri = `system://sugars/${utility.namespace}.bas`;
+      const content = utility.generateCode();
+      const parsed = SymbolParser.parseBasFile(fileUri, content);
+      this.cache.set(this.getCacheKey(fileUri), parsed);
     }
   }
 
@@ -1048,14 +1046,6 @@ function appendClonedMembers(
       lookupSource = workspaceSymbols;
     }
   }
-  if (!hasTemplateMembers && lookupSource === source) {
-    const virtualUri = "system://sugars/core_sugars_list.bas";
-    const virtualSyms = indexer.getFileSymbols(virtualUri);
-    if (virtualSyms) {
-      lookupSource = virtualSyms.symbols;
-    }
-  }
-
   for (const sym of lookupSource) {
     if (sym.containerName?.toLowerCase() !== templateLower) continue;
     const clone: SymbolInfo = {

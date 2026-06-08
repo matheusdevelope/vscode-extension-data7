@@ -17,6 +17,11 @@ export interface Data7Configuration {
   readonly exclude: readonly string[];
   readonly diagnosticSeverity: Readonly<Record<string, DiagnosticSeverityOverride>>;
   readonly autoFormatOnSave: boolean;
+  readonly sugars: {
+    readonly enabled: boolean;
+    readonly enabledIds: readonly string[];
+    readonly disabledIds: readonly string[];
+  };
 }
 
 /**
@@ -52,6 +57,11 @@ export function readConfiguration(): Data7Configuration {
     diagnosticSeverity:
       cfg.get<Record<string, DiagnosticSeverityOverride>>("diagnosticSeverity") ?? {},
     autoFormatOnSave: cfg.get<boolean>("autoFormatOnSave") ?? false,
+    sugars: cfg.get<Data7Configuration["sugars"]>("sugars") ?? {
+      enabled: true,
+      enabledIds: [],
+      disabledIds: [],
+    },
   };
 }
 

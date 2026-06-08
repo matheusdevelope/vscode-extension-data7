@@ -652,33 +652,15 @@ export class Parser {
   private parseSingleVariableDeclaration(startLoc: TokenLocation, isConst: boolean): VariableDeclaration {
     const nameToken = this.expect("identifier", "<variable-name>");
     const name = nameToken?.value ?? "";
-    let isListSugar = false;
-    if (this.match("punct", "[") && Parser.eq(this.peek(1), "]")) {
-      this.advance(); // consume '['
-      this.advance(); // consume ']'
-      isListSugar = true;
-    }
     let type: TypeReference | undefined;
     let hasAsNew = false;
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      if (!isListSugar && (this.consume("keyword", "new") || this.consume("identifier", "new"))) {
+      if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
         hasAsNew = true;
       }
       const t = this.parseTypeReference();
       if (t !== null) {
-        if (isListSugar) {
-          type = {
-            kind: "TypeReference",
-            name: `TList_${flatTypeNameOf(t)}`,
-            typeArguments: [],
-            loc: t.loc,
-          };
-          if (!this.match("punct", "=")) {
-            hasAsNew = true;
-          }
-        } else {
-          type = t;
-        }
+        type = t;
       }
     }
     let initializer: Expression | undefined;
@@ -1872,33 +1854,15 @@ export class Parser {
       return null;
     }
     const name = nameToken.value;
-    let isListSugar = false;
-    if (this.match("punct", "[") && Parser.eq(this.peek(1), "]")) {
-      this.advance(); // consume '['
-      this.advance(); // consume ']'
-      isListSugar = true;
-    }
     let type: TypeReference = emptyTypeReference();
     let hasAsNew = false;
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      if (!isListSugar && (this.consume("keyword", "new") || this.consume("identifier", "new"))) {
+      if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
         hasAsNew = true;
       }
       const t = this.parseTypeReference();
       if (t !== null) {
-        if (isListSugar) {
-          type = {
-            kind: "TypeReference",
-            name: "TList",
-            typeArguments: [t],
-            loc: t.loc,
-          };
-          if (!this.match("punct", "=")) {
-            hasAsNew = true;
-          }
-        } else {
-          type = t;
-        }
+        type = t;
       }
     }
     let initializer: Expression | undefined;
@@ -2144,11 +2108,6 @@ function locOf(loc: TokenLocation, endLoc?: TokenLocation): {
     endLine: endLoc ? endLoc.line : loc.line,
     endChar: endLoc ? endLoc.column : loc.column,
   };
-}
-
-function flatTypeNameOf(typeRef: TypeReference): string {
-  if (typeRef.typeArguments.length === 0) return typeRef.name;
-  return `${typeRef.name}_${typeRef.typeArguments.map(flatTypeNameOf).join("_")}`;
 }
 
 function emptyTypeReference(): TypeReference {

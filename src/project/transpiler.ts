@@ -1,7 +1,7 @@
 import { parseInterpolation } from "../utils/interpolation";
 import { inferLiteralType } from "../utils/literal-type-infer";
 import { DependencyScanner } from "../analysis/dependency-scanner";
-import { SugarRegistry } from "./sugar-registry";
+import { SugarEngine, SugarRegistry, type SugarEngineOptions } from "./sugars";
 import type { EnumerableInfo } from "../analysis/enumerable-detector";
 import {
   GenericsMonomorphizer,
@@ -14,7 +14,6 @@ import {
   parseBasic,
   parseExpr,
   serializeUnitWithMap,
-  SugarsParserPlugin,
   GenericsParserPlugin,
 } from "./parser";
 import {
@@ -37,9 +36,6 @@ import {
   type BinaryExpression,
   type WithStatement,
   type NamespaceDeclaration,
-  type ArrayLiteralExpression,
-  type ArrowFunctionExpression,
-  type ParameterDeclaration,
 } from "./ast/ast";
 
 export interface SugarDiagnostic {
@@ -67,6 +63,7 @@ export interface TranspileContext {
   resolveTypeImport?(typeName: string): string | undefined;
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
+  sugarOptions?: SugarEngineOptions;
 }
 
 function mapGenericsWarning(warning: MonomorphizationWarning): SugarDiagnostic {
@@ -396,45 +393,6 @@ const NUMERIC_SEPARATOR_TRANSFORM = {
   },
 };
 
-class FreeVariableCollector extends ASTWalker {
-  public readonly freeVars = new Set<string>();
-  private readonly declared = new Set<string>();
-
-  constructor(params: string[]) {
-    super();
-    for (const p of params) this.declared.add(p);
-  }
-
-  override walk(node: Node): void {
-    if (node.kind === "Identifier") {
-      if (!this.declared.has(node.name)) {
-        this.freeVars.add(node.name);
-      }
-      return;
-    }
-    if (node.kind === "VariableDeclaration") {
-      this.declared.add(node.name);
-      if (node.initializer) this.walk(node.initializer);
-      return;
-    }
-    if (node.kind === "ForEachStatement") {
-      this.declared.add(node.elementVar.name);
-      this.walk(node.enumerable);
-      for (const s of node.body) this.walk(s);
-      return;
-    }
-    if (node.kind === "ForStatement") {
-      this.declared.add(node.counter.name);
-      this.walk(node.start);
-      this.walk(node.end);
-      if (node.step) this.walk(node.step);
-      for (const s of node.body) this.walk(s);
-      return;
-    }
-    super.walk(node);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // AST Walker Transpiler
 // ---------------------------------------------------------------------------
@@ -444,109 +402,17 @@ export class ASTSugarTransformer extends ASTWalker {
   public readonly usedSugars = new Set<string>();
   private srcCounter = 0;
   private idxCounter = 0;
-  private currentMethod: MethodDeclaration | null = null;
-  private currentClass: ClassDeclaration | null = null;
-  private currentNamespace: NamespaceDeclaration | null = null;
-  private currentDeclaredType: TypeReference | undefined = undefined;
-  private currentMethodInvocation: MethodInvocation | null = null;
-  private currentPrependedStatements: Statement[] = [];
-  private lastClosureVarName: string | null = null;
-  private lambdasToInject = new Map<ClassDeclaration, MethodDeclaration[]>();
-  private topLevelLambdas: TopLevelMember[] = [];
-
-  private getListTypeName(
-    expr: ArrayLiteralExpression,
-    declaredType?: TypeReference,
-    startLine?: number,
-  ): string {
-    if (declaredType?.name.startsWith("TList_")) {
-      return declaredType.name;
-    }
-    if (expr.elements.length > 0) {
-      const firstEl = expr.elements[0];
-      if (firstEl) {
-        const elemExpr = firstEl.kind === "SpreadExpression" ? firstEl.expression : firstEl;
-        const elemType = this.inferType(elemExpr, startLine);
-        if (elemType) {
-          return `TList_${elemType}`;
-        }
-      }
-    }
-    return "TList_Variant";
-  }
-
-  private collectCapturedVars(arrow: ArrowFunctionExpression, _?: number): string[] {
-    const params = arrow.parameters.map((p) => p.name);
-    const collector = new FreeVariableCollector(params);
-    if (Array.isArray(arrow.body)) {
-      for (const s of arrow.body) collector.walk(s);
-    } else {
-      collector.walk(arrow.body);
-    }
-
-    const captured: string[] = [];
-    if (this.currentMethod) {
-      const outerScope = this.getOuterMethodDeclarations();
-      for (const fv of collector.freeVars) {
-        if (outerScope.has(fv)) {
-          captured.push(fv);
-        }
-      }
-    }
-    return captured;
-  }
-
-  private getOuterMethodDeclarations(): Set<string> {
-    const set = new Set<string>();
-    if (!this.currentMethod) return set;
-    for (const p of this.currentMethod.parameters) {
-      set.add(p.name);
-    }
-    const walker = new (class extends ASTWalker {
-      override walk(node: Node): void {
-        if (node.kind === "VariableDeclaration") {
-          set.add(node.name);
-        } else if (node.kind === "DestructuredVariableDeclaration") {
-          for (const b of node.bindings) {
-            set.add(b.name);
-          }
-        }
-        super.walk(node);
-      }
-    })();
-    for (const s of this.currentMethod.body) {
-      walker.walk(s);
-    }
-    return set;
-  }
-
-  private getDelegateContext(): {
-    delegateName: string;
-    returnType?: string;
-    isSub: boolean;
-  } | null {
-    if (!this.currentMethodInvocation) return null;
-    const name = this.currentMethodInvocation.methodName.toLowerCase();
-    if (name === "filter") {
-      return { delegateName: "SugarFindDel", returnType: "Boolean", isSub: false };
-    }
-    if (name === "map") {
-      return { delegateName: "SugarMapDel", returnType: "CoreSugarBaseItem", isSub: false };
-    }
-    if (name === "foreach") {
-      return { delegateName: "SugarForEachDel", isSub: true };
-    }
-    if (name === "sort") {
-      return { delegateName: "SugarSortDel", returnType: "String", isSub: false };
-    }
-    return null;
-  }
 
   constructor(
     private readonly ctx: TranspileContext,
     private readonly allLines: string[],
+    private readonly sugarEngine: SugarEngine,
   ) {
     super();
+  }
+
+  private isSugarEnabled(id: string): boolean {
+    return this.sugarEngine.isEnabled(id);
   }
 
   private freshIndex(): string {
@@ -562,11 +428,10 @@ export class ASTSugarTransformer extends ASTWalker {
       node.members = this.transformMembers(node.members);
 
       // Auto-inject imports for all used sugars
-      for (const sugarId of this.usedSugars) {
-        const sugar = SugarRegistry.get(sugarId);
-        if (sugar?.namespace) {
+      for (const utility of SugarRegistry.getUtilityModules(this.usedSugars)) {
+        if (utility.namespace) {
           const hasImport = node.members.some(
-            (m) => m.kind === "ImportsDeclaration" && m.target === sugar.namespace,
+            (m) => m.kind === "ImportsDeclaration" && m.target === utility.namespace,
           );
           if (!hasImport) {
             let insertIdx = 0;
@@ -578,50 +443,27 @@ export class ASTSugarTransformer extends ASTWalker {
             }
             node.members.splice(insertIdx, 0, {
               kind: "ImportsDeclaration",
-              target: sugar.namespace,
+              target: utility.namespace,
               loc: node.loc,
             });
           }
         }
       }
 
-      // Inject top level lambdas if they weren't injected into a namespace
-      if (
-        this.topLevelLambdas.length > 0 &&
-        !node.members.some((m) => m.kind === "NamespaceDeclaration")
-      ) {
-        node.members.push(...this.topLevelLambdas);
-      }
       return;
     }
     if (node.kind === "NamespaceDeclaration") {
-      const prevNamespace = this.currentNamespace;
-      this.currentNamespace = node;
       node.members = this.transformMembers(node.members);
-      if (this.topLevelLambdas.length > 0) {
-        node.members.push(...this.topLevelLambdas);
-      }
-      this.currentNamespace = prevNamespace;
       return;
     }
     if (node.kind === "ClassDeclaration") {
-      const prevClass = this.currentClass;
-      this.currentClass = node;
       for (const m of node.members) {
         this.walk(m);
       }
-      const list = this.lambdasToInject.get(node);
-      if (list && list.length > 0) {
-        node.members.push(...list);
-      }
-      this.currentClass = prevClass;
       return;
     }
     if (node.kind === "MethodDeclaration") {
-      const prevMethod = this.currentMethod;
-      this.currentMethod = node;
       node.body = this.transformStatements(node.body);
-      this.currentMethod = prevMethod;
       return;
     }
     super.walk(node);
@@ -670,40 +512,16 @@ export class ASTSugarTransformer extends ASTWalker {
   }
 
   private transformStatement(s: Statement): Statement | Statement[] {
-    const prevPrepended = this.currentPrependedStatements;
-    this.currentPrependedStatements = [];
-
-    const prevDeclType = this.currentDeclaredType;
-    if (s.kind === "VariableDeclaration") {
-      this.currentDeclaredType = s.type;
-    } else if (s.kind === "Assignment") {
-      const inferred = this.inferType(s.target, s.loc?.startLine);
-      if (inferred?.startsWith("TList_")) {
-        this.currentDeclaredType = { kind: "TypeReference", name: inferred, typeArguments: [] };
-      }
-    }
-
-    const transformed = this.transformStatementRaw(s);
-
-    this.currentDeclaredType = prevDeclType;
-
-    const prepended = this.currentPrependedStatements;
-    this.currentPrependedStatements = prevPrepended;
-
-    if (prepended.length > 0) {
-      if (Array.isArray(transformed)) {
-        return [...prepended, ...transformed];
-      } else {
-        return [...prepended, transformed];
-      }
-    }
-    return transformed;
+    return this.transformStatementRaw(s);
   }
 
   private transformStatementRaw(s: Statement): Statement | Statement[] {
     switch (s.kind) {
       case "VariableDeclaration": {
-        if (s.initializer?.kind === "ObjectInitializerExpression") {
+        if (
+          this.isSugarEnabled("object-initializer") &&
+          s.initializer?.kind === "ObjectInitializerExpression"
+        ) {
           const objInit = s.initializer;
           const target: Identifier = { kind: "Identifier", name: s.name, loc: s.loc };
           const creation: ObjectCreationExpression = {
@@ -744,7 +562,7 @@ export class ASTSugarTransformer extends ASTWalker {
 
         if (s.initializer) {
           s.initializer = this.transformExpression(s.initializer, true, s.loc?.startLine);
-          if (s.initializer.kind === "TernaryExpression") {
+          if (this.isSugarEnabled("ternary") && s.initializer.kind === "TernaryExpression") {
             const cond = s.initializer.condition;
             const trueExpr = s.initializer.trueExpr;
             const falseExpr = s.initializer.falseExpr;
@@ -768,7 +586,10 @@ export class ASTSugarTransformer extends ASTWalker {
               },
             ];
           }
-          if (s.initializer.kind === "NullCoalescingExpression") {
+          if (
+            this.isSugarEnabled("null-coalesce") &&
+            s.initializer.kind === "NullCoalescingExpression"
+          ) {
             const left = s.initializer.left;
             const right = s.initializer.right;
             const target: Identifier = { kind: "Identifier", name: s.name, loc: s.loc };
@@ -828,7 +649,10 @@ export class ASTSugarTransformer extends ASTWalker {
               ];
             }
           }
-          if (s.initializer.kind === "OptionalChainingExpression") {
+          if (
+            this.isSugarEnabled("optional-chain") &&
+            s.initializer.kind === "OptionalChainingExpression"
+          ) {
             const depth = this.countOptionalChainDepth(s.initializer);
             if (depth > 3) {
               this.diagnostics.push({
@@ -864,7 +688,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "Assignment": {
-        if (s.value.kind === "ObjectInitializerExpression") {
+        if (this.isSugarEnabled("object-initializer") && s.value.kind === "ObjectInitializerExpression") {
           const objInit = s.value;
           const target = this.transformExpression(s.target, false, s.loc?.startLine);
           const creation: ObjectCreationExpression = {
@@ -923,7 +747,7 @@ export class ASTSugarTransformer extends ASTWalker {
           };
         }
 
-        if (s.operator === "??=") {
+        if (this.isSugarEnabled("null-coalesce") && s.operator === "??=") {
           const target = s.target;
           return {
             kind: "IfStatement",
@@ -939,7 +763,7 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           };
         }
-        if (s.operator === "||=") {
+        if (this.isSugarEnabled("logical-assignment") && s.operator === "||=") {
           const target = s.target;
           return {
             kind: "IfStatement",
@@ -949,7 +773,7 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           };
         }
-        if (s.operator === "&&=") {
+        if (this.isSugarEnabled("logical-assignment") && s.operator === "&&=") {
           const target = s.target;
           return {
             kind: "IfStatement",
@@ -960,7 +784,7 @@ export class ASTSugarTransformer extends ASTWalker {
           };
         }
 
-        if (s.value.kind === "TernaryExpression") {
+        if (this.isSugarEnabled("ternary") && s.value.kind === "TernaryExpression") {
           const cond = s.value.condition;
           const trueExpr = s.value.trueExpr;
           const falseExpr = s.value.falseExpr;
@@ -975,7 +799,7 @@ export class ASTSugarTransformer extends ASTWalker {
           };
         }
 
-        if (s.value.kind === "NullCoalescingExpression") {
+        if (this.isSugarEnabled("null-coalesce") && s.value.kind === "NullCoalescingExpression") {
           const left = s.value.left;
           const right = s.value.right;
           const isComplex = this.isComplexExpression(left);
@@ -1025,7 +849,7 @@ export class ASTSugarTransformer extends ASTWalker {
           }
         }
 
-        if (s.value.kind === "OptionalChainingExpression") {
+        if (this.isSugarEnabled("optional-chain") && s.value.kind === "OptionalChainingExpression") {
           const depth = this.countOptionalChainDepth(s.value);
           if (depth > 3) {
             this.diagnostics.push({
@@ -1052,7 +876,7 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           };
         }
-        if (s.value.kind === "ObjectInitializerExpression") {
+        if (this.isSugarEnabled("object-initializer") && s.value.kind === "ObjectInitializerExpression") {
           const objInit = s.value;
           const target = s.target;
           const creation: ObjectCreationExpression = {
@@ -1088,6 +912,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "EnumDeclaration": {
+        if (!this.isSugarEnabled("enum")) return s;
         this.usedSugars.add("enum");
         const enumName = s.name;
         const entries = s.entries.map((entry) => {
@@ -1214,6 +1039,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "DestructuredVariableDeclaration": {
+        if (!this.isSugarEnabled(s.isObject ? "destructure-object" : "destructure-array")) return s;
         const sourceName =
           s.initializer.kind === "Identifier" ? s.initializer.name : this.freshSource();
         const declarations: Statement[] = [];
@@ -1375,7 +1201,7 @@ export class ASTSugarTransformer extends ASTWalker {
       case "ExpressionStatement": {
         const isCall = s.expression.kind === "OptionalChainingExpression";
         s.expression = this.transformExpression(s.expression, isCall, s.loc?.startLine);
-        if (s.expression.kind === "OptionalChainingExpression") {
+        if (this.isSugarEnabled("optional-chain") && s.expression.kind === "OptionalChainingExpression") {
           const depth = this.countOptionalChainDepth(s.expression);
           if (depth > 3) {
             this.diagnostics.push({
@@ -1425,6 +1251,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "ForEachStatement": {
+        if (!this.isSugarEnabled("for-each") && !this.isSugarEnabled("for-each-range")) return s;
         s.enumerable = this.transformExpression(s.enumerable, false, s.loc?.startLine);
 
         // Range loop: For Each i In start..end
@@ -1556,6 +1383,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "UsingStatement": {
+        if (!this.isSugarEnabled("using")) return s;
         s.body = this.transformStatements(s.body);
         const resourceDecl: VariableDeclaration = {
           kind: "VariableDeclaration",
@@ -1596,6 +1424,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "MatchStatement": {
+        if (!this.isSugarEnabled("match")) return s;
         s.subject = this.transformExpression(s.subject, false, s.loc?.startLine);
         let condition: Expression | undefined;
         const thenBranch: Statement[] = [];
@@ -1639,7 +1468,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "ReturnStatement": {
-        if (s.expression?.kind === "TernaryExpression") {
+        if (this.isSugarEnabled("return-if") && s.expression?.kind === "TernaryExpression") {
           const cond = this.transformExpression(s.expression.condition, false, s.loc?.startLine);
           const trueExpr = this.transformExpression(s.expression.trueExpr, false, s.loc?.startLine);
           const falseExpr = this.transformExpression(
@@ -1721,43 +1550,7 @@ export class ASTSugarTransformer extends ASTWalker {
           );
         }
 
-        const mName = e.methodName.toLowerCase();
-        const isListMethod = ["filter", "map", "foreach", "sort"].includes(mName);
-
-        if (isListMethod) {
-          const prevCall = this.currentMethodInvocation;
-          this.currentMethodInvocation = e;
-
-          const lambdaArg = e.arguments[0];
-          if (lambdaArg?.kind === "ArrowFunctionExpression") {
-            this.lastClosureVarName = null;
-            const transformedLambda = this.transformExpression(lambdaArg, false, startLine);
-            e.arguments[0] = transformedLambda;
-
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            const extraExpr: Expression = this.lastClosureVarName
-              ? { kind: "Identifier", name: this.lastClosureVarName, loc: e.loc }
-              : { kind: "Literal", value: null, loc: e.loc };
-
-            if (e.arguments.length > 1) {
-              e.arguments[1] = extraExpr;
-            } else {
-              e.arguments.push(extraExpr);
-            }
-
-            for (let i = 2; i < e.arguments.length; i++) {
-              e.arguments[i] = this.transformExpression(e.arguments[i]!, false, startLine);
-            }
-
-            this.currentMethodInvocation = prevCall;
-            return e;
-          }
-        }
-
-        const prevCall = this.currentMethodInvocation;
-        this.currentMethodInvocation = e;
         e.arguments = e.arguments.map((arg) => this.transformExpression(arg, false, startLine));
-        this.currentMethodInvocation = prevCall;
         return e;
       }
       case "MemberAccess":
@@ -1799,6 +1592,7 @@ export class ASTSugarTransformer extends ASTWalker {
         return e;
 
       case "TernaryExpression":
+        if (!this.isSugarEnabled("ternary") && !this.isSugarEnabled("return-if")) return e;
         e.condition = this.transformExpression(e.condition, false, startLine);
         e.trueExpr = this.transformExpression(e.trueExpr, false, startLine);
         e.falseExpr = this.transformExpression(e.falseExpr, false, startLine);
@@ -1813,6 +1607,7 @@ export class ASTSugarTransformer extends ASTWalker {
         return e;
 
       case "NullCoalescingExpression":
+        if (!this.isSugarEnabled("null-coalesce")) return e;
         e.left = this.transformExpression(e.left, false, startLine);
         e.right = this.transformExpression(e.right, false, startLine);
         if (!isAssignmentRhsOrCallStatementContext) {
@@ -1826,6 +1621,7 @@ export class ASTSugarTransformer extends ASTWalker {
         return e;
 
       case "OptionalChainingExpression":
+        if (!this.isSugarEnabled("optional-chain")) return e;
         e.target = this.transformExpression(
           e.target,
           isAssignmentRhsOrCallStatementContext,
@@ -1847,6 +1643,7 @@ export class ASTSugarTransformer extends ASTWalker {
         return e;
 
       case "PipeExpression": {
+        if (!this.isSugarEnabled("pipe")) return e;
         const left = this.transformExpression(e.left, false, startLine);
         const right = e.right;
         if (right.kind === "MethodInvocation") {
@@ -1890,6 +1687,7 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "TaggedTemplateExpression": {
+        if (!this.isSugarEnabled(e.tag === "" ? "interpolation" : "tagged-template")) return e;
         const res = parseInterpolation(e.body);
         if (res.diagnostics.length > 0) {
           for (const d of res.diagnostics) {
@@ -1986,417 +1784,11 @@ export class ASTSugarTransformer extends ASTWalker {
         }
       }
       case "ArrayLiteralExpression": {
-        this.usedSugars.add("list");
-        const tempName = this.freshSource();
-        const listTypeName = this.getListTypeName(e, this.currentDeclaredType, startLine);
-        const typeRef: TypeReference = {
-          kind: "TypeReference",
-          name: listTypeName,
-          typeArguments: [],
-          loc: e.loc,
-        };
-
-        this.currentPrependedStatements.push({
-          kind: "VariableDeclaration",
-          name: tempName,
-          type: typeRef,
-          initializer: {
-            kind: "ObjectCreationExpression",
-            type: typeRef,
-            arguments: [],
-            loc: e.loc,
-          },
-          loc: e.loc,
-        });
-
-        for (const el of e.elements) {
-          if (el.kind === "SpreadExpression") {
-            const transformedExpr = this.transformExpression(el.expression, false, startLine);
-            this.currentPrependedStatements.push({
-              kind: "ExpressionStatement",
-              expression: {
-                kind: "MethodInvocation",
-                callee: { kind: "Identifier", name: tempName, loc: e.loc },
-                methodName: "Add",
-                typeArguments: [],
-                arguments: [transformedExpr],
-                loc: e.loc,
-              },
-              loc: e.loc,
-            });
-          } else {
-            const transformedExpr = this.transformExpression(el, false, startLine);
-            this.currentPrependedStatements.push({
-              kind: "ExpressionStatement",
-              expression: {
-                kind: "MethodInvocation",
-                callee: { kind: "Identifier", name: tempName, loc: e.loc },
-                methodName: "Push",
-                typeArguments: [],
-                arguments: [transformedExpr],
-                loc: e.loc,
-              },
-              loc: e.loc,
-            });
-          }
-        }
-
-        return { kind: "Identifier", name: tempName, loc: e.loc };
+        return e;
       }
 
       case "ArrowFunctionExpression": {
-        this.usedSugars.add("list");
-        const arrow = e;
-
-        // 1. Identify captured variables
-        const capturedVars = this.collectCapturedVars(arrow, startLine);
-
-        // 2. Generate a unique name for the lambda method
-        const lambdaName = `__lambda${this.idxCounter++}`;
-
-        // 3. Generate a closure class if there are captured variables
-        let closureTypeName: string | undefined;
-        let closureVarName: string | undefined;
-
-        if (capturedVars.length > 0) {
-          closureTypeName = `__LambdaClosure_${lambdaName}`;
-          closureVarName = this.freshSource();
-
-          // Generate the closure class declaration
-          const closureFields: ClassMember[] = capturedVars.map((v) => {
-            // Infer type of the captured variable
-            const vType =
-              this.inferType({ kind: "Identifier", name: v, loc: arrow.loc }, startLine) ??
-              "Variant";
-            return {
-              kind: "FieldDeclaration",
-              name: v,
-              type: { kind: "TypeReference", name: vType, typeArguments: [], loc: arrow.loc },
-              modifiers: ["Public"],
-              loc: arrow.loc,
-            };
-          });
-
-          const closureClass: ClassDeclaration = {
-            kind: "ClassDeclaration",
-            name: closureTypeName,
-            typeParameters: [],
-            members: [
-              ...closureFields,
-              {
-                kind: "MethodDeclaration",
-                name: "New",
-                isConstructor: true,
-                typeParameters: [],
-                parameters: [],
-                body: [{ kind: "OpaqueStatement", text: "MyBase.New()", loc: arrow.loc }],
-                loc: arrow.loc,
-              },
-            ],
-            loc: arrow.loc,
-          };
-
-          // Add this closure class as a top-level member of the CompilationUnit
-          this.topLevelLambdas.push(closureClass);
-
-          // At the call site, prepend the closure instantiation and population statements
-          const closureTypeRef: TypeReference = {
-            kind: "TypeReference",
-            name: closureTypeName,
-            typeArguments: [],
-            loc: arrow.loc,
-          };
-
-          this.currentPrependedStatements.push({
-            kind: "VariableDeclaration",
-            name: closureVarName,
-            type: closureTypeRef,
-            initializer: {
-              kind: "ObjectCreationExpression",
-              type: closureTypeRef,
-              arguments: [],
-              loc: arrow.loc,
-            },
-            loc: arrow.loc,
-          });
-
-          for (const v of capturedVars) {
-            this.currentPrependedStatements.push({
-              kind: "Assignment",
-              target: {
-                kind: "MemberAccess",
-                target: { kind: "Identifier", name: closureVarName, loc: arrow.loc },
-                member: v,
-                loc: arrow.loc,
-              },
-              value: { kind: "Identifier", name: v, loc: arrow.loc },
-              loc: arrow.loc,
-            });
-          }
-        }
-
-        // 4. Generate the delegate/lambda method definition
-        // Determine lambda method parameter types and return type based on delegate context
-        let isSub = false;
-        let returnTypeName = "Variant";
-
-        const callContext = this.getDelegateContext();
-        if (callContext) {
-          isSub = callContext.isSub;
-          returnTypeName = callContext.returnType ?? "Variant";
-        }
-
-        const lambdaParams: ParameterDeclaration[] = [
-          {
-            kind: "ParameterDeclaration",
-            name: "pValue",
-            type: {
-              kind: "TypeReference",
-              name: "CoreSugarBaseItem",
-              typeArguments: [],
-              loc: arrow.loc,
-            },
-            loc: arrow.loc,
-          },
-          {
-            kind: "ParameterDeclaration",
-            name: "i",
-            type: { kind: "TypeReference", name: "Integer", typeArguments: [], loc: arrow.loc },
-            loc: arrow.loc,
-          },
-          {
-            kind: "ParameterDeclaration",
-            name: "extra",
-            type: { kind: "TypeReference", name: "Variant", typeArguments: [], loc: arrow.loc },
-            loc: arrow.loc,
-          },
-        ];
-
-        const lambdaBody: Statement[] = [];
-
-        // Cast extra to closure class if there are captured variables
-        if (closureTypeName && closureVarName) {
-          const closureTypeRef: TypeReference = {
-            kind: "TypeReference",
-            name: closureTypeName,
-            typeArguments: [],
-            loc: arrow.loc,
-          };
-          lambdaBody.push({
-            kind: "VariableDeclaration",
-            name: "__closure",
-            type: closureTypeRef,
-            initializer: {
-              kind: "MethodInvocation",
-              callee: undefined,
-              methodName: "CType",
-              typeArguments: [],
-              arguments: [
-                { kind: "Identifier", name: "extra", loc: arrow.loc },
-                { kind: "Identifier", name: closureTypeName, loc: arrow.loc },
-              ],
-              loc: arrow.loc,
-            },
-            loc: arrow.loc,
-          });
-
-          // Re-bind each captured variable locally in the lambda
-          for (const v of capturedVars) {
-            const vType =
-              this.inferType({ kind: "Identifier", name: v, loc: arrow.loc }, startLine) ??
-              "Variant";
-            lambdaBody.push({
-              kind: "VariableDeclaration",
-              name: v,
-              type: { kind: "TypeReference", name: vType, typeArguments: [], loc: arrow.loc },
-              initializer: {
-                kind: "MethodInvocation",
-                callee: undefined,
-                methodName: "CType",
-                typeArguments: [],
-                arguments: [
-                  {
-                    kind: "MemberAccess",
-                    target: { kind: "Identifier", name: "__closure", loc: arrow.loc },
-                    member: v,
-                    loc: arrow.loc,
-                  },
-                  { kind: "Identifier", name: vType, loc: arrow.loc },
-                ],
-                loc: arrow.loc,
-              },
-              loc: arrow.loc,
-            });
-          }
-        }
-
-        // Re-bind lambda parameters by unwrapping pValue
-        arrow.parameters.forEach((param) => {
-          const pType = param.type.name;
-          let unwrapMethod = "UnwrapPrimitive";
-          if (pType.toLowerCase() === "tdatetime") {
-            unwrapMethod = "UnwrapDateTime";
-          } else if (
-            !["string", "integer", "double", "boolean", "variant"].includes(pType.toLowerCase())
-          ) {
-            unwrapMethod = "UnwrapObject";
-          }
-
-          const unwrapCall: MethodInvocation = {
-            kind: "MethodInvocation",
-            callee: {
-              kind: "Identifier",
-              name: "core_sugars_list.CoreSugarHelper",
-              loc: arrow.loc,
-            },
-            methodName: unwrapMethod,
-            typeArguments: [],
-            arguments: [{ kind: "Identifier", name: "pValue", loc: arrow.loc }],
-            loc: arrow.loc,
-          };
-
-          lambdaBody.push({
-            kind: "VariableDeclaration",
-            name: param.name,
-            type: param.type,
-            initializer: {
-              kind: "MethodInvocation",
-              callee: undefined,
-              methodName: "CType",
-              typeArguments: [],
-              arguments: [unwrapCall, { kind: "Identifier", name: pType, loc: arrow.loc }],
-              loc: arrow.loc,
-            },
-            loc: arrow.loc,
-          });
-        });
-
-        // Parse lambda body statement(s)
-        if (Array.isArray(arrow.body)) {
-          const transformedBody = this.transformStatements(arrow.body);
-          lambdaBody.push(...transformedBody);
-        } else {
-          const transformedExpr = this.transformExpression(arrow.body, false, startLine);
-          if (isSub) {
-            lambdaBody.push({
-              kind: "ExpressionStatement",
-              expression: transformedExpr,
-              loc: arrow.loc,
-            });
-          } else {
-            let wrappedExpr = transformedExpr;
-            if (callContext?.delegateName === "SugarMapDel") {
-              const retType = this.inferType(transformedExpr, startLine) ?? "Variant";
-              const retTypeLower = retType.toLowerCase();
-              if (retTypeLower === "tdatetime") {
-                wrappedExpr = {
-                  kind: "ObjectCreationExpression",
-                  type: {
-                    kind: "TypeReference",
-                    name: "core_sugars_list.CoreSugarDateTimeWrapper",
-                    typeArguments: [],
-                    loc: arrow.loc,
-                  },
-                  arguments: [transformedExpr],
-                  loc: arrow.loc,
-                };
-              } else if (
-                ["string", "integer", "double", "boolean", "variant"].includes(retTypeLower)
-              ) {
-                wrappedExpr = {
-                  kind: "ObjectCreationExpression",
-                  type: {
-                    kind: "TypeReference",
-                    name: "core_sugars_list.CoreSugarValueWrapper",
-                    typeArguments: [],
-                    loc: arrow.loc,
-                  },
-                  arguments: [transformedExpr],
-                  loc: arrow.loc,
-                };
-              } else {
-                wrappedExpr = {
-                  kind: "ObjectCreationExpression",
-                  type: {
-                    kind: "TypeReference",
-                    name: "core_sugars_list.CoreSugarObjectWrapper",
-                    typeArguments: [],
-                    loc: arrow.loc,
-                  },
-                  arguments: [transformedExpr],
-                  loc: arrow.loc,
-                };
-              }
-            }
-
-            lambdaBody.push({
-              kind: "Assignment",
-              target: { kind: "Identifier", name: lambdaName, loc: arrow.loc },
-              value: wrappedExpr,
-              loc: arrow.loc,
-            });
-          }
-        }
-
-        const returnTypeRef = isSub
-          ? undefined
-          : {
-              kind: "TypeReference" as const,
-              name: returnTypeName,
-              typeArguments: [],
-              loc: arrow.loc,
-            };
-
-        const lambdaMethod: MethodDeclaration = {
-          kind: "MethodDeclaration",
-          name: lambdaName,
-          typeParameters: [],
-          parameters: lambdaParams,
-          returnType: returnTypeRef,
-          body: lambdaBody,
-          modifiers: this.currentClass ? ["Private"] : ["Public", "Shared"],
-          loc: arrow.loc,
-        };
-
-        if (this.currentClass) {
-          let classList = this.lambdasToInject.get(this.currentClass);
-          if (!classList) {
-            classList = [];
-            this.lambdasToInject.set(this.currentClass, classList);
-          }
-          classList.push(lambdaMethod);
-        } else {
-          const containerName = `__LambdaContainer_${lambdaName}`;
-          const staticClass: ClassDeclaration = {
-            kind: "ClassDeclaration",
-            name: containerName,
-            typeParameters: [],
-            members: [lambdaMethod],
-            modifiers: ["Shared"],
-            loc: arrow.loc,
-          };
-          this.topLevelLambdas.push(staticClass);
-        }
-
-        if (closureVarName) {
-          this.lastClosureVarName = closureVarName;
-        }
-
-        if (this.currentClass) {
-          return {
-            kind: "MemberAccess",
-            target: { kind: "Identifier", name: "me", loc: arrow.loc },
-            member: lambdaName,
-            loc: arrow.loc,
-          };
-        } else {
-          return {
-            kind: "MemberAccess",
-            target: { kind: "Identifier", name: `__LambdaContainer_${lambdaName}`, loc: arrow.loc },
-            member: lambdaName,
-            loc: arrow.loc,
-          };
-        }
+        return e;
       }
 
       case "ObjectInitializerExpression": {
@@ -2541,17 +1933,19 @@ export class ASTSugarTransformer extends ASTWalker {
 
 export class SugarTranspiler {
   public static transpile(code: string, ctx: TranspileContext): TranspileResult {
+    const sugarEngine = new SugarEngine(ctx.sugarOptions);
     const eol = code.includes("\r\n") ? "\r\n" : "\n";
     let lines = code.split(/\r?\n/);
 
     // 1. Pre-process lines with text pre-passes
-    // Numeric separators
-    lines = lines.map((line) => NUMERIC_SEPARATOR_TRANSFORM.apply(line));
+    if (sugarEngine.isEnabled("numeric-separator")) {
+      lines = lines.map((line) => NUMERIC_SEPARATOR_TRANSFORM.apply(line));
+    }
     lines = lines.map(normalizeMetaProgrammingSyntax);
     const processedCode = lines.join(eol);
 
     // 2. Parse to AST (Check if has structural definitions first)
-    const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
+    const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
     const tempParse = parseBasic(processedCode, { plugins });
     const hasStructural = tempParse.unit.members.some(
       (m) =>
@@ -2583,8 +1977,10 @@ export class SugarTranspiler {
     injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
 
     // 4. Transform AST-to-AST for sugars
-    const transformer = new ASTSugarTransformer(ctx, transformerLines);
-    transformer.walk(finalUnit);
+    const transformer = new ASTSugarTransformer(ctx, transformerLines, sugarEngine);
+    if (sugarEngine.anyEnabled()) {
+      transformer.walk(finalUnit);
+    }
 
     // 5. Serialize AST back to code text, generating the lineMap!
     let serializeResult = serializeUnitWithMap(finalUnit, { eol, omitPublicFieldModifiers: true });

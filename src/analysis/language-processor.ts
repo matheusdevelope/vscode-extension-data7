@@ -1,10 +1,11 @@
 import * as vscode from "vscode";
-import { parseBasic, tokenize, SugarsParserPlugin, GenericsParserPlugin, parseExpr } from "../project/parser";
+import { parseBasic, tokenize, GenericsParserPlugin, parseExpr } from "../project/parser";
 import type { CompilationUnit, Expression } from "../project/ast/ast";
 import type { ParseError } from "../project/parser/parser-errors";
 import type { Token } from "../project/parser/token-types";
 import { logger } from "../infra/logger";
 import { isExcluded, readConfiguration } from "../infra/configuration";
+import { SugarEngine } from "../project/sugars";
 
 export interface CachedDocument {
   readonly uri: string;
@@ -120,7 +121,13 @@ export class LanguageProcessor {
   private parseAndCache(uri: string, content: string, version: number): CachedDocument {
     const key = this.normalizeUri(uri);
     try {
-      const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
+      const sugarConfig = readConfiguration().sugars;
+      const sugarEngine = new SugarEngine({
+        enabled: sugarConfig.enabled,
+        enabledSugarIds: sugarConfig.enabledIds,
+        disabledSugarIds: sugarConfig.disabledIds,
+      });
+      const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
       const { unit, errors } = parseBasic(content, { plugins });
       const tokens = tokenize(content);
       const cachedDoc: CachedDocument = {

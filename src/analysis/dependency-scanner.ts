@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { logger } from "../infra/logger";
-import { parseBasic, SugarsParserPlugin, GenericsParserPlugin } from "../project/parser";
+import { parseBasic, GenericsParserPlugin } from "../project/parser";
+import { SugarEngine } from "../project/sugars";
 import type { Node } from "../project/ast/ast";
 
 // -----------------------------------------------------------------------------
@@ -189,7 +190,7 @@ export class DependencyScanner {
       try {
         const content = fs.readFileSync(file, "utf-8");
         const { unit } = parseBasic(content, {
-          plugins: [new SugarsParserPlugin(), new GenericsParserPlugin()],
+          plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
         });
         for (const member of unit.members) {
           if (member.kind === "NamespaceDeclaration") {
@@ -205,7 +206,7 @@ export class DependencyScanner {
       try {
         const content = fs.readFileSync(file, "utf-8");
         const { unit } = parseBasic(content, {
-          plugins: [new SugarsParserPlugin(), new GenericsParserPlugin()],
+          plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
         });
 
         // 1. Scan explicit imports

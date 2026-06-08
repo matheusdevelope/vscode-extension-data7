@@ -4,6 +4,7 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
+import { readConfiguration } from "../infra/configuration";
 import type {
   ExternalGenericTemplate,
   RequestedGenericInstantiation,
@@ -82,6 +83,7 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
     indexer.updateFileContent(sourceUriStr, rawCode);
     refreshIndexerFromOpenDocuments(indexer);
     const externalGenericTemplates = collectExternalGenericTemplates(indexer);
+    const sugarConfig = readConfiguration().sugars;
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -96,6 +98,11 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
         indexer,
         externalGenericTemplates,
       ),
+      sugarOptions: {
+        enabled: sugarConfig.enabled,
+        enabledSugarIds: sugarConfig.enabledIds,
+        disabledSugarIds: sugarConfig.disabledIds,
+      },
     };
 
     try {

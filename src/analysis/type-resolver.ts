@@ -159,6 +159,7 @@ export class TypeResolver {
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo | undefined {
     const genericBaseName = genericBaseNameOf(qualifiedOrSimpleName);
+    const isGenericReference = genericBaseName !== undefined;
     qualifiedOrSimpleName = normalizeGenericTypeName(qualifiedOrSimpleName);
     if (qualifiedOrSimpleName.includes(".")) {
       const lastDot = qualifiedOrSimpleName.lastIndexOf(".");
@@ -173,7 +174,10 @@ export class TypeResolver {
       const byName = lookupSystemClassByName(namePart)[0];
       if (byName) return byName;
 
-      return indexer.findSymbolByName(namePart) ?? findGenericBaseSymbol(genericBaseName, indexer);
+      return (
+        indexer.findSymbolByName(namePart) ??
+        (isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer))
+      );
     }
 
     const sys = lookupSystemClassByName(qualifiedOrSimpleName)[0];
@@ -181,7 +185,7 @@ export class TypeResolver {
 
     return (
       indexer.findSymbolByName(qualifiedOrSimpleName) ??
-      findGenericBaseSymbol(genericBaseName, indexer)
+      (isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer))
     );
   }
 
@@ -788,7 +792,9 @@ export class TypeResolver {
     const visited = new Set<string>();
     while (current && current !== target && !visited.has(current)) {
       visited.add(current);
-      const cls = TypeResolver.findClassSymbol(current, indexer);
+      const cls =
+        TypeResolver.findClassSymbol(current, indexer) ??
+        findGenericBaseSymbol(genericBaseNameOf(current), indexer);
       if (!cls) break;
       const parent = TypeResolver.resolveParent(cls);
       current = parent ? parent.toLowerCase() : "";

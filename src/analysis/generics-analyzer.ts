@@ -1,4 +1,5 @@
-import { parseBasic, SugarsParserPlugin, GenericsParserPlugin } from "../project/parser";
+import { parseBasic, GenericsParserPlugin } from "../project/parser";
+import { SugarEngine } from "../project/sugars";
 import {
   ASTWalker,
   type CompilationUnit,
@@ -82,7 +83,8 @@ export function collectGenericsContext(
   options: GenericsAnalysisOptions = {},
 ): GenericsContext {
   const lines = code.split(/\r?\n/);
-  const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
+  const sugarEngine = new SugarEngine();
+  const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
   const { unit } = parseBasic(code, { plugins });
 
   const collector = new ASTGenericsCollector(unit, lines, options.externalTemplates);

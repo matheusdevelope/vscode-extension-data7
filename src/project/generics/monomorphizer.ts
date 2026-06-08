@@ -65,8 +65,9 @@ import { type GenericTemplate, GlobalInstantiatedSet, TemplateRegistry } from ".
 import type { MonomorphizationWarning, MonomorphizationWarningCode } from "./warnings";
 import { substituteTypeParamsInLine } from "./substitute";
 import { findInnerMostGenericUsage } from "../../analysis/generics-analyzer";
-import { parseBasic, SugarsParserPlugin, GenericsParserPlugin } from "../parser";
+import { parseBasic, GenericsParserPlugin } from "../parser";
 import { SugarRegistry } from "../sugar-registry";
+import { SugarEngine } from "../sugars";
 
 // ============================================================================
 // Public API
@@ -123,14 +124,13 @@ export class GenericsMonomorphizer {
       requestableTemplateNames: new Set<string>(),
     };
 
-    // Pre-populate templates from SugarRegistry
-    for (const sugar of SugarRegistry.getAll()) {
-      if (sugar.namespace) {
-        const virtualCode = sugar.generateCode();
-        const plugins = [new SugarsParserPlugin(), new GenericsParserPlugin()];
-        const parsed = parseBasic(virtualCode, { plugins });
-        collectAndPruneIn(parsed.unit.members, ctx, false);
-      }
+    // Pre-populate templates from sugar utility modules.
+    for (const utility of SugarRegistry.getUtilityModules()) {
+      const virtualCode = utility.generateCode();
+      const sugarEngine = new SugarEngine();
+      const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
+      const parsed = parseBasic(virtualCode, { plugins });
+      collectAndPruneIn(parsed.unit.members, ctx, false);
     }
 
     // Step 1.

@@ -526,6 +526,38 @@
           "default": false,
           "deprecationMessage": "Deprecado em favor de `editor.formatOnSave` (suporte nativo do VS Code). Defina `\"editor.formatOnSave\": true` em `[d7basic]` para o mesmo efeito.",
           "markdownDescription": "**Deprecado.** Use `#editor.formatOnSave#` no escopo `[d7basic]`. Quando habilitado, formata automaticamente o arquivo `.bas` ao salvar."
+        },
+        "data7.sugars": {
+          "type": "object",
+          "default": {
+            "enabled": true,
+            "enabledIds": [],
+            "disabledIds": []
+          },
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Habilita ou desabilita o pipeline central de açúcares sintáticos no build, preview e ferramentas de transpilação."
+            },
+            "enabledIds": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "description": "Quando preenchido, limita o pipeline aos IDs de sugars informados."
+            },
+            "disabledIds": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "description": "IDs de sugars a desabilitar mesmo quando o pipeline geral estiver ligado."
+            }
+          },
+          "description": "Configura o pipeline central de açúcares sintáticos da linguagem Data7 Basic."
         }
       }
     }

@@ -8,7 +8,7 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { isExcluded } from "../infra/configuration";
+import { isExcluded, readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { logger } from "../infra/logger";
 import * as vscode from "vscode";
@@ -159,6 +159,7 @@ export class Builder {
       indexer,
       externalGenericTemplates,
     );
+    const sugarConfig = readConfiguration().sugars;
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -171,6 +172,11 @@ export class Builder {
       resolveTypeImport: (typeName: string) => this.resolveTypeImport(typeName, indexer),
       externalGenericTemplates,
       requestedGenericInstantiations,
+      sugarOptions: {
+        enabled: sugarConfig.enabled,
+        enabledSugarIds: sugarConfig.enabledIds,
+        disabledSugarIds: sugarConfig.disabledIds,
+      },
     };
     return { transpileCtx, indexer };
   }
@@ -556,8 +562,9 @@ export class Builder {
       }
     }
 
-    // 2. Resolve transitive sugar dependencies
+    // 2. Resolve transitive sugar dependencies and their utility modules.
     const resolvedSugars = SugarRegistry.resolveDependencies(globalUsedSugars);
+    const resolvedSugarUtilities = SugarRegistry.getUtilityModules(resolvedSugars);
 
     // 3. Register virtual sugar modules in build indexer and add to compile list
     interface ModuleData {
@@ -570,21 +577,18 @@ export class Builder {
     const modulesToCompile: ModuleData[] = [];
     const newModulesMetadata: Record<string, ModuleMetadata> = {};
 
-    for (const sugarId of resolvedSugars) {
-      const sugar = SugarRegistry.get(sugarId);
-      if (sugar?.namespace) {
-        const virtualSugarCode = sugar.generateCode();
-        const virtualSugarUri = `file:///synthetic/${sugar.namespace}.bas`;
-        buildIndexer.updateFileContent(virtualSugarUri, virtualSugarCode);
+    for (const utility of resolvedSugarUtilities) {
+      const virtualSugarCode = utility.generateCode();
+      const virtualSugarUri = `file:///synthetic/${utility.namespace}.bas`;
+      buildIndexer.updateFileContent(virtualSugarUri, virtualSugarCode);
 
-        modulesToCompile.push({
-          name: sugar.namespace,
-          code: this.optimizeCode(virtualSugarCode, minify, stripComments),
-          folderId: rootFolderId,
-          aberto: false,
-          ordemAbertura: 0,
-        });
-      }
+      modulesToCompile.push({
+        name: utility.namespace,
+        code: this.optimizeCode(virtualSugarCode, minify, stripComments),
+        folderId: rootFolderId,
+        aberto: false,
+        ordemAbertura: 0,
+      });
     }
 
     const mainUri = vscode.Uri.file(mainCodePath).toString();

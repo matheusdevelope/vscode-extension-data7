@@ -15,9 +15,15 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { getDocsRoot } from "../utils/paths";
 import { listExamples } from "../resources/examples";
+import { SugarRegistry } from "../../project/sugars";
 
 interface SugarInfo {
   readonly name: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly enabledByDefault: boolean;
+  readonly dependencies: readonly string[];
+  readonly utilityModules: readonly string[];
   readonly demonstratesFirst?: string;
   readonly hasExpected: boolean;
   readonly examplesCount: number;
@@ -26,17 +32,19 @@ interface SugarInfo {
 
 function buildSugarCatalog(): SugarInfo[] {
   const sugarRoot = path.join(getDocsRoot(), "exemple", "sugar");
-  if (!fs.existsSync(sugarRoot)) return [];
+  const sugarFolders = fs.existsSync(sugarRoot)
+    ? new Set(
+        fs
+          .readdirSync(sugarRoot)
+          .filter((entry) => {
+            const full = path.join(sugarRoot, entry);
+            return fs.statSync(full).isDirectory();
+          }),
+      )
+    : new Set<string>();
 
-  const sugarFolders = fs
-    .readdirSync(sugarRoot)
-    .filter((entry) => {
-      const full = path.join(sugarRoot, entry);
-      return fs.statSync(full).isDirectory();
-    })
-    .sort();
-
-  return sugarFolders.map((sugar) => {
+  return SugarRegistry.catalog().map((registered) => {
+    const sugar = registered.id;
     const sugarPrefix = `sugar/${sugar}/`;
     const examples = listExamples().filter((e) => e.relativePath.startsWith(sugarPrefix));
     const first = examples
@@ -44,8 +52,13 @@ function buildSugarCatalog(): SugarInfo[] {
       .sort((a, b) => a.relativePath.localeCompare(b.relativePath))[0];
     return {
       name: sugar,
+      displayName: registered.displayName,
+      description: registered.description,
+      enabledByDefault: registered.enabledByDefault,
+      dependencies: registered.dependencies,
+      utilityModules: registered.utilityModules,
       demonstratesFirst: first?.header?.demonstrates,
-      hasExpected: fs.existsSync(path.join(sugarRoot, sugar, "_expected")),
+      hasExpected: sugarFolders.has(sugar) && fs.existsSync(path.join(sugarRoot, sugar, "_expected")),
       examplesCount: examples.length,
       examples: examples.map((e) => e.relativePath).sort(),
     };
