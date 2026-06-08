@@ -5,11 +5,22 @@ import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { readConfiguration } from "../infra/configuration";
-import type {
-  ExternalGenericTemplate,
-  RequestedGenericInstantiation,
-} from "../project/generics";
+import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "../project/generics";
 
+const PREVIEW_PRIMITIVE_TYPE_NAMES = new Set([
+  "boolean",
+  "byte",
+  "currency",
+  "date",
+  "double",
+  "integer",
+  "long",
+  "single",
+  "string",
+  "tdatetime",
+  "variant",
+  "void",
+]);
 
 export class D7PreviewContentProvider implements vscode.TextDocumentContentProvider {
   public static readonly scheme = "data7-preview";
@@ -125,11 +136,7 @@ function collectExternalGenericTemplates(
   const templates: ExternalGenericTemplate[] = [];
   const seen = new Set<string>();
   for (const sym of indexer.getAllSymbols()) {
-    if (
-      sym.kind !== "class" &&
-      sym.kind !== "delegate" &&
-      sym.kind !== "method"
-    ) {
+    if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") {
       continue;
     }
     if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
@@ -168,15 +175,38 @@ function collectRequestedGenericInstantiations(
       const key = `${usage.templateName.toLowerCase()}<${usage.typeArgs.join(",")}>`;
       if (seen.has(key)) continue;
       seen.add(key);
-      requests.push({ templateName: usage.templateName, typeArgs: usage.typeArgs });
+      const qualifiedTypeArgs = usage.typeArgs.map((typeArg) =>
+        qualifyGenericTypeArgument(typeArg, fileSyms.fileUri, indexer),
+      );
+      requests.push({
+        templateName: usage.templateName,
+        typeArgs: qualifiedTypeArgs,
+        flatTypeArgs: usage.typeArgs,
+      });
     }
   }
   return requests;
 }
 
-function collectOpenTypeParams(
-  templates: readonly ExternalGenericTemplate[],
-): ReadonlySet<string> {
+function qualifyGenericTypeArgument(
+  typeArg: string,
+  contextFileUri: string,
+  indexer: WorkspaceSymbolIndexer,
+): string {
+  const trimmed = typeArg.trim();
+  if (!trimmed || trimmed.includes(".")) return typeArg;
+  if (PREVIEW_PRIMITIVE_TYPE_NAMES.has(trimmed.toLowerCase())) return typeArg;
+
+  const symbol = indexer.findSymbolByName(trimmed, contextFileUri);
+  if (!symbol?.containerName) return typeArg;
+  if (symbol.isSyntheticGenericInstantiation) return typeArg;
+  if (symbol.kind !== "class" && symbol.kind !== "structure" && symbol.kind !== "delegate") {
+    return typeArg;
+  }
+  return `${symbol.containerName}.${trimmed}`;
+}
+
+function collectOpenTypeParams(templates: readonly ExternalGenericTemplate[]): ReadonlySet<string> {
   const result = new Set<string>();
   for (const template of templates) {
     for (const typeParam of template.typeParams) {
@@ -195,7 +225,7 @@ function hasOpenGenericTypeArgument(
 
 function isData7SourceDocument(doc: vscode.TextDocument): boolean {
   return (
-    (doc.languageId === "d7basic" || doc.fileName?.endsWith(".bas")) &&
+    (doc.languageId === "d7basic" || doc.fileName.endsWith(".bas")) &&
     doc.uri.scheme !== D7PreviewContentProvider.scheme
   );
 }
@@ -251,7 +281,7 @@ export class PreviewService {
 
     // Only act on source .bas files, never on the preview itself.
     if (
-      (doc.languageId !== "d7basic" && !doc.fileName?.endsWith(".bas")) ||
+      (doc.languageId !== "d7basic" && !doc.fileName.endsWith(".bas")) ||
       doc.uri.scheme === D7PreviewContentProvider.scheme
     ) {
       return;
@@ -367,7 +397,7 @@ export class PreviewService {
 
     const doc = activeEditor.document;
     if (
-      (doc.languageId !== "d7basic" && !doc.fileName?.endsWith(".bas")) ||
+      (doc.languageId !== "d7basic" && !doc.fileName.endsWith(".bas")) ||
       doc.uri.scheme === D7PreviewContentProvider.scheme
     ) {
       vscode.window.showWarningMessage(

@@ -97,6 +97,7 @@ export interface ExternalGenericTemplate {
 export interface RequestedGenericInstantiation {
   readonly templateName: string;
   readonly typeArgs: readonly string[];
+  readonly flatTypeArgs?: readonly string[];
 }
 
 /**
@@ -183,7 +184,13 @@ export function flatNameOf(t: TypeReference): string {
 
 export function flatNameFromParts(name: string, args: readonly TypeReference[]): string {
   if (args.length === 0) return name;
-  return `${name}_${args.map(flatNameOf).join("_")}`;
+  return `${name}_${args.map(flatNameArgumentOf).join("_")}`;
+}
+
+function flatNameArgumentOf(t: TypeReference): string {
+  if (t.typeArguments.length > 0) return flatNameOf(t);
+  const lastDot = t.name.lastIndexOf(".");
+  return lastDot === -1 ? t.name : t.name.substring(lastDot + 1);
 }
 
 /**
@@ -616,7 +623,12 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
       name: arg,
       typeArguments: [],
     }));
-    const flatName = flatNameFromParts(template.name, concreteArgs);
+    const flatNameArgs = (request.flatTypeArgs ?? request.typeArgs).map((arg) => ({
+      kind: "TypeReference" as const,
+      name: arg,
+      typeArguments: [],
+    }));
+    const flatName = flatNameFromParts(template.name, flatNameArgs);
     enqueue(ctx, { templateName: template.name, concreteArgs, flatName });
   }
 }
@@ -937,6 +949,13 @@ class SubstitutionWalker extends ASTWalker {
   }
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
+    if (!node.callee) {
+      const replacement = this.substitution.get(node.methodName);
+      if (replacement !== undefined) {
+        node.methodName = replacement.name;
+      }
+    }
+
     if (node.methodName.toLowerCase() === "ctype" && node.arguments.length === 2) {
       const typeArg = node.arguments[1];
       if (typeArg) {

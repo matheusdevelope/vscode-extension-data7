@@ -606,7 +606,7 @@ export class D7AstContext {
 
   private bindingFromVariable(node: VariableDeclaration): AstLocalBinding {
     const explicitType = typeRefToString(node.type);
-    const inferredType = node.initializer
+    const inferredType = !explicitType && node.initializer
       ? this.resolveExpressionType(node.initializer)
       : undefined;
     return {

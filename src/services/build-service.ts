@@ -180,7 +180,7 @@ export class BuildService {
       "-f",
       String(config.branchCode),
       "-u",
-      String(config.userCode),
+      config.userName,
       "-p",
       quote(projectFilePath),
     ];

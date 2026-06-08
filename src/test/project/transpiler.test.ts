@@ -375,12 +375,11 @@ describe("SugarTranspiler.transpile", () => {
     assert.doesNotMatch(out, /Class TTList<T>/);
   });
 
-  test("imports concrete type argument namespaces for materialized generic templates", () => {
+  test("qualifies concrete type arguments in materialized generic templates", () => {
     const ctx = makeContext({}, {}, {
-      requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["Product"] }],
-      resolveTypeImport(typeName) {
-        return typeName === "Product" ? "mod_product" : undefined;
-      },
+      requestedGenericInstantiations: [
+        { templateName: "TTList", typeArgs: ["mod_product.Product"], flatTypeArgs: ["Product"] },
+      ],
     });
     const code = [
       "Imports mod_tobject",
@@ -388,6 +387,9 @@ describe("SugarTranspiler.transpile", () => {
       "Namespace mod_tlist",
       "   Class TTList<T>",
       "      Value As T",
+      "      Private Function Unwrap(pObj As TTObject) As T",
+      "         Unwrap = T(pObj)",
+      "      End Function",
       "   End Class",
       "End Namespace",
     ].join("\n");
@@ -395,9 +397,11 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Imports mod_tobject\r?\nImports mod_product/);
+    assert.doesNotMatch(out, /Imports mod_product/);
     assert.match(out, /Class TTList_Product/);
-    assert.match(out, /Value As Product/);
+    assert.match(out, /Value As mod_product\.Product/);
+    assert.match(out, /Private Function Unwrap\(pObj As TTObject\) As mod_product\.Product/);
+    assert.match(out, /Unwrap = mod_product\.Product\(pObj\)/);
   });
 
   test("ignores requested generic instantiations that still use open type parameters", () => {

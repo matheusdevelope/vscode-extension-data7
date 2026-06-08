@@ -1434,6 +1434,20 @@ class DiagnosticsASTWalker extends ASTWalker {
         if (parent.kind === "MethodInvocation" && parent.methodName === name) {
           shouldSkip = true;
         }
+        if (
+          parent.kind === "MethodInvocation" &&
+          parent.callee === node &&
+          isQualifiedTypeInvocation(parent, this.indexer)
+        ) {
+          shouldSkip = true;
+        }
+        if (
+          parent.kind === "MethodInvocation" &&
+          parent.methodName.toLowerCase() === "ctype" &&
+          parent.arguments[1] === node
+        ) {
+          shouldSkip = true;
+        }
         // Skip declarations names themselves
         if (
           (parent.kind === "ClassDeclaration" && parent.name === name) ||
@@ -2765,8 +2779,8 @@ function areSameGenericTemplateCompatible(
   lhsType: string,
   indexer: WorkspaceSymbolIndexer,
 ): boolean {
-  const rhs = parseGenericTypeName(rhsType);
-  const lhs = parseGenericTypeName(lhsType);
+  const rhs = parseGenericTypeName(rhsType, indexer);
+  const lhs = parseGenericTypeName(lhsType, indexer);
   if (!rhs || !lhs) return false;
   if (rhs.base.toLowerCase() !== lhs.base.toLowerCase()) return false;
   if (rhs.args.length !== lhs.args.length) return false;
@@ -2775,12 +2789,14 @@ function areSameGenericTemplateCompatible(
     const lhsArg = lhs.args[idx];
     if (!lhsArg) return false;
     if (rhsArg.toLowerCase() === lhsArg.toLowerCase()) return true;
-    if (isLikelyGenericTypeParameter(rhsArg) || isLikelyGenericTypeParameter(lhsArg)) return true;
-    return DiagnosticsLinter.isTypeCompatible(rhsArg, lhsArg, indexer);
+    return isLikelyGenericTypeParameter(rhsArg) || isLikelyGenericTypeParameter(lhsArg);
   });
 }
 
-function parseGenericTypeName(typeName: string): { base: string; args: string[] } | undefined {
+function parseGenericTypeName(
+  typeName: string,
+  _indexer: WorkspaceSymbolIndexer,
+): { base: string; args: string[] } | undefined {
   const trimmed = typeName.trim();
   const lt = trimmed.indexOf("<");
   if (lt === -1 || !trimmed.endsWith(">")) return undefined;
@@ -2953,4 +2969,28 @@ function exprToString(expr: Expression | undefined): string | undefined {
     return calleeStr ? `${calleeStr}.${expr.methodName}` : expr.methodName;
   }
   return undefined;
+}
+
+function isQualifiedTypeInvocation(
+  expr: MethodInvocation,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  if (!expr.callee) return false;
+  const calleeName = exprToString(expr.callee);
+  if (!calleeName) return false;
+  const containerLower = calleeName.toLowerCase();
+  const nameLower = expr.methodName.toLowerCase();
+  return (
+    lookupSystemByName(expr.methodName).some(
+      (sym) =>
+        (sym.kind === "class" || sym.kind === "structure") &&
+        sym.containerName?.toLowerCase() === containerLower,
+    ) ||
+    indexer.getAllSymbols().some(
+      (sym) =>
+        sym.name.toLowerCase() === nameLower &&
+        (sym.kind === "class" || sym.kind === "structure") &&
+        sym.containerName?.toLowerCase() === containerLower,
+    )
+  );
 }

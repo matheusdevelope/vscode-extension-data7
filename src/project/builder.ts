@@ -35,6 +35,28 @@ function hasOpenGenericTypeArgument(
   return typeArgs.some((typeArg) => openTypeParams.has(typeArg.toLowerCase()));
 }
 
+function qualifyGenericTypeArgument(
+  typeArg: string,
+  contextFileUri: string,
+  indexer: WorkspaceSymbolIndexer,
+): string {
+  const trimmed = typeArg.trim();
+  if (!trimmed || trimmed.includes(".")) return typeArg;
+  if (BUILDER_PRIMITIVE_TYPE_NAMES.has(trimmed.toLowerCase())) return typeArg;
+
+  const symbol = indexer.findSymbolByName(trimmed, contextFileUri);
+  if (!symbol?.containerName) return typeArg;
+  if (symbol.isSyntheticGenericInstantiation) return typeArg;
+  if (
+    symbol.kind !== "class" &&
+    symbol.kind !== "structure" &&
+    symbol.kind !== "delegate"
+  ) {
+    return typeArg;
+  }
+  return `${symbol.containerName}.${trimmed}`;
+}
+
 const BUILDER_PRIMITIVE_TYPE_NAMES = new Set([
   "boolean",
   "byte",
@@ -253,9 +275,13 @@ export class Builder {
         const key = `${usage.templateName.toLowerCase()}<${usage.typeArgs.join(",")}>`;
         if (seen.has(key)) continue;
         seen.add(key);
+        const qualifiedTypeArgs = usage.typeArgs.map((typeArg) =>
+          qualifyGenericTypeArgument(typeArg, fileSyms.fileUri, indexer),
+        );
         requests.push({
           templateName: usage.templateName,
-          typeArgs: usage.typeArgs,
+          typeArgs: qualifiedTypeArgs,
+          flatTypeArgs: usage.typeArgs,
         });
       }
     }

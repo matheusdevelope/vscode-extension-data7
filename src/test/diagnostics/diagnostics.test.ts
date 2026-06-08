@@ -1300,6 +1300,64 @@ End Namespace`,
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
 
+    test("rejects flat generic instantiations with different concrete type arguments", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_flat_covariant.bas";
+      const code = `Namespace mod_generic_covariant
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Product
+      Inherits TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList_Product
+      Function Clone() As TTList_Product
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList_TObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TUseCase
+      Public Sub Run()
+         Dim _list As TTList_Product
+         Dim _list1 As TTList_TObject
+         _list1 = _list.Clone()
+         Dim _list2 As TTList_TObject = _list.Clone()
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
     test("accepts generic templates declared in another namespace file", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const templateUri = "file:///mod_tlist.bas";

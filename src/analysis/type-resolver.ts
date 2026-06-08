@@ -267,6 +267,9 @@ export class TypeResolver {
           }
         }
         if (expr.callee) {
+          const qualifiedType = qualifiedTypeNameFromInvocation(expr, indexer);
+          if (qualifiedType) return qualifiedType;
+
           const targetType = TypeResolver.resolveExpressionType(expr.callee, document, lineIdx, indexer);
           if (!targetType) return undefined;
           return TypeResolver.findMember(targetType, expr.methodName, indexer, expr.arguments.length)?.type;
@@ -1025,6 +1028,28 @@ function expressionToTypeString(expr: Expression): string | undefined {
     }
   }
   return undefined;
+}
+
+function qualifiedTypeNameFromInvocation(
+  expr: Expression,
+  indexer: WorkspaceSymbolIndexer,
+): string | undefined {
+  if (expr.kind !== "MethodInvocation" || !expr.callee) return undefined;
+  const calleeName = expressionToTypeString(expr.callee);
+  if (!calleeName) return undefined;
+  const qualifiedName = `${calleeName}.${expr.methodName}`;
+  const containerLower = calleeName.toLowerCase();
+  const nameLower = expr.methodName.toLowerCase();
+  const systemMatch = lookupSystemClassByName(expr.methodName).some(
+    (sym) => sym.containerName?.toLowerCase() === containerLower,
+  );
+  const workspaceMatch = indexer.getAllSymbols().some(
+    (sym) =>
+      sym.name.toLowerCase() === nameLower &&
+      (sym.kind === "class" || sym.kind === "structure") &&
+      sym.containerName?.toLowerCase() === containerLower,
+  );
+  return systemMatch || workspaceMatch ? qualifiedName : undefined;
 }
 
 function collectLocalDeclarations(

@@ -173,6 +173,44 @@ End Namespace`;
       const addLabelDetail = typeof add.label === "string" ? "" : (add.label.detail ?? "");
       assert.match(addLabelDetail, /Integer/);
     });
+
+    test("lists members for explicit generic variable even when initializer is incompatible", async () => {
+      const usageCode = `Imports mod_tlist
+
+Dim _list As TTList<Product> = New TTList<Product>()
+Dim _list2 As TTList<TObject> = _list.Clone()
+_list2.`;
+      const templateCode = `Namespace mod_tlist
+   Class TTList<T>
+      Count As Integer
+      Sub Add(pValue As T)
+      End Sub
+      Function Clone() As TTList<T>
+      End Function
+   End Class
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const usageUri = "file:///teste_incompatible_initializer.bas";
+      indexer.updateFileContent(usageUri, usageCode);
+      indexer.updateFileContent("file:///mod_tlist_incompatible.bas", templateCode);
+      const doc = createMockDoc(usageUri, usageCode);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          pos(4, 7),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("Add"), `Add must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Clone"), `Clone must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Count"), `Count must appear; got ${labels.join(", ")}`);
+    });
   });
 
   describe("AST-backed local scope", () => {

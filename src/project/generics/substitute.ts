@@ -131,7 +131,8 @@ export function substituteTypeParamsInLine(
         }
 
         const sub = subs.get(t.value);
-        if (sub !== undefined && typeRefMode && !afterDot) {
+        const isTypeCastCall = sub !== undefined && isCTypeCall(idx);
+        if (sub !== undefined && (typeRefMode || isTypeCastCall) && !afterDot) {
           parts.push(sub);
         } else {
           parts.push(t.value);

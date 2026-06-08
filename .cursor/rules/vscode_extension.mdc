@@ -32,7 +32,7 @@ alwaysApply: true
 ## Configuration
 
 - All settings consumed by the extension must be declared in `package.json#contributes.configuration` under the `data7.*` namespace. Read them through `vscode.workspace.getConfiguration("data7")`.
-- Centralize configuration access in the single typed helper module `src/infra/configuration.ts` that mirrors the manifest keys (`executorPath`, `sharedModulesPath`, `userCode`, `companyCode`, `branchCode`, `databaseConnectionId`, `enableAutoSync`). When a setting is renamed, only that helper changes.
+- Centralize configuration access in the single typed helper module `src/infra/configuration.ts` that mirrors the manifest keys (`executorPath`, `sharedModulesPath`, `userName`, `companyCode`, `branchCode`, `databaseConnectionId`, `enableAutoSync`). When a setting is renamed, only that helper changes.
 - React to live changes with `vscode.workspace.onDidChangeConfiguration` when the setting affects already-running state (watchers, executor wiring). Do not require the user to reload.
 
 ## Disposables and resource ownership

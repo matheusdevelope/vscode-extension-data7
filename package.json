@@ -445,10 +445,10 @@
           "default": "",
           "description": "Caminho da pasta global contendo os módulos compartilhados (.7Proj ou .bas) que podem ser importados automaticamente."
         },
-        "data7.userCode": {
-          "type": "integer",
-          "default": 1,
-          "description": "Código do Usuário (-U) para passar ao Executor."
+        "data7.userName": {
+          "type": "string",
+          "default": "Administrador",
+          "description": "Nome do Usuário (-U) para passar ao Executor."
         },
         "data7.companyCode": {
           "type": "integer",

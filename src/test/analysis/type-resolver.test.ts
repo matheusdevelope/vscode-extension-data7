@@ -406,6 +406,38 @@ End Namespace`;
       assert.equal(TypeResolver.getVariableType("_products", doc, pos, indexer), "TList<Product>");
     });
 
+    test("getVariableType keeps explicit generic type when Dim has an initializer", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generics_var_initializer.bas";
+      const code = `Namespace mod_app
+   Class TObject
+   End Class
+
+   Class Product
+      Inherits TObject
+   End Class
+
+   Class TList<T>
+      Public Function Clone() As TList<T>
+      End Function
+   End Class
+
+   Class TUseCase
+      Public Sub Run()
+         Dim _list As TList<Product>
+         Dim _list2 As TList<TObject> = _list.Clone()
+         _list2.Clone()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 16, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("_list2", doc, pos, indexer), "TList<TObject>");
+    });
+
     test("findClassSymbol normalises TList<Product> to the flat TList_Product", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       indexer.__resetForTests();

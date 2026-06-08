@@ -8,7 +8,7 @@ export type DiagnosticSeverityOverride = "error" | "warning" | "info" | "hint" |
 export interface Data7Configuration {
   readonly executorPath: string;
   readonly sharedModulesPath: string;
-  readonly userCode: number;
+  readonly userName: string;
   readonly companyCode: number;
   readonly branchCode: number;
   readonly databaseConnectionId: string;
@@ -45,7 +45,7 @@ export function readConfiguration(): Data7Configuration {
   return {
     executorPath: cfg.get<string>("executorPath") ?? "",
     sharedModulesPath: cfg.get<string>("sharedModulesPath") ?? "",
-    userCode: cfg.get<number>("userCode") ?? 1,
+    userName: cfg.get<string>("userName") ?? "Administrador",
     companyCode: cfg.get<number>("companyCode") ?? 1,
     branchCode: cfg.get<number>("branchCode") ?? 1,
     databaseConnectionId: cfg.get<string>("databaseConnectionId") ?? "",
