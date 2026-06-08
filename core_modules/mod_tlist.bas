@@ -71,7 +71,14 @@ Namespace mod_tlist
 
       Overrides Sub Dispose()
          me._id = Unassigned
+         <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
+         If Assigned(me.Value) Then
+            me.Value.Free()
+            me.Value = NULL
+         End If
+         <# Else #>
          me.Value = Unassigned
+         <# End If #>
       End Sub
 
       Public Sub Free()
@@ -98,7 +105,7 @@ Namespace mod_tlist
 
       Private Function Unwrap(pObj As TTObject) As T
          <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
-         Unwrap = CType(pObj, T)
+         Unwrap = T(pObj)
          <# Else #>
          Unwrap = TTItem<T>(pObj).Value
          <# End If #>
@@ -109,23 +116,27 @@ Namespace mod_tlist
       End Function
 
       Sub SetItem(pIndex As Integer, pValue As T)
-         me._base.Insert(pIndex, me.Wrap("", pValue))
+         me._base.Item(pIndex) = me.Wrap("", pValue)
       End Sub
 
-      Sub Add(pID As String, pValue As T)
-         me._base.Add(pID, me.Wrap(pID, pValue))
+      Sub Push(pID As String, pValue As T)
+         me._base.Push(pID, me.Wrap(pID, pValue))
       End Sub
 
-      Sub Add(pValue As T)
-         me.Add("", pValue)
+      Sub Push(pValue As T)
+         me.Push("", pValue)
       End Sub
 
-      Sub Insert(pIndex As Integer, pID As String, pValue As T)
-         me._base.Insert(pIndex, pID, me.Wrap(pID, pValue))
+      Sub Push(pValue As TTList<T>)
+         me._base.Push(pValue)
       End Sub
 
-      Sub Insert(pIndex As Integer, pValue As T)
-         me.Insert(pIndex, "", pValue)
+      Sub Unshift(pIndex As Integer, pID As String, pValue As T)
+         me._base.Unshift(pIndex, pID, me.Wrap(pID, pValue))
+      End Sub
+
+      Sub Unshift(pIndex As Integer, pValue As T)
+         me.Unshift(pIndex, "", pValue)
       End Sub
 
       Function Take(pIndex As Integer) As T
@@ -142,6 +153,78 @@ Namespace mod_tlist
 
       Function Last() As T
          Last = me.Unwrap(me._base.Last())
+      End Function
+
+      Function Pop() As T
+         Pop = me.Unwrap(me._base.Pop())
+      End Function
+
+      Function Shift() As T
+         Shift = me.Unwrap(me._base.Shift())
+      End Function
+
+      Sub Unshift(pValue As T)
+         me.Unshift(0, pValue)
+      End Sub
+
+      Function Includes(pValue As T) As Boolean
+         Dim i As Integer, _len As Integer = me.Length
+         For i = 0 To _len - 1
+            Dim _current As T = me.Take(i)
+            Dim _equal As Boolean = me.GetIsEqual(_current, pValue)
+            If _equal Then
+               Includes = True
+               Exit Function
+            End If
+         Next
+         Includes = False
+      End Function
+
+      Function GetIsEqual(pValue1 As T, pValue2 As T) As Boolean
+         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         If Assigned(pValue1) And Assigned(pValue2) Then
+            GetIsEqual = (pValue1 = pValue2)
+         Else
+            GetIsEqual = False
+         End If
+         <# Else #>
+         GetIsEqual = (pValue1 = pValue2)
+         <# End If #>
+      End Function
+
+      Function Join(pSeparator As String) As String
+         Dim _str As String = ""
+         Dim i As Integer, _len As Integer = me.Length
+         For i = 0 To _len - 1
+            If i > 0 Then _str = _str & pSeparator
+            Dim _val As T = me.Take(i)
+            _str = _str & me.GetToString(_val)
+         Next
+         Join = _str
+      End Function
+
+      Function GetToString(pValue As T) As String
+         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         If Assigned(pValue) Then
+            GetToString = pValue.ToString()
+         Else
+            GetToString = ""
+         End If
+         <# Else #>
+         GetToString = CStr(pValue)
+         <# End If #>
+      End Function
+
+      Function Slice(pStart As Integer, pEnd As Integer) As TTList<T>
+         Dim _new As New TTList<T>(me.Name)
+         _new._base = me._base.Slice(pStart, pEnd)
+         Slice = _new
+      End Function
+
+      Function Splice(pStart As Integer, pQty As Integer) As TTList<T>
+         Dim _new As New TTList<T>(me.Name)
+         _new._base = me._base.Splice(pStart, pQty)
+         Splice = _new
       End Function
 
       Function Clone() As TTList<T>
@@ -168,8 +251,8 @@ Namespace mod_tlist
 
       Function IndexOf(pHandler As TFindDel<T>, extra As Variant) As Integer
          Dim value As Integer = -1
-         Dim i As Integer, _count As Integer = me.Count
-         For i = 0 To _count - 1
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
             If pHandler(me.Take(i), i, extra) Then
                value = i
                Exit For
@@ -183,8 +266,8 @@ Namespace mod_tlist
       End Function
 
       Function Find(pHandler As TFindDel<T>, extra As Variant) As T
-         Dim i As Integer, _count As Integer = me.Count
-         For i = 0 To _count - 1
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
             Dim _value As T = me.Take(i)
             If pHandler(_value, i, extra) Then
                Find = _value
@@ -199,12 +282,12 @@ Namespace mod_tlist
 
       Function Filter(pHandler As TFindDel<T>, extra As Variant) As TTList<T>
          Dim _new As New TTList<T>()
-         Dim i As Integer, _count As Integer = me.Count
-         For i = 0 To _count - 1
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
             Dim _value As T = me.Take(i)
             If pHandler(_value, i, extra) Then
-               Dim _idOriginal As String = me._base.Take(i).GetID()
-               _new.Add(_idOriginal, _value)
+               Dim _id As String = me._base.Take(i).GetID()
+               _new.Push(_id, _value)
             End If
          Next
          Filter = _new
@@ -215,8 +298,8 @@ Namespace mod_tlist
       End Sub
 
       Sub ForEach(pHandler As TForEachDel<T>, extra As Variant)
-         Dim i As Integer, _count As Integer = me.Count
-         For i = 0 To _count - 1
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
             pHandler(me.Take(i), i, extra)
          Next
       End Sub
@@ -227,11 +310,11 @@ Namespace mod_tlist
 
       Function Map(pHandler As TMapDel<T>, extra As Variant) As TTList<T>
          Dim _new As New TTList<T>()
-         Dim i As Integer, _count As Integer = me.Count
-         For i = 0 To _count - 1
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
             Dim _value As T = me.Take(i)
-            Dim _idOriginal As String = me._base.Take(i).GetID()
-            _new.Add(_idOriginal, pHandler(_value, i, extra))
+            Dim _id As String = me._base.Take(i).GetID()
+            _new.Push(_id, pHandler(_value, i, extra))
          Next
          Map = _new
       End Function

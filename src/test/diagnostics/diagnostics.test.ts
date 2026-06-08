@@ -1361,6 +1361,7 @@ End Namespace`;
     test("accepts generic templates declared in another namespace file", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const templateUri = "file:///mod_tlist.bas";
+      registerOpenDocument(templateUri, "mod_tlist.bas");
       const templateCode = `Namespace mod_tlist
    Class TTList<T>
       Sub Add(pValue As T)
@@ -1383,6 +1384,61 @@ Dim _list As TTList<Integer> = New TTList<Integer>()`;
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownTemplate);
       expectNoDiagnostic(diags, DiagnosticCodes.GenericArityMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("accepts members inherited by flat generic instantiations", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+
+      const templateUri = "file:///mod_tlist.bas";
+      registerOpenDocument(templateUri, "mod_tlist.bas");
+      const templateCode = `Namespace mod_tlist
+   Class TTComposerList
+      Function ToString() As String
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Inherits TTComposerList
+      Sub Push(pValue As T)
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(templateUri, templateCode);
+
+      const productUri = "file:///mod_product.bas";
+      registerOpenDocument(productUri, "mod_product.bas");
+      const productCode = `Namespace mod_product
+   Class Product
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(productUri, productCode);
+
+      const usageUri = "file:///Principal.bas";
+      registerOpenDocument(usageUri, "Principal.bas");
+      const usageCode = `Imports mod_tlist
+Imports mod_product
+
+Dim _list As TTList<Product> = New TTList<Product>()
+
+Print _list.ToString()`;
+      indexer.updateFileContent(usageUri, usageCode);
+      const flatList = indexer.findSymbolByName("TTList_Product");
+      assert.equal(flatList?.inheritsFrom, "TTComposerList");
+
+      const doc = createMockDoc(usageUri, usageCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
 
     test("validates arity for generic templates declared in another namespace file", () => {

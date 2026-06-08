@@ -1,22 +1,423 @@
-
-Imports Collections
-
-'@Module
+<?xml version="1.0" encoding="UTF-8"?>
+<Projeto_Data7 xmlns="http://www.se7esistemas.com.br/developer/2024" Version="1.0.0.0" Language="Basic" Type="Plugin" TargetPlataform="Default">
+  <Opcoes>
+    <Autor>Matheus</Autor>
+    <Versao>1.0.0.0</Versao>
+    <Informacoes>Projeto mod_sugar_list criado no VS Code</Informacoes>
+    <CodEmpresa>1</CodEmpresa>
+    <CodFilial>1</CodFilial>
+    <NomeUsuario>Matheus</NomeUsuario>
+    <PreScript></PreScript>
+    <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
+  </Opcoes>
+  <Nome>Principal</Nome>
+  <Data>2026-06-08T22:51:32.999Z</Data>
+  <Codigo>Imports mod_tlist
+Imports mod_product
+Dim _list As TTList_Product = New TTList_Product()
+_list.Push(New Product(1, &quot;Produto 1&quot;))
+_list.Push(New Product(2, &quot;Produto 2&quot;))
+print _list.ToString()</Codigo>
+  <Aberto>true</Aberto>
+  <OrdemAbertura>0</OrdemAbertura>
+  <ItemAberto>0</ItemAberto>
+  <Pastas>
+    <Pasta>
+      <Nome>Unidades (4)</Nome>
+      <ID>{2595FD36-7023-4330-9250-4A29F9413BC5}</ID>
+      <PastaID></PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>data7_modules</Nome>
+      <ID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</ID>
+      <PastaID>{2595FD36-7023-4330-9250-4A29F9413BC5}</PastaID>
+      <Aberta>Nao</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>modules</Nome>
+      <ID>{54E05AF7-D967-4CFD-A860-CEA0798BB971}</ID>
+      <PastaID>{2595FD36-7023-4330-9250-4A29F9413BC5}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+  </Pastas>
+  <Modulos>
+    <mod_product>
+      <Codigo>Imports mod_tobject
+Namespace mod_product
+   Class Product
+      Inherits TTObject
+      Codigo As Integer
+      Descricao As String
+      Sub New(pCodigo As Integer, pDescricao As String)
+         MyBase.New()
+         me.Codigo = pCodigo
+         me.Descricao = pDescricao
+      End Sub
+      Sub New(pValue As Product)
+         MyBase.New()
+         me.Assign(pValue)
+      End Sub
+      Sub Assign(pValue As Product)
+         If Assigned(pValue) Then
+            me.Codigo = pValue.Codigo
+            me.Descricao = pValue.Descricao
+         End If
+      End Sub
+      Overrides Function Clone() As Product
+         Clone = New Product(me)
+      End Function
+      Overrides Function ToString() As String
+         With me.BuildLogger(me.ClassName)
+            .Prop(&quot;Codigo&quot;, me.Codigo)
+            .Prop(&quot;Descricao&quot;, me.Descricao)
+            ToString = .Text()
+            .Free()
+         End With
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+      <PastaID>{54E05AF7-D967-4CFD-A860-CEA0798BB971}</PastaID>
+    </mod_product>
+    <mod_console>
+      <Codigo>Imports Collections
+&apos;@Module-Imported
+Namespace console
+   Dim _ProcessMessages As Boolean
+   Dim _ProcessMessagesSetted As Boolean
+   Dim _timers As StringList
+   Dim AlwaysPrint As Boolean = False
+   Dim BlockPrint As Boolean = False
+   Sub log(pMessage As Variant)
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage))
+   End Sub
+   Sub log(pMessage1 As Variant, pMessage2 As Variant)
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2))
+   End Sub
+   Sub log(pMessage1 As Variant, pMessage2 As Variant, pMessage3 As Variant)
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2) &amp; Char(13) &amp; CStr(pMessage3))
+   End Sub
+   Sub log(pMessage1 As Variant, pMessage2 As Variant, pMessage3 As Variant, pMessage4 As Variant)
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2) &amp; Char(13) &amp; CStr(pMessage3) &amp; Char(13) &amp; CStr(pMessage4))
+   End Sub
+   Sub erro(pMessage As Variant, pEx As Exception)
+      console.Printe(&quot;[ERRO] &quot; &amp; CStr(pMessage) &amp; Char(13) &amp; CStr(pEx._GetMessage()))
+   End Sub
+   Sub time(pMessage As Variant)
+      console.Printe(&quot;[&quot; + DateTime().ToString(&quot;hh:nn:ss.zzz&quot;) + &quot;] &quot; &amp; CStr(pMessage))
+   End Sub
+   Sub time(pTime As TDateTime, pMessage As Variant)
+      If pTime.IsDateTime Then
+         console.Printe(&quot;[&quot; + pTime.ToString(&quot;dd/mm/yyyy hh:nn:ss.zzz&quot;) + &quot;] &quot; &amp; Cstr(pMessage))
+      End If
+      If pTime.IsDate Then
+         console.Printe(&quot;[&quot; + pTime.ToString(&quot;dd/mm/yyyy&quot;) + &quot;] &quot; &amp; CStr(pMessage))
+      End If
+      If pTime.IsTime Then
+         console.Printe(&quot;[&quot; + pTime.ToString(&quot;dd/mm/yyyy&quot;) + &quot;] &quot; &amp; CStr(pMessage))
+      End If
+   End Sub
+   Sub timeStart(pLabel As String, pMessage As String = &quot;&quot;)
+      console.addTime(pLabel)
+      console.printTime(&quot;START&quot;, pLabel, pMessage)
+   End Sub
+   Sub timeLog(pLabel As String, pMessage As String = &quot;&quot;)
+      console.printTime(&quot;LOG&quot;, pLabel, pMessage)
+   End Sub
+   Sub timeEnd(pLabel As String, pMessage As String = &quot;&quot;)
+      console.printTime(&quot;END&quot;, pLabel, pMessage)
+      console.removeTime(pLabel)
+   End Sub
+   Private Sub printTime(pStep As String, pLabel As String, pMessage As String = &quot;&quot;)
+      Dim idx As Integer = console.timeIndex(pLabel)
+      If idx &gt;= 0 Then
+         Dim time_str As String = console.timeDiff(pLabel).ToString(&quot;hh:nn:ss.zzz&quot;)
+         If time_str = &quot;00:00:00.000&quot; Then
+            time_str = &quot;&quot;
+         End If
+         If pMessage &lt;&gt; &quot;&quot; Then
+            pMessage = CHAR(13) &amp; pMessage
+         End If
+         console.Printe(&quot;[TIME &quot; &amp; CStr(pStep.ToUpper) &amp; &quot;] &quot; + pLabel + &quot;: &quot; &amp; time_str &amp; pMessage)
+      Else
+         console.Printe(&quot;[TIME &quot; &amp; CStr(pStep.ToUpper) &amp; &quot;] &quot; + pLabel + &quot;: Timer Not Setup&quot;)
+      End If
+   End Sub
+   Private Sub addTime(pLabel As String)
+      console.removeTime(pLabel)
+      _timers.Add(pLabel + CStr(_timers.NameValueSeparator) + DateTime().ToString(&quot;hh:nn:ss.zzz&quot;))
+   End Sub
+   Private Sub removeTime(pLabel As String)
+      console.initTime()
+      If console.timeIndex(pLabel) &gt;= 0 Then
+         _timers.Delete(console.timeIndex(pLabel))
+      End If
+   End Sub
+   Private Function timeIndex(pLabel As String) As Integer
+      console.initTime()
+      timeIndex = _timers.IndexOfName(pLabel)
+   End Function
+   Private Function timeDiff(pLabel As String) As TDateTime
+      console.initTime()
+      If console.timeIndex(pLabel) &gt;= 0 Then
+         Dim time_str As String = _timers.Values(pLabel)
+         Dim hours As Integer = CInt(time_str.Split(&quot;:&quot;)[0])
+         Dim mins As Integer = CInt(time_str.Split(&quot;:&quot;)[1])
+         Dim secs As Integer = CInt(time_str.Split(&quot;:&quot;)[2].Split(&quot;.&quot;)[0])
+         Dim millisecs As Integer = CInt(time_str.Split(&quot;.&quot;)[1])
+         timeDiff = DateTime() - DateTime().EncodeTime(hours, mins, secs, millisecs)
+      End If
+   End Function
+   Private Sub initTime()
+      If _timers = NULL Then
+         _timers = New StringList()
+         _timers.NameValueSeparator = &quot;;&quot;
+      End If
+   End Sub
+   Sub ProcessMessages(pEnabled As Boolean)
+      _ProcessMessages = pEnabled
+      _ProcessMessagesSetted = True
+   End Sub
+   Function GetProcessMessages As Boolean
+      GetProcessMessages = _ProcessMessages
+   End Function
+   Private Sub Printe(pMessage As String)
+      If Not BlockPrint Then
+         print pMessage
+         If Not _ProcessMessagesSetted Then
+            console.ProcessMessages(True)
+         End If
+         If _ProcessMessages Then
+            Forms.ProcessMessages
+         End If
+      End If
+   End Sub
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+      <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
+    </mod_console>
+    <mod_tlist>
+      <Codigo>Imports mod_tobject
+Imports mod_product
+&apos;@Module-Imported
+Namespace mod_tlist
+   Class TTList_Product
+      Inherits TTComposerList
+      Sub New()
+         MyBase.New(me.Classname(), True)
+      End Sub
+      Private Function Wrap(pID As String, pValue As mod_product.Product) As TTObject
+         Wrap = pValue
+      End Function
+      Private Function Unwrap(pObj As TTObject) As mod_product.Product
+         Unwrap = mod_product.Product(pObj)
+      End Function
+      Function GetItem(pIndex As Integer) As mod_product.Product
+         GetItem = me.Take(pIndex)
+      End Function
+      Sub SetItem(pIndex As Integer, pValue As mod_product.Product)
+         me._base.Item(pIndex) = me.Wrap(&quot;&quot;, pValue)
+      End Sub
+      Sub Push(pID As String, pValue As mod_product.Product)
+         me._base.Push(pID, me.Wrap(pID, pValue))
+      End Sub
+      Sub Push(pValue As mod_product.Product)
+         me.Push(&quot;&quot;, pValue)
+      End Sub
+      Sub Push(pValue As TTList_Product)
+         me._base.Push(pValue)
+      End Sub
+      Sub Unshift(pIndex As Integer, pID As String, pValue As mod_product.Product)
+         me._base.Unshift(pIndex, pID, me.Wrap(pID, pValue))
+      End Sub
+      Sub Unshift(pIndex As Integer, pValue As mod_product.Product)
+         me.Unshift(pIndex, &quot;&quot;, pValue)
+      End Sub
+      Function Take(pIndex As Integer) As mod_product.Product
+         Take = me.Unwrap(me._base.Take(pIndex))
+      End Function
+      Function Take(pID As String) As mod_product.Product
+         Take = me.Unwrap(me._base.TakeFromId(pID))
+      End Function
+      Function First() As mod_product.Product
+         First = me.Unwrap(me._base.First())
+      End Function
+      Function Last() As mod_product.Product
+         Last = me.Unwrap(me._base.Last())
+      End Function
+      Function Pop() As mod_product.Product
+         Pop = me.Unwrap(me._base.Pop())
+      End Function
+      Function Shift() As mod_product.Product
+         Shift = me.Unwrap(me._base.Shift())
+      End Function
+      Sub Unshift(pValue As mod_product.Product)
+         me.Unshift(0, pValue)
+      End Sub
+      Function Includes(pValue As mod_product.Product) As Boolean
+         Dim i As Integer
+         Dim _len As Integer = me.Length
+         For i = 0 To _len - 1
+            Dim _current As mod_product.Product = me.Take(i)
+            Dim _equal As Boolean = me.GetIsEqual(_current, pValue)
+            If _equal Then
+               Includes = True
+               Exit Function
+            End If
+         Next
+         Includes = False
+      End Function
+      Function GetIsEqual(pValue1 As mod_product.Product, pValue2 As mod_product.Product) As Boolean
+         If Assigned(pValue1) And Assigned(pValue2) Then
+            GetIsEqual = (pValue1 = pValue2)
+         Else
+            GetIsEqual = False
+         End If
+      End Function
+      Function Join(pSeparator As String) As String
+         Dim _str As String = &quot;&quot;
+         Dim i As Integer
+         Dim _len As Integer = me.Length
+         For i = 0 To _len - 1
+            If i &gt; 0 Then _str = _str &amp; pSeparator
+            Dim _val As mod_product.Product = me.Take(i)
+            _str = _str &amp; CStr(me.GetToString(_val))
+         Next
+         Join = _str
+      End Function
+      Function GetToString(pValue As mod_product.Product) As String
+         If Assigned(pValue) Then
+            GetToString = pValue.ToString()
+         Else
+            GetToString = &quot;&quot;
+         End If
+      End Function
+      Function Slice(pStart As Integer, pEnd As Integer) As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         _new._base = me._base.Slice(pStart, pEnd)
+         Slice = _new
+      End Function
+      Function Splice(pStart As Integer, pQty As Integer) As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         _new._base = me._base.Splice(pStart, pQty)
+         Splice = _new
+      End Function
+      Function Clone() As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         _new._base = me._base.Clone()
+         Clone = _new
+      End Function
+      Function First(pLimit As Integer) As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         _new._base = me._base.Range(pLimit, False)
+         First = _new
+      End Function
+      Function Last(pLimit As Integer) As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         _new._base = me._base.Range(pLimit, True)
+         Last = _new
+      End Function
+      Function IndexOf(pHandler As TFindDel_Product) As Integer
+         IndexOf = me.IndexOf(pHandler, &quot;&quot;)
+      End Function
+      Function IndexOf(pHandler As TFindDel_Product, extra As Variant) As Integer
+         Dim value As Integer = -1
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            If pHandler(me.Take(i), i, extra) Then
+               value = i
+               Exit For
+            End If
+         Next
+         IndexOf = value
+      End Function
+      Function Find(pHandler As TFindDel_Product) As mod_product.Product
+         Find = me.Find(pHandler, &quot;&quot;)
+      End Function
+      Function Find(pHandler As TFindDel_Product, extra As Variant) As mod_product.Product
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As mod_product.Product = me.Take(i)
+            If pHandler(_value, i, extra) Then
+               Find = _value
+               Exit Function
+            End If
+         Next
+      End Function
+      Function Filter(pHandler As TFindDel_Product) As TTList_Product
+         Filter = me.Filter(pHandler, &quot;&quot;)
+      End Function
+      Function Filter(pHandler As TFindDel_Product, extra As Variant) As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As mod_product.Product = me.Take(i)
+            If pHandler(_value, i, extra) Then
+               Dim _id As String = me._base.Take(i).GetID()
+               _new.Push(_id, _value)
+            End If
+         Next
+         Filter = _new
+      End Function
+      Sub ForEach(pHandler As TForEachDel_Product)
+         me.ForEach(pHandler, &quot;&quot;)
+      End Sub
+      Sub ForEach(pHandler As TForEachDel_Product, extra As Variant)
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            pHandler(me.Take(i), i, extra)
+         Next
+      End Sub
+      Function Map(pHandler As TMapDel_Product) As TTList_Product
+         Map = me.Map(pHandler, &quot;&quot;)
+      End Function
+      Function Map(pHandler As TMapDel_Product, extra As Variant) As TTList_Product
+         Dim _new As TTList_Product = New TTList_Product()
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As mod_product.Product = me.Take(i)
+            Dim _id As String = me._base.Take(i).GetID()
+            _new.Push(_id, pHandler(_value, i, extra))
+         Next
+         Map = _new
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Delegate Function TFindDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant) As Boolean
+   Delegate Sub TForEachDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant)
+   Delegate Function TMapDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant) As mod_product.Product
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+      <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
+    </mod_tlist>
+    <mod_tobject>
+      <Codigo>Imports Collections
+&apos;@Module-Imported
 Namespace mod_tobject
-
    Delegate Function FindDel(pValue As TTObject, i As Integer, extra As Variant) As Boolean
    Delegate Function MapDel(pValue As TTObject, i As Integer, extra As Variant) As TTObject
    Delegate Function SortPropDel(pValue As TTObject, i As Integer, extra As Variant) As String
    Delegate Sub ForEachDel(pValue As TTObject, i As Integer, extra As Variant)
    Delegate Sub OnActionListDel(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-
    Private Class TTObjectPrinter
-
       Private _title As String
       Private _lines As StringList
       Private _closed As Boolean
       Private _maxWidth As Integer
-
       Sub New(pTitle As String, pSize As Integer = 60)
          MyBase.New()
          me._title = pTitle
@@ -24,114 +425,89 @@ Namespace mod_tobject
          me._lines = New StringList()
          me._closed = False
       End Sub
-
       Sub Prop(pLabel As String, pValue As Variant)
-         me._lines.Add(pLabel + ": " + CStr(pValue))
+         me._lines.Add(pLabel + &quot;: &quot; + CStr(pValue))
       End Sub
-
       Sub Prop(pLabel As String, pValue As TObject)
-         me._lines.Add(pLabel + ": " + pValue.ToString())
+         me._lines.Add(pLabel + &quot;: &quot; + pValue.ToString())
       End Sub
-
       Sub Prop(pValue As Variant)
          me._lines.Add(CStr(pValue))
       End Sub
-
       Sub Prop(pValue As TObject)
          me._lines.Add(pValue.ToString())
       End Sub
-
       Sub Close()
          If Not _closed Then
             Dim padding As Integer = me._maxWidth - me._title.Length - 2
-            If padding < 0 Then padding = 0
+            If padding &lt; 0 Then padding = 0
             Dim leftPad As Integer = Int(padding / 2)
             Dim rightPad As Integer = padding - leftPad
-            Dim _str As String = " "
-            Dim topLine As String = Char(13) + _str.StringOfChar("_", leftPad) + " " + _title + " " + _str.StringOfChar("_", rightPad)
-            Dim bottomLine As String = _str.StringOfChar("_", me._maxWidth - 2)
+            Dim _str As String = &quot; &quot;
+            Dim topLine As String = Char(13) + CStr(_str.StringOfChar(&quot;_&quot;, leftPad)) + &quot; &quot; + _title + &quot; &quot; + CStr(_str.StringOfChar(&quot;_&quot;, rightPad))
+            Dim bottomLine As String = _str.StringOfChar(&quot;_&quot;, me._maxWidth - 2)
             me._lines.Insert(0, topLine)
             me._lines.Add(bottomLine)
             me._closed = True
          End If
       End Sub
-
       Function Text() As String
          me.Close()
          Text = me._lines.Text
       End Function
-
       Sub Free()
          me._lines.Free()
          MyBase.Free()
       End Sub
-
    End Class
-
    Class TTObject
-
       Disposed As Boolean
-
       OnBeforePush As OnActionListDel
       OnAfterPush As OnActionListDel
       OnBeforeDelete As OnActionListDel
       OnAfterDelete As OnActionListDel
       OnBeforeDispose As OnActionListDel
       OnAfterDispose As OnActionListDel
-
       Sub New()
          MyBase.New()
       End Sub
-
       Overridable Sub Assign(pValue As TObject)
-         Throw New Exception("You must to implement this method, do NOT use the Overrides, just declare: Sub Assign(pValue As [YouClass])")
+         Throw New Exception(&quot;You must to implement this method, do NOT use the Overrides, just declare: Sub Assign(pValue As [YouClass])&quot;)
       End Sub
-
       Overridable Function Clone() As TObject
-         Throw New Exception("You must to implement this method: Function Clone() As [YouClass]")
+         Throw New Exception(&quot;You must to implement this method: Function Clone() As [YouClass]&quot;)
       End Function
-
       Overridable Function GetID() As String
          GetID = CStr(me.GetHashCode)
       End Function
-
       Overridable Function ToString() As String
          ToString = MyBase.ToString()
       End Function
-
       Overridable Sub Dispose()
-         Throw New Exception("You must to implement this method: Sub Dispose()")
+         Throw New Exception(&quot;You must to implement this method: Sub Dispose()&quot;)
       End Sub
-
       Private Sub TriggerEvent(pList As TTObjectList, pItem As TTObject, pIndex As Integer, pMethod As OnActionListDel, pDelegate As OnActionListDel)
-         If pMethod <> NULL Then pMethod(pList, pItem, pIndex)
-         If pDelegate <> NULL Then pDelegate(pList, pItem, pIndex)
+         If pMethod &lt;&gt; NULL Then pMethod(pList, pItem, pIndex)
+         If pDelegate &lt;&gt; NULL Then pDelegate(pList, pItem, pIndex)
       End Sub
-
       Sub DispatchBeforePush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforePush, me.OnBeforePush)
       End Sub
-
       Sub DispatchAfterPush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterPush, me.OnAfterPush)
       End Sub
-
       Sub DispatchBeforeDelete(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeDelete, me.OnBeforeDelete)
       End Sub
-
       Sub DispatchAfterDelete(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterDelete, me.OnAfterDelete)
       End Sub
-
       Sub DispatchBeforeDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeDispose, me.OnBeforeDispose)
       End Sub
-
       Sub DispatchAfterDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterDispose, me.OnAfterDispose)
       End Sub
-
       Protected Overridable Sub BeforePush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
       End Sub
       Protected Overridable Sub AfterPush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
@@ -144,41 +520,34 @@ Namespace mod_tobject
       End Sub
       Protected Overridable Sub AfterDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
       End Sub
-
       Protected Function BuildLogger(pTitle As String, pSize As Integer = 60) As TTObjectPrinter
          BuildLogger = New TTObjectPrinter(pTitle, pSize)
       End Function
-
-     Public Sub Free()
-       MyBase.Free()
-     End Sub
-
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
    End Class
-
    Class TTBaseList
       Sub New()
          MyBase.New()
       End Sub
       Overridable Property Length As Integer
          Get
-            Throw New Exception("You must to implement this property: Property Length As Integer")
+            Throw New Exception(&quot;You must to implement this property: Property Length As Integer&quot;)
          End Get
       End Property
       Overridable Function Take(pIndex As Integer) As TTObject
-         Throw New Exception("You must to implement this method: Function Take(pIndex As Integer) As TTObject")
+         Throw New Exception(&quot;You must to implement this method: Function Take(pIndex As Integer) As TTObject&quot;)
       End Function
       Sub Free()
          MyBase.Free()
       End Sub
    End Class
-
    Class TTObjectList
       Inherits TTBaseList
-
       Name As String
       Private _list As StringList
       Private _disposed As Boolean
-
       OnBeforePush As OnActionListDel
       OnAfterPush As OnActionListDel
       OnBeforeDelete As OnActionListDel
@@ -187,26 +556,21 @@ Namespace mod_tobject
       OnAfterClean As OnActionListDel
       OnBeforeDispose As OnActionListDel
       OnAfterDispose As OnActionListDel
-
-      Sub New(pName As String = "TTObjectList", pOwnsObjects As Boolean = True)
+      Sub New(pName As String = &quot;TTObjectList&quot;, pOwnsObjects As Boolean = True)
          MyBase.New()
          me.Name = pName
          me._list = New StringList()
          me.OwnsObjects = pOwnsObjects
       End Sub
-
       Private Function CreateInstance() As TTObjectList
          CreateInstance = New TTObjectList(me.Name)
       End Function
-
       Private Sub SetOwnsObjects(pValue As Boolean)
          me._list.OwnsObjects = pValue
       End Sub
-
       Private Sub SetSorted(pValue As Boolean)
          me._list.Sorted = pValue
       End Sub
-
       Property OwnsObjects As Boolean
          Get
             OwnsObjects = me._list.OwnsObjects
@@ -215,13 +579,11 @@ Namespace mod_tobject
             me.SetOwnsObjects(pValue)
          End Set
       End Property
-
       Property Sorted As Boolean
          Set(pValue As Boolean)
             me.SetSorted(pValue)
          End Set
       End Property
-
       Property Item(pIndex As Integer) As TTObject
          Get
             Item = CType(me._list.Objects(pIndex), TTObject)
@@ -230,11 +592,9 @@ Namespace mod_tobject
             me.SetItem(pIndex, pValue)
          End Set
       End Property
-
       Protected Sub SetItem(pIndex As Integer, pValue As TTObject)
          me._list.Objects(pIndex) = pValue
       End Sub
-
       Sub Push(pID As String, pValue As TTObject)
          Dim _index As Integer = me.Length()
          me.DispatchBeforePush(me, pValue, _index)
@@ -242,168 +602,154 @@ Namespace mod_tobject
          me._list.AddObject(_id, pValue)
          me.DispatchAfterPush(me, pValue, _index)
       End Sub
-
       Sub Push(pValue As TTObject)
          me.Push(pValue.GetID, pValue)
       End Sub
-
       Sub Push(pValues As TTBaseList)
-         Dim i As Integer, _length As Integer = pValues.Length
+         Dim i As Integer
+         Dim _length As Integer = pValues.Length
          For i = 0 To _length - 1
-             me.Push(pValues.Take(i))
+            me.Push(pValues.Take(i))
          Next
       End Sub
-
       Sub Unshift(pValue As TTObject)
          me.Unshift(0, pValue)
       End Sub
-
       Sub Unshift(pIndex As Integer, pID As String, pValue As TTObject)
-          me.DispatchBeforePush(me, pValue, pIndex)
-          pID = UCase(pID)
-          me._list.InsertObject(pIndex, pID, pValue)
-          me.DispatchAfterPush(me, pValue, pIndex)
+         me.DispatchBeforePush(me, pValue, pIndex)
+         pID = UCase(pID)
+         me._list.InsertObject(pIndex, pID, pValue)
+         me.DispatchAfterPush(me, pValue, pIndex)
       End Sub
-
       Sub Unshift(pIndex As Integer, pValue As TTObject)
-          me.Unshift(pIndex, pValue.GetID, pValue)
+         me.Unshift(pIndex, pValue.GetID, pValue)
       End Sub
-
       Sub Unshift(pIndex As Integer, pValues As TTComposerList)
-         Dim i As Integer, _length As Integer = pValues.Length - 1
+         Dim i As Integer
+         Dim _length As Integer = pValues.Length - 1
          For i = 0 To _length
-             me.Unshift(pIndex + i, pValues.Item(i))
+            me.Unshift(pIndex + i, pValues.Item(i))
          Next
       End Sub
-
       Function Take(pID As String) As TTObject
          Take = me.Take(me.IndexOf(pID))
       End Function
-
       Function Take(pIndex As Integer) As TTObject
          Take = CType(me._list.Objects(pIndex), TTObject)
       End Function
-
       Function TakeFromId(pID As String) As TTObject
          TakeFromId = me.Take(pID)
       End Function
-
       Function Includes(pID As String) As Boolean
-         Includes = me.IndexOf(pID) <> -1
+         Includes = me.IndexOf(pID) &lt;&gt; -1
       End Function
-
       Function IndexOf(pID As String) As Integer
          pID = UCase(pID)
          IndexOf = me._list.IndexOf(pID)
       End Function
-
       Function IndexOf(pHandler As FindDel) As Integer
-         IndexOf = me.IndexOf(pHandler, "")
+         IndexOf = me.IndexOf(pHandler, &quot;&quot;)
       End Function
-
       Function IndexOf(pHandler As FindDel, extra As Variant) As Integer
          Dim value As Integer = -1
-         Dim i As Integer, _length As Integer = me.Length()
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
          For i = 0 To _length - 1
-             If pHandler(me.Take(i), i, extra) Then
-                value = i
-                Exit For
-             End IF
+            If pHandler(me.Take(i), i, extra) Then
+               value = i
+               Exit For
+            End If
          Next
          IndexOf = value
       End Function
-
       Function Find(pHandler As FindDel) As TObject
-         Find = me.Find(pHandler, "")
+         Find = me.Find(pHandler, &quot;&quot;)
       End Function
-
       Function Find(pHandler As FindDel, extra As Variant) As TObject
          Dim value As TObject
-         Dim i As Integer, _length As Integer = me.Length()
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
          For i = 0 To _length - 1
-             If pHandler(me.Take(i), i, extra) Then
-                value = me.Take(i)
-                Exit For
-             End IF
+            If pHandler(me.Take(i), i, extra) Then
+               value = me.Take(i)
+               Exit For
+            End If
          Next
          Find = value
       End Function
-
       Function Filter(pHandler As FindDel) As TTObjectList
-         Filter = me.Filter(pHandler, "")
+         Filter = me.Filter(pHandler, &quot;&quot;)
       End Function
-
       Function Filter(pHandler As FindDel, extra As Variant) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
-         Dim i As Integer, _length As Integer = me.Length()
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
          For i = 0 To _length - 1
-             If pHandler(me.Take(i), i, extra) Then
-                _new.Push(me.Take(i))
-             End IF
+            If pHandler(me.Take(i), i, extra) Then
+               _new.Push(me.Take(i))
+            End If
          Next
          Filter = _new
       End Function
-
       Sub ForEach(pHandler As FindDel)
-         me.ForEach(pHandler, "")
+         me.ForEach(pHandler, &quot;&quot;)
       End Sub
-
       Sub ForEach(pHandler As ForEachDel, extra As Variant)
-         Dim i As Integer, _length As Integer = me.Length()
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
          For i = 0 To _length - 1
-             pHandler(me.Take(i), i, extra)
+            pHandler(me.Take(i), i, extra)
          Next
       End Sub
-
       Function Map(pHandler As FindDel) As TTObjectList
-         Map = me.Map(pHandler, "")
+         Map = me.Map(pHandler, &quot;&quot;)
       End Function
-
       Function Map(pHandler As MapDel, extra As Variant) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
-         Dim i As Integer, _length As Integer = me.Length()
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
          For i = 0 To _length - 1
-             _new.Push(pHandler(me.Take(i), i, extra))
+            _new.Push(pHandler(me.Take(i), i, extra))
          Next
          Map = _new
       End Function
-
       Function First() As TTObject
-         If me.Length() > 0 Then
+         If me.Length() &gt; 0 Then
             First = me.Take(0)
             Exit Function
          End If
          First = NULL
       End Function
-
       Function Last() As TTObject
          Dim _length As Integer = me.Length()
-         If _length > 0 Then
+         If _length &gt; 0 Then
             Last = me.Take(_length - 1)
             Exit Function
          End If
          Last = NULL
       End Function
-
       Function Clone() As TTObjectList
-         Dim _Clone As New TTObjectList(), i As Integer, _length As Integer = me.Length()
+         Dim _Clone As TTObjectList = New TTObjectList()
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
          For i = 0 To _length - 1
             _Clone.Push(CType(me.Take(i).Clone(), TTObject))
          Next
          Clone = _Clone
       End Function
-
       Function Range(pLimit As Integer, fromEnd As Boolean) As TTObjectList
          Dim result As TTObjectList = me.CreateInstance()
          Dim _length As Integer = me.Length()
-         If pLimit <= 0 Or _length = 0 Then
+         If pLimit &lt;= 0 Or _length = 0 Then
             Range = result
          End If
-         Dim i As Integer, startIndex As Integer = 0, idx As Integer
+         Dim i As Integer
+         Dim startIndex As Integer = 0
+         Dim idx As Integer
          If fromEnd Then
             startIndex = _length - pLimit
          End If
-         If startIndex < 0 Then
+         If startIndex &lt; 0 Then
             startIndex = 0
          End If
          For i = 0 To pLimit - 1
@@ -412,91 +758,78 @@ Namespace mod_tobject
             Else
                idx = i
             End If
-            If idx >= 0 And idx < _length Then
+            If idx &gt;= 0 And idx &lt; _length Then
                result.Push(me.Take(idx))
             End If
          Next
          Range = result
       End Function
-
       Function Length() As Integer
          Length = me._list.Count
       End Function
-
       Function Pop() As TTObject
          Dim _len As Integer = me.Length()
-         If _len > 0 Then
+         If _len &gt; 0 Then
             Pop = me.Take(_len - 1)
             me.Delete(_len - 1)
          Else
             Pop = NULL
          End If
       End Function
-
       Function Shift() As TTObject
          Dim _len As Integer = me.Length()
-         If _len > 0 Then
+         If _len &gt; 0 Then
             Shift = me.Take(0)
             me.Delete(0)
          Else
             Shift = NULL
          End If
       End Function
-
       Sub Reverse()
          Dim i As Integer = 0
          Dim j As Integer = me.Length() - 1
-         While i < j
+         While i &lt; j
             me._list.Exchange(i, j)
             i = i + 1
             j = j - 1
          End While
       End Sub
-
       Function Slice(pStart As Integer, pEnd As Integer) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
          Dim _len As Integer = me.Length()
-
-         If pStart < 0 Then pStart = _len + pStart
-         If pStart < 0 Then pStart = 0
-         If pEnd < 0 Then pEnd = _len + pEnd
-         If pEnd > _len Then pEnd = _len
-
+         If pStart &lt; 0 Then pStart = _len + pStart
+         If pStart &lt; 0 Then pStart = 0
+         If pEnd &lt; 0 Then pEnd = _len + pEnd
+         If pEnd &gt; _len Then pEnd = _len
          Dim i As Integer
          For i = pStart To pEnd - 1
             _new.Push(me.Take(i))
          Next
          Slice = _new
       End Function
-
       Function Splice(pStart As Integer, pQty As Integer) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
          Dim _len As Integer = me.Length()
-
-         If pStart < 0 Then pStart = _len + pStart
-         If pStart < 0 Then pStart = 0
-
+         If pStart &lt; 0 Then pStart = _len + pStart
+         If pStart &lt; 0 Then pStart = 0
          Dim i As Integer
          For i = 0 To pQty - 1
-            If pStart >= me.Length() Then Exit For
+            If pStart &gt;= me.Length() Then Exit For
             _new.Push(me.Take(pStart))
             me.Delete(pStart)
          Next
          Splice = _new
       End Function
-
-      Sub Delete(pIndex as Integer)
+      Sub Delete(pIndex As Integer)
          Dim _item As TTObject = me.Take(pIndex)
          me.DispatchBeforeDelete(me, _item, pIndex)
          Dim _id As String = UCase(_item.GetID)
          me._list.Delete(pIndex)
          me.DispatchAfterDelete(me, _item, pIndex)
       End Sub
-
       Sub Delete(pID As String)
          me.Delete(me.IndexOf(pID))
       End Sub
-
       Sub Clean(pDispose As Boolean = True)
          me.DispatchBeforeClean(me, NULL, -1)
          If pDispose Then
@@ -506,14 +839,13 @@ Namespace mod_tobject
          me._list.Clear()
          me.DispatchAfterClean(me, NULL, -1)
       End Sub
-
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True)
-         me.Sort(pHandler, pAsc, "")
+         me.Sort(pHandler, pAsc, &quot;&quot;)
       End Sub
-
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True, pExtra As Variant)
-         If pHandler <> NULL Then
-            Dim listTemp As New StringList, i As Integer
+         If pHandler &lt;&gt; NULL Then
+            Dim listTemp As StringList = New StringList()
+            Dim i As Integer
             Dim _length As Integer = me.Length()
             For i = 0 To _length - 1
                Dim _item As TObject = me._list.Objects(i)
@@ -535,14 +867,14 @@ Namespace mod_tobject
             me.OwnsObjects = tempOwnsObjects
             listTemp.Free()
          Else
-            Throw New Exception("You must send a handler")
+            Throw New Exception(&quot;You must send a handler&quot;)
          End If
          Exit Sub
       End Sub
-
       Function ToString() As String
-         Dim i As Integer, _length As Integer = me.Length()
-         With New TTObjectPrinter(me.Name + " Length: " + _length.ToString)
+         Dim i As Integer
+         Dim _length As Integer = me.Length()
+         With New TTObjectPrinter(CStr(me.Name) + &quot; Length: &quot; + CStr(_length.ToString))
             For i = 0 To _length - 1
                .Prop(me.Take(i).ToString())
             Next
@@ -551,50 +883,40 @@ Namespace mod_tobject
             .Free()
          End With
       End Function
-
       Private Sub TriggerEvent(pList As TTObjectList, pItem As TTObject, pIndex As Integer, pMethod As OnActionListDel, pDelegate As OnActionListDel)
-         If pMethod <> NULL Then pMethod(pList, pItem, pIndex)
-         If pDelegate <> NULL Then pDelegate(pList, pItem, pIndex)
+         If pMethod &lt;&gt; NULL Then pMethod(pList, pItem, pIndex)
+         If pDelegate &lt;&gt; NULL Then pDelegate(pList, pItem, pIndex)
       End Sub
-
       Private Sub DispatchBeforePush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchBeforePush(pList, pItem, pIndex)
+         If pItem &lt;&gt; NULL Then pItem.DispatchBeforePush(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforePush, me.OnBeforePush)
       End Sub
-
       Private Sub DispatchAfterPush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchAfterPush(pList, pItem, pIndex)
+         If pItem &lt;&gt; NULL Then pItem.DispatchAfterPush(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterPush, me.OnAfterPush)
       End Sub
-
       Private Sub DispatchBeforeDelete(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchBeforeDelete(pList, pItem, pIndex)
+         If pItem &lt;&gt; NULL Then pItem.DispatchBeforeDelete(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeDelete, me.OnBeforeDelete)
       End Sub
-
       Private Sub DispatchAfterDelete(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchAfterDelete(pList, pItem, pIndex)
+         If pItem &lt;&gt; NULL Then pItem.DispatchAfterDelete(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterDelete, me.OnAfterDelete)
       End Sub
-
       Private Sub DispatchBeforeClean(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeClean, me.OnBeforeClean)
       End Sub
-
       Private Sub DispatchAfterClean(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterClean, me.OnAfterClean)
       End Sub
-
       Private Sub DispatchBeforeDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchBeforeDispose(pList, pItem, pIndex)
+         If pItem &lt;&gt; NULL Then pItem.DispatchBeforeDispose(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeDispose, me.OnBeforeDispose)
       End Sub
-
       Private Sub DispatchAfterDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchAfterDispose(pList, pItem, pIndex)
+         If pItem &lt;&gt; NULL Then pItem.DispatchAfterDispose(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterDispose, me.OnAfterDispose)
       End Sub
-
       Protected Overridable Sub BeforePush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
       End Sub
       Protected Overridable Sub AfterPush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
@@ -611,10 +933,10 @@ Namespace mod_tobject
       End Sub
       Protected Overridable Sub AfterDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
       End Sub
-
       Sub Dispose()
          If Not me._disposed Then
-            Dim i As Integer, _length As Integer = me.Length()
+            Dim i As Integer
+            Dim _length As Integer = me.Length()
             For i = 0 To _length - 1
                Dim _item As TTObject = me.Take(i)
                If Not _item.Disposed Then
@@ -626,7 +948,6 @@ Namespace mod_tobject
             Next
          End If
       End Sub
-
       Sub Free(pDispose As Boolean = True)
          If pDispose Then me.Dispose()
          If Assigned(me._list) Then
@@ -639,19 +960,14 @@ Namespace mod_tobject
          End If
          MyBase.Free()
       End Sub
-
    End Class
-
    Class TTComposerList
       Inherits TTBaseList
-
       Protected _base As TTObjectList
-
       Sub New(pName As String, pOwnsObjects As Boolean = True)
          MyBase.New()
          me._base = New TTObjectList(pName, pOwnsObjects)
       End Sub
-
       Property Name As String
          Get
             Name = me._base.Name
@@ -660,11 +976,9 @@ Namespace mod_tobject
             me._SetName(pValue)
          End Set
       End Property
-
       Private Sub _SetName(pValue As String)
          me._base.Name = pValue
       End Sub
-
       Property Length As Integer
          Get
             Length = me._base.Length()
@@ -678,7 +992,6 @@ Namespace mod_tobject
             me._base.Item(pIndex) = pValue
          End Set
       End Property
-
       Property OwnsObjects As Boolean
          Get
             OwnsObjects = me._base.OwnsObjects
@@ -687,54 +1000,42 @@ Namespace mod_tobject
             me._SetOwnsObjects(pValue)
          End Set
       End Property
-
       Private Sub _SetOwnsObjects(pValue As Boolean)
          me._base.OwnsObjects = pValue
       End Sub
-
       Property Sorted As Boolean
          Set(pValue As Boolean)
             me._SetSorted(pValue)
          End Set
       End Property
-
       Private Sub _SetSorted(pValue As Boolean)
          me._base.Sorted = pValue
       End Sub
-
       Function Includes(pID As String) As Boolean
          Includes = me._base.Includes(pID)
       End Function
-
       Function IndexOf(pID As String) As Integer
          IndexOf = me._base.IndexOf(pID)
       End Function
-
       Sub Reverse()
          me._base.Reverse()
       End Sub
-
       Sub Delete(pIndex As Integer)
          me._base.Delete(pIndex)
       End Sub
-
       Sub Delete(pID As String)
          me._base.Delete(pID)
       End Sub
-
       Sub Clean(pDispose As Boolean = True)
          me._base.Clean(pDispose)
       End Sub
-
       Sub Free()
          If Assigned(me._base) Then me._base.Free()
          MyBase.Free()
       End Sub
-
       Function ToString() As String
          ToString = me._base.ToString()
       End Function
-
       Property OnBeforePush As OnActionListDel
          Get
             OnBeforePush = me._base.OnBeforePush
@@ -743,11 +1044,9 @@ Namespace mod_tobject
             me._SetOnBeforePush(pValue)
          End Set
       End Property
-
       Private Sub _SetOnBeforePush(pValue As OnActionListDel)
          me._base.OnBeforePush = pValue
       End Sub
-
       Property OnAfterPush As OnActionListDel
          Get
             OnAfterPush = me._base.OnAfterPush
@@ -756,11 +1055,9 @@ Namespace mod_tobject
             me._SetOnAfterPush(pValue)
          End Set
       End Property
-
       Private Sub _SetOnAfterPush(pValue As OnActionListDel)
          me._base.OnAfterPush = pValue
       End Sub
-
       Property OnBeforeDelete As OnActionListDel
          Get
             OnBeforeDelete = me._base.OnBeforeDelete
@@ -769,11 +1066,9 @@ Namespace mod_tobject
             me._SetOnBeforeDelete(pValue)
          End Set
       End Property
-
       Private Sub _SetOnBeforeDelete(pValue As OnActionListDel)
          me._base.OnBeforeDelete = pValue
       End Sub
-
       Property OnAfterDelete As OnActionListDel
          Get
             OnAfterDelete = me._base.OnAfterDelete
@@ -782,11 +1077,9 @@ Namespace mod_tobject
             me._SetOnAfterDelete(pValue)
          End Set
       End Property
-
       Private Sub _SetOnAfterDelete(pValue As OnActionListDel)
          me._base.OnAfterDelete = pValue
       End Sub
-
       Property OnBeforeClean As OnActionListDel
          Get
             OnBeforeClean = me._base.OnBeforeClean
@@ -795,11 +1088,9 @@ Namespace mod_tobject
             me._SetOnBeforeClean(pValue)
          End Set
       End Property
-
       Private Sub _SetOnBeforeClean(pValue As OnActionListDel)
          me._base.OnBeforeClean = pValue
       End Sub
-
       Property OnAfterClean As OnActionListDel
          Get
             OnAfterClean = me._base.OnAfterClean
@@ -808,11 +1099,9 @@ Namespace mod_tobject
             me._SetOnAfterClean(pValue)
          End Set
       End Property
-
       Private Sub _SetOnAfterClean(pValue As OnActionListDel)
          me._base.OnAfterClean = pValue
       End Sub
-
       Property OnBeforeDispose As OnActionListDel
          Get
             OnBeforeDispose = me._base.OnBeforeDispose
@@ -821,11 +1110,9 @@ Namespace mod_tobject
             me._SetOnBeforeDispose(pValue)
          End Set
       End Property
-
       Private Sub _SetOnBeforeDispose(pValue As OnActionListDel)
          me._base.OnBeforeDispose = pValue
       End Sub
-
       Property OnAfterDispose As OnActionListDel
          Get
             OnAfterDispose = me._base.OnAfterDispose
@@ -834,11 +1121,14 @@ Namespace mod_tobject
             me._SetOnAfterDispose(pValue)
          End Set
       End Property
-
       Private Sub _SetOnAfterDispose(pValue As OnActionListDel)
          me._base.OnAfterDispose = pValue
       End Sub
-
    End Class
-
-End Namespace
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+      <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
+    </mod_tobject>
+  </Modulos>
+</Projeto_Data7>

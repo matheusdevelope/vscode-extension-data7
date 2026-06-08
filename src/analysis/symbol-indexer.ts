@@ -941,11 +941,29 @@ function computeGenericInstantiations(
     if (subs === undefined) continue;
 
     const containerName = namespaceOfTemplate.get(template.name.toLowerCase());
-    appendSyntheticClass(result, usage, fileUri, containerName);
+    const templateSymbol = findGenericTemplateSymbol(parsed.symbols, template, indexer);
+    const inheritsFrom = templateSymbol?.inheritsFrom
+      ? substituteTypeName(templateSymbol.inheritsFrom, subs)
+      : undefined;
+    appendSyntheticClass(result, usage, fileUri, containerName, inheritsFrom);
     appendClonedMembers(result, parsed.symbols, template, usage, subs, indexer);
   }
 
   return result;
+}
+
+function findGenericTemplateSymbol(
+  source: readonly SymbolInfo[],
+  template: GenericTemplateInfo,
+  indexer: WorkspaceSymbolIndexer,
+): SymbolInfo | undefined {
+  const templateLower = template.name.toLowerCase();
+  const isTemplateSymbol = (sym: SymbolInfo): boolean =>
+    sym.kind === "class" &&
+    sym.name.toLowerCase() === templateLower &&
+    (sym.genericTypeParameters?.length ?? 0) > 0;
+
+  return source.find(isTemplateSymbol) ?? indexer.getAllSymbols().find(isTemplateSymbol);
 }
 
 function collectGenericTemplatesFromSymbols(
@@ -1006,6 +1024,7 @@ function appendSyntheticClass(
   usage: GenericUsageOccurrence,
   fileUri: string,
   containerName: string | undefined,
+  inheritsFrom: string | undefined,
 ): void {
   out.push({
     name: usage.flatName,
@@ -1021,6 +1040,7 @@ function appendSyntheticClass(
     },
     fileUri,
     containerName,
+    inheritsFrom,
     isSyntheticGenericInstantiation: true,
     description: `Instanciacao monomorfica de ${usage.templateName}<${usage.typeArgs.join(", ")}>.`,
   });

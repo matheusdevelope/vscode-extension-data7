@@ -156,6 +156,17 @@ describe("parser/serializer", () => {
     assert.match(out, /Exit Sub/);
   });
 
+  test("serialises Exit statements inside single-line If", () => {
+    const src = [
+      "Sub TestExitIf()",
+      "   If pStart >= me.Length() Then Exit For",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /If pStart >= me\.Length\(\) Then Exit For/);
+  });
+
   test("expands compound assignment operators to basic assignment (GAP-02)", () => {
     const src = "Sub TestAssign()\n   x += 1\nEnd Sub";
     const r = parse(src);

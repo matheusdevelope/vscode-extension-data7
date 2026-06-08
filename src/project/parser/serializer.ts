@@ -596,6 +596,8 @@ function emitStatementInline(s: Statement): string {
       return emitExpression(s.expression);
     case "VariableDeclaration":
       return emitVariableDeclaration(s);
+    case "ExitStatement":
+      return `Exit ${s.target}`;
     default:
       return "";
   }

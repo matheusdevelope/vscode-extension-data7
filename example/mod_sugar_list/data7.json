@@ -15,7 +15,7 @@
   },
   "virtualFolders": [
     {
-      "nome": "Unidades (5)",
+      "nome": "Unidades (4)",
       "id": "{2595FD36-7023-4330-9250-4A29F9413BC5}",
       "pastaId": "",
       "aberta": "Sim"
@@ -36,12 +36,6 @@
   "modulesMetadata": {
     "mod_product": {
       "nome": "mod_product",
-      "aberto": true,
-      "ordemAbertura": 0,
-      "pastaId": "{54E05AF7-D967-4CFD-A860-CEA0798BB971}"
-    },
-    "mod_sugar_list": {
-      "nome": "mod_sugar_list",
       "aberto": true,
       "ordemAbertura": 0,
       "pastaId": "{54E05AF7-D967-4CFD-A860-CEA0798BB971}"

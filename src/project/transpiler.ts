@@ -10,17 +10,11 @@ import {
   type MonomorphizationWarning,
   type RequestedGenericInstantiation,
 } from "./generics";
-import {
-  parseBasic,
-  parseExpr,
-  serializeUnitWithMap,
-  GenericsParserPlugin,
-} from "./parser";
+import { parseBasic, parseExpr, serializeUnitWithMap, GenericsParserPlugin } from "./parser";
 import {
   ASTWalker,
   type Statement,
   type Expression,
-  type MethodDeclaration,
   type VariableDeclaration,
   type ExpressionStatement,
   type Identifier,
@@ -35,7 +29,6 @@ import {
   type Assignment,
   type BinaryExpression,
   type WithStatement,
-  type NamespaceDeclaration,
 } from "./ast/ast";
 
 export interface SugarDiagnostic {
@@ -688,7 +681,10 @@ export class ASTSugarTransformer extends ASTWalker {
       }
 
       case "Assignment": {
-        if (this.isSugarEnabled("object-initializer") && s.value.kind === "ObjectInitializerExpression") {
+        if (
+          this.isSugarEnabled("object-initializer") &&
+          s.value.kind === "ObjectInitializerExpression"
+        ) {
           const objInit = s.value;
           const target = this.transformExpression(s.target, false, s.loc?.startLine);
           const creation: ObjectCreationExpression = {
@@ -849,7 +845,10 @@ export class ASTSugarTransformer extends ASTWalker {
           }
         }
 
-        if (this.isSugarEnabled("optional-chain") && s.value.kind === "OptionalChainingExpression") {
+        if (
+          this.isSugarEnabled("optional-chain") &&
+          s.value.kind === "OptionalChainingExpression"
+        ) {
           const depth = this.countOptionalChainDepth(s.value);
           if (depth > 3) {
             this.diagnostics.push({
@@ -876,7 +875,10 @@ export class ASTSugarTransformer extends ASTWalker {
             loc: s.loc,
           };
         }
-        if (this.isSugarEnabled("object-initializer") && s.value.kind === "ObjectInitializerExpression") {
+        if (
+          this.isSugarEnabled("object-initializer") &&
+          s.value.kind === "ObjectInitializerExpression"
+        ) {
           const objInit = s.value;
           const target = s.target;
           const creation: ObjectCreationExpression = {
@@ -1201,7 +1203,10 @@ export class ASTSugarTransformer extends ASTWalker {
       case "ExpressionStatement": {
         const isCall = s.expression.kind === "OptionalChainingExpression";
         s.expression = this.transformExpression(s.expression, isCall, s.loc?.startLine);
-        if (this.isSugarEnabled("optional-chain") && s.expression.kind === "OptionalChainingExpression") {
+        if (
+          this.isSugarEnabled("optional-chain") &&
+          s.expression.kind === "OptionalChainingExpression"
+        ) {
           const depth = this.countOptionalChainDepth(s.expression);
           if (depth > 3) {
             this.diagnostics.push({
