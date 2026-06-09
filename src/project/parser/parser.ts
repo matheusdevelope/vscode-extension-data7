@@ -665,6 +665,7 @@ export class Parser {
       }
     }
     let initializer: Expression | undefined;
+    const asNewArguments = hasAsNew ? this.parseOptionalArgumentList() : [];
     if (this.consume("punct", "=")) {
       initializer = this.parseExpression();
     } else if (isArraySugar && type) {
@@ -678,7 +679,7 @@ export class Parser {
       initializer = {
         kind: "ObjectCreationExpression",
         type: type,
-        arguments: [],
+        arguments: asNewArguments,
         loc: type.loc,
       };
     }
@@ -1876,6 +1877,7 @@ export class Parser {
       }
     }
     let initializer: Expression | undefined;
+    const asNewArguments = hasAsNew ? this.parseOptionalArgumentList() : [];
     if (this.consume("punct", "=")) {
       initializer = this.parseExpression();
     } else if (isArraySugar) {
@@ -1889,7 +1891,7 @@ export class Parser {
       initializer = {
         kind: "ObjectCreationExpression",
         type: type,
-        arguments: [],
+        arguments: asNewArguments,
         loc: type.loc,
       };
     }
@@ -1904,6 +1906,17 @@ export class Parser {
     this.advance();
     this.advance();
     return true;
+  }
+
+  private parseOptionalArgumentList(): Expression[] {
+    const args: Expression[] = [];
+    if (!this.consume("punct", "(")) return args;
+    while (!this.match("punct", ")") && !this.isEOF()) {
+      args.push(this.parseExpression());
+      if (!this.consume("punct", ",")) break;
+    }
+    this.expect("punct", ")", { literal: true });
+    return args;
   }
 
   // --------------------------------------------------------------------------

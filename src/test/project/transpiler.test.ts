@@ -2,6 +2,7 @@ import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { SugarTranspiler, type TranspileContext } from "../../project/transpiler";
+import { SugarRegistry } from "../../project/sugars";
 import type { EnumerableInfo } from "../../analysis/enumerable-detector";
 
 /**
@@ -21,7 +22,9 @@ function makeContext(
     },
     isTypeDescendantOf(typeName, baseTypeName) {
       if (typeName.toLowerCase() === baseTypeName.toLowerCase()) return true;
-      return descendants[typeName]?.some((base) => base.toLowerCase() === baseTypeName.toLowerCase());
+      return descendants[typeName]?.some(
+        (base) => base.toLowerCase() === baseTypeName.toLowerCase(),
+      );
     },
     ...overrides,
   };
@@ -57,7 +60,7 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Dim __idx0 As Integer/);
     assert.match(out, /For __idx0 = 0 To list\.Count - 1/);
     assert.match(out, /Dim item As String = list\.Strings\(__idx0\)/);
-    assert.match(out, /Print\(item\)/);
+    assert.match(out, /mod_logger\.Printe\(item\)/);
     assert.match(out, /^\s{3}Next$/m);
   });
 
@@ -194,7 +197,49 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, code);
+    assert.equal(
+      out,
+      [
+        "Imports mod_logger",
+        "Sub Run()",
+        "   Dim list As StringList",
+        "   ' For Each item As String In list — this is just a comment",
+        "   mod_logger.Printe(list.Count)",
+        "End Sub",
+      ].join("\n"),
+    );
+  });
+
+  test("rewrites global Print calls to the core logger", () => {
+    const ctx = makeContext({});
+    const code = `Print("hello")`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, ["Imports mod_logger", 'mod_logger.Printe("hello")'].join("\n"));
+  });
+
+  test("runs logger print after functional list sugars materialize Print calls", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+      },
+    );
+    const code = [`Dim nums[] As Integer = [1, 2]`, `nums.forEach(x => Print(x))`].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Imports mod_logger$/m);
+    assert.match(out, /mod_logger\.Printe\(x\)/);
+    assert.doesNotMatch(out, /^\s*Print\(x\)$/m);
+  });
+
+  test("orders logger-print after the materialization sugars", () => {
+    const ordered = SugarRegistry.orderByPrecedence(["array-list", "logger-print"]);
+
+    assert.deepEqual(ordered.slice(-1), ["logger-print"]);
   });
 
   test("preserves CRLF line endings when the input uses them", () => {
@@ -298,9 +343,13 @@ describe("SugarTranspiler.transpile", () => {
   });
 
   test("rewrites generic usage when the template is declared in another file", () => {
-    const ctx = makeContext({}, {}, {
-      externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
-    });
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+      },
+    );
     const code = [
       "Imports mod_tlist",
       "",
@@ -318,7 +367,7 @@ describe("SugarTranspiler.transpile", () => {
     const ctx = makeContext({});
     const code = [
       "Sub Run()",
-      '   Dim time_str As String = _timers.Values(pLabel)',
+      "   Dim time_str As String = _timers.Values(pLabel)",
       '   Dim hours As Integer = CInt(time_str.Split(":")[0])',
       '   Dim mins As Integer = CInt(time_str.Split(":")[1])',
       '   Dim secs As Integer = CInt(time_str.Split(":")[2].Split(".")[0])',
@@ -356,9 +405,13 @@ describe("SugarTranspiler.transpile", () => {
   });
 
   test("materializes requested generic instantiations in the template file", () => {
-    const ctx = makeContext({}, {}, {
-      requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["Integer"] }],
-    });
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["Integer"] }],
+      },
+    );
     const code = [
       "Namespace mod_tlist",
       "   Class TTList<T>",
@@ -376,11 +429,15 @@ describe("SugarTranspiler.transpile", () => {
   });
 
   test("qualifies concrete type arguments in materialized generic templates", () => {
-    const ctx = makeContext({}, {}, {
-      requestedGenericInstantiations: [
-        { templateName: "TTList", typeArgs: ["mod_product.Product"], flatTypeArgs: ["Product"] },
-      ],
-    });
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        requestedGenericInstantiations: [
+          { templateName: "TTList", typeArgs: ["mod_product.Product"], flatTypeArgs: ["Product"] },
+        ],
+      },
+    );
     const code = [
       "Imports mod_tobject",
       "",
@@ -405,9 +462,13 @@ describe("SugarTranspiler.transpile", () => {
   });
 
   test("ignores requested generic instantiations that still use open type parameters", () => {
-    const ctx = makeContext({}, {}, {
-      requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["T"] }],
-    });
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        requestedGenericInstantiations: [{ templateName: "TTList", typeArgs: ["T"] }],
+      },
+    );
     const code = [
       "Namespace mod_tlist",
       "   Class TTList<T>",
@@ -742,8 +803,7 @@ describe("SugarTranspiler — ternary (`cond ? a : b`)", () => {
     assert.ok(diag);
     assert.equal(diag.code, "ternary-context-unsupported");
     assert.equal(diag.typeName, "non-assignment");
-    // Line preserved verbatim.
-    assert.equal(out, code);
+    assert.equal(out, ["Imports mod_logger", 'mod_logger.Printe(cond ? "sim" : "nao")'].join("\n"));
   });
 
   test("ignores `?` and `:` inside a regular string literal", () => {
@@ -811,7 +871,7 @@ describe("SugarTranspiler — A1 null-coalesce (`??`)", () => {
     const [diag] = diagnostics;
     assert.ok(diag);
     assert.equal(diag.code, "null-coalesce-context-unsupported");
-    assert.equal(out, code);
+    assert.equal(out, ["Imports mod_logger", 'mod_logger.Printe(a ?? "x")'].join("\n"));
   });
 });
 
@@ -883,7 +943,7 @@ describe("SugarTranspiler — A5 optional chaining (`?.`)", () => {
     const [diag] = diagnostics;
     assert.ok(diag);
     assert.equal(diag.code, "optional-chain-context-unsupported");
-    assert.equal(out, code);
+    assert.equal(out, ["Imports mod_logger", "mod_logger.Printe(obj?.Nome)"].join("\n"));
   });
 });
 
@@ -927,6 +987,27 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.equal(out, `Dim list As StringList = New StringList()`);
+  });
+
+  test("preserves constructor arguments in `Dim x As New T(args)`", () => {
+    const code = `Dim _info As New LogInfo(pLevel, CStr(pMessage), pExtra, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.equal(
+      out,
+      `Dim _info As LogInfo = New LogInfo(pLevel, CStr(pMessage), pExtra, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)`,
+    );
+  });
+
+  test("preserves constructor arguments in class fields declared `As New T(args)`", () => {
+    const code = [
+      "Class Holder",
+      '   Value As New LogInfo(2, "ok")',
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Value As LogInfo = New LogInfo\(2, "ok"\)/);
   });
 });
 
@@ -1079,9 +1160,13 @@ describe("SugarTranspiler — A6 numeric separator", () => {
 });
 
 describe("SugarTranspiler — array-list", () => {
-  const ctx = makeContext({}, {}, {
-    externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
-  });
+  const ctx = makeContext(
+    {},
+    {},
+    {
+      externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+    },
+  );
 
   test("materializes Dim x[] declarations into TTList<T>", () => {
     const code = `Dim x[] As String = ["a", "b"]`;
@@ -1106,12 +1191,7 @@ describe("SugarTranspiler — array-list", () => {
   });
 
   test("accepts multiline array literals", () => {
-    const code = [
-      `Dim x[] As String = [`,
-      `   "a",`,
-      `   "b"`,
-      `]`,
-    ].join("\n");
+    const code = [`Dim x[] As String = [`, `   "a",`, `   "b"`, `]`].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.trimEnd().split("\n"), [
@@ -1122,11 +1202,9 @@ describe("SugarTranspiler — array-list", () => {
   });
 
   test("rewrites TTList index read and write to GetItem/SetItem", () => {
-    const code = [
-      `Dim x[] As Product`,
-      `Dim first As Product = x[0]`,
-      `x[1] = New Product()`,
-    ].join("\n");
+    const code = [`Dim x[] As Product`, `Dim first As Product = x[0]`, `x[1] = New Product()`].join(
+      "\n",
+    );
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
@@ -1159,9 +1237,13 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /Dim found As Integer[\s\S]*If x > 1 Then[\s\S]*found = x[\s\S]*Exit For/);
     assert.match(out, /Dim foundIndex As Integer = -1[\s\S]*foundIndex = __idx\d+/);
     assert.match(out, /Dim hasEven As Boolean = False[\s\S]*hasEven = True/);
-    assert.match(out, /Dim allPositive As Boolean = True[\s\S]*If Not x > 0 Then[\s\S]*allPositive = False/);
+    assert.match(
+      out,
+      /Dim allPositive As Boolean = True[\s\S]*If Not x > 0 Then[\s\S]*allPositive = False/,
+    );
     assert.match(out, /Dim total As Integer = 0[\s\S]*total = total \+ x/);
-    assert.match(out, /print\(x\)/);
+    assert.match(out, /mod_logger\.Printe\(x\)/);
+    assert.doesNotMatch(out, /^\s*print\(x\)$/m);
   });
 
   test("expands map spread inside array literals", () => {
@@ -1185,7 +1267,7 @@ describe("SugarTranspiler — array-list", () => {
       "Class TTest",
       "   Sub Run()",
       "      Dim lista As TList_String",
-      "      Dim f = lista.Filter((x As String) => x = \"Item 1\")",
+      '      Dim f = lista.Filter((x As String) => x = "Item 1")',
       "   End Sub",
       "End Class",
     ].join("\n");
@@ -1201,7 +1283,7 @@ describe("SugarTranspiler — array-list", () => {
       "Class TTest",
       "   Sub Run()",
       "      Dim lista As TList_String",
-      "      Dim target = \"Item 1\"",
+      '      Dim target = "Item 1"',
       "      Dim f = lista.Filter((x As String) => x = target)",
       "   End Sub",
       "End Class",

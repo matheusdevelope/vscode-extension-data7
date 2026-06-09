@@ -22,6 +22,7 @@ interface SugarInfo {
   readonly displayName: string;
   readonly description: string;
   readonly enabledByDefault: boolean;
+  readonly priority: number;
   readonly dependencies: readonly string[];
   readonly utilityModules: readonly string[];
   readonly demonstratesFirst?: string;
@@ -55,6 +56,7 @@ function buildSugarCatalog(): SugarInfo[] {
       displayName: registered.displayName,
       description: registered.description,
       enabledByDefault: registered.enabledByDefault,
+      priority: registered.priority,
       dependencies: registered.dependencies,
       utilityModules: registered.utilityModules,
       demonstratesFirst: first?.header?.demonstrates,

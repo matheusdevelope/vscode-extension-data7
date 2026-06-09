@@ -124,7 +124,7 @@ Namespace console
 
    Private Sub Printe(pMessage As String)
       If Not BlockPrint
-         print pMessage
+         mod_logger.Printe(pMessage)
          IF NOT _ProcessMessagesSetted
             console.ProcessMessages(True)
          End IF

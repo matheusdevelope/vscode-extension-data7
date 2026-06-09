@@ -1,0 +1,1390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Projeto_Data7 xmlns="http://www.se7esistemas.com.br/developer/2024" Version="2.0" Language="Basic" Type="Plugin" TargetPlataform="Default">
+  <Opcoes>
+    <Autor>Matheus</Autor>
+    <Versao>1.0.0.0</Versao>
+    <Informacoes>Logger</Informacoes>
+    <CodEmpresa>1</CodEmpresa>
+    <CodFilial>1</CodFilial>
+    <NomeUsuario>Administrador</NomeUsuario>
+    <PreScript></PreScript>
+    <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
+  </Opcoes>
+  <Nome>Principal</Nome>
+  <Data>09/06/2026 09:33:32</Data>
+  <Codigo>
+Imports mod_logger
+Imports mod_logger_info
+Imports mod_logger_transport_console
+
+imports mod_logger_formater
+
+Dim _logger As New Logger()
+_logger.Options.Level = LogLevel.Debug
+
+Dim _transportFile As New TransportConsole()
+'_transportFile.Options.StrictLevel = False
+_transportFile.Options.Level = LogLevel.Debug
+_logger.Options.Transports.Add(_transportFile)
+
+'Dim _transportConsoleError As New TransportConsole()
+'_transportConsoleError.Options.Level = LogLevel.Erro
+'_transportConsoleError.Options.Format = New FormaterWithTime()
+'_logger.Options.Transports.Add(_transportConsoleError)
+
+'_logger.log("info", "Teste")
+
+'_logger.Erro("Teste Erro!!")
+'_logger.Warn("Teste Warn!!")
+'_logger.Info("Teste Info!!")
+_logger.Debug("Teste Debug!!")
+
+
+</Codigo>
+  <Aberto>true</Aberto>
+  <OrdemAbertura>0</OrdemAbertura>
+  <ItemAberto>0</ItemAberto>
+  <Pastas>
+    <Pasta>
+      <Nome>Unidades (7)</Nome>
+      <ID>{1F241EF3-1E14-436D-8374-B5C8F126C988}</ID>
+      <PastaID></PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>Helpers</Nome>
+      <ID>{52C15BB0-EAB2-4E59-B537-5963C79406F9}</ID>
+      <PastaID>{1F241EF3-1E14-436D-8374-B5C8F126C988}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>Logger</Nome>
+      <ID>{0CD256B8-6341-4D95-B358-2F2F5A0F7114}</ID>
+      <PastaID>{1F241EF3-1E14-436D-8374-B5C8F126C988}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>Transport</Nome>
+      <ID>{99B8371B-BC1F-4295-A6A5-9DE9839A627B}</ID>
+      <PastaID>{0CD256B8-6341-4D95-B358-2F2F5A0F7114}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>Format</Nome>
+      <ID>{50134C39-AFA7-4847-936C-BBBC4E01597C}</ID>
+      <PastaID>{0CD256B8-6341-4D95-B358-2F2F5A0F7114}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+    <Pasta>
+      <Nome>Info</Nome>
+      <ID>{72BCEE0F-9EB1-4CFC-867D-D65F488B597C}</ID>
+      <PastaID>{0CD256B8-6341-4D95-B358-2F2F5A0F7114}</PastaID>
+      <Aberta>Sim</Aberta>
+    </Pasta>
+  </Pastas>
+  <Modulos>
+    <mod_logger>
+      <Codigo>
+Imports mod_event_emitter
+Imports mod_logger_info
+Imports mod_logger_formater
+Imports mod_logger_transport
+
+Namespace mod_logger
+
+   Class LoggerOptions
+
+      Silent As Boolean
+      Format As Formater
+      Level As Integer = LogLevel.Info
+      StrictLevel As Boolean
+      exitOnError As Integer
+
+      Transports As TransportList
+
+      Sub New()
+         MyBase.New()
+         me.Transports = New TransportList()
+      End Sub
+
+      Sub New(pOptions As LoggerOptions)
+         Mybase.New()
+         me.Fill(pOptions)
+      End Sub
+
+      Sub Fill(pValue As LoggerOptions)
+         IF pValue = NULL
+            Exit Sub
+         End If
+         With pValue
+            me.Silent = .Silent
+            me.Format = .Format
+            me.Level = .Level
+            me.StrictLevel = .StrictLevel
+            me.exitOnError = .exitOnError
+            me.Transports = .Transports
+         End With
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+
+   Class Logger
+      Inherits EventEmitter
+
+      Options As LoggerOptions = New LoggerOptions()
+
+      Sub New()
+         Mybase.New()
+      End Sub
+
+      Sub New(pValue As LoggerOptions)
+         Mybase.New()
+         me.Configure(pValue)
+      End Sub
+
+      Sub Configure(pValue As LoggerOptions)
+         me.Options.Transports.Clean()
+         me.Options.Fill(pValue)
+      End Sub
+
+      Sub Log(pLevel As Integer, pMessage As String, pExtra As String = "")
+         IF me.Options.Transports.Count = 0
+            Throw New Exception("Nenhum transporte de logs foi adicionado, verifique!")
+         End If
+         If me.Options.Silent OR ((me.Options.StrictLevel AND me.Options.Level &lt;&gt; pLevel) OR (NOT me.Options.StrictLevel AND pLevel &gt; me.Options.Level))
+            Exit Sub
+         End If
+         Dim _info As New LogInfo(pMessage, pLevel, pExtra)
+         Dim i As Integer, count As Integer = me.Options.Transports.Count
+         For i = 0 To count - 1
+            me.Options.Transports.Take(i)._write(_info, NULL)
+         Next
+      End Sub
+
+      Sub Log(pLevel As Integer, pMessage As String, pException As Exception)
+         me.Log(pLevel, pMessage, pException._GetMessage())
+      End Sub
+
+      Sub Log(pLevel As Integer, pMessage As String, pExtra As Variant)
+         me.Log(pLevel, pMessage, CStr(pExtra))
+      End Sub
+
+      Sub Log(pLevel As String, pMessage As String)
+         me.Log(LogLevel.FromString(pLevel), pMessage)
+      End Sub
+
+      Sub Log(pLevel As String, pMessage As String, pException As Exception)
+         me.Log(LogLevel.FromString(pLevel), pMessage, pException)
+      End Sub
+
+      Sub Log(pLevel As String, pMessage As String, pExtra As Variant)
+         me.Log(LogLevel.FromString(pLevel), pMessage, pExtra)
+      End Sub
+
+      Sub Info(pMessage As String)
+         me.Log(LogLevel.Info, pMessage)
+      End Sub
+
+      Sub Info(pMessage As String, pException As Exception)
+         me.Log(LogLevel.Info, pMessage, pException)
+      End Sub
+
+      Sub Info(pMessage As String, pExtra As Variant)
+         me.Log(LogLevel.Info, pMessage, pExtra)
+      End Sub
+
+      Sub Warn(pMessage As String)
+         me.Log(LogLevel.Warn, pMessage)
+      End Sub
+
+      Sub Warn(pMessage As String, pException As Exception)
+         me.Log(LogLevel.Warn, pMessage, pException)
+      End Sub
+
+      Sub Warn(pMessage As String, pExtra As Variant)
+         me.Log(LogLevel.Warn, pMessage, pExtra)
+      End Sub
+
+      Sub Debug(pMessage As String)
+         me.Log(LogLevel.Debug, pMessage)
+      End Sub
+
+      Sub Debug(pMessage As String, pException As Exception)
+         me.Log(LogLevel.Debug, pMessage, pException)
+      End Sub
+
+      Sub Debug(pMessage As String, pExtra As Variant)
+         me.Log(LogLevel.Debug, pMessage, pExtra)
+      End Sub
+
+      Sub Erro(pMessage As String)
+         me.Log(LogLevel.Erro, pMessage)
+      End Sub
+
+      Sub Erro(pMessage As String, pException As Exception)
+         me.Log(LogLevel.Erro, pMessage, pException)
+      End Sub
+
+      Sub Erro(pMessage As String, pExtra As Variant)
+         me.Log(LogLevel.Erro, pMessage, pExtra)
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace
+</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>1</OrdemAbertura>
+      <PastaID>{0CD256B8-6341-4D95-B358-2F2F5A0F7114}</PastaID>
+    </mod_logger>
+    <mod_logger_info>
+      <Codigo>
+Namespace mod_logger_info
+
+   Class LogLevel
+
+      Shared Function Erro As Integer
+         Return 0
+      End Function
+
+      Shared Function Warn As Integer
+         Return 1
+      End Function
+
+      Shared Function Info As Integer
+         Return 2
+      End Function
+
+      Shared Function Debug As Integer
+         Return 3
+      End Function
+
+      Shared Function AsString(pLevel As Integer) As String
+         Select pLevel
+            Case 0
+               Return "ERROR"
+            Case 1
+               Return "WARN"
+            Case 2
+               Return "INFO"
+            Case 3
+               Return "DEBUG"
+            Case Else
+               Return "Level Not Defined (" + pLevel.toString + ")"
+         End Select
+      End Function
+
+      Shared Function FromString(pLevel As String) As Integer
+         pLevel = pLevel.ToUpper
+         Select pLevel
+            Case "ERROR"
+               Return 0
+            Case "WARN"
+               Return 1 
+            Case "INFO"
+               Return 2 
+            Case "DEBUG"
+               Return 3 
+            Case Else
+               Return -1
+         End Select
+      End Function
+
+   End Class
+
+   Class LogInfo
+      Message As String
+      Time As TDateTime = DateTime()
+      Level As Integer
+      Duration As Integer
+      IsException As Boolean
+      Extra As String
+
+      Sub New()
+         Mybase.New()
+      End Sub
+
+      Sub New(pMessage As String, pLevel As Integer, pExtra As String = "")
+         Mybase.New()
+         me.Message = pMessage
+         me.Level = pLevel
+         me.Extra = pExtra
+      End Sub
+
+
+      Sub New(pMessage As String, pTime As TDateTime, pLevel As Integer, pDuration As Integer = 0, pIsException As Boolean = False, pExtra As String = "")
+         Mybase.New()
+         me.Message = pMessage
+         me.Time = pTime
+         me.Level = pLevel
+         me.Duration = pDuration
+         me.isException = pIsException
+         me.Extra = pExtra
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace
+</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>2</OrdemAbertura>
+      <PastaID>{72BCEE0F-9EB1-4CFC-867D-D65F488B597C}</PastaID>
+    </mod_logger_info>
+    <mod_logger_transport>
+      <Codigo>
+Imports mod_base_list
+Imports mod_event_emitter
+Imports mod_logger_info
+Imports mod_logger_formater
+
+Namespace mod_logger_transport
+
+   Delegate Sub DelegateCallback(pInfo As LogInfo)
+
+   Class TransportOptions
+      Private _Level As Integer
+      StrictLevel As Boolean
+      HandleExceptions As Boolean
+      Silent As Boolean
+      Format As Formater
+
+      Property Level As Integer
+         Get
+            print "getting: " + me._level.ToString
+            Return me._level
+         End Get
+         Set(pValue As Integer)
+            print "setting: " + pValue.ToString
+            me._level = pValue
+         End Set
+      End property
+
+      Sub New()
+         MyBase.New()
+         me.Level = LogLevel.Info
+         me.Format = New Formater()
+      End Sub
+
+      Sub New(pLevel As Integer, pHandleExceptions As Boolean, pSilent As Boolean, pFormat As Formater)
+         Mybase.New()
+         me.Level = pLevel
+         me.HandleExceptions = pHandleExceptions
+         me.Silent = pSilent
+         me.Format = pFormat
+      End Sub
+
+      Sub Fill(pValue As TransportOptions)
+         IF pValue = NULL
+            Exit Sub
+         End If
+         With pValue
+            me.Level = .Level
+            me.HandleExceptions = .HandleExceptions
+            me.Silent = .Silent
+            me.Format = .Format
+         End With
+      End Sub
+
+      Sub Free()
+         me.Format.Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Class Transport
+      Inherits EventEmitter
+
+      Overridable Options As TransportOptions = New TransportOptions()
+
+       Sub New()
+           MyBase.New()
+       End Sub
+
+       Sub New(pOptions As TransportOptions)
+           MyBase.New()
+           me.Options.Fill(pOptions)
+       End Sub
+
+       Sub New(pValue As Transport)
+           MyBase.New()
+           me.Options.Fill(pValue.Options)
+       End Sub
+
+       Sub _write(pInfo As LogInfo, pCallback As DelegateCallback)
+
+          print me.Options.StrictLevel.ToString + ":   " + me.Options.Level.ToString + " - " + pInfo.Level.ToString
+
+          '(pInfo.IsException AND NOT me.Options.HandleExceptions) OR
+
+          If (pInfo.IsException AND NOT me.Options.HandleExceptions) OR me.Options.Silent OR ((me.Options.StrictLevel AND me.Options.Level &lt;&gt; pInfo.Level) OR (NOT me.Options.StrictLevel AND pInfo.Level &gt; me.Options.Level))
+          'print me.Options.Silent OR (me.Options.StrictLevel AND me.Options.Level &lt;&gt; pInfo.Level) 'OR (NOT me.Options.StrictLevel AND pInfo.Level &gt; me.Options.Level)
+          'If (pInfo.IsException AND NOT me.Options.HandleExceptions) OR me.Options.Silent OR (NOT me.Options.StrictLevel AND me.Options.Level &lt; pInfo.Level) OR (me.Options.StrictLevel AND me.Options.Level &lt;&gt; pInfo.Level) Then
+             IF pCallback &lt;&gt; NULL
+                pCallback(pInfo)
+             End If
+             Exit Sub
+          End If
+
+          pInfo = me.Options.Format.Transform(pInfo, me.Options.Format.Options)
+          me.Log(pInfo, pCallback)
+       End Sub
+
+       Overridable Sub Log(pInfo As LogInfo, pCallback As DelegateCallback)
+          Throw New Exception("Method Not Implemented")
+       End Sub
+
+       Function GetID As String
+          Return me.GetHashCode.ToString()
+       End Function
+
+       Sub Free()
+          MyBase.Free()
+       End Sub
+
+   End Class
+
+   Delegate Function FindDelegate(pValue As Transport, i As Integer, extra As Variant) As Boolean
+   Delegate Function MapDelegate(pValue As Transport, i As Integer, extra As Variant) As Transport
+   Delegate Sub ForEachDelegate(pValue As Transport, i As Integer, extra As Variant)
+
+   Class TransportList
+      Inherits BaseList
+
+      Sub New()
+         MyBase.New()
+         me.OwnsObjects = False
+      End Sub
+
+      ' Do if you need a custom ID, the default is the HashCode of class
+      Sub Add(pValue As Transport)
+         'MyBase.Add(pValue, pValue.GetHashCode.ToString)    'Default class ID used in BaseList
+         MyBase.Add(pValue.GetID.ToString, pValue)
+      End Sub
+
+      Function Take(index As integer) As Transport
+         Return Transport(MyBase.Take(index))
+      End Function
+
+      Function Take(pID As String) As Transport
+         Return Transport(MyBase.TakeFromId(pID))
+      End Function
+
+      Function First As Transport
+         Return Transport(MyBase.First)
+      End Function
+
+      Function Last As Transport
+         Return Transport(MyBase.Last)
+      End Function
+
+      Function Copy As TransportList
+         Dim values As New TransportList()
+         Dim i As Integer, _count As Integer = me.Count
+         For i = 0 to _count -1
+            values.Add(New Transport(Transport(me._list.Objects(i))))
+         Next
+         Return values
+      End Function
+
+      Function IndexOf(handler As FindDelegate) As Integer
+         Return me.IndexOf(handler, "")
+      End Function
+
+      Function IndexOf(handler As FindDelegate, extra As Variant) As Integer
+         Return MyBase.IndexOf(handler, extra)
+      End Function
+
+      Function Find(handler As FindDelegate) As Transport
+         Return me.Find(handler, "")
+      End Function
+
+      Function Find(handler As FindDelegate, extra As Variant) As Transport
+         Return Transport(MyBase.Find(handler, extra))
+      End Function
+
+      Function Filter(handler As FindDelegate) As TransportList
+         Return me.Filter(handler, "")
+      End Function
+
+      Function Filter(handler As FindDelegate, extra As Variant) As TransportList
+         Return TransportList(MyBase.Filter(handler, extra))
+      End Function
+
+      Sub ForEach(handler As FindDelegate)
+         me.ForEach(handler, "")
+      End Sub
+
+      Sub ForEach(handler As ForEachDelegate, extra As Variant)
+         MyBase.ForEach(handler, extra)
+      End Sub
+
+      Function Map(handler As FindDelegate) As TransportList
+         Return me.Map(handler, "")
+      End Function
+
+      Function Map(handler As MapDelegate, extra As Variant) As TransportList
+       Return TransportList(MyBase.Map(handler, extra))
+      End Function
+
+      Sub Sort(handlerGetPropValue As SortPropDelegate, pAsc As Boolean = True)
+         me.Sort(handlerGetPropValue, pAsc, "")
+      End Sub
+
+      Sub Sort(handlerGetPropValue As SortPropDelegate, pAsc As Boolean = True, pExtra As Variant)
+         MyBase.Sort(handlerGetPropValue, pAsc, pExtra)
+      End Sub
+
+      Function ToString(pPrint As Boolean = True) As String
+         'Dim i As Integer, _count As Integer = me.Count, txt As New Collections.StringList()
+         'txt.Add("Transport Count:" + _count.ToString)
+         'For i = 0 to _count -1
+         '   txt.Add(Transport(MyBase.Take(i)).ToString(False))
+         'Next
+         If pPrint
+            print "TransportList" 'txt.Text
+         End If
+         ToString = "TransportList" 'txt.Text
+         'txt.Free()
+      End Function
+
+      'Function ToJson As TJSONArray
+      '   Dim i As Integer, _count As Integer = me.Count, list As New TJSONArray()
+      '   For i = 0 to _count -1
+      '      list.PutObject(Transport(MyBase.Take(i)).ToJson())
+      '   Next
+      '   Return list
+      'End Function
+
+      'Shared Function FromJson(pList As TJSONArray) As TransportList
+      '   Dim i As Integer, _count As Integer = pList.Length , list As New TransportList()
+      '   For i = 0 to _count -1
+      '      list.Add(Transport.FromJson(pList.GetJSONObject(i)))
+      '   Next
+      '   Return list
+      'End Function
+
+      Sub Free()
+         If NOT me.OwnsObjects
+            Dim i As Integer, _count As Integer = me.Count
+            For i = 0 To _count - 1
+               Transport(MyBase.Take(i)).Free()
+            Next
+         End If
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace
+</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>3</OrdemAbertura>
+      <PastaID>{99B8371B-BC1F-4295-A6A5-9DE9839A627B}</PastaID>
+    </mod_logger_transport>
+    <mod_base_list>
+      <Codigo>Imports Collections
+
+Namespace mod_base_list
+
+   Delegate Function FindDelegate(pValue As TObject, i As Integer, extra As Variant) As Boolean
+   Delegate Function MapDelegate(pValue As TObject, i As Integer, extra As Variant) As TObject
+   Delegate Function SortPropDelegate(pValue As TObject, i As Integer, extra As Variant) As String
+   Delegate Sub ForEachDelegate(pValue As TObject, i As Integer, extra As Variant)
+
+   Class BaseList
+      'Private
+      _list As StringList
+
+      Sub New()
+         MyBase.New()
+         me._list = New StringList()
+         me.OwnsObjects = False
+      End Sub
+
+      Property OwnsObjects As Boolean
+         Get
+            Return me._list.OwnsObjects
+         End Get
+         Set(pValue As Boolean)
+            me.SetOwnsObjects(pValue)
+         End Set
+      End Property
+
+      Property Sorted As Boolean
+         Set(pValue As Boolean)
+            me.SetSorted(pValue)
+         End Set
+      End Property
+
+      Sub Add(pValue As TObject)
+         me._list.AddObject(pValue.GetHashCode.ToString, pValue)
+      End Sub
+
+      Sub Add(pID As String, pValue As TObject)
+         me._list.AddObject(pID.ToUpper, pValue)
+      End Sub
+
+      Sub Add(pValues As BaseList)
+         Dim i As Integer
+         For i = 0 To pValues.Count - 1
+             me.Add(pValues.Take(i))
+         Next
+      End Sub
+
+      Sub AddWithId(pID As String, pValue As TObject)
+         me.Add(pID.ToUpper, pValue)
+      End Sub
+
+      Function Take(pID As String) As TObject
+         Return me.Take(me.IndexOf(pID))
+      End Function
+
+      Function Take(index As Integer) As TObject
+         Return me._list.Objects(index)
+      End Function
+
+      Function TakeFromId(pID As String) As TObject
+         Return me.Take(pID)
+      End Function
+
+      Function Has(pID As String) As Boolean
+         Return me.IndexOf(pID) &lt;&gt; -1
+      End Function
+
+      Function IndexOf(pID As String) As Integer
+         pID = pID.ToUpper
+         Return me._list.IndexOf(pID)
+      End Function
+
+      Function IndexOf(handler As FindDelegate) As Integer
+         Return me.IndexOf(handler, "")
+      End Function
+
+      Function IndexOf(handler As FindDelegate, extra As Variant) As Integer
+         Dim value As Integer = -1
+         Dim i As Integer
+         For i = 0 to me.Count -1
+             If handler(me.Take(i), i, extra)
+                value = i
+                Exit For
+             End IF
+         Next
+         Return value
+      End Function
+
+      Function Find(handler As FindDelegate) As TObject
+         Return me.Find(handler, "")
+      End Function
+
+      Function Find(handler As FindDelegate, extra As Variant) As TObject
+         Dim value As TObject
+         Dim i As Integer
+         For i = 0 to me.Count -1
+             If handler(me.Take(i), i, extra)
+                value = me.Take(i)
+                Exit For
+             End IF
+         Next
+         Return value
+      End Function
+
+      Function Filter(handler As FindDelegate) As BaseList
+         Return me.Filter(handler, "")
+      End Function
+
+      Function Filter(handler As FindDelegate, extra As Variant) As BaseList
+         Dim _new As New BaseList()
+         Dim i As Integer
+         For i = 0 To me.Count - 1
+             IF handler(me.Take(i), i, extra)
+                _new.Add(me.Take(i))
+             End IF
+         Next
+         Return _new
+      End Function
+
+      Sub ForEach(handler As FindDelegate)
+         me.ForEach(handler, "")
+      End Sub
+
+      Sub ForEach(handler As ForEachDelegate, extra As Variant)
+         Dim i As Integer
+         For i = 0 To me.Count - 1
+             handler(me.Take(i), i, extra)
+         Next
+      End Sub
+
+      Function Map(handler As FindDelegate) As BaseList
+         Return me.Map(handler, "")
+      End Function
+
+      Function Map(handler As MapDelegate, extra As Variant) As BaseList
+         Dim _new As New BaseList()
+         Dim i As Integer
+         For i = 0 To me.Count - 1
+             _new.Add(handler(me.Take(i), i, extra))
+         Next
+         Return _new
+      End Function
+
+      Function First() As TObject
+         If me.count &gt; 0
+            Return me.Take(0)
+         End If
+         Return NULL
+      End Function
+
+      Function Last() As TObject
+         Dim i As Integer = me.Count -1
+         If me.count &gt; 0
+            Return me.Take(i)
+         End If
+         Return NULL
+      End Function
+
+      Function Copy() As BaseList
+         Dim values As New BaseList
+         Dim i As Integer
+         For i = 0 to me.Count -1
+            values.Add(me.Take(i))
+         Next
+         Return values
+      End Function
+
+      Function Count() As Integer
+         Return me._list.Count
+      End Function
+
+      Sub Delete(index as integer)
+         me._list.Delete(index)
+      End Sub
+
+      Sub Delete(pID As String)
+         _list.Delete(me.IndexOf(pID))
+      End Sub
+
+      Sub Clean()
+         me._list.Clear()
+      End Sub
+
+      Sub Sort(handlerGetPropValue As SortPropDelegate, pAsc As Boolean = True)
+         me.Sort(handlerGetPropValue, pAsc, "")
+      End Sub
+
+      Sub Sort(handlerGetPropValue As SortPropDelegate, pAsc As Boolean = True, pExtra As Variant)
+         If handlerGetPropValue &lt;&gt; NULL
+
+            Dim listTemp As New StringList, i As Integer
+            Dim count As Integer = me.Count
+            For i = 0 To count - 1
+               Dim item As TObject = me._list.Objects(i)
+               Dim prop_value As String = handlerGetPropValue(item, i, pExtra)
+               ' Adiciona o item atual na lista temporária usando a prop como ID
+               listTemp.AddObject(prop_value, item)
+            Next
+            ' Ordena a lista temporária
+            listTemp.Sorted = True
+
+            ' Recria a lista atual baseado na lista temporária ordenada pelo valor da propriedade retornada
+            Dim tempOwnsObjects As Boolean = me.OwnsObjects
+            me.OwnsObjects = False
+            me.Clean()
+            count = listTemp.Count
+
+            For i = 0 To count - 1
+               Dim idx As Integer = i
+               If Not pAsc
+                  idx = count - i - 1
+               End If
+               me.Add(listTemp.Objects(idx))
+            Next
+            me.OwnsObjects = tempOwnsObjects
+
+            listTemp.Free()
+         Else
+            Throw New Exception("You must send a handler")
+         End If
+      End Sub
+
+      Sub ToString(pNameList As String = "Base")
+         print(pNameList + " Count: " + me.Count.ToString())
+         Dim i As Integer
+         For i = 0 to me.Count -1
+             me.Take(i).toString()
+         Next
+      End Sub
+
+      Sub ListToString
+         print me._list.Text
+      End Sub
+
+      Sub Free()
+         me._list.Free()
+         MyBase.Free()
+      End Sub
+
+      Private Sub SetOwnsObjects(pValue As Boolean)
+         me._list.OwnsObjects = pValue
+      End Sub
+
+      Private Sub SetSorted(pValue As Boolean)
+         me._list.Sorted = pValue
+      End Sub
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>5</OrdemAbertura>
+      <PastaID>{52C15BB0-EAB2-4E59-B537-5963C79406F9}</PastaID>
+    </mod_base_list>
+    <mod_event_emitter>
+      <Codigo>imports Collections
+imports mod_base_list
+
+Namespace mod_event_emitter
+
+   Delegate Sub DelegateCallback(pEvent As String)
+   Delegate Sub DelegateCallbackVar(pEvent As String, pData As Variant)
+   Delegate Sub DelegateCallbackObj(pEvent As String, pData As TObject)
+
+   Class EventEmitter
+
+      Public Events As EventCallbackList
+      Public AvailableEvents As StringList
+      Public CheckEvents As Boolean = False
+      Public MaxListeners As Integer = -1
+
+      Sub New()
+         MyBase.New()
+         me.events = New EventCallbackList()
+         me.AvailableEvents = New StringList()
+      End Sub
+
+      Function Listen(pCallback As EventCallback) As EventCallback
+         me.CheckEventIsValid(pCallback.EventName)
+         me.CheckMaxListeners()
+         me.events.Add(pCallback)
+         Return me.events.Last
+      End Function
+
+      Function Listen(pEvent As String, pCallback As DelegateCallback) As EventCallback
+         me.CheckEventIsValid(pEvent)
+         me.CheckMaxListeners()
+         me.events.Add(New EventCallback(pEvent, pCallback))
+         Return me.events.Last
+      End Function
+
+      Function ListenVar(pEvent As String, pCallback As DelegateCallbackVar) As EventCallback
+         me.CheckEventIsValid(pEvent)
+         me.CheckMaxListeners()
+         me.events.Add(New EventCallback(pEvent, pCallback))
+         Return me.events.Last
+      End Function
+
+      Function ListenObj(pEvent As String, pCallback As DelegateCallbackObj) As EventCallback
+         me.CheckEventIsValid(pEvent)
+         me.CheckMaxListeners()
+         me.events.Add(New EventCallback(pEvent, pCallback))
+         Return me.events.Last
+      End Function
+
+      Sub Emit(pEvent As String)
+         me.CheckEventIsValid(pEvent)
+         Dim _events As EventCallbackList = me.events.Filter(me.FilterEventsByName, pEvent)
+         Dim i As Integer
+         For i = 0 To _events.Count - 1
+            IF _events.Take(i).Callback &lt;&gt; NULL
+               _events.Take(i).Callback(pEvent)
+            End If
+         Next
+      End Sub
+
+      Sub Emit(pEvent As String, pData As TObject)
+         me.CheckEventIsValid(pEvent)
+         Dim _events As EventCallbackList = me.events.Filter(me.FilterEventsByName, pEvent)
+         Dim i As Integer
+         For i = 0 To _events.Count - 1
+            IF _events.Take(i).CallbackObj &lt;&gt; NULL
+               _events.Take(i).CallbackObj(pEvent, pData)
+            End If
+         Next
+      End Sub
+
+      Sub Emit(pEvent As String, pData As Variant)
+         me.CheckEventIsValid(pEvent)
+         Dim _events As EventCallbackList = me.events.Filter(me.FilterEventsByName, pEvent)
+         Dim i As Integer
+         For i = 0 To _events.Count - 1
+            IF _events.Take(i).CallbackVar &lt;&gt; NULL
+               _events.Take(i).CallbackVar(pEvent, pData)
+            End If
+         Next
+      End Sub
+
+      Sub EmitObj(pEvent As String, pData As TObject)
+         me.Emit(pEvent, pData)
+      End Sub
+
+      Sub Off(pIdCallback As Integer)
+         Dim new_events As EventCallbackList = New EventCallbackList()
+         Dim i As Integer
+         For i = 0 To me.events.Count - 1
+            IF me.events.Take(i).ID &lt;&gt; pIdCallback
+               new_events.Add(me.events.Take(i))
+            End If
+         Next
+         me.events = new_events
+      End Sub
+
+      Sub Off(pCallback As EventCallback)
+         me.CheckEventIsValid(pCallback.EventName)
+         Dim new_events As EventCallbackList = New EventCallbackList()
+         Dim i As Integer
+         For i = 0 To me.events.Count - 1
+            IF me.events.Take(i) &lt;&gt; pCallback
+               new_events.Add(me.events.Take(i))
+            End If
+         Next
+         me.events = new_events
+      End Sub
+
+      Sub Off(pEventName As String, pCallback As DelegateCallback)
+         me.CheckEventIsValid(pEventName)
+         Dim new_events As EventCallbackList = New EventCallbackList()
+         Dim i As Integer
+         For i = 0 To me.events.Count - 1
+            IF me.events.Take(i).EventName &lt;&gt; pEventName OR (me.events.Take(i).EventName = pEventName AND me.events.Take(i).Callback &lt;&gt; pCallback)
+               new_events.Add(me.events.Take(i))
+            End If
+         Next
+         me.events = new_events
+      End Sub
+
+      Sub Off(pEventName As String, pCallback As DelegateCallbackVar)
+         me.CheckEventIsValid(pEventName)
+         Dim new_events As EventCallbackList = New EventCallbackList()
+         Dim i As Integer
+         For i = 0 To me.events.Count - 1
+            IF me.events.Take(i).EventName &lt;&gt; pEventName OR (me.events.Take(i).EventName = pEventName AND me.events.Take(i).CallbackVar &lt;&gt; pCallback)
+               new_events.Add(me.events.Take(i))
+            End If
+         Next
+         me.events = new_events
+      End Sub
+
+      Sub OffObj(pEventName As String, pCallback As DelegateCallbackObj)
+         me.CheckEventIsValid(pEventName)
+         Dim new_events As EventCallbackList = New EventCallbackList()
+         Dim i As Integer
+         For i = 0 To me.events.Count - 1
+            IF me.events.Take(i).EventName &lt;&gt; pEventName OR (me.events.Take(i).EventName = pEventName AND me.events.Take(i).CallbackObj &lt;&gt; pCallback)
+               new_events.Add(me.events.Take(i))
+            End If
+         Next
+         me.events = new_events
+      End Sub
+
+      Sub RemoveListeners(pEventName As String)
+         Dim new_events As EventCallbackList = New EventCallbackList()
+         Dim i As Integer
+         For i = 0 To me.events.Count - 1
+            IF me.events.Take(i).EventName &lt;&gt; pEventName
+               new_events.Add(me.events.Take(i))
+            End If
+         Next
+         me.events = new_events
+      End Sub
+
+      Sub RemoveListeners()
+         me.events.Clean()
+      End Sub
+
+      Function Listeners(pEventName As String = "") As EventCallbackList
+         If pEventName &lt;&gt; ""
+            Return me.events.Filter(me.FilterEventsByName, pEventName)
+         Else
+            Return me.events
+         End If
+      End Function
+
+      Private Sub CheckEventIsValid(pEvent As String)
+         IF me.CheckEvents
+            pEvent = pEvent.ToLower
+            me.AvailableEvents.Text = me.AvailableEvents.Text.ToLower
+            IF me.AvailableEvents.IndexOf(pEvent) = -1
+               Throw new System.Exception("The event [" + pEvent + "] is not aceppted." + CHAR(13) + "Available events:" + CHAR(13) + me.AvailableEvents.Text)
+            End IF
+         End IF
+      End Sub
+
+      Private Sub CheckMaxListeners()
+          If Me.MaxListeners &gt; -1 AND Me.Events.Count = Me.MaxListeners
+              Throw New System.Exception("Número máximo de listeners atingido (" + Me.MaxListeners.ToString + "). Não é possível adicionar mais listeners.")
+          End If
+      End Sub
+
+      Private Function FilterEventsByName(pValue As EventCallback, i As Integer, extra As Variant) As Boolean
+         Dim _extra As String = CStr(extra)
+         Return pValue.EventName.ToUpper = _extra.ToUpper
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Class EventCallback
+
+      Public ReadOnly EventName As String
+      Public ReadOnly CallbackVar As DelegateCallbackVar
+      Public ReadOnly CallbackObj As DelegateCallbackObj
+      Public ReadOnly Callback As DelegateCallback
+
+      Sub New()
+         MyBase.New()
+      End Sub
+
+      Sub New(pEventName As String, pCallbackWithoutData As DelegateCallback)
+         MyBase.New()
+         me.EventName = pEventName
+         me.CallbackVar = NULL
+         me.CallbackObj = NULL
+         me.Callback = pCallbackWithoutData
+      End Sub
+
+      Sub New(pEventName As String, pCallbackObj As DelegateCallbackObj)
+         MyBase.New()
+         me.EventName = pEventName
+         me.CallbackVar = NULL
+         me.CallbackObj = pCallbackObj
+         me.Callback = NULL
+      End Sub
+
+      Sub New(pEventName As String, pCallback As DelegateCallbackVar)
+         MyBase.New()
+         me.EventName = pEventName
+         me.CallbackVar = pCallback
+         me.CallbackObj = NULL
+         me.Callback = NULL
+      End Sub
+
+
+      Sub New(pEventName As String, pCallback As DelegateCallbackVar, pCallbackObj As DelegateCallbackObj, pCallbackWithoutData As DelegateCallback)
+         MyBase.New()
+         me.EventName = pEventName
+         me.CallbackVar = pCallback
+         me.CallbackObj = pCallbackObj
+         me.Callback = pCallbackWithoutData
+      End Sub
+
+      Sub New(pEventCallback As EventCallback)
+         MyBase.New()
+         me.Fill(pEventCallback)
+      End Sub
+
+      Function Id() As Integer
+         Return me.GetHashCode
+      End Function
+
+      Sub Fill(pEventCallback As EventCallback)
+         IF pEventCallback = NULL
+            Exit Sub
+         End If
+         With pEventCallback
+            me.EventName = .EventName
+            me.CallbackVar = .CallbackVar
+            me.CallbackObj = .CallbackObj
+            me.Callback = .Callback
+         End With
+      End Sub
+
+      Function Copy() As EventCallback
+         Return New EventCallback(me)
+      End Function
+
+      Function GetId() As String
+         Return me.GetHashCode.ToString
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Delegate Function FindDelegate(pValue As EventCallback, i As Integer, extra As Variant) As Boolean
+   Delegate Function MapDelegate(pValue As EventCallback, i As Integer, extra As Variant) As EventCallback
+   Delegate Sub ForEachDelegate(pValue As EventCallback, i As Integer, extra As Variant)
+
+   Class EventCallbackList
+      Inherits BaseList
+
+      Sub New()
+         MyBase.New()
+         me.OwnsObjects = False
+      End Sub
+
+      ' Do if you need a custom ID, the default is the HashCode of class
+      Sub Add(pValue As EventCallback)
+         'MyBase.Add(pValue, pValue.GetHashCode.ToString)    'Default class ID used in BaseList
+         MyBase.Add(pValue.GetID.ToString, pValue)
+      End Sub
+
+      Function Take(index As integer) As EventCallback
+         Return EventCallback(MyBase.Take(index))
+      End Function
+
+      Function Take(pID As String) As EventCallback
+         Return EventCallback(MyBase.TakeFromId(pID))
+      End Function
+
+      Function First As EventCallback
+         Return EventCallback(MyBase.First)
+      End Function
+
+      Function Last As EventCallback
+         Return EventCallback(MyBase.Last)
+      End Function
+
+      Function Copy As EventCallbackList
+         Dim values As New EventCallbackList()
+         Dim i As Integer, _count As Integer = me.Count
+         For i = 0 to _count -1
+            values.Add(New EventCallback(EventCallback(me._list.Objects(i))))
+         Next
+         Return values
+      End Function
+
+      Function IndexOf(handler As FindDelegate) As Integer
+         Return me.IndexOf(handler, "")
+      End Function
+
+      Function IndexOf(handler As FindDelegate, extra As Variant) As Integer
+         Return MyBase.IndexOf(handler, extra)
+      End Function
+
+      Function Find(handler As FindDelegate) As EventCallback
+         Return me.Find(handler, "")
+      End Function
+
+      Function Find(handler As FindDelegate, extra As Variant) As EventCallback
+         Return EventCallback(MyBase.Find(handler, extra))
+      End Function
+
+      Function Filter(handler As FindDelegate) As EventCallbackList
+         Return me.Filter(handler, "")
+      End Function
+
+      Function Filter(handler As FindDelegate, extra As Variant) As EventCallbackList
+         Return EventCallbackList(MyBase.Filter(handler, extra))
+      End Function
+
+      Sub ForEach(handler As FindDelegate)
+         me.ForEach(handler, "")
+      End Sub
+
+      Sub ForEach(handler As ForEachDelegate, extra As Variant)
+         MyBase.ForEach(handler, extra)
+      End Sub
+
+      Function Map(handler As FindDelegate) As EventCallbackList
+         Return me.Map(handler, "")
+      End Function
+
+      Function Map(handler As MapDelegate, extra As Variant) As EventCallbackList
+       Return EventCallbackList(MyBase.Map(handler, extra))
+      End Function
+
+      Sub Sort(handlerGetPropValue As SortPropDelegate, pAsc As Boolean = True)
+         me.Sort(handlerGetPropValue, pAsc, "")
+      End Sub
+
+      Sub Sort(handlerGetPropValue As SortPropDelegate, pAsc As Boolean = True, pExtra As Variant)
+         MyBase.Sort(handlerGetPropValue, pAsc, pExtra)
+      End Sub
+
+      Function ToString(pPrint As Boolean = True) As String
+         'Dim i As Integer, _count As Integer = me.Count, txt As New Collections.StringList()
+         'txt.Add("EventCallback Count:" + _count.ToString)
+         'For i = 0 to _count -1
+         '   txt.Add(EventCallback(MyBase.Take(i)).ToString(False))
+         'Next
+         If pPrint
+            print "EventCallbackList" 'txt.Text
+         End If
+         ToString = "EventCallbackList" 'txt.Text
+         'txt.Free()
+      End Function
+
+      'Function ToJson As TJSONArray
+      '   Dim i As Integer, _count As Integer = me.Count, list As New TJSONArray()
+      '   For i = 0 to _count -1
+      '      list.PutObject(EventCallback(MyBase.Take(i)).ToJson())
+      '   Next
+      '   Return list
+      'End Function
+
+      'Shared Function FromJson(pList As TJSONArray) As EventCallbackList
+      '   Dim i As Integer, _count As Integer = pList.Length , list As New EventCallbackList()
+      '   For i = 0 to _count -1
+      '      list.Add(EventCallback.FromJson(pList.GetJSONObject(i)))
+      '   Next
+      '   Return list
+      'End Function
+
+      Sub Free()
+         If NOT me.OwnsObjects
+            Dim i As Integer, _count As Integer = me.Count
+            For i = 0 To _count - 1
+               EventCallback(MyBase.Take(i)).Free()
+            Next
+         End If
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>6</OrdemAbertura>
+      <PastaID>{52C15BB0-EAB2-4E59-B537-5963C79406F9}</PastaID>
+    </mod_event_emitter>
+    <mod_logger_transport_console>
+      <Codigo>
+Imports mod_logger_info
+Imports mod_logger_transport
+
+Namespace mod_logger_transport_console
+
+   Delegate Sub DelegateCallback(pInfo As LogInfo)
+
+   Class TransportOptionsConsole
+      Inherits TransportOptions
+
+      ProcessMessages As Boolean
+
+      Sub New()
+         MyBase.New()
+      End Sub
+
+      Sub New(pOptions As TransportOptionsConsole)
+         Mybase.New()
+         me.Fill(pOptions)
+      End Sub
+
+      Sub Fill(pValue As TransportOptionsConsole)
+         IF pValue = NULL
+            Exit Sub
+         End If
+         MyBase.Fill(pValue)
+         With pValue
+            me.ProcessMessages = .ProcessMessages
+         End With
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Class TransportConsole
+      Inherits Transport
+
+      'Ao usar assim ele pega um valor desatualizado
+
+      'Overrides Options As TransportOptionsConsole = New TransportOptionsConsole()
+
+       Sub New()
+           MyBase.New()
+       End Sub
+
+       Sub New(pOptions As TransportOptionsConsole)
+           MyBase.New()
+           me.Options.Fill(pOptions)
+       End Sub
+
+       Overrides Sub Log(pInfo As LogInfo, pCallback As DelegateCallback)
+          me.Emit("logged", pInfo)
+          print pInfo.Message
+          'If me.Options.ProcessMessages
+          '   Forms.ProcessMessages
+          'End If
+       End Sub
+
+   End Class
+
+End Namespace
+</Codigo>
+      <Aberto>true</Aberto>
+      <OrdemAbertura>4</OrdemAbertura>
+      <PastaID>{99B8371B-BC1F-4295-A6A5-9DE9839A627B}</PastaID>
+    </mod_logger_transport_console>
+    <mod_logger_formater>
+      <Codigo>
+Imports mod_logger_info
+
+Namespace mod_logger_formater
+
+   Class Formater
+
+      Options As TJSONObject = New TJSONObject()
+
+      Sub New()
+         MyBase.New()
+      End Sub
+
+      Overridable Function Transform(pInfo As LogInfo, pOptions As TJSONObject) As LogInfo
+         pInfo.Message = "[" + LogLevel.AsString(pInfo.Level) + "] " + pInfo.Message
+         Return pInfo
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+   Class FormaterWithTime
+      Inherits Formater
+
+      Sub New()
+         MyBase.New()
+      End Sub
+
+      Overrides Function Transform(pInfo As LogInfo, pOptions As TJSONObject) As LogInfo
+         print "Aqui"
+         pInfo.Message = "[" + LogLevel.AsString(pInfo.Level) + "] " + "[" + pInfo.Time.ToString("DD-MM-YYYY HH:NN:SS.ZZZ") + "]" +  pInfo.Message
+         Return pInfo
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+
+   End Class
+
+End Namespace
+</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>-1</OrdemAbertura>
+      <PastaID>{50134C39-AFA7-4847-936C-BBBC4E01597C}</PastaID>
+    </mod_logger_formater>
+  </Modulos>
+</Projeto_Data7>

@@ -39,6 +39,11 @@ export class SugarEngine {
     return new Set(this.enabledIds);
   }
 
+  public getEnabledSugarIdsInPrecedenceOrder(): string[] {
+    if (!this.enabled) return [];
+    return SugarRegistry.orderByPrecedence(this.enabledIds);
+  }
+
   public createParserPlugins(): ParserPlugin[] {
     if (!this.anyEnabled()) return [];
     // The parser still has one compatibility plugin while transforms are being
@@ -53,4 +58,3 @@ export class SugarEngine {
     return SugarRegistry.getUtilityModules(resolved);
   }
 }
-

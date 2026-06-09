@@ -14,7 +14,12 @@ import { logger } from "../infra/logger";
 import * as vscode from "vscode";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { readProjectConfig, writeProjectConfig } from "./project-config";
-import { SugarTranspiler, type TranspileContext, type SugarDiagnostic } from "./transpiler";
+import {
+  SugarTranspiler,
+  type TranspileContext,
+  type SugarDiagnostic,
+  type TranspileResult,
+} from "./transpiler";
 import { SugarRegistry } from "./sugar-registry";
 import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./generics";
 
@@ -47,11 +52,7 @@ function qualifyGenericTypeArgument(
   const symbol = indexer.findSymbolByName(trimmed, contextFileUri);
   if (!symbol?.containerName) return typeArg;
   if (symbol.isSyntheticGenericInstantiation) return typeArg;
-  if (
-    symbol.kind !== "class" &&
-    symbol.kind !== "structure" &&
-    symbol.kind !== "delegate"
-  ) {
+  if (symbol.kind !== "class" && symbol.kind !== "structure" && symbol.kind !== "delegate") {
     return typeArg;
   }
   return `${symbol.containerName}.${trimmed}`;
@@ -71,6 +72,10 @@ const BUILDER_PRIMITIVE_TYPE_NAMES = new Set([
   "variant",
   "void",
 ]);
+
+export interface BuildProjectOptions {
+  readonly vscodeLoggerFilePath?: string;
+}
 
 /**
  * Packages a workspace tree (`src/Principal.bas`, modules under `src/**`, optional
@@ -210,7 +215,9 @@ export class Builder {
     const trimmed = typeName.trim();
     if (!trimmed) return undefined;
 
-    const simpleName = trimmed.includes(".") ? trimmed.substring(trimmed.lastIndexOf(".") + 1) : trimmed;
+    const simpleName = trimmed.includes(".")
+      ? trimmed.substring(trimmed.lastIndexOf(".") + 1)
+      : trimmed;
     if (BUILDER_PRIMITIVE_TYPE_NAMES.has(simpleName.toLowerCase())) return undefined;
 
     const symbol = indexer.findSymbolByName(simpleName);
@@ -343,6 +350,7 @@ export class Builder {
     workspaceDir: string,
     outputFilePath: string,
     _sharedModulesDir?: string,
+    options: BuildProjectOptions = {},
   ): string {
     const configPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
     const projectConfig = readProjectConfig(configPath);
@@ -489,7 +497,11 @@ export class Builder {
 
     // 1. Transpile all code to collect used sugars
     const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
-    const mainTranspiled = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
+    const mainTranspiledRaw = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
+    const mainTranspiled: TranspileResult = {
+      ...mainTranspiledRaw,
+      code: this.injectRuntimeLoggerConfig(mainTranspiledRaw.code, options.vscodeLoggerFilePath),
+    };
     if (mainTranspiled.usedSugars) {
       for (const s of mainTranspiled.usedSugars) globalUsedSugars.add(s);
     }
@@ -693,6 +705,29 @@ export class Builder {
     writeProjectConfig(configPath, metadata);
 
     return outputFilePath;
+  }
+
+  private static injectRuntimeLoggerConfig(code: string, vscodeLoggerFilePath?: string): string {
+    if (!vscodeLoggerFilePath) return code;
+
+    const eol = code.includes("\r\n") ? "\r\n" : "\n";
+    const lines = code.split(/\r?\n/);
+    const hasLoggerImport = lines.some((line) => /^\s*Imports\s+mod_logger\s*$/i.test(line));
+    let insertIdx = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*Imports\b/i.test(lines[i] ?? "")) {
+        insertIdx = i + 1;
+      }
+    }
+
+    const escapedPath = vscodeLoggerFilePath.replace(/"/g, '""');
+    const injected: string[] = [];
+    if (!hasLoggerImport) injected.push("Imports mod_logger");
+    injected.push(`mod_logger.ConfigureVSCode("${escapedPath}")`);
+
+    lines.splice(insertIdx, 0, ...injected);
+    return lines.join(eol);
   }
 
   /**

@@ -18,6 +18,13 @@ function ensureWorkspaceTrusted(reason: string): boolean {
   return true;
 }
 
+interface ExecutorLogSession {
+  readonly filePath: string;
+  readonly channel: vscode.OutputChannel;
+}
+
+let executorLogSession: ExecutorLogSession | undefined;
+
 export class BuildService {
   /** Builds the active project's `.7Proj`. */
   public static async build(): Promise<void> {
@@ -115,9 +122,13 @@ export class BuildService {
       }
     }
 
+    const vscodeLoggerFilePath = this.prepareVSCodeLoggerFile(project.workspaceDir);
+
     try {
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
-      Builder.buildProject(project.workspaceDir, project.projectFilePath);
+      Builder.buildProject(project.workspaceDir, project.projectFilePath, undefined, {
+        vscodeLoggerFilePath,
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Falha na compilação antes de executar.", err);
@@ -125,6 +136,7 @@ export class BuildService {
       return;
     }
 
+    this.startVSCodeLoggerMirror(vscodeLoggerFilePath);
     await this.runProjectFileDirectly(project.projectFilePath);
   }
 
@@ -280,6 +292,57 @@ export class BuildService {
       );
       return {};
     }
+  }
+
+  private static prepareVSCodeLoggerFile(workspaceDir: string): string {
+    const logsDir = path.join(workspaceDir, ".data7", "logs");
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+    const logFilePath = path.join(logsDir, "vscode-executor.log");
+    fs.writeFileSync(logFilePath, "", "utf-8");
+    return logFilePath;
+  }
+
+  private static startVSCodeLoggerMirror(logFilePath: string): void {
+    if (executorLogSession) {
+      fs.unwatchFile(executorLogSession.filePath);
+      executorLogSession.channel.dispose();
+    }
+
+    const channel = vscode.window.createOutputChannel("Data7 Executor Logs");
+    channel.clear();
+    channel.show(true);
+    executorLogSession = { filePath: logFilePath, channel };
+
+    let offset = 0;
+    const readNewContent = (): void => {
+      try {
+        if (!fs.existsSync(logFilePath)) return;
+        const stat = fs.statSync(logFilePath);
+        if (stat.size < offset) offset = 0;
+        if (stat.size === offset) return;
+
+        const fd = fs.openSync(logFilePath, "r");
+        try {
+          const buffer = Buffer.alloc(stat.size - offset);
+          fs.readSync(fd, buffer, 0, buffer.length, offset);
+          offset = stat.size;
+          const text = buffer.toString("utf-8");
+          if (text.length > 0) channel.append(text);
+        } finally {
+          fs.closeSync(fd);
+        }
+      } catch (err: unknown) {
+        logger.warn(
+          `Falha ao espelhar logs do Executor no VS Code: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    };
+
+    fs.watchFile(logFilePath, { interval: 250 }, readNewContent);
   }
 
   /**

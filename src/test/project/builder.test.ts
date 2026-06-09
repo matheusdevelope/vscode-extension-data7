@@ -5,6 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { Builder } from "../../project/builder";
 import { Decompiler } from "../../project/decompiler";
+import { DependencyService } from "../../services/dependency-service";
 import { withTempDir } from "../_helpers/temp-dir";
 
 /** Fabricates a minimal valid Data7 project on disk inside `dir`. */
@@ -86,6 +87,23 @@ End Namespace
         assert.match(xml, /For __idx0 = 0 To list\.Count - 1/);
         assert.match(xml, /Dim item As String = list\.Strings\(__idx0\)/);
         assert.doesNotMatch(xml, /For\s+Each/i);
+      });
+    });
+
+    test("injects VS Code logger transport when requested", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(path.join(tmp, "src", "Principal.bas"), `Print("hello")`, "utf-8");
+        DependencyService.syncProjectData7Modules(tmp, {});
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        const logFilePath = path.join(tmp, ".data7", "logs", "vscode-executor.log");
+        Builder.buildProject(tmp, destXml, undefined, { vscodeLoggerFilePath: logFilePath });
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Imports mod_logger/);
+        assert.match(xml, /mod_logger\.ConfigureVSCode/);
+        assert.match(xml, /mod_logger\.Printe\(&quot;hello&quot;\)/);
       });
     });
 

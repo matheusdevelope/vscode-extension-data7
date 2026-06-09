@@ -149,4 +149,12 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     syntaxKinds: ["VariableDeclaration"],
     diagnosticCodes: ["auto-new-non-default-ctor"],
   }),
+  metadata({
+    id: "logger-print",
+    displayName: "Logger Print",
+    description: "Rewrites global Print calls to the core logger after all other sugars run.",
+    enabledByDefault: true,
+    priority: 1000,
+    syntaxKinds: ["MethodInvocation(Print)"],
+  }),
 ];

@@ -12,6 +12,7 @@ export interface SugarPlugin {
   readonly displayName: string;
   readonly description: string;
   readonly enabledByDefault: boolean;
+  readonly priority?: number;
   readonly dependencies?: readonly string[];
   readonly syntaxKinds?: readonly string[];
   readonly diagnosticCodes?: readonly string[];
@@ -30,9 +31,9 @@ export interface SugarCatalogEntry {
   readonly displayName: string;
   readonly description: string;
   readonly enabledByDefault: boolean;
+  readonly priority: number;
   readonly dependencies: readonly string[];
   readonly syntaxKinds: readonly string[];
   readonly diagnosticCodes: readonly string[];
   readonly utilityModules: readonly string[];
 }
-

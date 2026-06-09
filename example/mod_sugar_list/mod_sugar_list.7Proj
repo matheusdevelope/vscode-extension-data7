@@ -11,9 +11,11 @@
     <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>2026-06-09T12:12:21.527Z</Data>
-  <Codigo>Imports mod_tlist
+  <Data>2026-06-09T15:32:48.958Z</Data>
+  <Codigo>Imports mod_logger
+Imports mod_tlist
 Imports mod_product
+mod_logger.ConfigureVSCode(&quot;d:\DEV\Projects\data7\vscode-extension-data7\example\mod_sugar_list\.data7\logs\vscode-executor.log&quot;)
 Dim _names As TTList_String = New TTList_String()
 _names.Push(&quot;Produto 1&quot;)
 _names.Push(&quot;Produto 2&quot;)
@@ -31,19 +33,24 @@ _prods.Push(__src0)
 Dim __idx1 As Integer
 For __idx1 = 0 To _prods.Length - 1
    Dim p As Product = _prods.GetItem(__idx1)
-   print(p.ToString())
+   mod_logger.Printe(p.ToString())
 Next
 Dim _last As Product = _prods.Pop()
-print _last.ToString()
-&apos; O ToString não apacere no autocomplete de _prods, o linter não acusa erro na IDE e nem no build.
-&apos; pelo que pude notar, nenhum metodo ou prop das classes de herança da TTList aparece no autocomplete, mas o linter e o build reconhecem normalmente.
-print _prods.ToString()</Codigo>
+mod_logger.Printe(_last.ToString())
+mod_logger.Printe(_prods.ToString())
+If Forms.MessageBox.Confirmation(&quot;Deseja executar os logs com timer?&quot;) Then
+   Dim __idx2 As Integer
+   For __idx2 = 0 To _prods.Length - 1
+      Dim p2 As Product = _prods.GetItem(__idx2)
+      mod_logger.Printe(p2.ToString())
+   Next
+End If</Codigo>
   <Aberto>true</Aberto>
   <OrdemAbertura>0</OrdemAbertura>
   <ItemAberto>0</ItemAberto>
   <Pastas>
     <Pasta>
-      <Nome>Unidades (4)</Nome>
+      <Nome>Unidades (5)</Nome>
       <ID>{2595FD36-7023-4330-9250-4A29F9413BC5}</ID>
       <PastaID></PastaID>
       <Aberta>Sim</Aberta>
@@ -208,7 +215,7 @@ Namespace console
    End Function
    Private Sub Printe(pMessage As String)
       If Not BlockPrint Then
-         print pMessage
+         mod_logger.Printe(pMessage)
          If Not _ProcessMessagesSetted Then
             console.ProcessMessages(True)
          End If
@@ -222,6 +229,617 @@ End Namespace</Codigo>
       <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
     </mod_console>
+    <mod_logger>
+      <Codigo>Imports Collections
+Imports IO
+&apos;@Module-Imported
+Namespace mod_logger
+   Delegate Sub LogTransportWriter(pInfo As LogInfo, pFormatted As String)
+   Class LogLevel
+      Shared Function ErrorValue() As Integer
+         ErrorValue = 0
+      End Function
+      Shared Function WarnValue() As Integer
+         WarnValue = 1
+      End Function
+      Shared Function InfoValue() As Integer
+         InfoValue = 2
+      End Function
+      Shared Function HttpValue() As Integer
+         HttpValue = 3
+      End Function
+      Shared Function VerboseValue() As Integer
+         VerboseValue = 4
+      End Function
+      Shared Function DebugValue() As Integer
+         DebugValue = 5
+      End Function
+      Shared Function SillyValue() As Integer
+         SillyValue = 6
+      End Function
+      Shared Function AsString(pLevel As Integer) As String
+         Select Case pLevel
+            Case 0
+               AsString = &quot;ERROR&quot;
+            Case 1
+               AsString = &quot;WARN&quot;
+            Case 2
+               AsString = &quot;INFO&quot;
+            Case 3
+               AsString = &quot;HTTP&quot;
+            Case 4
+               AsString = &quot;VERBOSE&quot;
+            Case 5
+               AsString = &quot;DEBUG&quot;
+            Case 6
+               AsString = &quot;SILLY&quot;
+            Case Else
+               AsString = &quot;LEVEL-&quot; + pLevel.ToString()
+         End Select
+      End Function
+      Shared Function FromString(pLevel As String) As Integer
+         pLevel = pLevel.ToUpper().Trim()
+         Select Case pLevel
+            Case &quot;ERROR&quot;
+               FromString = 0
+            Case &quot;ERRO&quot;
+               FromString = 0
+            Case &quot;WARN&quot;
+               FromString = 1
+            Case &quot;WARNING&quot;
+               FromString = 1
+            Case &quot;INFO&quot;
+               FromString = 2
+            Case &quot;HTTP&quot;
+               FromString = 3
+            Case &quot;VERBOSE&quot;
+               FromString = 4
+            Case &quot;DEBUG&quot;
+               FromString = 5
+            Case &quot;SILLY&quot;
+               FromString = 6
+            Case Else
+               FromString = 2
+         End Select
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Private Function LoggerLevelAsString(pLevel As Integer) As String
+      Select Case pLevel
+         Case 0
+            LoggerLevelAsString = &quot;ERROR&quot;
+         Case 1
+            LoggerLevelAsString = &quot;WARN&quot;
+         Case 2
+            LoggerLevelAsString = &quot;INFO&quot;
+         Case 3
+            LoggerLevelAsString = &quot;HTTP&quot;
+         Case 4
+            LoggerLevelAsString = &quot;VERBOSE&quot;
+         Case 5
+            LoggerLevelAsString = &quot;DEBUG&quot;
+         Case 6
+            LoggerLevelAsString = &quot;SILLY&quot;
+         Case Else
+            LoggerLevelAsString = &quot;LEVEL-&quot; + pLevel.ToString()
+      End Select
+   End Function
+   Private Function LoggerLevelFromString(pLevel As String) As Integer
+      pLevel = pLevel.ToUpper().Trim()
+      Select Case pLevel
+         Case &quot;ERROR&quot;
+            LoggerLevelFromString = 0
+         Case &quot;ERRO&quot;
+            LoggerLevelFromString = 0
+         Case &quot;WARN&quot;
+            LoggerLevelFromString = 1
+         Case &quot;WARNING&quot;
+            LoggerLevelFromString = 1
+         Case &quot;INFO&quot;
+            LoggerLevelFromString = 2
+         Case &quot;HTTP&quot;
+            LoggerLevelFromString = 3
+         Case &quot;VERBOSE&quot;
+            LoggerLevelFromString = 4
+         Case &quot;DEBUG&quot;
+            LoggerLevelFromString = 5
+         Case &quot;SILLY&quot;
+            LoggerLevelFromString = 6
+         Case Else
+            LoggerLevelFromString = 2
+      End Select
+   End Function
+   Class LogInfo
+      Level As Integer
+      LevelName As String
+      Message As String
+      DetailsText As String
+      Meta As String
+      Label As String
+      Timestamp As TDateTime
+      DurationMs As Integer
+      IsException As Boolean
+      ExceptionMessage As String
+      FormattedMessage As String
+      Sub New()
+         MyBase.New()
+         me.Timestamp = DateTime()
+         me.Level = 2
+         me.LevelName = LoggerLevelAsString(me.Level)
+      End Sub
+      Sub New(pSeverity As Integer, pMessage As String, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;, pLabel As String = &quot;&quot;)
+         MyBase.New()
+         me.Timestamp = DateTime()
+         me.Level = pSeverity
+         me.LevelName = LoggerLevelAsString(pSeverity)
+         me.Message = pMessage
+         me.DetailsText = pExtra
+         me.Meta = pMeta
+         me.Label = pLabel
+      End Sub
+      Function Clone() As LogInfo
+         Dim _info As LogInfo = New LogInfo()
+         _info.Level = me.Level
+         _info.LevelName = me.LevelName
+         _info.Message = me.Message
+         _info.DetailsText = me.DetailsText
+         _info.Meta = me.Meta
+         _info.Label = me.Label
+         _info.Timestamp = me.Timestamp
+         _info.DurationMs = me.DurationMs
+         _info.IsException = me.IsException
+         _info.ExceptionMessage = me.ExceptionMessage
+         _info.FormattedMessage = me.FormattedMessage
+         Clone = _info
+      End Function
+      Function ToJson() As String
+         Dim _json As TJSONObject = New TJSONObject()
+         _json.PutString(&quot;level&quot;, me.LevelName)
+         _json.PutString(&quot;message&quot;, me.Message)
+         _json.PutString(&quot;timestamp&quot;, me.Timestamp.ToString(&quot;yyyy-mm-dd hh:nn:ss.zzz&quot;))
+         If me.Label &lt;&gt; &quot;&quot; Then _json.PutString(&quot;label&quot;, me.Label)
+         If me.DetailsText &lt;&gt; &quot;&quot; Then _json.PutString(&quot;extra&quot;, me.DetailsText)
+         If me.Meta &lt;&gt; &quot;&quot; Then _json.PutString(&quot;meta&quot;, me.Meta)
+         If me.DurationMs &gt; 0 Then _json.PutInteger(&quot;durationMs&quot;, me.DurationMs)
+         If me.IsException Then _json.PutString(&quot;exception&quot;, me.ExceptionMessage)
+         ToJson = _json.ToString()
+         _json.Free()
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class LogFormat
+      IncludeTimestamp As Boolean = True
+      IncludeLevel As Boolean = True
+      IncludeLabel As Boolean = True
+      IncludeMeta As Boolean = True
+      IncludeExtra As Boolean = True
+      Json As Boolean = False
+      TimestampFormat As String = &quot;yyyy-mm-dd hh:nn:ss.zzz&quot;
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Transform(pInfo As LogInfo) As String
+         If pInfo = NULL Then
+            Transform = &quot;&quot;
+            Exit Function
+         End If
+         If me.Json Then
+            Transform = pInfo.ToJson()
+            Exit Function
+         End If
+         Dim _message As String = &quot;&quot;
+         If me.IncludeTimestamp Then _message = _message + &quot;[&quot; + pInfo.Timestamp.ToString(me.TimestampFormat) + &quot;] &quot;
+         If me.IncludeLevel Then _message = _message + &quot;[&quot; + CStr(pInfo.LevelName) + &quot;] &quot;
+         If me.IncludeLabel And pInfo.Label &lt;&gt; &quot;&quot; Then _message = _message + &quot;[&quot; + CStr(pInfo.Label) + &quot;] &quot;
+         _message = _message + CStr(pInfo.Message)
+         If me.IncludeExtra And pInfo.DetailsText &lt;&gt; &quot;&quot; Then _message = _message + Char(13) + CStr(pInfo.DetailsText)
+         If pInfo.IsException And pInfo.ExceptionMessage &lt;&gt; &quot;&quot; Then _message = _message + Char(13) + CStr(pInfo.ExceptionMessage)
+         If me.IncludeMeta And pInfo.Meta &lt;&gt; &quot;&quot; Then _message = _message + Char(13) + CStr(pInfo.Meta)
+         If pInfo.DurationMs &gt; 0 Then
+            _message = _message + &quot; +&quot; + pInfo.DurationMs.ToString() + &quot;ms&quot;
+         End If
+         Transform = _message
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class LogTransportOptions
+      Level As Integer = 2
+      StrictLevel As Boolean = False
+      Silent As Boolean = False
+      HandleExceptions As Boolean = True
+      Format As LogFormat
+      Sub New()
+         MyBase.New()
+         me.Format = New LogFormat()
+      End Sub
+      Sub Fill(pOptions As LogTransportOptions)
+         If pOptions = NULL Then Exit Sub
+         me.Level = pOptions.Level
+         me.StrictLevel = pOptions.StrictLevel
+         me.Silent = pOptions.Silent
+         me.HandleExceptions = pOptions.HandleExceptions
+         me.Format = pOptions.Format
+      End Sub
+      Sub Free()
+         If Assigned(me.Format) Then me.Format.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class LogTransport
+      Name As String = &quot;transport&quot;
+      Options As LogTransportOptions
+      Sub New()
+         MyBase.New()
+         me.Options = New LogTransportOptions()
+      End Sub
+      Function GetID() As String
+         If me.Name &lt;&gt; &quot;&quot; Then
+            GetID = me.Name
+         Else
+            GetID = me.GetHashCode().ToString()
+         End If
+      End Function
+      Function ShouldLog(pInfo As LogInfo) As Boolean
+         If pInfo = NULL Then
+            ShouldLog = False
+            Exit Function
+         End If
+         If me.Options.Silent Then
+            ShouldLog = False
+            Exit Function
+         End If
+         If pInfo.IsException And Not me.Options.HandleExceptions Then
+            ShouldLog = False
+            Exit Function
+         End If
+         If me.Options.StrictLevel Then
+            ShouldLog = me.Options.Level = pInfo.Level
+         Else
+            ShouldLog = pInfo.Level &lt;= me.Options.Level
+         End If
+      End Function
+      Sub Write(pInfo As LogInfo)
+         If Not me.ShouldLog(pInfo) Then Exit Sub
+         Dim _formatted As String = me.Options.Format.Transform(pInfo)
+         pInfo.FormattedMessage = _formatted
+         me.Log(pInfo, _formatted)
+      End Sub
+      Overridable Sub Log(pInfo As LogInfo, pFormatted As String)
+         Throw New Exception(&quot;LogTransport.Log must be implemented.&quot;)
+      End Sub
+      Sub Free()
+         If Assigned(me.Options) Then me.Options.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TransportConsole
+      Inherits LogTransport
+      ProcessMessages As Boolean = False
+      Sub New()
+         MyBase.New()
+         me.Name = &quot;console&quot;
+      End Sub
+      Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
+         If Not IsNativePrintEnabled() Then Exit Sub
+         Print(pFormatted)
+         If me.ProcessMessages Then Forms.ProcessMessages()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TransportFile
+      Inherits LogTransport
+      FileName As String
+      Sub New(pFileName As String = &quot;&quot;)
+         MyBase.New()
+         me.Name = &quot;file&quot;
+         me.FileName = pFileName
+      End Sub
+      Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
+         If me.FileName = &quot;&quot; Then Exit Sub
+         Dim _lines As StringList = New StringList()
+         If File.Exists(me.FileName) Then _lines.LoadFromFile(me.FileName)
+         _lines.Add(pFormatted)
+         _lines.SaveToFile(me.FileName)
+         _lines.Free()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TransportVSCode
+      Inherits TransportFile
+      Sub New(pFileName As String = &quot;&quot;)
+         MyBase.New(pFileName)
+         me.Name = &quot;vscode&quot;
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TransportCallback
+      Inherits LogTransport
+      Writer As LogTransportWriter
+      Sub New(pName As String, pWriter As LogTransportWriter)
+         MyBase.New()
+         me.Name = pName
+         me.Writer = pWriter
+      End Sub
+      Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
+         If me.Writer &lt;&gt; NULL Then me.Writer(pInfo, pFormatted)
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class LogTransportList
+      Private _list As StringList
+      Sub New()
+         MyBase.New()
+         me._list = New StringList()
+         me._list.OwnsObjects = True
+      End Sub
+      Sub Add(pTransport As LogTransport)
+         If pTransport = NULL Then Exit Sub
+         me._list.AddObject(pTransport.GetID().ToUpper(), pTransport)
+      End Sub
+      Function Take(pIndex As Integer) As LogTransport
+         Take = LogTransport(me._list.Objects(pIndex))
+      End Function
+      Function Take(pID As String) As LogTransport
+         Take = me.Take(me._list.IndexOf(pID.ToUpper()))
+      End Function
+      Function Count() As Integer
+         Count = me._list.Count
+      End Function
+      Sub Clear()
+         me._list.Clear()
+      End Sub
+      Sub Free()
+         me._list.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class LoggerOptions
+      Level As Integer = 2
+      StrictLevel As Boolean = False
+      Silent As Boolean = False
+      ExitOnError As Boolean = False
+      DefaultMeta As String
+      Label As String
+      Format As LogFormat
+      Transports As LogTransportList
+      Sub New()
+         MyBase.New()
+         me.Format = New LogFormat()
+         me.Transports = New LogTransportList()
+      End Sub
+      Sub Free()
+         If Assigned(me.Transports) Then me.Transports.Free()
+         If Assigned(me.Format) Then me.Format.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class Logger
+      Options As LoggerOptions
+      Private _sharedOptions As Boolean
+      Sub New()
+         MyBase.New()
+         me.Options = New LoggerOptions()
+      End Sub
+      Function Child(pDefaultMeta As String, pLabel As String = &quot;&quot;) As Logger
+         Dim _child As Logger = New Logger()
+         _child.Options.Level = me.Options.Level
+         _child.Options.StrictLevel = me.Options.StrictLevel
+         _child.Options.Silent = me.Options.Silent
+         _child.Options.ExitOnError = me.Options.ExitOnError
+         _child.Options.Format = me.Options.Format
+         _child.Options.Transports = me.Options.Transports
+         _child.Options.DefaultMeta = me.MergeText(me.Options.DefaultMeta, pDefaultMeta)
+         _child._sharedOptions = True
+         If pLabel &lt;&gt; &quot;&quot; Then
+            _child.Options.Label = pLabel
+         Else
+            _child.Options.Label = me.Options.Label
+         End If
+         Child = _child
+      End Function
+      Sub Add(pTransport As LogTransport)
+         me.Options.Transports.Add(pTransport)
+      End Sub
+      Sub ClearTransports()
+         me.Options.Transports.Clear()
+      End Sub
+      Sub Log(pLevel As Integer, pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         If me.Options.Silent Then Exit Sub
+         If me.Options.StrictLevel Then
+            If me.Options.Level &lt;&gt; pLevel Then Exit Sub
+         Else
+            If pLevel &gt; me.Options.Level Then Exit Sub
+         End If
+         Dim _info As LogInfo = New LogInfo(pLevel, CStr(pMessage), pExtra, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
+         me.Dispatch(_info)
+         _info.Free()
+      End Sub
+      Sub Log(pLevel As String, pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(LoggerLevelFromString(pLevel), pMessage, pExtra, pMeta)
+      End Sub
+      Sub Exceptiom(pMessage As Variant, pEx As Exception, pMeta As String = &quot;&quot;)
+         Dim _info As LogInfo = New LogInfo(0, CStr(pMessage), &quot;&quot;, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
+         _info.IsException = True
+         If pEx &lt;&gt; NULL Then _info.ExceptionMessage = pEx._GetMessage()
+         me.Dispatch(_info)
+         _info.Free()
+      End Sub
+      Sub Erro(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(0, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Warn(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(1, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Info(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(2, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Http(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(3, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Verbose(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(4, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Debug(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(5, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Silly(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
+         me.Log(6, pMessage, pExtra, pMeta)
+      End Sub
+      Sub Printe(pMessage As Variant)
+         me.Info(pMessage)
+      End Sub
+      Sub StartTimer(pLabel As String)
+         StartTimer(pLabel)
+      End Sub
+      Sub Profile(pLabel As String, pMessage As String = &quot;&quot;)
+         Dim _duration As Integer = StopTimer(pLabel)
+         Dim _info As LogInfo = New LogInfo(2, pMessage, &quot;&quot;, me.Options.DefaultMeta, pLabel)
+         _info.DurationMs = _duration
+         me.Dispatch(_info)
+         _info.Free()
+      End Sub
+      Private Sub Dispatch(pInfo As LogInfo)
+         If me.Options.Transports.Count() = 0 Then
+            If Not IsNativePrintEnabled() Then Exit Sub
+            me.Options.Transports.Add(New TransportConsole())
+         End If
+         Dim i As Integer
+         Dim _count As Integer = me.Options.Transports.Count()
+         For i = 0 To _count - 1
+            Dim _clone As LogInfo = pInfo.Clone()
+            me.Options.Transports.Take(i).Write(_clone)
+            _clone.Free()
+         Next
+      End Sub
+      Private Function MergeText(pBase As String, pExtra As String) As String
+         If pBase = &quot;&quot; Then
+            MergeText = pExtra
+         ElseIf pExtra = &quot;&quot; Then
+            MergeText = pBase
+         Else
+            MergeText = pBase + Char(13) + pExtra
+         End If
+      End Function
+      Sub Free()
+         If me._sharedOptions And Assigned(me.Options) Then
+            me.Options.Transports = NULL
+            me.Options.Format = NULL
+         End If
+         If Assigned(me.Options) Then me.Options.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Dim _defaultLogger As Logger
+   Dim _timers As StringList
+   Dim _NativePrintEnabled As Boolean = True
+   Function GetDefault() As Logger
+      If _defaultLogger = NULL Then
+         _defaultLogger = New Logger()
+      End If
+      GetDefault = _defaultLogger
+   End Function
+   Sub SetDefault(pLogger As Logger)
+      _defaultLogger = pLogger
+   End Sub
+   Sub SetNativePrintEnabled(pEnabled As Boolean)
+      _NativePrintEnabled = pEnabled
+   End Sub
+   Sub EnableNativePrint()
+      SetNativePrintEnabled(True)
+   End Sub
+   Sub DisableNativePrint()
+      SetNativePrintEnabled(False)
+   End Sub
+   Function IsNativePrintEnabled() As Boolean
+      IsNativePrintEnabled = _NativePrintEnabled
+   End Function
+   Sub ConfigureConsole()
+      EnableNativePrint()
+      Dim _logger As Logger = GetDefault()
+      _logger.ClearTransports()
+      _logger.Options.Silent = False
+      _logger.Add(New TransportConsole())
+   End Sub
+   Sub ConfigureVSCode(pLogFile As String)
+      DisableNativePrint()
+      Dim _logger As Logger = GetDefault()
+      _logger.ClearTransports()
+      _logger.Options.Silent = False
+      _logger.Options.Level = 6
+      _logger.Options.DefaultMeta = &quot;transport=vscode&quot;
+      _logger.Add(New TransportVSCode(pLogFile))
+   End Sub
+   Sub ConfigureERP()
+      DisableNativePrint()
+      Dim _logger As Logger = GetDefault()
+      _logger.ClearTransports()
+      _logger.Options.Silent = True
+   End Sub
+   Sub AddTransport(pTransport As LogTransport)
+      GetDefault().Add(pTransport)
+   End Sub
+   Sub Log(pLevel As Integer, pMessage As Variant)
+      GetDefault().Log(pLevel, pMessage)
+   End Sub
+   Sub Log(pLevel As String, pMessage As Variant)
+      GetDefault().Log(pLevel, pMessage)
+   End Sub
+   Sub Printe(pMessage As Variant)
+      GetDefault().Printe(pMessage)
+   End Sub
+   Sub Erro(pMessage As Variant)
+      GetDefault().Erro(pMessage)
+   End Sub
+   Sub Warn(pMessage As Variant)
+      GetDefault().Warn(pMessage)
+   End Sub
+   Sub Info(pMessage As Variant)
+      GetDefault().Info(pMessage)
+   End Sub
+   Sub Debug(pMessage As Variant)
+      GetDefault().Debug(pMessage)
+   End Sub
+   Sub StartTimer(pLabel As String)
+      If _timers = NULL Then
+         _timers = New StringList()
+         _timers.NameValueSeparator = &quot;;&quot;
+      End If
+      If _timers.IndexOfName(pLabel) &gt;= 0 Then _timers.Delete(_timers.IndexOfName(pLabel))
+      _timers.Add(pLabel + CStr(_timers.NameValueSeparator) + DateTime().ToString(&quot;hh:nn:ss.zzz&quot;))
+   End Sub
+   Function StopTimer(pLabel As String) As Integer
+      StopTimer = 0
+      If _timers = NULL Then Exit Function
+      If _timers.IndexOfName(pLabel) &lt; 0 Then Exit Function
+      Dim _time As String = _timers.Values(pLabel)
+      Dim _hours As Integer = CInt(_time.Split(&quot;:&quot;)[0])
+      Dim _mins As Integer = CInt(_time.Split(&quot;:&quot;)[1])
+      Dim _secs As Integer = CInt(_time.Split(&quot;:&quot;)[2].Split(&quot;.&quot;)[0])
+      Dim _millis As Integer = CInt(_time.Split(&quot;.&quot;)[1])
+      Dim _diff As TDateTime = DateTime() - DateTime().EncodeTime(_hours, _mins, _secs, _millis)
+      Dim _diffText As String = _diff.ToString(&quot;hh:nn:ss.zzz&quot;)
+      StopTimer = (CInt(_diffText.Split(&quot;:&quot;)[0]) * 3600000) + (CInt(_diffText.Split(&quot;:&quot;)[1]) * 60000) + (CInt(_diffText.Split(&quot;:&quot;)[2].Split(&quot;.&quot;)[0]) * 1000) + CInt(_diffText.Split(&quot;.&quot;)[1])
+      _timers.Delete(_timers.IndexOfName(pLabel))
+   End Function
+End Namespace</Codigo>
+      <Aberto>false</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+      <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
+    </mod_logger>
     <mod_tlist>
       <Codigo>Imports mod_tobject
 Imports mod_product
@@ -319,27 +937,27 @@ Namespace mod_tlist
          GetToString = CStr(pValue)
       End Function
       Function Slice(pStart As Integer, pEnd As Integer) As TTList_String
-         Dim _new As TTList_String = New TTList_String()
+         Dim _new As TTList_String = New TTList_String(me.Name)
          _new._base = me._base.Slice(pStart, pEnd)
          Slice = _new
       End Function
       Function Splice(pStart As Integer, pQty As Integer) As TTList_String
-         Dim _new As TTList_String = New TTList_String()
+         Dim _new As TTList_String = New TTList_String(me.Name)
          _new._base = me._base.Splice(pStart, pQty)
          Splice = _new
       End Function
       Function Clone() As TTList_String
-         Dim _new As TTList_String = New TTList_String()
+         Dim _new As TTList_String = New TTList_String(me.Name)
          _new._base = me._base.Clone()
          Clone = _new
       End Function
       Function First(pLimit As Integer) As TTList_String
-         Dim _new As TTList_String = New TTList_String()
+         Dim _new As TTList_String = New TTList_String(me.Name)
          _new._base = me._base.Range(pLimit, False)
          First = _new
       End Function
       Function Last(pLimit As Integer) As TTList_String
-         Dim _new As TTList_String = New TTList_String()
+         Dim _new As TTList_String = New TTList_String(me.Name)
          _new._base = me._base.Range(pLimit, True)
          Last = _new
       End Function
@@ -510,27 +1128,27 @@ Namespace mod_tlist
          End If
       End Function
       Function Slice(pStart As Integer, pEnd As Integer) As TTList_Product
-         Dim _new As TTList_Product = New TTList_Product()
+         Dim _new As TTList_Product = New TTList_Product(me.Name)
          _new._base = me._base.Slice(pStart, pEnd)
          Slice = _new
       End Function
       Function Splice(pStart As Integer, pQty As Integer) As TTList_Product
-         Dim _new As TTList_Product = New TTList_Product()
+         Dim _new As TTList_Product = New TTList_Product(me.Name)
          _new._base = me._base.Splice(pStart, pQty)
          Splice = _new
       End Function
       Function Clone() As TTList_Product
-         Dim _new As TTList_Product = New TTList_Product()
+         Dim _new As TTList_Product = New TTList_Product(me.Name)
          _new._base = me._base.Clone()
          Clone = _new
       End Function
       Function First(pLimit As Integer) As TTList_Product
-         Dim _new As TTList_Product = New TTList_Product()
+         Dim _new As TTList_Product = New TTList_Product(me.Name)
          _new._base = me._base.Range(pLimit, False)
          First = _new
       End Function
       Function Last(pLimit As Integer) As TTList_Product
-         Dim _new As TTList_Product = New TTList_Product()
+         Dim _new As TTList_Product = New TTList_Product(me.Name)
          _new._base = me._base.Range(pLimit, True)
          Last = _new
       End Function

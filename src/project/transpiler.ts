@@ -59,6 +59,7 @@ export interface TranspileContext {
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
   sugarOptions?: SugarEngineOptions;
+  rewritePrintToLogger?: boolean;
 }
 
 function mapGenericsWarning(warning: MonomorphizationWarning): SugarDiagnostic {
@@ -402,7 +403,9 @@ export class ASTSugarTransformer extends ASTWalker {
   public readonly usedSugars = new Set<string>();
   private srcCounter = 0;
   private idxCounter = 0;
-  private readonly listVariableScopes: Map<string, ListVariableInfo>[] = [new Map<string, ListVariableInfo>()];
+  private readonly listVariableScopes: Map<string, ListVariableInfo>[] = [
+    new Map<string, ListVariableInfo>(),
+  ];
 
   constructor(
     private readonly ctx: TranspileContext,
@@ -450,7 +453,6 @@ export class ASTSugarTransformer extends ASTWalker {
           }
         }
       }
-
       return;
     }
     if (node.kind === "NamespaceDeclaration") {
@@ -1880,7 +1882,9 @@ export class ASTSugarTransformer extends ASTWalker {
     return e;
   }
 
-  private expandFunctionalListDeclaration(declaration: VariableDeclaration): Statement[] | undefined {
+  private expandFunctionalListDeclaration(
+    declaration: VariableDeclaration,
+  ): Statement[] | undefined {
     if (!this.isSugarEnabled("array-list")) return undefined;
     if (declaration.initializer?.kind !== "MethodInvocation") return undefined;
     const call = declaration.initializer;
@@ -1899,13 +1903,21 @@ export class ASTSugarTransformer extends ASTWalker {
 
     switch (methodName) {
       case "map":
-        if (!declaration.type || !this.isTTListType(declaration.type) || Array.isArray(arrow.body)) {
+        if (
+          !declaration.type ||
+          !this.isTTListType(declaration.type) ||
+          Array.isArray(arrow.body)
+        ) {
           return undefined;
         }
         this.rememberListVariable(declaration.name, declaration.type);
         return this.expandMapDeclaration(declaration, call.callee, sourceInfo, arrow);
       case "filter":
-        if (!declaration.type || !this.isTTListType(declaration.type) || Array.isArray(arrow.body)) {
+        if (
+          !declaration.type ||
+          !this.isTTListType(declaration.type) ||
+          Array.isArray(arrow.body)
+        ) {
           return undefined;
         }
         this.rememberListVariable(declaration.name, declaration.type);
@@ -1924,13 +1936,21 @@ export class ASTSugarTransformer extends ASTWalker {
         return this.expandEveryDeclaration(declaration, call.callee, sourceInfo, arrow);
       case "reduce":
         if (Array.isArray(arrow.body)) return undefined;
-        return this.expandReduceDeclaration(declaration, call.callee, sourceInfo, arrow, call.arguments[1]);
+        return this.expandReduceDeclaration(
+          declaration,
+          call.callee,
+          sourceInfo,
+          arrow,
+          call.arguments[1],
+        );
       default:
         return undefined;
     }
   }
 
-  private expandFunctionalForEachStatement(statement: ExpressionStatement): Statement[] | undefined {
+  private expandFunctionalForEachStatement(
+    statement: ExpressionStatement,
+  ): Statement[] | undefined {
     if (!this.isSugarEnabled("array-list")) return undefined;
     if (statement.expression.kind !== "MethodInvocation") return undefined;
     const call = statement.expression;
@@ -1970,7 +1990,11 @@ export class ASTSugarTransformer extends ASTWalker {
     arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push({
       kind: "ExpressionStatement",
@@ -1979,7 +2003,9 @@ export class ASTSugarTransformer extends ASTWalker {
         callee: targetRef,
         methodName: "Push",
         typeArguments: [],
-        arguments: [this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine)],
+        arguments: [
+          this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+        ],
         loc: declaration.loc,
       },
       loc: declaration.loc,
@@ -1995,12 +2021,20 @@ export class ASTSugarTransformer extends ASTWalker {
     arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     const itemExpr = this.getLambdaItemReference(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push({
       kind: "IfStatement",
-      condition: this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+      condition: this.transformExpression(
+        arrow.body as Expression,
+        false,
+        declaration.loc?.startLine,
+      ),
       thenBranch: [
         {
           kind: "ExpressionStatement",
@@ -2029,7 +2063,11 @@ export class ASTSugarTransformer extends ASTWalker {
     arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push(
       this.createIfAssignAndExit(
@@ -2050,7 +2088,11 @@ export class ASTSugarTransformer extends ASTWalker {
     arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push(
       this.createIfAssignAndExit(
@@ -2078,14 +2120,20 @@ export class ASTSugarTransformer extends ASTWalker {
     arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
-    body.push(this.createIfAssignAndExit(
-      this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
-      targetRef,
-      { kind: "Literal", value: true, loc: declaration.loc },
-      declaration.loc,
-    ));
+    body.push(
+      this.createIfAssignAndExit(
+        this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+        targetRef,
+        { kind: "Literal", value: true, loc: declaration.loc },
+        declaration.loc,
+      ),
+    );
     loop.forStatement.body = body;
     return [
       { ...declaration, initializer: { kind: "Literal", value: false, loc: declaration.loc } },
@@ -2101,19 +2149,29 @@ export class ASTSugarTransformer extends ASTWalker {
     arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
-    body.push(this.createIfAssignAndExit(
-      {
-        kind: "UnaryExpression",
-        operator: "Not",
-        argument: this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
-        loc: declaration.loc,
-      },
-      targetRef,
-      { kind: "Literal", value: false, loc: declaration.loc },
-      declaration.loc,
-    ));
+    body.push(
+      this.createIfAssignAndExit(
+        {
+          kind: "UnaryExpression",
+          operator: "Not",
+          argument: this.transformExpression(
+            arrow.body as Expression,
+            false,
+            declaration.loc?.startLine,
+          ),
+          loc: declaration.loc,
+        },
+        targetRef,
+        { kind: "Literal", value: false, loc: declaration.loc },
+        declaration.loc,
+      ),
+    );
     loop.forStatement.body = body;
     return [
       { ...declaration, initializer: { kind: "Literal", value: true, loc: declaration.loc } },
@@ -2131,11 +2189,18 @@ export class ASTSugarTransformer extends ASTWalker {
   ): Statement[] {
     const loopStart = initialValue ? 0 : 1;
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc, loopStart);
-    const targetRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const targetRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 1);
     const accumulatorParam = arrow.parameters[0];
     const nextValue = accumulatorParam
-      ? this.replaceIdentifiers(arrow.body as Expression, new Map([[accumulatorParam.name.toLowerCase(), targetRef]]))
+      ? this.replaceIdentifiers(
+          arrow.body as Expression,
+          new Map([[accumulatorParam.name.toLowerCase(), targetRef]]),
+        )
       : (arrow.body as Expression);
     body.push({
       kind: "Assignment",
@@ -2147,7 +2212,11 @@ export class ASTSugarTransformer extends ASTWalker {
 
     const initializer =
       initialValue ??
-      this.createGetItemCall(source, { kind: "Literal", value: 0, loc: declaration.loc }, declaration.loc);
+      this.createGetItemCall(
+        source,
+        { kind: "Literal", value: 0, loc: declaration.loc },
+        declaration.loc,
+      );
     return [
       {
         ...declaration,
@@ -2165,7 +2234,11 @@ export class ASTSugarTransformer extends ASTWalker {
     const type = declaration.type;
     if (!type) return [declaration];
 
-    const listRef: Identifier = { kind: "Identifier", name: declaration.name, loc: declaration.loc };
+    const listRef: Identifier = {
+      kind: "Identifier",
+      name: declaration.name,
+      loc: declaration.loc,
+    };
     const statements: Statement[] = [
       {
         kind: "VariableDeclaration",
@@ -2186,7 +2259,11 @@ export class ASTSugarTransformer extends ASTWalker {
 
     for (const element of literal.elements) {
       if (element.kind === "SpreadExpression") {
-        const functionalSpread = this.expandArrayLiteralFunctionalSpread(declaration, element, listRef);
+        const functionalSpread = this.expandArrayLiteralFunctionalSpread(
+          declaration,
+          element,
+          listRef,
+        );
         if (functionalSpread) {
           statements.push(...functionalSpread);
           continue;
@@ -2275,7 +2352,11 @@ export class ASTSugarTransformer extends ASTWalker {
     _arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
     loc: Node["loc"],
     startIndex = 0,
-  ): { idxDeclaration: VariableDeclaration; idxVar: Identifier; forStatement: Extract<Statement, { kind: "ForStatement" }> } {
+  ): {
+    idxDeclaration: VariableDeclaration;
+    idxVar: Identifier;
+    forStatement: Extract<Statement, { kind: "ForStatement" }>;
+  } {
     const idxName = this.freshIndex();
     const idxVar: Identifier = { kind: "Identifier", name: idxName, loc };
     const idxDeclaration: VariableDeclaration = {
@@ -2348,12 +2429,18 @@ export class ASTSugarTransformer extends ASTWalker {
     itemParamOffset: number,
   ): Expression {
     const itemParam = arrow.parameters[itemParamOffset];
-    if (itemParam) return { kind: "Identifier", name: itemParam.name, loc: itemParam.loc ?? arrow.loc };
+    if (itemParam) {
+      return { kind: "Identifier", name: itemParam.name, loc: itemParam.loc ?? arrow.loc };
+    }
     void sourceInfo;
     return this.createGetItemCall(source, idxVar, arrow.loc);
   }
 
-  private createGetItemCall(source: Expression, index: Expression, loc: Node["loc"]): MethodInvocation {
+  private createGetItemCall(
+    source: Expression,
+    index: Expression,
+    loc: Node["loc"],
+  ): MethodInvocation {
     return {
       kind: "MethodInvocation",
       callee: source,
@@ -2626,6 +2713,286 @@ export class ASTSugarTransformer extends ASTWalker {
   }
 }
 
+class LoggerPrintSugarTransformer {
+  public readonly usedSugars = new Set<string>();
+  private usedLoggerPrint = false;
+
+  public transform(unit: { members: TopLevelMember[]; loc?: Node["loc"] }): void {
+    unit.members = unit.members.map((member) => this.transformTopLevelMember(member));
+    if (this.usedLoggerPrint) {
+      this.usedSugars.add("logger-print");
+      this.injectImport(unit.members, "mod_logger", unit.loc);
+    }
+  }
+
+  private transformTopLevelMember(member: TopLevelMember): TopLevelMember {
+    switch (member.kind) {
+      case "ImportsDeclaration":
+      case "DelegateDeclaration":
+      case "EnumDeclaration":
+      case "OpaqueStatement":
+        return member;
+      case "NamespaceDeclaration":
+        member.members = member.members.map((m) => this.transformTopLevelMember(m));
+        return member;
+      case "ClassDeclaration":
+        member.members = member.members.map((m) => this.transformClassMember(m));
+        return member;
+      case "MethodDeclaration":
+        this.transformMethod(member);
+        return member;
+      case "VariableDeclaration":
+      case "ExpressionStatement":
+      case "Assignment":
+      case "IfStatement":
+      case "ForStatement":
+      case "ForEachStatement":
+      case "WhileStatement":
+      case "TryCatchStatement":
+      case "UsingStatement":
+      case "MatchStatement":
+      case "ReturnStatement":
+      case "ExitStatement":
+      case "ThrowStatement":
+      case "Block":
+      case "WithStatement":
+      case "DestructuredVariableDeclaration":
+      case "SelectCaseStatement":
+        return this.transformStatement(member);
+    }
+  }
+
+  private transformClassMember(member: ClassMember): ClassMember {
+    switch (member.kind) {
+      case "MethodDeclaration":
+        this.transformMethod(member);
+        return member;
+      case "FieldDeclaration":
+        if (member.initializer) member.initializer = this.transformExpression(member.initializer);
+        return member;
+      case "PropertyDeclaration":
+        if (member.getter) this.transformMethod(member.getter);
+        if (member.setter) this.transformMethod(member.setter);
+        return member;
+    }
+  }
+
+  private transformMethod(
+    method: Extract<TopLevelMember | ClassMember, { kind: "MethodDeclaration" }>,
+  ): void {
+    method.body = method.body.map((statement) => this.transformStatement(statement));
+  }
+
+  private transformStatements(statements: Statement[]): Statement[] {
+    return statements.map((statement) => this.transformStatement(statement));
+  }
+
+  private transformStatement(statement: Statement): Statement {
+    switch (statement.kind) {
+      case "VariableDeclaration":
+        if (statement.initializer) {
+          statement.initializer = this.transformExpression(statement.initializer);
+        }
+        return statement;
+      case "DestructuredVariableDeclaration":
+        statement.initializer = this.transformExpression(statement.initializer);
+        return statement;
+      case "ExpressionStatement":
+        statement.expression = this.transformExpression(statement.expression);
+        return statement;
+      case "Assignment":
+        statement.target = this.transformExpression(statement.target);
+        statement.value = this.transformExpression(statement.value);
+        return statement;
+      case "IfStatement":
+        statement.condition = this.transformExpression(statement.condition);
+        statement.thenBranch = this.transformStatements(statement.thenBranch);
+        for (const branch of statement.elseIfBranches) {
+          branch.condition = this.transformExpression(branch.condition);
+          branch.body = this.transformStatements(branch.body);
+        }
+        if (statement.elseBranch) {
+          statement.elseBranch = this.transformStatements(statement.elseBranch);
+        }
+        return statement;
+      case "ForStatement":
+        statement.start = this.transformExpression(statement.start);
+        statement.end = this.transformExpression(statement.end);
+        if (statement.step) statement.step = this.transformExpression(statement.step);
+        statement.body = this.transformStatements(statement.body);
+        return statement;
+      case "ForEachStatement":
+        statement.enumerable = this.transformExpression(statement.enumerable);
+        statement.body = this.transformStatements(statement.body);
+        return statement;
+      case "WhileStatement":
+        statement.condition = this.transformExpression(statement.condition);
+        statement.body = this.transformStatements(statement.body);
+        return statement;
+      case "TryCatchStatement":
+        statement.tryBody = this.transformStatements(statement.tryBody);
+        statement.catchBody = this.transformStatements(statement.catchBody);
+        if (statement.finallyBody) {
+          statement.finallyBody = this.transformStatements(statement.finallyBody);
+        }
+        return statement;
+      case "UsingStatement":
+        statement.resourceArgs = statement.resourceArgs.map((arg) => this.transformExpression(arg));
+        statement.body = this.transformStatements(statement.body);
+        return statement;
+      case "MatchStatement":
+        statement.subject = this.transformExpression(statement.subject);
+        for (const matchCase of statement.cases) {
+          matchCase.body = this.transformStatements(matchCase.body);
+        }
+        return statement;
+      case "ReturnStatement":
+        if (statement.expression) {
+          statement.expression = this.transformExpression(statement.expression);
+        }
+        return statement;
+      case "ThrowStatement":
+        statement.expression = this.transformExpression(statement.expression);
+        return statement;
+      case "Block":
+        statement.statements = this.transformStatements(statement.statements);
+        return statement;
+      case "WithStatement":
+        statement.expression = this.transformExpression(statement.expression);
+        statement.body = this.transformStatements(statement.body);
+        return statement;
+      case "SelectCaseStatement":
+        statement.expression = this.transformExpression(statement.expression);
+        for (const branch of statement.cases) {
+          branch.values = branch.values.map((value) => this.transformExpression(value));
+          branch.body = this.transformStatements(branch.body);
+        }
+        return statement;
+      case "EnumDeclaration":
+      case "ExitStatement":
+      case "OpaqueStatement":
+        return statement;
+    }
+  }
+
+  private transformExpression(expression: Expression): Expression {
+    switch (expression.kind) {
+      case "MethodInvocation": {
+        if (expression.callee) {
+          expression.callee = this.transformExpression(expression.callee);
+        }
+        expression.arguments = expression.arguments.map((arg) => this.transformExpression(arg));
+        return this.rewritePrintExpression(expression);
+      }
+      case "ObjectCreationExpression":
+        expression.arguments = expression.arguments.map((arg) => this.transformExpression(arg));
+        return expression;
+      case "MemberAccess":
+        expression.target = this.transformExpression(expression.target);
+        return expression;
+      case "ArrayAccessExpression":
+        expression.target = this.transformExpression(expression.target);
+        expression.index = this.transformExpression(expression.index);
+        return expression;
+      case "BinaryExpression":
+        expression.left = this.transformExpression(expression.left);
+        expression.right = this.transformExpression(expression.right);
+        return expression;
+      case "UnaryExpression":
+        expression.argument = this.transformExpression(expression.argument);
+        return expression;
+      case "TernaryExpression":
+        expression.condition = this.transformExpression(expression.condition);
+        expression.trueExpr = this.transformExpression(expression.trueExpr);
+        expression.falseExpr = this.transformExpression(expression.falseExpr);
+        return expression;
+      case "NullCoalescingExpression":
+        expression.left = this.transformExpression(expression.left);
+        expression.right = this.transformExpression(expression.right);
+        return expression;
+      case "OptionalChainingExpression":
+        expression.target = this.transformExpression(expression.target);
+        expression.member = this.transformExpression(expression.member);
+        return expression;
+      case "PipeExpression":
+        expression.left = this.transformExpression(expression.left);
+        expression.right = this.transformExpression(expression.right);
+        return expression;
+      case "ObjectInitializerExpression":
+        expression.arguments = expression.arguments.map((arg) => this.transformExpression(arg));
+        expression.assignments = expression.assignments.map((assignment) => ({
+          ...assignment,
+          value: this.transformExpression(assignment.value),
+        }));
+        return expression;
+      case "ArrayLiteralExpression":
+        expression.elements = expression.elements.map((element) =>
+          this.transformExpression(element),
+        );
+        return expression;
+      case "SpreadExpression":
+        expression.expression = this.transformExpression(expression.expression);
+        return expression;
+      case "ArrowFunctionExpression":
+        if (Array.isArray(expression.body)) {
+          return {
+            ...expression,
+            body: this.transformStatements(expression.body),
+          };
+        } else {
+          return {
+            ...expression,
+            body: this.transformExpression(expression.body),
+          };
+        }
+      case "TaggedTemplateExpression":
+      case "TypeReferenceExpression":
+      case "Identifier":
+      case "Literal":
+        return expression;
+    }
+  }
+
+  private rewritePrintExpression(expression: MethodInvocation): Expression {
+    if (expression.callee !== undefined || expression.methodName.toLowerCase() !== "print") {
+      return expression;
+    }
+
+    this.usedLoggerPrint = true;
+    return {
+      ...expression,
+      callee: {
+        kind: "Identifier",
+        name: "mod_logger",
+        loc: expression.loc,
+      },
+      methodName: "Printe",
+      noParentheses: false,
+    };
+  }
+
+  private injectImport(members: TopLevelMember[], target: string, loc: Node["loc"]): void {
+    const alreadyImported = members.some(
+      (member) =>
+        member.kind === "ImportsDeclaration" &&
+        member.target.toLowerCase() === target.toLowerCase(),
+    );
+    if (alreadyImported) return;
+
+    let insertIdx = 0;
+    for (let i = 0; i < members.length; i++) {
+      if (members[i]?.kind === "ImportsDeclaration") {
+        insertIdx = i + 1;
+      }
+    }
+    members.splice(insertIdx, 0, {
+      kind: "ImportsDeclaration",
+      target,
+      loc,
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SugarTranspiler — barrel class
 // ---------------------------------------------------------------------------
@@ -2676,9 +3043,24 @@ export class SugarTranspiler {
     injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
 
     // 4. Transform AST-to-AST for sugars
+    const declaredNamespaces = collectNamespaceNames(finalUnit);
+    const rewritePrintToLogger =
+      ctx.rewritePrintToLogger !== false &&
+      sugarEngine.getEnabledSugarIdsInPrecedenceOrder().includes("logger-print") &&
+      !declaredNamespaces.has("mod_logger");
     const transformer = new ASTSugarTransformer(ctx, transformerLines, sugarEngine);
-    if (sugarEngine.anyEnabled()) {
-      transformer.walk(finalUnit);
+    transformer.walk(finalUnit);
+    const finalSugarTransformers = sugarEngine
+      .getEnabledSugarIdsInPrecedenceOrder()
+      .filter((id) => id === "logger-print");
+    for (const _ of finalSugarTransformers) {
+      if (rewritePrintToLogger) {
+        const loggerPrintTransformer = new LoggerPrintSugarTransformer();
+        loggerPrintTransformer.transform(finalUnit);
+        for (const usedSugar of loggerPrintTransformer.usedSugars) {
+          transformer.usedSugars.add(usedSugar);
+        }
+      }
     }
 
     // 5. Serialize AST back to code text, generating the lineMap!
@@ -2687,12 +3069,22 @@ export class SugarTranspiler {
     if (wrapped) {
       // Strip Sub __syntheticMethod() and End Sub
       const outputLines = serializeResult.code.split(/\r?\n/);
-      if (outputLines.length >= 2) {
+      const syntheticStartIdx = outputLines.findIndex((line) =>
+        /^\s*Sub\s+__syntheticMethod\b/i.test(line),
+      );
+      const syntheticEndIdx =
+        syntheticStartIdx >= 0
+          ? outputLines.findIndex(
+              (line, idx) => idx > syntheticStartIdx && /^\s*End\s+Sub\s*$/i.test(line),
+            )
+          : -1;
+      if (syntheticStartIdx >= 0 && syntheticEndIdx > syntheticStartIdx) {
         const firstLine = lines.find((l) => l.trim().length > 0) ?? "";
         const matchIndent = /^\s*/.exec(firstLine);
         const originalIndent = matchIndent ? matchIndent[0] : "";
 
-        const bodyLines = outputLines.slice(1, -1);
+        const prefixLines = outputLines.slice(0, syntheticStartIdx);
+        const bodyLines = outputLines.slice(syntheticStartIdx + 1, syntheticEndIdx);
         const unindented = bodyLines.map((line) => {
           let cleanLine = line;
           if (line.startsWith("   ")) {
@@ -2701,8 +3093,13 @@ export class SugarTranspiler {
           return originalIndent + cleanLine;
         });
         serializeResult = {
-          code: unindented.join(eol),
-          lineMap: serializeResult.lineMap.slice(1, -1).map((x) => x - 1),
+          code: [...prefixLines, ...unindented].join(eol),
+          lineMap: [
+            ...serializeResult.lineMap.slice(0, syntheticStartIdx),
+            ...serializeResult.lineMap
+              .slice(syntheticStartIdx + 1, syntheticEndIdx)
+              .map((x) => x - 1),
+          ],
         };
       }
       transformer.diagnostics = transformer.diagnostics.map((diag) => ({
