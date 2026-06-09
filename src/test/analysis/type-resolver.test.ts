@@ -406,6 +406,74 @@ End Namespace`;
       assert.equal(TypeResolver.getVariableType("_products", doc, pos, indexer), "TList<Product>");
     });
 
+    test("getVariableType resolves array sugar declarations to TTList<T>", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///array_sugar_var.bas";
+      const code = `Namespace mod_app
+   Class Product
+   End Class
+
+   Dim _products[] As Product = [
+      New Product()
+   ]
+
+   _products.Pop()
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const pos = { line: 8, character: 12 } as any;
+      assert.equal(TypeResolver.getVariableType("_products", doc, pos, indexer), "TTList<Product>");
+    });
+
+    test("resolves inherited members on generic templates even before a flat class is indexed", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+
+      const usageUri = "file:///generic_usage_first.bas";
+      const usageCode = `Imports mod_tlist
+
+Dim _products[] As Product = [
+   New Product()
+]
+
+_products.ToString()`;
+      indexer.updateFileContent(usageUri, usageCode);
+      createMockDoc(usageUri, usageCode);
+
+      const templateUri = "file:///mod_tlist_generic_parent.bas";
+      const templateCode = `Namespace mod_tlist
+   Class TTComposerList
+      Function ToString() As String
+      End Function
+   End Class
+
+   Class TTList<T>
+      Inherits TTComposerList
+      Function Pop() As T
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(templateUri, templateCode);
+      createMockDoc(templateUri, templateCode);
+
+      assert.equal(
+        TypeResolver.findClassSymbol("TTList<Product>", indexer),
+        undefined,
+        "test setup must exercise resolver fallback without a synthetic TTList_Product class",
+      );
+      assert.ok(TypeResolver.findMember("TTList<Product>", "Pop", indexer), "own generic member");
+      assert.ok(
+        TypeResolver.findMember("TTList<Product>", "ToString", indexer),
+        "inherited template parent member",
+      );
+      expectMembers(TypeResolver.getAllMembersForType("TTList<Product>", indexer), [
+        "Pop",
+        "ToString",
+      ]);
+    });
+
     test("getVariableType keeps explicit generic type when Dim has an initializer", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       indexer.__resetForTests();

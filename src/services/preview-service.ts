@@ -224,10 +224,19 @@ function hasOpenGenericTypeArgument(
 }
 
 function isData7SourceDocument(doc: vscode.TextDocument): boolean {
+  const fileName = getDocumentFileName(doc);
   return (
-    (doc.languageId === "d7basic" || doc.fileName.endsWith(".bas")) &&
+    (doc.languageId === "d7basic" || fileName.toLowerCase().endsWith(".bas")) &&
     doc.uri.scheme !== D7PreviewContentProvider.scheme
   );
+}
+
+function getDocumentFileName(doc: vscode.TextDocument): string {
+  const maybeDoc = doc as unknown as {
+    fileName?: string;
+    uri?: { fsPath?: string; path?: string };
+  };
+  return maybeDoc.fileName ?? maybeDoc.uri?.fsPath ?? maybeDoc.uri?.path ?? "";
 }
 
 function refreshIndexerFromOpenDocuments(indexer: WorkspaceSymbolIndexer): void {
@@ -280,8 +289,9 @@ export class PreviewService {
     const doc = sourceEditor.document;
 
     // Only act on source .bas files, never on the preview itself.
+    const fileName = getDocumentFileName(doc);
     if (
-      (doc.languageId !== "d7basic" && !doc.fileName.endsWith(".bas")) ||
+      (doc.languageId !== "d7basic" && !fileName.toLowerCase().endsWith(".bas")) ||
       doc.uri.scheme === D7PreviewContentProvider.scheme
     ) {
       return;
@@ -396,8 +406,9 @@ export class PreviewService {
     }
 
     const doc = activeEditor.document;
+    const fileName = getDocumentFileName(doc);
     if (
-      (doc.languageId !== "d7basic" && !doc.fileName.endsWith(".bas")) ||
+      (doc.languageId !== "d7basic" && !fileName.toLowerCase().endsWith(".bas")) ||
       doc.uri.scheme === D7PreviewContentProvider.scheme
     ) {
       vscode.window.showWarningMessage(

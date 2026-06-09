@@ -8,10 +8,10 @@
     <CodFilial>1</CodFilial>
     <NomeUsuario>Matheus</NomeUsuario>
     <PreScript></PreScript>
-    <IdentificacaoBancoDados>05B54E6D-D75B-4A7F-9943-5521A91747C9</IdentificacaoBancoDados>
+    <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>2026-06-09T01:50:44.253Z</Data>
+  <Data>2026-06-09T12:12:21.527Z</Data>
   <Codigo>Imports mod_tlist
 Imports mod_product
 Dim _names As TTList_String = New TTList_String()
@@ -34,7 +34,10 @@ For __idx1 = 0 To _prods.Length - 1
    print(p.ToString())
 Next
 Dim _last As Product = _prods.Pop()
-print _last.ToString()</Codigo>
+print _last.ToString()
+&apos; O ToString não apacere no autocomplete de _prods, o linter não acusa erro na IDE e nem no build.
+&apos; pelo que pude notar, nenhum metodo ou prop das classes de herança da TTList aparece no autocomplete, mas o linter e o build reconhecem normalmente.
+print _prods.ToString()</Codigo>
   <Aberto>true</Aberto>
   <OrdemAbertura>0</OrdemAbertura>
   <ItemAberto>0</ItemAberto>
@@ -273,7 +276,6 @@ Namespace mod_tlist
          Pop = me.Unwrap(_extracted)
          If Assigned(_extracted) Then
             _extracted.Free()
-            &apos; Destrói apenas o wrapper TTItem
          End If
       End Function
       Function Shift() As String

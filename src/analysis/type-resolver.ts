@@ -12,14 +12,7 @@ import { findInnerMostGenericUsage, flatNameOf } from "./generics-analyzer";
 import { LanguageProcessor } from "./language-processor";
 import type {
   Expression,
-  TopLevelMember,
-  ClassMember,
-  NamespaceDeclaration,
-  ClassDeclaration,
-  MethodDeclaration,
-  PropertyDeclaration,
   TypeReference,
-  VariableDeclaration,
   Node,
   BinaryExpression,
   UnaryExpression,
@@ -255,7 +248,7 @@ export class TypeResolver {
         return TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
       }
       case "ArrayAccessExpression":
-        return undefined;
+        return TypeResolver.resolveIndexedElementType(expr.target, document, lineIdx, indexer);
       case "MethodInvocation": {
         if (expr.methodName.toLowerCase() === "typeof" && !expr.callee) {
           return "Boolean";
@@ -302,6 +295,12 @@ export class TypeResolver {
                TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
       case "PipeExpression":
         return TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
+      case "ArrayLiteralExpression":
+        return TypeResolver.resolveArrayLiteralType(expr.elements, document, lineIdx, indexer);
+      case "SpreadExpression":
+        return TypeResolver.resolveSpreadElementType(expr.expression, document, lineIdx, indexer);
+      case "ArrowFunctionExpression":
+        return typeRefToString(expr.returnType);
       case "BinaryExpression":
         return TypeResolver.resolveBinaryType(expr, document, lineIdx, indexer);
       case "UnaryExpression":
@@ -309,6 +308,61 @@ export class TypeResolver {
       default:
         return undefined;
     }
+  }
+
+  private static resolveIndexedElementType(
+    target: Expression,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    const targetType = TypeResolver.resolveExpressionType(target, document, lineIdx, indexer);
+    if (!targetType) return undefined;
+    return (
+      TypeResolver.findMember(targetType, "Item", indexer, 1)?.type ??
+      TypeResolver.findMember(targetType, "Take", indexer, 1)?.type ??
+      parseGenericTypeReference(targetType)?.args[0]
+    );
+  }
+
+  private static resolveArrayLiteralType(
+    elements: readonly Expression[],
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string {
+    let elementType: string | undefined;
+    for (const element of elements) {
+      const current =
+        element.kind === "SpreadExpression"
+          ? TypeResolver.resolveSpreadElementType(element.expression, document, lineIdx, indexer)
+          : TypeResolver.resolveExpressionType(element, document, lineIdx, indexer);
+      if (!current) continue;
+      if (!elementType) {
+        elementType = current;
+        continue;
+      }
+      if (elementType.toLowerCase() !== current.toLowerCase()) {
+        elementType = "Variant";
+        break;
+      }
+    }
+    return `TTList<${elementType ?? "Variant"}>`;
+  }
+
+  private static resolveSpreadElementType(
+    expression: Expression,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    const spreadType = TypeResolver.resolveExpressionType(expression, document, lineIdx, indexer);
+    if (!spreadType) return undefined;
+    return (
+      parseGenericTypeReference(spreadType)?.args[0] ??
+      TypeResolver.findMember(spreadType, "Item", indexer, 1)?.type ??
+      TypeResolver.findMember(spreadType, "Take", indexer, 1)?.type
+    );
   }
 
   private static resolveIdentifierType(
@@ -497,16 +551,15 @@ export class TypeResolver {
   ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const visited = new Set<string>();
-    const rawTypeName = typeName;
-    typeName = normalizeGenericTypeName(typeName);
 
     const search = (currentTypeName: string): SymbolInfo | undefined => {
-      const key = currentTypeName.toLowerCase();
+      const lookupTypeName = normalizeGenericTypeName(currentTypeName);
+      const key = lookupTypeName.toLowerCase();
       if (visited.has(key)) return undefined;
       visited.add(key);
 
-      const shortName = currentTypeName.includes(".")
-        ? (currentTypeName.split(".").pop() ?? currentTypeName).toLowerCase()
+      const shortName = lookupTypeName.includes(".")
+        ? (lookupTypeName.split(".").pop() ?? lookupTypeName).toLowerCase()
         : key;
 
       // A container matches when its (lower-cased) form is either the
@@ -541,7 +594,7 @@ export class TypeResolver {
       if (allWsHits.length > 0) return allWsHits[0];
       if (allSysHits.length > 0) return allSysHits[0];
 
-      const genericHits = getGenericTemplateMembersForType(rawTypeName, indexer).filter(
+      const genericHits = getGenericTemplateMembersForType(currentTypeName, indexer).filter(
         (s) => s.name.toLowerCase() === memberLower,
       );
       if (arity !== undefined) {
@@ -550,10 +603,11 @@ export class TypeResolver {
       }
       if (genericHits.length > 0) return genericHits[0];
 
-      const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
-      if (!classSymbol) return undefined;
+      const classSymbol = TypeResolver.findClassSymbol(lookupTypeName, indexer);
+      const parent = classSymbol
+        ? TypeResolver.resolveParent(classSymbol)
+        : getGenericTemplateParentForType(currentTypeName, indexer);
 
-      const parent = TypeResolver.resolveParent(classSymbol);
       if (parent) return search(parent);
       return undefined;
     };
@@ -609,11 +663,10 @@ export class TypeResolver {
     // Usamos um Map para evitar a duplicação na cadeia de herança.
     const membersMap = new Map<string, SymbolInfo>();
     const visited = new Set<string>();
-    const rawTypeName = typeName;
-    typeName = normalizeGenericTypeName(typeName);
 
     const collect = (currentTypeName: string): void => {
-      const key = currentTypeName.toLowerCase();
+      const lookupTypeName = normalizeGenericTypeName(currentTypeName);
+      const key = lookupTypeName.toLowerCase();
       if (visited.has(key)) return;
       visited.add(key);
 
@@ -639,15 +692,9 @@ export class TypeResolver {
         }
       };
 
-      const classSymbol = TypeResolver.findClassSymbol(currentTypeName, indexer);
-      if (!classSymbol) {
-        getGenericTemplateMembersForType(rawTypeName, indexer).forEach(addSymbol);
-        return;
-      }
-
-      const shortName = currentTypeName.includes(".")
-        ? (currentTypeName.split(".").pop() ?? currentTypeName).toLowerCase()
-        : currentTypeName.toLowerCase();
+      const shortName = lookupTypeName.includes(".")
+        ? (lookupTypeName.split(".").pop() ?? lookupTypeName).toLowerCase()
+        : lookupTypeName.toLowerCase();
 
       const containerMatch = (containerName: string | undefined): boolean => {
         if (containerName === undefined) return false;
@@ -661,9 +708,12 @@ export class TypeResolver {
         .filter((s) => containerMatch(s.containerName))
         .forEach(addSymbol);
 
-      getGenericTemplateMembersForType(rawTypeName, indexer).forEach(addSymbol);
+      getGenericTemplateMembersForType(currentTypeName, indexer).forEach(addSymbol);
 
-      const parent = TypeResolver.resolveParent(classSymbol);
+      const classSymbol = TypeResolver.findClassSymbol(lookupTypeName, indexer);
+      const parent = classSymbol
+        ? TypeResolver.resolveParent(classSymbol)
+        : getGenericTemplateParentForType(currentTypeName, indexer);
       if (parent) collect(parent);
     };
 
@@ -861,6 +911,38 @@ function getGenericTemplateMembersForType(
     });
 }
 
+function getGenericTemplateParentForType(
+  typeName: string,
+  indexer: WorkspaceSymbolIndexer,
+): string | undefined {
+  const parsed = parseGenericTypeReference(typeName);
+  if (!parsed) return undefined;
+
+  const template = indexer
+    .getAllSymbols()
+    .find(
+      (s) =>
+        s.kind === "class" &&
+        s.name.toLowerCase() === parsed.base.toLowerCase() &&
+        s.genericTypeParameters !== undefined &&
+        s.genericTypeParameters.length === parsed.args.length,
+    );
+  if (!template?.genericTypeParameters) return undefined;
+
+  const parent = TypeResolver.resolveParent(template);
+  if (!parent) return undefined;
+
+  const substitutions = new Map<string, string>();
+  for (let i = 0; i < template.genericTypeParameters.length; i++) {
+    const param = template.genericTypeParameters[i];
+    const arg = parsed.args[i];
+    if (!param || !arg) return parent;
+    substitutions.set(param.toLowerCase(), arg);
+  }
+
+  return substituteGenericParametersPreservingSyntax(parent, substitutions);
+}
+
 function substituteGenericParametersInType(
   typeName: string,
   substitutions: ReadonlyMap<string, string>,
@@ -871,6 +953,18 @@ function substituteGenericParametersInType(
     current = current.replace(new RegExp(`\\b${escaped}\\b`, "gi"), concrete);
   }
   return normalizeGenericTypeName(current);
+}
+
+function substituteGenericParametersPreservingSyntax(
+  typeName: string,
+  substitutions: ReadonlyMap<string, string>,
+): string {
+  let current = typeName;
+  for (const [param, concrete] of substitutions.entries()) {
+    const escaped = param.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    current = current.replace(new RegExp(`\\b${escaped}\\b`, "gi"), concrete);
+  }
+  return current;
 }
 
 function parseGenericTypeReference(

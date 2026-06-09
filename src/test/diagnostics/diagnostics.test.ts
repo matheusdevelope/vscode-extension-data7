@@ -1468,6 +1468,69 @@ Print _list.ToString()`;
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
 
+    test("accepts inherited members on array-sugar generic lists without a precomputed flat class", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+
+      const usageUri = "file:///Principal_array_sugar_lint.bas";
+      registerOpenDocument(usageUri, "Principal.bas");
+      const usageCode = `Imports mod_tlist
+Imports mod_product
+
+Dim _products[] As Product = [
+   New Product()
+]
+
+Print _products.ToString()
+Dim _last As Product = _products.Pop()`;
+      indexer.updateFileContent(usageUri, usageCode);
+
+      const templateUri = "file:///mod_tlist_array_sugar_lint.bas";
+      registerOpenDocument(templateUri, "mod_tlist.bas");
+      const templateCode = `Namespace mod_tlist
+   Class TTComposerList
+      Function ToString() As String
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Inherits TTComposerList
+      Function Pop() As T
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(templateUri, templateCode);
+
+      const productUri = "file:///mod_product_array_sugar_lint.bas";
+      registerOpenDocument(productUri, "mod_product.bas");
+      const productCode = `Namespace mod_product
+   Class Product
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(productUri, productCode);
+
+      assert.equal(
+        indexer.findSymbolByName("TTList_Product"),
+        undefined,
+        "test setup must not rely on the synthetic flat class cache",
+      );
+
+      const doc = createMockDoc(usageUri, usageCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
     test("validates arity for generic templates declared in another namespace file", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const templateUri = "file:///mod_pair.bas";

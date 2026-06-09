@@ -16,3 +16,5 @@ _prods.forEach((p As Product) => print(p.ToString()))
 
 Dim _last As Product = _prods.Pop()
 print _last.ToString()
+
+print _prods.ToString()

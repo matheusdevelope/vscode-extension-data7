@@ -174,6 +174,71 @@ End Namespace`;
       assert.match(addLabelDetail, /Integer/);
     });
 
+    test("lists inherited members for array-sugar TTList<T> even when usage was indexed before the template", async () => {
+      const usageCode = `Imports mod_tlist
+Imports mod_product
+
+Dim _products[] As Product = [
+   New Product()
+]
+
+_products.`;
+      const templateCode = `Namespace mod_tlist
+   Class TTComposerList
+      Property Length As Integer
+         Get
+         End Get
+      End Property
+      Function ToString() As String
+      End Function
+   End Class
+
+   Class TTList<T>
+      Inherits TTComposerList
+      Sub Push(pValue As T)
+      End Sub
+      Function Pop() As T
+      End Function
+   End Class
+End Namespace`;
+      const productCode = `Namespace mod_product
+   Class Product
+   End Class
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const usageUri = "file:///principal_array_sugar_completion.bas";
+      const templateUri = "file:///mod_tlist_completion.bas";
+      const productUri = "file:///mod_product_completion.bas";
+      indexer.updateFileContent(usageUri, usageCode);
+      indexer.updateFileContent(templateUri, templateCode);
+      indexer.updateFileContent(productUri, productCode);
+      const doc = createMockDoc(usageUri, usageCode);
+      createMockDoc(templateUri, templateCode);
+      createMockDoc(productUri, productCode);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          pos(7, 10),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("Push"), `Push must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Pop"), `Pop must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("Length"), `Length must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("ToString"), `ToString must appear; got ${labels.join(", ")}`);
+
+      const pop = items.find((i) => labelOf(i) === "Pop");
+      assert.ok(pop, "Pop completion entry expected");
+      const popLabelDetail = typeof pop.label === "string" ? "" : (pop.label.detail ?? "");
+      assert.match(popLabelDetail, /Product/);
+    });
+
     test("lists members for explicit generic variable even when initializer is incompatible", async () => {
       const usageCode = `Imports mod_tlist
 

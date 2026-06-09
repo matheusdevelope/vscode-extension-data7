@@ -2,12 +2,9 @@ import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
-import { lookupSystemByName, lookupSystemNamespaceOrClassByName } from "../system-library";
-import { inferLiteralType } from "../utils/literal-type-infer";
 import type { Token } from "../project/parser";
 import { LanguageProcessor } from "../analysis/language-processor";
 import type {
-  BinaryExpression,
   ClassDeclaration,
   ClassMember,
   CompilationUnit,
@@ -20,7 +17,6 @@ import type {
   Statement,
   TopLevelMember,
   TypeReference,
-  UnaryExpression,
   VariableDeclaration,
 } from "../project/ast/ast";
 
@@ -235,56 +231,8 @@ export class D7AstContext {
   }
 
   public resolveExpressionType(expr: Expression): string | undefined {
-    switch (expr.kind) {
-      case "Literal":
-        if (expr.value === null) return "Variant";
-        return inferLiteralType(String(expr.value)) ?? typeofLiteral(expr.value);
-      case "TaggedTemplateExpression":
-        return "String";
-      case "ObjectCreationExpression":
-        return typeRefToString(expr.type);
-      case "Identifier":
-        return this.resolveIdentifierType(expr.name);
-      case "MemberAccess": {
-        const targetType = this.resolveExpressionType(expr.target);
-        if (!targetType) return undefined;
-        return TypeResolver.findMember(targetType, expr.member, this.indexer, 0)?.type;
-      }
-      case "MethodInvocation": {
-        if (expr.callee) {
-          const targetType = this.resolveExpressionType(expr.callee);
-          if (!targetType) return undefined;
-          return TypeResolver.findMember(targetType, expr.methodName, this.indexer, expr.arguments.length)?.type;
-        }
-        const activeClass = this.getActiveClassSymbol();
-        if (activeClass) {
-          const member = TypeResolver.findMember(activeClass.name, expr.methodName, this.indexer, expr.arguments.length);
-          if (member?.type) return member.type;
-        }
-        return (
-          this.indexer.findSymbolByName(expr.methodName, this.document.uri.toString()) ??
-          lookupSystemByName(expr.methodName).find((s) => !s.containerName)
-        )?.type;
-      }
-      case "OptionalChainingExpression":
-        return this.resolveExpressionType(expr.member);
-      case "TernaryExpression": {
-        const trueType = this.resolveExpressionType(expr.trueExpr);
-        const falseType = this.resolveExpressionType(expr.falseExpr);
-        if (trueType && falseType) {
-          return trueType.toLowerCase() === falseType.toLowerCase() ? trueType : "Variant";
-        }
-        return trueType ?? falseType;
-      }
-      case "NullCoalescingExpression":
-        return this.resolveExpressionType(expr.left) ?? this.resolveExpressionType(expr.right);
-      case "PipeExpression":
-        return this.resolveExpressionType(expr.right);
-      case "BinaryExpression":
-        return this.resolveBinaryType(expr);
-      case "UnaryExpression":
-        return this.resolveUnaryType(expr);
-    }
+    const lineIdx = Math.max(0, (expr.loc?.startLine ?? this.position.line + 1) - 1);
+    return TypeResolver.resolveExpressionType(expr, this.document, lineIdx, this.indexer);
   }
 
   public expressionToText(expr: Expression): string {
@@ -317,76 +265,6 @@ export class D7AstContext {
         return `${this.expressionToText(expr.left)} |> ${this.expressionToText(expr.right)}`;
     }
     return "";
-  }
-
-  private resolveIdentifierType(name: string): string | undefined {
-    const lower = name.toLowerCase();
-    const genericConstraint = this.getGenericParametersInScope().get(lower);
-    if (genericConstraint) return genericConstraint;
-
-    if (lower === "me" || lower === "mybase") {
-      const activeClass = this.getActiveClassSymbol();
-      if (lower === "me") {
-        return activeClass?.name;
-      } else {
-        return activeClass?.inheritsFrom ?? "TObject";
-      }
-    }
-
-    const local = this.findLocal(name);
-    if (local) return local.type;
-
-    const activeClass = this.getActiveClassSymbol();
-    if (activeClass) {
-      const member = TypeResolver.findMember(activeClass.name, name, this.indexer);
-      if (member?.type) return member.type;
-    }
-
-    const symbol =
-      this.indexer.findSymbolByName(name, this.document.uri.toString()) ??
-      lookupSystemNamespaceOrClassByName(name)[0];
-    if (
-      symbol &&
-      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "namespace")
-    ) {
-      return symbol.name;
-    }
-
-    return undefined;
-  }
-
-  private resolveBinaryType(expr: BinaryExpression): string | undefined {
-    const op = expr.operator.toLowerCase();
-    if (
-      [
-        "=",
-        "<>",
-        "<",
-        ">",
-        "<=",
-        ">=",
-        "is",
-        "isnot",
-        "like",
-        "and",
-        "or",
-        "xor",
-        "andalso",
-        "orelse",
-      ].includes(op)
-    ) {
-      return "Boolean";
-    }
-    if (op === "&") return "String";
-    const left = this.resolveExpressionType(expr.left);
-    const right = this.resolveExpressionType(expr.right);
-    if (left && left.toLowerCase() === right?.toLowerCase()) return left;
-    return left ?? right;
-  }
-
-  private resolveUnaryType(expr: UnaryExpression): string | undefined {
-    if (expr.operator.toLowerCase() === "not") return "Boolean";
-    return this.resolveExpressionType(expr.argument);
   }
 
   private findMemberCandidateAtPosition(): MemberCandidate | undefined {
@@ -518,16 +396,14 @@ export class D7AstContext {
           out.push(this.bindingFromVariable(statement));
           break;
         case "DestructuredVariableDeclaration":
-          if (statement.bindings) {
-            for (const b of statement.bindings) {
-              out.push({
-                name: b.name,
-                type: "Variant",
-                isConst: false,
-                range: tokenRangeFromLoc(statement.loc, b.name.length),
-                description: "Variavel local (desestruturada)",
-              });
-            }
+          for (const b of statement.bindings) {
+            out.push({
+              name: b.name,
+              type: "Variant",
+              isConst: false,
+              range: tokenRangeFromLoc(statement.loc, b.name.length),
+              description: "Variavel local (desestruturada)",
+            });
           }
           break;
         case "ForEachStatement":
@@ -827,11 +703,9 @@ function walkStatementExpressions(statement: Statement, visit: (expr: Expression
       if (statement.initializer) walkExpression(statement.initializer, visit);
       break;
     case "DestructuredVariableDeclaration":
-      if (statement.initializer) walkExpression(statement.initializer, visit);
-      if (statement.bindings) {
-        for (const b of statement.bindings) {
-          if (b.defaultValue) walkExpression(b.defaultValue, visit);
-        }
+      walkExpression(statement.initializer, visit);
+      for (const b of statement.bindings) {
+        if (b.defaultValue) walkExpression(b.defaultValue, visit);
       }
       break;
     case "ReturnStatement":
@@ -958,10 +832,4 @@ function isBeforeOrAt(
   if (!loc) return true;
   const line = locLine(loc);
   return line < position.line || (line === position.line && loc.startChar <= position.character);
-}
-
-function typeofLiteral(value: string | number | boolean): string {
-  if (typeof value === "boolean") return "Boolean";
-  if (typeof value === "number") return Number.isInteger(value) ? "Integer" : "Double";
-  return "String";
 }
