@@ -302,6 +302,7 @@ export class DiagnosticsLinter {
     const lhsIsTObjectRoot = lhsLower === "tobject" || lhsLower.endsWith(".tobject");
 
     if (lhsLower === rhsLower) return true;
+    if (areResolvedTypeNamesEquivalent(rhsType, lhsType, indexer)) return true;
     if (isLikelyGenericTypeParameter(lhsType) || isLikelyGenericTypeParameter(rhsType)) return true;
     if (areSameGenericTemplateCompatible(rhsType, lhsType, indexer)) return true;
 
@@ -1367,7 +1368,27 @@ class DiagnosticsASTWalker extends ASTWalker {
         this.pushScope();
         pushedScope = true;
       }
+    } else if (node.kind === "ArrowFunctionExpression") {
+      // Cria o escopo para os parâmetros da Arrow Function
+      this.pushScope();
+      pushedScope = true;
+      const arrowNode = node; // Cast de segurança caso a tipagem strict do AST falhe
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (arrowNode.parameters) {
+        arrowNode.parameters.forEach((p) => {
+          if (p.name) this.addLocal(p.name); // Registra 'pIndex', 'pName', etc.
+        });
+      }
     }
+    // } else if (node.kind === "Block") {
+    //   const isSyntheticMultiDeclaration = node.statements.every(
+    //     (stmt) => stmt.kind === "VariableDeclaration",
+    //   );
+    //   if (!isSyntheticMultiDeclaration) {
+    //     this.pushScope();
+    //     pushedScope = true;
+    //   }
+    // }
 
     // AST custom checks dispatcher
     switch (node.kind) {
@@ -1651,8 +1672,12 @@ class DiagnosticsASTWalker extends ASTWalker {
           this.diagnostics.push(diag);
         }
       }
-
-      if (isSub && parent && parent.kind !== "ExpressionStatement") {
+      if (
+        isSub &&
+        parent &&
+        parent.kind !== "ExpressionStatement" &&
+        parent.kind !== "ArrowFunctionExpression"
+      ) {
         const range = new vscode.Range(
           lineIdx,
           startChar,
@@ -1667,6 +1692,21 @@ class DiagnosticsASTWalker extends ASTWalker {
         diag.code = DiagnosticCodes.SubUsedAsFunction;
         this.diagnostics.push(diag);
       }
+      // if (isSub && parent && parent.kind !== "ExpressionStatement") {
+      //   const range = new vscode.Range(
+      //     lineIdx,
+      //     startChar,
+      //     lineIdx,
+      //     startChar + node.methodName.length,
+      //   );
+      //   const diag = new vscode.Diagnostic(
+      //     range,
+      //     `O método Sub "${node.methodName}" retorna Void e não pode ser usado em uma expressão ou atribuição.`,
+      //     vscode.DiagnosticSeverity.Error,
+      //   );
+      //   diag.code = DiagnosticCodes.SubUsedAsFunction;
+      //   this.diagnostics.push(diag);
+      // }
     }
   }
 
@@ -2770,6 +2810,32 @@ function inheritsFromClass(
   return current === target;
 }
 
+function simpleTypeName(typeName: string): string {
+  const trimmed = typeName.trim();
+  const lastDot = trimmed.lastIndexOf(".");
+  return lastDot === -1 ? trimmed : trimmed.substring(lastDot + 1);
+}
+
+function areResolvedTypeNamesEquivalent(
+  rhsType: string,
+  lhsType: string,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  if (rhsType.toLowerCase() === lhsType.toLowerCase()) return true;
+  if (simpleTypeName(rhsType).toLowerCase() !== simpleTypeName(lhsType).toLowerCase()) {
+    return false;
+  }
+
+  const rhsClass = TypeResolver.findClassSymbol(rhsType, indexer);
+  const lhsClass = TypeResolver.findClassSymbol(lhsType, indexer);
+  if (!rhsClass || !lhsClass) return false;
+
+  return (
+    rhsClass.name.toLowerCase() === lhsClass.name.toLowerCase() &&
+    (rhsClass.containerName ?? "").toLowerCase() === (lhsClass.containerName ?? "").toLowerCase()
+  );
+}
+
 function isLikelyGenericTypeParameter(typeName: string): boolean {
   return /^[A-Z]$/.test(typeName.trim());
 }
@@ -2788,7 +2854,7 @@ function areSameGenericTemplateCompatible(
   return rhs.args.every((rhsArg, idx) => {
     const lhsArg = lhs.args[idx];
     if (!lhsArg) return false;
-    if (rhsArg.toLowerCase() === lhsArg.toLowerCase()) return true;
+    if (areResolvedTypeNamesEquivalent(rhsArg, lhsArg, indexer)) return true;
     return isLikelyGenericTypeParameter(rhsArg) || isLikelyGenericTypeParameter(lhsArg);
   });
 }
@@ -2986,11 +3052,13 @@ function isQualifiedTypeInvocation(
         (sym.kind === "class" || sym.kind === "structure") &&
         sym.containerName?.toLowerCase() === containerLower,
     ) ||
-    indexer.getAllSymbols().some(
-      (sym) =>
-        sym.name.toLowerCase() === nameLower &&
-        (sym.kind === "class" || sym.kind === "structure") &&
-        sym.containerName?.toLowerCase() === containerLower,
-    )
+    indexer
+      .getAllSymbols()
+      .some(
+        (sym) =>
+          sym.name.toLowerCase() === nameLower &&
+          (sym.kind === "class" || sym.kind === "structure") &&
+          sym.containerName?.toLowerCase() === containerLower,
+      )
   );
 }

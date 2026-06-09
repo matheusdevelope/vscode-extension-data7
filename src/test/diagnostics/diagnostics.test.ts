@@ -1081,6 +1081,33 @@ End Namespace`,
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
 
+    test("accepts assignment from a qualified workspace type to its imported simple name", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const productUri = "file:///mod_product.bas";
+      const productCode = `Namespace mod_product
+   Class Product
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(productUri, productCode);
+      registerOpenDocument(productUri, "mod_product.bas");
+
+      const usageUri = "file:///qualified_product_assignment.bas";
+      const usageCode = `Imports mod_product
+
+Function Fetch() As mod_product.Product
+End Function
+
+Dim value As Product = Fetch()`;
+      indexer.updateFileContent(usageUri, usageCode);
+      const doc = createMockDoc(usageUri, usageCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
     test("treats NULL as object-null, not Variant", () => {
       const diags = runLinter(
         "file:///null_object_assignment.bas",

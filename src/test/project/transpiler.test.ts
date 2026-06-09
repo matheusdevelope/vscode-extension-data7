@@ -1078,25 +1078,106 @@ describe("SugarTranspiler — A6 numeric separator", () => {
   });
 });
 
-describe("SugarTranspiler — removed list sugar remnants", () => {
-  const ctx = makeContext({});
+describe("SugarTranspiler — array-list", () => {
+  const ctx = makeContext({}, {}, {
+    externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+  });
 
-  test("does not materialize Dim x[] list sugar into TList_*", () => {
+  test("materializes Dim x[] declarations into TTList<T>", () => {
     const code = `Dim x[] As String = ["a", "b"]`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.doesNotMatch(out, /TList_String/);
-    assert.doesNotMatch(out, /__src0/);
-    assert.doesNotMatch(out, /\.Push\(/);
+    assert.deepEqual(out.split("\n"), [
+      `Dim x As TTList_String = New TTList_String()`,
+      `x.Push("a")`,
+      `x.Push("b")`,
+    ]);
   });
 
-  test("does not materialize array literal with spread operator", () => {
+  test("materializes array literal spreads as TTList Push overloads", () => {
     const code = `Dim x[] As String = ["a", ...other]`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.doesNotMatch(out, /__src0/);
-    assert.doesNotMatch(out, /\.Push\(/);
-    assert.doesNotMatch(out, /\.Add\(other\)/);
+    assert.deepEqual(out.split("\n"), [
+      `Dim x As TTList_String = New TTList_String()`,
+      `x.Push("a")`,
+      `x.Push(other)`,
+    ]);
+  });
+
+  test("accepts multiline array literals", () => {
+    const code = [
+      `Dim x[] As String = [`,
+      `   "a",`,
+      `   "b"`,
+      `]`,
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.trimEnd().split("\n"), [
+      `Dim x As TTList_String = New TTList_String()`,
+      `x.Push("a")`,
+      `x.Push("b")`,
+    ]);
+  });
+
+  test("rewrites TTList index read and write to GetItem/SetItem", () => {
+    const code = [
+      `Dim x[] As Product`,
+      `Dim first As Product = x[0]`,
+      `x[1] = New Product()`,
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.deepEqual(out.split("\n"), [
+      `Dim x As TTList_Product = New TTList_Product()`,
+      `Dim first As Product = x.GetItem(0)`,
+      `x.SetItem(1, New Product())`,
+    ]);
+  });
+
+  test("expands map/filter/find/findIndex/some/every/reduce/forEach over TTList", () => {
+    const code = [
+      `Dim nums[] As Integer = [1, 2, 3]`,
+      `Dim doubled[] As Integer = nums.map(x => x * 2)`,
+      `Dim even[] As Integer = nums.filter(x => x Mod 2 = 0)`,
+      `Dim found As Integer = nums.find(x => x > 1)`,
+      `Dim foundIndex As Integer = nums.findIndex(x => x > 1)`,
+      `Dim hasEven As Boolean = nums.some(x => x Mod 2 = 0)`,
+      `Dim allPositive As Boolean = nums.every(x => x > 0)`,
+      `Dim total As Integer = nums.reduce((acc As Integer, x As Integer) => acc + x, 0)`,
+      `nums.forEach(x => print(x))`,
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+
+    assert.match(out, /Dim doubled As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /Dim x As Integer = nums\.GetItem\(__idx\d+\)/);
+    assert.match(out, /doubled\.Push\(x \* 2\)/);
+    assert.match(out, /Dim even As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /If x Mod 2 = 0 Then[\s\S]*even\.Push\(x\)/);
+    assert.match(out, /Dim found As Integer[\s\S]*If x > 1 Then[\s\S]*found = x[\s\S]*Exit For/);
+    assert.match(out, /Dim foundIndex As Integer = -1[\s\S]*foundIndex = __idx\d+/);
+    assert.match(out, /Dim hasEven As Boolean = False[\s\S]*hasEven = True/);
+    assert.match(out, /Dim allPositive As Boolean = True[\s\S]*If Not x > 0 Then[\s\S]*allPositive = False/);
+    assert.match(out, /Dim total As Integer = 0[\s\S]*total = total \+ x/);
+    assert.match(out, /print\(x\)/);
+  });
+
+  test("expands map spread inside array literals", () => {
+    const code = [
+      `Dim names[] As String = ["A", "B"]`,
+      `Dim products[] As Product = [New Product(0, "Manual"), ...names.map((name As String, idx As Integer) => New Product(idx + 1, name))]`,
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+
+    assert.match(out, /Dim products As TTList_Product = New TTList_Product\(\)/);
+    assert.match(out, /products\.Push\(New Product\(0, "Manual"\)\)/);
+    assert.match(out, /Dim __src\d+ As TTList_Product = New TTList_Product\(\)/);
+    assert.match(out, /For __idx\d+ = 0 To names\.Length - 1/);
+    assert.match(out, /__src\d+\.Push\(New Product\(idx \+ 1, name\)\)/);
+    assert.match(out, /products\.Push\(__src\d+\)/);
   });
 
   test("does not synthesize non-capturing arrow functions inside method calls", () => {

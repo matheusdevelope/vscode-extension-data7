@@ -139,7 +139,7 @@ Namespace mod_tlist
          me.Unshift(pIndex, "", pValue)
       End Sub
 
-      Function Take(pIndex As Integer) As T
+      Overrides Function Take(pIndex As Integer) As T
          Take = me.Unwrap(me._base.Take(pIndex))
       End Function
 
@@ -155,12 +155,41 @@ Namespace mod_tlist
          Last = me.Unwrap(me._base.Last())
       End Function
 
-      Function Pop() As T
-         Pop = me.Unwrap(me._base.Pop())
+      ' Function Pop() As T
+      '    Pop = me.Unwrap(me._base.Pop())
+      ' End Function
+
+      ' Function Shift() As T
+      '    Shift = me.Unwrap(me._base.Shift())
+      ' End Function
+
+Function Pop() As T
+         Dim _extracted As TTObject = me._base.Pop()
+         Pop = me.Unwrap(_extracted)
+
+         <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         If Assigned(_extracted) Then
+            <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
+            ' Anula a referência interna para que o Dispose do TTItem não destrua o objeto devolvido
+            TTItem<T>(_extracted).Value = NULL
+            <# End If #>
+            _extracted.Free() ' Destrói apenas o wrapper TTItem
+         End If
+         <# End If #>
       End Function
 
       Function Shift() As T
-         Shift = me.Unwrap(me._base.Shift())
+         Dim _extracted As TTObject = me._base.Shift()
+         Shift = me.Unwrap(_extracted)
+
+         <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         If Assigned(_extracted) Then
+            <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
+            TTItem<T>(_extracted).Value = NULL
+            <# End If #>
+            _extracted.Free()
+         End If
+         <# End If #>
       End Function
 
       Sub Unshift(pValue As T)

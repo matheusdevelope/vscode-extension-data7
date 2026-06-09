@@ -150,6 +150,7 @@ export interface FieldDeclaration extends BaseNode {
   name: string;
   type: TypeReference;
   initializer?: Expression;
+  isArraySugar?: boolean;
   readonly modifiers?: string[];
 }
 
@@ -196,6 +197,7 @@ export interface VariableDeclaration extends BaseNode {
   type?: TypeReference;
   initializer?: Expression;
   isConst?: boolean;
+  isArraySugar?: boolean;
 }
 
 export type Expression =
@@ -438,14 +440,14 @@ export interface TaggedTemplateExpression extends BaseNode {
 
 export interface ArrayLiteralExpression extends BaseNode {
   readonly kind: "ArrayLiteralExpression";
-  readonly elements: ArrayLiteralElement[];
+  elements: ArrayLiteralElement[];
 }
 
 export type ArrayLiteralElement = Expression | SpreadExpression;
 
 export interface SpreadExpression extends BaseNode {
   readonly kind: "SpreadExpression";
-  readonly expression: Expression;
+  expression: Expression;
 }
 
 export interface ArrowFunctionExpression extends BaseNode {

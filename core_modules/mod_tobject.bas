@@ -247,7 +247,7 @@ Namespace mod_tobject
          me.Push(pValue.GetID, pValue)
       End Sub
 
-      Sub Push(pValues As TTBaseList)
+      Sub Push(pValues As TTComposerList)
          Dim i As Integer, _length As Integer = pValues.Length
          For i = 0 To _length - 1
              me.Push(pValues.Take(i))
@@ -426,8 +426,7 @@ Namespace mod_tobject
       Function Pop() As TTObject
          Dim _len As Integer = me.Length()
          If _len > 0 Then
-            Pop = me.Take(_len - 1)
-            me.Delete(_len - 1)
+            Pop = me.Extract(_len - 1)
          Else
             Pop = NULL
          End If
@@ -436,37 +435,10 @@ Namespace mod_tobject
       Function Shift() As TTObject
          Dim _len As Integer = me.Length()
          If _len > 0 Then
-            Shift = me.Take(0)
-            me.Delete(0)
+            Shift = me.Extract(0)
          Else
             Shift = NULL
          End If
-      End Function
-
-      Sub Reverse()
-         Dim i As Integer = 0
-         Dim j As Integer = me.Length() - 1
-         While i < j
-            me._list.Exchange(i, j)
-            i = i + 1
-            j = j - 1
-         End While
-      End Sub
-
-      Function Slice(pStart As Integer, pEnd As Integer) As TTObjectList
-         Dim _new As TTObjectList = me.CreateInstance()
-         Dim _len As Integer = me.Length()
-
-         If pStart < 0 Then pStart = _len + pStart
-         If pStart < 0 Then pStart = 0
-         If pEnd < 0 Then pEnd = _len + pEnd
-         If pEnd > _len Then pEnd = _len
-
-         Dim i As Integer
-         For i = pStart To pEnd - 1
-            _new.Push(me.Take(i))
-         Next
-         Slice = _new
       End Function
 
       Function Splice(pStart As Integer, pQty As Integer) As TTObjectList
@@ -479,10 +451,46 @@ Namespace mod_tobject
          Dim i As Integer
          For i = 0 To pQty - 1
             If pStart >= me.Length() Then Exit For
-            _new.Push(me.Take(pStart))
-            me.Delete(pStart)
+            _new.Push(me.Extract(pStart))
          Next
          Splice = _new
+      End Function
+
+      Function Slice(pStart As Integer, pEnd As Integer) As TTObjectList
+         Dim _new As TTObjectList = me.CreateInstance()
+         Dim _len As Integer = me.Length()
+
+         If pStart < 0 Then pStart = _len + pStart
+         If pStart < 0 Then pStart = 0
+         If pEnd < 0 Then pEnd = _len + pEnd
+         If pEnd > _len Then pEnd = _len
+
+         Dim i As Integer
+         For i = pStart To pEnd - 1
+            _new.Push(CType(me.Take(i).Clone(), TTObject))
+         Next
+         Slice = _new
+      End Function
+
+      Sub Reverse()
+         Dim i As Integer = 0
+         Dim j As Integer = me.Length() - 1
+         While i < j
+            me._list.Exchange(i, j)
+            i = i + 1
+            j = j - 1
+         End While
+      End Sub
+
+      Function Extract(pIndex As Integer) As TTObject
+         Dim _item As TTObject = me.Take(pIndex)
+         Dim _tempOwns As Boolean = me.OwnsObjects
+
+         me.OwnsObjects = False
+         me.Delete(pIndex)
+         me.OwnsObjects = _tempOwns
+
+         Extract = _item
       End Function
 
       Sub Delete(pIndex as Integer)
@@ -665,7 +673,7 @@ Namespace mod_tobject
          me._base.Name = pValue
       End Sub
 
-      Property Length As Integer
+      Overrides Property Length As Integer
          Get
             Length = me._base.Length()
          End Get

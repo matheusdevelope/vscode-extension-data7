@@ -7,6 +7,20 @@ function metadata(plugin: SugarPlugin): SugarPlugin {
 
 export const builtInSugarPlugins: readonly SugarPlugin[] = [
   metadata({
+    id: "array-list",
+    displayName: "Array List",
+    description: "Materializes modern array syntax on top of TTList<T>.",
+    enabledByDefault: true,
+    syntaxKinds: [
+      "VariableDeclaration(array)",
+      "ArrayLiteralExpression",
+      "SpreadExpression",
+      "ArrayAccessExpression",
+      "ArrowFunctionExpression",
+      "MethodInvocation(map/filter/find/findIndex/some/every/reduce/forEach)",
+    ],
+  }),
+  metadata({
     id: "for-each",
     displayName: "For Each",
     description: "Expands For Each over enumerable values into indexed For loops.",
@@ -136,4 +150,3 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     diagnosticCodes: ["auto-new-non-default-ctor"],
   }),
 ];
-

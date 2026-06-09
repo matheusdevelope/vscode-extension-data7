@@ -708,12 +708,7 @@ function drainWorklist(ctx: MonoContext): void {
       continue;
     }
 
-    const concrete = instantiateTemplate(
-      template,
-      pending.concreteArgs,
-      pending.flatName,
-      ctx,
-    );
+    const concrete = instantiateTemplate(template, pending.concreteArgs, pending.flatName, ctx);
 
     // If there is a namespace declaration in the compilation unit,
     // inject the concrete declaration inside that namespace, at the end of it.
@@ -767,7 +762,6 @@ function instantiateTemplate(
   clone.name = flatName;
   clone.typeParameters = [];
 
-
   return clone;
 }
 
@@ -814,7 +808,8 @@ function filterMetaStatements(
   const filtered: Statement[] = [];
   const stack: MetaFrame[] = [];
 
-  const isActive = (): boolean => stack.every((frame) => frame.parentActive && frame.conditionActive);
+  const isActive = (): boolean =>
+    stack.every((frame) => frame.parentActive && frame.conditionActive);
 
   for (const statement of statements) {
     if (statement.kind === "OpaqueStatement") {
@@ -839,10 +834,62 @@ function filterMetaStatements(
       }
     }
 
-    if (isActive()) filtered.push(statement);
+    if (isActive()) {
+      // Desce recursivamente para analisar blocos internos antes de adicionar a instrução
+      recursivelyFilterBlocks(statement, substitution, ctx);
+      filtered.push(statement);
+    }
   }
 
   return filtered;
+}
+
+/**
+ * Inspeciona o tipo da instrução e aplica o filtro de metaprogramação
+ * em todos os blocos de código internos (níveis profundos).
+ */
+function recursivelyFilterBlocks(
+  statement: Statement,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): void {
+  switch (statement.kind) {
+    case "IfStatement":
+      statement.thenBranch = filterMetaStatements(statement.thenBranch, substitution, ctx);
+      for (const branch of statement.elseIfBranches) {
+        branch.body = filterMetaStatements(branch.body, substitution, ctx);
+      }
+      if (statement.elseBranch) {
+        statement.elseBranch = filterMetaStatements(statement.elseBranch, substitution, ctx);
+      }
+      break;
+
+    case "ForStatement":
+    case "ForEachStatement":
+    case "WhileStatement":
+    case "WithStatement":
+      statement.body = filterMetaStatements(statement.body, substitution, ctx);
+      break;
+
+    case "TryCatchStatement":
+      statement.tryBody = filterMetaStatements(statement.tryBody, substitution, ctx);
+      statement.catchBody = filterMetaStatements(statement.catchBody, substitution, ctx);
+      if (statement.finallyBody) {
+        statement.finallyBody = filterMetaStatements(statement.finallyBody, substitution, ctx);
+      }
+      break;
+
+    case "SelectCaseStatement":
+    case "MatchStatement":
+      for (const branch of statement.cases) {
+        branch.body = filterMetaStatements(branch.body, substitution, ctx);
+      }
+      break;
+
+    case "Block":
+      statement.statements = filterMetaStatements(statement.statements, substitution, ctx);
+      break;
+  }
 }
 
 type MetaDirective =
@@ -987,6 +1034,7 @@ class SubstitutionWalker extends ASTWalker {
     if (expr.kind === "Identifier") return expr.name;
     if (expr.kind === "BinaryExpression") {
       const leftStr = this.stringifyExpression(expr.left);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       const rightStr = expr.right ? this.stringifyExpression(expr.right) : "";
       return leftStr + expr.operator + rightStr;
     }

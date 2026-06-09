@@ -654,18 +654,26 @@ export class Parser {
     const name = nameToken?.value ?? "";
     let type: TypeReference | undefined;
     let hasAsNew = false;
+    const isArraySugar = this.consumeArraySugarMarker();
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
       if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
         hasAsNew = true;
       }
       const t = this.parseTypeReference();
       if (t !== null) {
-        type = t;
+        type = isArraySugar ? wrapArraySugarType(t, startLoc) : t;
       }
     }
     let initializer: Expression | undefined;
     if (this.consume("punct", "=")) {
       initializer = this.parseExpression();
+    } else if (isArraySugar && type) {
+      initializer = {
+        kind: "ObjectCreationExpression",
+        type,
+        arguments: [],
+        loc: type.loc,
+      };
     } else if (hasAsNew && type) {
       initializer = {
         kind: "ObjectCreationExpression",
@@ -680,6 +688,7 @@ export class Parser {
       type,
       initializer,
       isConst,
+      isArraySugar,
       loc: locOf(startLoc),
     };
   }
@@ -1856,19 +1865,27 @@ export class Parser {
     const name = nameToken.value;
     let type: TypeReference = emptyTypeReference();
     let hasAsNew = false;
+    const isArraySugar = this.consumeArraySugarMarker();
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
       if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
         hasAsNew = true;
       }
       const t = this.parseTypeReference();
       if (t !== null) {
-        type = t;
+        type = isArraySugar ? wrapArraySugarType(t, startLoc) : t;
       }
     }
     let initializer: Expression | undefined;
     if (this.consume("punct", "=")) {
       initializer = this.parseExpression();
-    } else if (hasAsNew && type) {
+    } else if (isArraySugar) {
+      initializer = {
+        kind: "ObjectCreationExpression",
+        type,
+        arguments: [],
+        loc: type.loc,
+      };
+    } else if (hasAsNew) {
       initializer = {
         kind: "ObjectCreationExpression",
         type: type,
@@ -1877,7 +1894,16 @@ export class Parser {
       };
     }
     const comment = this.skipToEndOfLine();
-    return { kind: "FieldDeclaration", name, type, initializer, loc: locOf(startLoc), modifiers, comment };
+    return { kind: "FieldDeclaration", name, type, initializer, isArraySugar, loc: locOf(startLoc), modifiers, comment };
+  }
+
+  private consumeArraySugarMarker(): boolean {
+    if (!this.match("punct", "[")) return false;
+    const next = this.peek(1);
+    if (next.kind !== "punct" || next.value !== "]") return false;
+    this.advance();
+    this.advance();
+    return true;
   }
 
   // --------------------------------------------------------------------------
@@ -2112,4 +2138,13 @@ function locOf(loc: TokenLocation, endLoc?: TokenLocation): {
 
 function emptyTypeReference(): TypeReference {
   return { kind: "TypeReference", name: "", typeArguments: [] };
+}
+
+function wrapArraySugarType(elementType: TypeReference, loc: TokenLocation): TypeReference {
+  return {
+    kind: "TypeReference",
+    name: "TTList",
+    typeArguments: [elementType],
+    loc: locOf(loc),
+  };
 }
