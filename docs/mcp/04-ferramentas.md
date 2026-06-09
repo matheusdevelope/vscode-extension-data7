@@ -107,8 +107,7 @@
 
 ```json
 {
-  "code": "Dim x As String = c ? \"a\" : \"b\"",
-  "useAstGenerics": false      // opcional, equivalente a data7.experimental.useAstGenerics
+  "code": "Dim x As String = c ? \"a\" : \"b\""
 }
 ```
 

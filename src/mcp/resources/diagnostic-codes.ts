@@ -4,7 +4,7 @@
  *
  * The payload is rendered from the canonical `DiagnosticCodes` table in
  * `src/diagnostics/diagnostic-codes.ts` plus per-code trigger snippets
- * loaded from `docs/exemple/diagnostics/<code>/trigger.bas` when
+ * loaded from `docs/example/diagnostics/<code>/trigger.bas` when
  * available.
  */
 import * as fs from "fs";
@@ -23,7 +23,7 @@ interface CodeEntry {
 }
 
 function loadCatalog(): CodeEntry[] {
-  const triggersDir = path.join(getDocsRoot(), "exemple", "diagnostics");
+  const triggersDir = path.join(getDocsRoot(), "example", "diagnostics");
   return Object.entries(DiagnosticCodes).map(([enumKey, code]) => {
     const triggerPath = path.join(triggersDir, code, "trigger.bas");
     return {

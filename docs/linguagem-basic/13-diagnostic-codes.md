@@ -11,7 +11,7 @@ A extensão declara **33 códigos** em `DiagnosticCodes` ([`src/diagnostics/diag
 Os códigos se dividem em duas faixas:
 
 1. **Emitidos pelo linter live** (13 originais + 6 de generics) — chamados pelo VS Code a cada keystroke; reportados como `Diagnostic` no editor.
-2. **Emitidos pelo `SugarTranspiler` em build-time** ou **planejados para integração futura ao linter live** (14 das Fases A-J do roadmap). Cada um aparece nos exemplos em [`docs/exemple/diagnostics/<code>/`](../exemple/README.md), marcados com `@requires` quando dependem de wiring adicional ao linter.
+2. **Emitidos pelo `SugarTranspiler` em build-time** ou **planejados para integração futura ao linter live** (14 das Fases A-J do roadmap). Cada um aparece nos exemplos em [`docs/example/diagnostics/<code>/`](../example/README.md), marcados com `@requires` quando dependem de wiring adicional ao linter.
 
 ```ts
 export const DiagnosticCodes = {
@@ -59,7 +59,7 @@ Dim list As StringList   ' <-- missing-import
 
 **Severidade**: `error`.
 
-**Exemplos**: [`docs/exemple/diagnostics/missing-import/`](../exemple/diagnostics/missing-import).
+**Exemplos**: [`docs/example/diagnostics/missing-import/`](../example/diagnostics/missing-import).
 
 ---
 
@@ -84,7 +84,7 @@ End Namespace
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/unused-import/`](../exemple/diagnostics/unused-import).
+**Exemplos**: [`docs/example/diagnostics/unused-import/`](../example/diagnostics/unused-import).
 
 ---
 
@@ -106,7 +106,7 @@ Imports mod_unknown_module    ' <-- module-not-found
 
 **Severidade**: `error`.
 
-**Exemplos**: [`docs/exemple/diagnostics/module-not-found/`](../exemple/diagnostics/module-not-found).
+**Exemplos**: [`docs/example/diagnostics/module-not-found/`](../example/diagnostics/module-not-found).
 
 ---
 
@@ -128,7 +128,7 @@ Imports mod_shared_utility    ' <-- module-not-declared (existe mas falta no dat
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/module-not-declared/`](../exemple/diagnostics/module-not-declared).
+**Exemplos**: [`docs/example/diagnostics/module-not-declared/`](../example/diagnostics/module-not-declared).
 
 ---
 
@@ -151,7 +151,7 @@ form.Aline = alTop    ' <-- unknown-member (typo: Aline → Align)
 
 **Severidade**: `error`.
 
-**Exemplos**: [`docs/exemple/diagnostics/unknown-member/`](../exemple/diagnostics/unknown-member).
+**Exemplos**: [`docs/example/diagnostics/unknown-member/`](../example/diagnostics/unknown-member).
 
 ---
 
@@ -171,7 +171,7 @@ Imports Collections   ' <-- duplicate-import
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/duplicate-import/`](../exemple/diagnostics/duplicate-import).
+**Exemplos**: [`docs/example/diagnostics/duplicate-import/`](../example/diagnostics/duplicate-import).
 
 ---
 
@@ -193,7 +193,7 @@ End Class
 
 **Severidade**: `error`.
 
-**Exemplos**: [`docs/exemple/diagnostics/private-member-access/`](../exemple/diagnostics/private-member-access).
+**Exemplos**: [`docs/example/diagnostics/private-member-access/`](../example/diagnostics/private-member-access).
 
 ---
 
@@ -212,7 +212,7 @@ End Sub
 
 **Severidade**: `error`.
 
-**Exemplos**: [`docs/exemple/diagnostics/event-signature-mismatch/`](../exemple/diagnostics/event-signature-mismatch).
+**Exemplos**: [`docs/example/diagnostics/event-signature-mismatch/`](../example/diagnostics/event-signature-mismatch).
 
 ---
 
@@ -234,7 +234,7 @@ rep.Caption = "X"   ' <-- unsupported-member (Caption herdado de TForm não é t
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/unsupported-member/`](../exemple/diagnostics/unsupported-member).
+**Exemplos**: [`docs/example/diagnostics/unsupported-member/`](../example/diagnostics/unsupported-member).
 
 ---
 
@@ -261,7 +261,7 @@ Next
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/not-enumerable/`](../exemple/diagnostics/not-enumerable).
+**Exemplos**: [`docs/example/diagnostics/not-enumerable/`](../example/diagnostics/not-enumerable).
 
 ---
 
@@ -282,7 +282,7 @@ Dim x As Collections.StringList
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/unknown-suppression-code/`](../exemple/diagnostics/unknown-suppression-code).
+**Exemplos**: [`docs/example/diagnostics/unknown-suppression-code/`](../example/diagnostics/unknown-suppression-code).
 
 ---
 
@@ -305,7 +305,7 @@ Dim s3 As String = $"abc              ' <-- invalid-interpolation (unterminated-
 
 **Severidade**: `warning` (a linha é preservada verbatim — não bloqueia o build).
 
-**Exemplos**: [`docs/exemple/diagnostics/invalid-interpolation/`](../exemple/diagnostics/invalid-interpolation).
+**Exemplos**: [`docs/example/diagnostics/invalid-interpolation/`](../example/diagnostics/invalid-interpolation).
 
 ---
 
@@ -327,7 +327,7 @@ Foo(c ? a : b)               ' <-- mesmo (dentro de chamada)
 
 **Severidade**: `warning` (a linha é preservada verbatim).
 
-**Exemplos**: [`docs/exemple/diagnostics/ternary-context-unsupported/`](../exemple/diagnostics/ternary-context-unsupported).
+**Exemplos**: [`docs/example/diagnostics/ternary-context-unsupported/`](../example/diagnostics/ternary-context-unsupported).
 
 ---
 
@@ -348,7 +348,7 @@ Referenciar um código inexistente em uma diretiva dispara [`unknown-suppression
 
 ## Códigos de generics (emitidos pelo linter live)
 
-Os seis códigos abaixo são emitidos tanto pelo pipeline de monomorfização ([`src/project/generics-pass.ts`](../../src/project/generics-pass.ts) ou [`src/project/generics-driver.ts`](../../src/project/generics-driver.ts)) no Builder, quanto pelo linter live via `analyzeGenericsPass` (chamado em [`src/diagnostics/diagnostics.ts`](../../src/diagnostics/diagnostics.ts)). Detalhes do pipeline em [07-generics.md](./07-generics.md).
+Os seis códigos abaixo são emitidos pelo pipeline de monomorfização atual ([`src/project/generics/`](../../src/project/generics) + [`src/project/parser/`](../../src/project/parser)) no Builder/preview/MCP e pelo linter live via `analyzeGenericsPass` (chamado em [`src/diagnostics/diagnostics.ts`](../../src/diagnostics/diagnostics.ts)). Detalhes do pipeline em [07-generics.md](./07-generics.md).
 
 ### `unknown-template`
 
@@ -360,7 +360,7 @@ Dim list As TUnknown<Product>    ' <-- unknown-template
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/unknown-template/`](../exemple/diagnostics/unknown-template).
+**Exemplos**: [`docs/example/diagnostics/unknown-template/`](../example/diagnostics/unknown-template).
 
 ---
 
@@ -377,7 +377,7 @@ Dim p As TPair<Integer>    ' <-- generic-arity-mismatch (espera 2, recebeu 1)
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/generic-arity-mismatch/`](../exemple/diagnostics/generic-arity-mismatch).
+**Exemplos**: [`docs/example/diagnostics/generic-arity-mismatch/`](../example/diagnostics/generic-arity-mismatch).
 
 ---
 
@@ -392,7 +392,7 @@ Class TList<U> ... End Class    ' <-- duplicate-template
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/duplicate-template/`](../exemple/diagnostics/duplicate-template).
+**Exemplos**: [`docs/example/diagnostics/duplicate-template/`](../example/diagnostics/duplicate-template).
 
 ---
 
@@ -411,7 +411,7 @@ End Class
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/class-generic-method-unsupported/`](../exemple/diagnostics/class-generic-method-unsupported).
+**Exemplos**: [`docs/example/diagnostics/class-generic-method-unsupported/`](../example/diagnostics/class-generic-method-unsupported).
 
 ---
 
@@ -421,7 +421,7 @@ Dois templates diferentes produziriam o mesmo flat name após monomorfização (
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/flat-name-collision/`](../exemple/diagnostics/flat-name-collision).
+**Exemplos**: [`docs/example/diagnostics/flat-name-collision/`](../example/diagnostics/flat-name-collision).
 
 ---
 
@@ -431,34 +431,34 @@ Mais de **10.000** instanciações monomórficas distintas — geralmente um loo
 
 **Severidade**: `warning`.
 
-**Exemplos**: [`docs/exemple/diagnostics/instantiation-limit-exceeded/`](../exemple/diagnostics/instantiation-limit-exceeded).
+**Exemplos**: [`docs/example/diagnostics/instantiation-limit-exceeded/`](../example/diagnostics/instantiation-limit-exceeded).
 
 ---
 
 ## Códigos novos (Fases A-J, declarados em `DiagnosticCodes`)
 
-Declarados em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts) e emitidos pelo `SugarTranspiler` em build-time. Cada um tem exemplo em [`docs/exemple/diagnostics/<code>/`](../exemple/README.md).
+Declarados em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts) e emitidos pelo `SugarTranspiler` em build-time. Cada um tem exemplo em [`docs/example/diagnostics/<code>/`](../example/README.md).
 
 | Código | Quando | Onde emitido | Fase |
 |---|---|---|---|
-| [`null-coalesce-context-unsupported`](../exemple/diagnostics/null-coalesce-context-unsupported) | `??` fora de assignment RHS | SugarTranspiler | A1 |
-| [`optional-chain-context-unsupported`](../exemple/diagnostics/optional-chain-context-unsupported) | `?.` fora de assignment/chamada | SugarTranspiler | A5 |
-| [`optional-chain-too-deep`](../exemple/diagnostics/optional-chain-too-deep) | chain `?.` excede 3 níveis | SugarTranspiler | A5 |
-| [`using-non-disposable`](../exemple/diagnostics/using-non-disposable) | `Using x As T` mas `T` não tem `Free`/`Dispose` | Planejado (linter) | B2 |
-| [`auto-new-non-default-ctor`](../exemple/diagnostics/auto-new-non-default-ctor) | `Dim x As New T` mas `T` exige construtor com args | Planejado (linter) | B3 |
-| [`default-indexer-missing`](../exemple/diagnostics/default-indexer-missing) | `list(i)` em tipo sem default indexer | Planejado (linter) | C5 |
-| [`generic-constraint-violated`](../exemple/diagnostics/generic-constraint-violated) | `Class TList<T As BaseEnum>` com `T` incompatível | Planejado (linter) | C7 |
-| [`destructure-unknown-member`](../exemple/diagnostics/destructure-unknown-member) | `Dim { Foo } = pessoa` mas `pessoa.Foo` não existe | Planejado (linter) | E1 |
-| [`destructure-non-array`](../exemple/diagnostics/destructure-non-array) | `Dim [a, b] = x` mas `x` não é indexável | Planejado (linter) | E4 |
-| [`destructure-context-unsupported`](../exemple/diagnostics/destructure-context-unsupported) | destructuring fora de `Dim`/parâmetro | Planejado (linter) | E1 |
-| [`destructure-too-deep`](../exemple/diagnostics/destructure-too-deep) | aninhamento ≥ 3 níveis | Planejado (linter) | E1 |
-| [`spread-non-persistent`](../exemple/diagnostics/spread-non-persistent) | `With { ...other }` mas o tipo não herda de `TPersistent` | Planejado (linter) | F3 |
-| [`lambda-capture-unsupported`](../exemple/diagnostics/lambda-capture-unsupported) | corpo do lambda referencia variável do escopo enclosing | Planejado (linter) | H3 |
-| [`readonly-assignment`](../exemple/diagnostics/readonly-assignment) | `ReadOnly p As T` recebe atribuição fora do construtor | Planejado (linter) | I3 |
+| [`null-coalesce-context-unsupported`](../example/diagnostics/null-coalesce-context-unsupported) | `??` fora de assignment RHS | SugarTranspiler | A1 |
+| [`optional-chain-context-unsupported`](../example/diagnostics/optional-chain-context-unsupported) | `?.` fora de assignment/chamada | SugarTranspiler | A5 |
+| [`optional-chain-too-deep`](../example/diagnostics/optional-chain-too-deep) | chain `?.` excede 3 níveis | SugarTranspiler | A5 |
+| [`using-non-disposable`](../example/diagnostics/using-non-disposable) | `Using x As T` mas `T` não tem `Free`/`Dispose` | Planejado (linter) | B2 |
+| [`auto-new-non-default-ctor`](../example/diagnostics/auto-new-non-default-ctor) | `Dim x As New T` mas `T` exige construtor com args | Planejado (linter) | B3 |
+| [`default-indexer-missing`](../example/diagnostics/default-indexer-missing) | `list(i)` em tipo sem default indexer | Planejado (linter) | C5 |
+| [`generic-constraint-violated`](../example/diagnostics/generic-constraint-violated) | `Class TList<T As BaseEnum>` com `T` incompatível | Planejado (linter) | C7 |
+| [`destructure-unknown-member`](../example/diagnostics/destructure-unknown-member) | `Dim { Foo } = pessoa` mas `pessoa.Foo` não existe | Planejado (linter) | E1 |
+| [`destructure-non-array`](../example/diagnostics/destructure-non-array) | `Dim [a, b] = x` mas `x` não é indexável | Planejado (linter) | E4 |
+| [`destructure-context-unsupported`](../example/diagnostics/destructure-context-unsupported) | destructuring fora de `Dim`/parâmetro | Planejado (linter) | E1 |
+| [`destructure-too-deep`](../example/diagnostics/destructure-too-deep) | aninhamento ≥ 3 níveis | Planejado (linter) | E1 |
+| [`spread-non-persistent`](../example/diagnostics/spread-non-persistent) | `With { ...other }` mas o tipo não herda de `TPersistent` | Planejado (linter) | F3 |
+| [`lambda-capture-unsupported`](../example/diagnostics/lambda-capture-unsupported) | corpo do lambda referencia variável do escopo enclosing | Planejado (linter) | H3 |
+| [`readonly-assignment`](../example/diagnostics/readonly-assignment) | `ReadOnly p As T` recebe atribuição fora do construtor | Planejado (linter) | I3 |
 
 ## Cross-references
 
 - [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts) — código-fonte com tipos.
 - [`src/diagnostics/diagnostics.ts`](../../src/diagnostics/diagnostics.ts) — implementação do linter.
 - [`src/providers/code-actions.ts`](../../src/providers/code-actions.ts) — Code Actions correspondentes.
-- [`docs/exemple/diagnostics/`](../exemple/README.md) — exemplos canônicos (um por código).
+- [`docs/example/diagnostics/`](../example/README.md) — exemplos canônicos (um por código).

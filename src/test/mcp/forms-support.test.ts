@@ -37,7 +37,7 @@ describe("Forms canonical examples — lint clean", () => {
   for (const rel of FORMS_EXAMPLES) {
     test(`${rel} produces no diagnostics`, () => {
       const code = loadExample(rel);
-      const uri = `file:///docs/exemple/${rel}`;
+      const uri = `file:///docs/example/${rel}`;
       const doc = createMockDoc(uri, code);
       const indexer = WorkspaceSymbolIndexer.createDetached();
       indexer.updateFileContent(uri, code);

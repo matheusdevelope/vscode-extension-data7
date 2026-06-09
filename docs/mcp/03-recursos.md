@@ -8,7 +8,7 @@
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `data7://language/{chapter}`                      | Um capítulo do `docs/linguagem-basic/` (sintaxe, tipos, operadores, controle de fluxo, classes, delegates, generics, módulos, system-library, açúcares, limitações, convenções idiomáticas, diagnostic codes). |
 | `data7://system-library/{namespace}`              | Markdown completo de um namespace nativo (Collections, Forms, SQL, …) gerado on-the-fly por `DocsGenerator`. |
-| `data7://examples/{path}`                         | Um `.bas` específico de `docs/exemple/` + header `@example` parseado.                    |
+| `data7://examples/{path}`                         | Um `.bas` específico de `docs/example/` + header `@example` parseado.                    |
 | `data7://examples/index`                          | Índice navegável dos 107 exemplos canônicos.                                              |
 | `data7://diagnostics/codes`                       | Catálogo dos 33 `DiagnosticCodes` com referência aos exemplos de trigger/Quick Fix.       |
 | `data7://idioms`                                  | Convenções idiomáticas + limitações conhecidas concatenadas em um único documento.        |
@@ -34,7 +34,7 @@ Atenção: `Forms` é o maior namespace (~71 k tokens). Para detalhe de uma clas
 
 ### `data7://examples/{path}`
 
-`{path}` é o caminho relativo dentro de `docs/exemple/`, sem extensão. Exemplos:
+`{path}` é o caminho relativo dentro de `docs/example/`, sem extensão. Exemplos:
 
 - `data7://examples/sugar/for-each/01-stringlist-explicit-type`
 - `data7://examples/diagnostics/missing-import/trigger`

@@ -9,6 +9,8 @@ superseded-by: -
 
 # MCP-001 — MCP Server embutido para orientar IA em Data7 Basic
 
+> Nota de sincronização: este RFC é um registro histórico de planejamento. As referências a `docs/Documentação Data7/` descrevem um insumo avaliado na época do RFC, mas esse diretório não existe na árvore atual; não trate essas entradas como fonte operacional vigente.
+
 ## 1. Resumo executivo
 
 Embutir um servidor **MCP (Model Context Protocol)** dentro da extensão `vscode-extension-data7` para fornecer a agentes de IA (Cursor, Claude Desktop, Continue) **contexto estruturado** sobre a linguagem Data7 Basic — especificação, exemplos canônicos, catálogo nativo, exemplos oficiais do ERP — além de **ferramentas executáveis** (linter, transpilador) que rodam fora do extension host.
@@ -35,7 +37,7 @@ Resultado prático: o agente carrega 62 k tokens só pra eventualmente usar o no
 
 ### 2.3 Insumos versionados ainda não consumidos
 
-A análise de `docs/Documentação Data7/` (RFC § 3.4) revelou **140 exemplos oficiais em Data7 Basic** em HTMLs versionados que **nenhum código da extensão consome hoje**. Para cada método nativo (`Collections.StringList.Add`, `TJSONObject.Has`, `Net.TFTP.Connect`, …), há um exemplo escrito pela própria equipe do ERP, com a sintaxe canônica de chamada e o padrão idiomático de uso. Esse ativo é exatamente o que um agente precisa para gerar código correto na primeira tentativa.
+A análise histórica de `docs/Documentação Data7/` (RFC § 3.4) revelou **140 exemplos oficiais em Data7 Basic** em HTMLs que, no estado atual deste checkout, não estão versionados. Para cada método nativo (`Collections.StringList.Add`, `TJSONObject.Has`, `Net.TFTP.Connect`, …), havia um exemplo escrito pela própria equipe do ERP, com a sintaxe canônica de chamada e o padrão idiomático de uso. Esse ativo continua valioso como insumo externo, mas a fonte operacional vigente é `src/system-library/` + `docs/system-library/`.
 
 ## 3. Inventário de insumos
 
@@ -46,12 +48,12 @@ Toda a infraestrutura necessária para um MCP **já existe** no repo. A tabela a
 | Insumo | Quantidade | Tamanho | Status |
 |---|---:|---:|---|
 | `docs/linguagem-basic/*.md` (capítulos top-level) | 14 arquivos | 2 329 linhas / 124 KB | Já existe, estável |
-| `docs/exemple/**/*.bas` (com header `@example`) | 84/107 arquivos | sugar=71, diagnostics=35, builder=1 | Já existe |
-| `docs/exemple/sugar/` (subpastas, 1 por açúcar) | 31 subpastas | — | Já existe |
-| `docs/exemple/diagnostics/` (subpastas, 1 por código) | 34 subpastas | — | Já existe |
+| `docs/example/**/*.bas` (com header `@example`) | 84/107 arquivos | sugar=71, diagnostics=35, builder=1 | Já existe |
+| `docs/example/sugar/` (subpastas, 1 por açúcar) | 31 subpastas | — | Já existe |
+| `docs/example/diagnostics/` (subpastas, 1 por código) | 34 subpastas | — | Já existe |
 | `docs/system-library/*.md` (gerados) | 12 arquivos | 279 KB | Gerados por `DocsGenerator` |
-| `docs/Documentação Data7/**/*.html` | 183 arquivos | 12 MB HTML (~1,3 MB de miolo útil) | Já existe, não-consumido hoje |
-| `docs/Documentação Data7/**/instrução.txt` | 9 arquivos | 35 KB | Consumido por `instrucao-coverage.test.ts` |
+| `docs/Documentação Data7/**/*.html` | 183 arquivos | 12 MB HTML (~1,3 MB de miolo útil) | Histórico do RFC; não existe neste checkout |
+| `docs/Documentação Data7/**/instrução.txt` | 9 arquivos | 35 KB | Histórico do RFC; não existe neste checkout |
 | `docs/levantamentos/grid.txt` (autocomplete bruto TMS) | 1 arquivo | 807 linhas | Material de pesquisa |
 | `docs/linguagem-basic/mod_card_grouper/**` (projeto real) | 47 mod_lib + 8 src + 1 `.7Proj` | 10 826 linhas de `.bas` | Já existe |
 
@@ -80,6 +82,8 @@ Toda a infraestrutura necessária para um MCP **já existe** no repo. A tabela a
 | `vscode-mock` (override de `Module.prototype.require`) | [`src/test/_setup/vscode-mock.ts:1`](../../src/test/_setup/vscode-mock.ts) | 490 | n/a (é o próprio mock) |
 
 ### 3.4 Descoberta: `docs/Documentação Data7/**/*.html`
+
+Esta seção documenta a descoberta feita na sessão do RFC, não um diretório presente na árvore atual.
 
 Pasta de **68,5 MB total**, distribuída assim:
 
@@ -176,9 +180,9 @@ O binário aceita uma flag de modo:
 | `data7://language/<chapter>` | 1 capítulo `.md` (`01-sintaxe`…`13-diagnostic-codes`) | 5-15 KB | `docs/linguagem-basic/` |
 | `data7://system-library/<ns>` | Namespace inteiro (gerado on-the-fly) | 1-215 KB | `DocsGenerator.generateNamespaceMarkdown(ns)` |
 | `data7://system-library/<ns>/<class>` | Classe específica + cadeia de herança | 1-10 KB | `DocsGenerator` parcial |
-| `data7://examples/<category>/<slug>` | 1 `.bas` + header parseado | 0,5-3 KB | `docs/exemple/` |
+| `data7://examples/<category>/<slug>` | 1 `.bas` + header parseado | 0,5-3 KB | `docs/example/` |
 | `data7://examples/index` | Índice navegável dos 107 exemplos | 5 KB | scan + `parseExampleHeader()` |
-| `data7://diagnostics/codes` | Catálogo dos 33 códigos com payloads | 8 KB | `DiagnosticCodes` + scan de `docs/exemple/diagnostics/` |
+| `data7://diagnostics/codes` | Catálogo dos 33 códigos com payloads | 8 KB | `DiagnosticCodes` + scan de `docs/example/diagnostics/` |
 | `data7://idioms` | Convenções idiomáticas + limitações | 12 KB | merge de `11-` + `12-` |
 | `data7://real-project/mod_card_grouper/<file>` | Qualquer `.bas` do projeto real | 0,5-10 KB | leitura direta |
 | `data7://official/<qualifiedName>` ← **NOVO §3.4** | Assinatura + descrição + exemplo oficial | 0,5-3 KB | `out/mcp/data/articles.json` |
@@ -192,10 +196,10 @@ O binário aceita uma flag de modo:
 |---|---|---|---|
 | `data7_search_symbol` | Lookup puro | `lookupSystemByName`, `lookupSystemByContainer` | trivial |
 | `data7_describe_symbol` | Lookup mesclado | `SYSTEM_SYMBOLS` + `TypeResolver.resolveParent` + `articles.json` quando disponível | baixo |
-| `data7_search_examples` | Lookup puro | scan de `docs/exemple/` por `@demonstrates` | baixo |
+| `data7_search_examples` | Lookup puro | scan de `docs/example/` por `@demonstrates` | baixo |
 | `data7_get_canonical_example` | Lookup puro | `loadExample()` + `parseExampleHeader()` | trivial |
 | `data7_get_official_example` ← **NOVO §3.4** | Lookup puro | lookup em `articles.json` | trivial |
-| `data7_list_diagnostic_codes` | Lookup puro | `DiagnosticCodes` + scan de `docs/exemple/diagnostics/` | trivial |
+| `data7_list_diagnostic_codes` | Lookup puro | `DiagnosticCodes` + scan de `docs/example/diagnostics/` | trivial |
 | `data7_list_sugar` | Lookup puro | extração programática de `RULES` em `transpiler.ts:1602` | baixo |
 | `data7_transpile_bas` | Executable puro | `SugarTranspiler.transpile(code, ctx)` + `detectEnumerable` | baixo |
 | `data7_lint_bas` | Executable + shim | `vscode-shim` + `createDetached()` + `runAdvancedDiagnostics()` | médio |
@@ -248,7 +252,7 @@ Cada decisão abaixo foi tomada explicitamente (referência em [Anexo B](#anexo-
 | D5 | **`esbuild` com escopo restrito** (só `out/mcp/server.js`) | (a) Sem bundler (copiar `node_modules` inteiro do SDK); (b) Decidir no M5 | Reduz ~70 % do peso adicional no VSIX (de ~300 KB para ~70-100 KB). |
 | D6 | **Atualizar `project_stack.mdc`** para "duas runtime deps: `fast-xml-parser` + `@modelcontextprotocol/sdk`" | (a) Criar seção mais ampla "MCP server dependencies"; (b) Manter regra atual e tratar como dívida técnica | Mais simples e explícito; futura RFC adiciona deps caso a caso. |
 | D7 | **Auto-instalação na ativação** do binário MCP em `context.globalStorageUri/mcp/` | (a) Só via comando manual; (b) Sem instalação automática | Idempotente (hash check evita re-cópia desnecessária). Pronto para o usuário sem fricção. |
-| D8 | **Extrair `docs/Documentação Data7/` no M1.5** para `out/mcp/data/articles.json` | (a) Adiar para M6+; (b) Manter só como repositório humano; (c) Enriquecer `src/system-library/` primeiro | Ganho qualitativo enorme (140 exemplos oficiais) por 9,5h de esforço. |
+| D8 | **Extrair o espelho externo "Documentação Data7" no M1.5** para `out/mcp/data/articles.json` | (a) Adiar para M6+; (b) Manter só como repositório humano; (c) Enriquecer `src/system-library/` primeiro | Ganho qualitativo enorme (140 exemplos oficiais) por 9,5h de esforço. |
 | D9 | **Manter os 56 MB de assets** (CSS/PNG/GIF/.baixados) no Git | (a) Remover em commit separado; (b) Mover para Git LFS | Auditoria humana + re-extração segura se a estrutura HTML mudar; tamanho do clone é aceitável para o porte do projeto. |
 | D10 | **Páginas-tutorial como `data7://guide/<slug>`** separado | (a) Mesclar conteúdo em `docs/linguagem-basic/`; (b) Ignorar | Distinção clara entre API-reference e prose tutorial preserva expectativa do agente. |
 | D11 | **RFC primeiro, código depois** | Ir direto pro M0 | Decisão arquitetural com 11 escolhas; documento revisável antes de mudar regras. |
@@ -325,7 +329,7 @@ Nova fence:
           message:
             "src/mcp/ must not import 'vscode' directly; use src/mcp/runtime/vscode-shim instead (MCP-001).",
         },
-        DOCS_EXEMPLE_BAN,
+        DOCS_example_BAN,
       ],
     }],
   },
@@ -385,12 +389,12 @@ out/mcp/server.js.map
 
 Verificado em 6 arquivos de namespaces diferentes (todos confirmaram a estrutura):
 
-- `docs/Documentação Data7/Collections/Collections.StringList.Add.html` (linha 593-602)
-- `docs/Documentação Data7/Global/TJSONObject/TJSONObject.Has.html` (linha 635-643)
-- `docs/Documentação Data7/Global/11 - Strings.html` (linha 471-...; tutorial, sem H3 Descrição)
-- `docs/Documentação Data7/SQL/Command/SQL.Command.html` (class-index com tabela de membros)
-- `docs/Documentação Data7/Net/Net.TFTP.Passive.html` (API-reference padrão)
-- `docs/Documentação Data7/XML/IXMLNode/XML.IXMLNodeAddChild.html` (API-reference com Parâmetros)
+- `Documentação Data7/Collections/Collections.StringList.Add.html` (linha 593-602, amostra histórica)
+- `Documentação Data7/Global/TJSONObject/TJSONObject.Has.html` (linha 635-643, amostra histórica)
+- `Documentação Data7/Global/11 - Strings.html` (linha 471-...; tutorial, sem H3 Descrição, amostra histórica)
+- `Documentação Data7/SQL/Command/SQL.Command.html` (class-index com tabela de membros, amostra histórica)
+- `Documentação Data7/Net/Net.TFTP.Passive.html` (API-reference padrão, amostra histórica)
+- `Documentação Data7/XML/IXMLNode/XML.IXMLNodeAddChild.html` (API-reference com Parâmetros, amostra histórica)
 
 Exemplo de payload extraído:
 
@@ -409,7 +413,7 @@ As decisões D1-D11 da § 5 foram tomadas através das três rodadas de question
 
 1. **Rodada 1 (análise inicial)**: usuário definiu *embedded*, *everything*, *all 3 clients*.
 2. **Rodada 2 (refinamentos arquiteturais)**: usuário definiu *esbuild restrito*, *update project_stack.mdc*, *auto-install*.
-3. **Rodada 3 (após análise de `docs/Documentação Data7/`)**: usuário definiu *extract-now*, *keep-everything (Git)*, *tutorials separados como guides*.
+3. **Rodada 3 (após análise do espelho externo "Documentação Data7")**: usuário definiu *extract-now*, *keep-everything (Git)*, *tutorials separados como guides*.
 4. **Rodada 4 (planejamento de execução)**: usuário definiu *RFC primeiro*, *único commit RFC* antes de qualquer mudança.
 
 ### Anexo C: comandos contribuídos novos
@@ -427,7 +431,7 @@ A auto-instalação em `activate()` não precisa de comando — roda silenciosam
 
 - [`project_context.md`](../../project_context.md) — contexto técnico/arquitetural da extensão.
 - [`docs/linguagem-basic/README.md`](../linguagem-basic/README.md) — referência canônica da linguagem.
-- [`docs/exemple/README.md`](../exemple/README.md) — exemplos canônicos versionados.
+- [`docs/example/README.md`](../example/README.md) — exemplos canônicos versionados.
 - [`docs/system-library/README.md`](../system-library/README.md) — System Library gerada.
 - [`.cursor/rules/governance.mdc`](../../.cursor/rules/governance.mdc) — fences arquiteturais.
 - [`.cursor/rules/project_stack.mdc`](../../.cursor/rules/project_stack.mdc) — stack permitida.

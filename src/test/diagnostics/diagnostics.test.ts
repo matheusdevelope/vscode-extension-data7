@@ -285,7 +285,7 @@ End Namespace`;
   // unsupported-member — System Library marks a symbol with isUnsupported=true
   // -------------------------------------------------------------------------
   describe("unsupported-member", () => {
-    // Loaded from `docs/exemple/diagnostics/unsupported-member/trigger.bas`.
+    // Loaded from `docs/example/diagnostics/unsupported-member/trigger.bas`.
     // The example header also asserts the diagnostic line — drift between the
     // example and the linter behaviour shows up as a failure here.
     test("emits when a property flagged as unsupported is accessed", () => {
@@ -376,7 +376,7 @@ End Namespace`;
   // not-enumerable — `For Each` over a type without Count+indexer
   // -------------------------------------------------------------------------
   describe("not-enumerable", () => {
-    // Loaded from `docs/exemple/` to keep the canonical example and the
+    // Loaded from `docs/example/` to keep the canonical example and the
     // regression test in lockstep (see testing.mdc § Coverage expectations).
     test("does NOT emit when iterating a Collections.StringList (has Count + Strings)", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();

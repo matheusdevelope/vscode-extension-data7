@@ -7,7 +7,7 @@
  * exposes `Show()` / `Free()`.
  *
  * See `docs/linguagem-basic/14-construindo-telas.md` for the full idiom
- * and `docs/exemple/forms/` for canonical examples.
+ * and `docs/example/forms/` for canonical examples.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

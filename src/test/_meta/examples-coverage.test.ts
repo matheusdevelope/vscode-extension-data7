@@ -14,7 +14,7 @@ import { createMockDoc } from "../_helpers/mock-doc";
  *
  *   - `data7_domain.mdc` § Diagnostic codes — every code in
  *     `DiagnosticCodes` must have at least one `.bas` example under
- *     `docs/exemple/diagnostics/<code>/`.
+ *     `docs/example/diagnostics/<code>/`.
  *   - `testing.mdc` § Coverage expectations — the `@diagnostics` header
  *     declared by each example must match what the linter actually emits
  *     (drift between docs and behaviour fails CI).
@@ -25,18 +25,18 @@ import { createMockDoc } from "../_helpers/mock-doc";
  * diagnostic tests.
  */
 
-// Resolve `docs/exemple/` regardless of whether the test runs from
+// Resolve `docs/example/` regardless of whether the test runs from
 // `src/test/_meta/` (ts-node) or `out/test/_meta/` (compiled). Mirrors the
 // dual-lookup strategy in `_helpers/fixtures.ts`.
 function resolveExamplesRoot(): string {
   const candidates = [
-    path.resolve(__dirname, "..", "..", "..", "docs", "exemple"), // out/test/_meta → repo root
-    path.resolve(__dirname, "..", "..", "..", "..", "docs", "exemple"), // src/test/_meta → repo root
+    path.resolve(__dirname, "..", "..", "..", "docs", "example"), // out/test/_meta → repo root
+    path.resolve(__dirname, "..", "..", "..", "..", "docs", "example"), // src/test/_meta → repo root
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
-  throw new Error(`docs/exemple/ not found. Looked in:\n  ${candidates.join("\n  ")}`);
+  throw new Error(`docs/example/ not found. Looked in:\n  ${candidates.join("\n  ")}`);
 }
 
 const EXAMPLES_ROOT = resolveExamplesRoot();
@@ -63,11 +63,11 @@ describe("examples-coverage", () => {
       assert.deepEqual(
         missing,
         [],
-        `Diagnostic codes without an example under docs/exemple/diagnostics/<code>/: ${missing.join(", ")}`,
+        `Diagnostic codes without an example under docs/example/diagnostics/<code>/: ${missing.join(", ")}`,
       );
     });
 
-    test("every example .bas in docs/exemple/diagnostics/ has a valid @diagnostics header", () => {
+    test("every example .bas in docs/example/diagnostics/ has a valid @diagnostics header", () => {
       for (const code of Object.values(DiagnosticCodes)) {
         const dir = path.join(DIAGNOSTICS_ROOT, code);
         if (!fs.existsSync(dir)) continue;

@@ -74,4 +74,4 @@ Classe ancestral para todos os objetos nativos Delphi que suportam atribuição 
 
 _2 classes/tipos, 0 delegates, 0 funções, ~26 membros próprios em classes, 0 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.250Z pela extensão Data7 Dev Studio._
+_Snapshot `3d4378a049a1` — gerado em 2026-06-09T18:50:11.687Z pela extensão Data7 Dev Studio._

@@ -18,22 +18,22 @@ import tseslint from "typescript-eslint";
  * REPLACES the earlier one's options. There is no merging of
  * `patterns[]` between blocks. Consequently every layer-isolation block
  * below carries its layer-specific bans AND the shared
- * `DOCS_EXEMPLE_BAN`. Removing the duplicate would silently let layered
- * files import from `docs/exemple/`. See the comment on
- * `DOCS_EXEMPLE_BAN` below.
+ * `DOCS_example_BAN`. Removing the duplicate would silently let layered
+ * files import from `docs/example/`. See the comment on
+ * `DOCS_example_BAN` below.
  */
 
 /**
  * Shared ban: production sources must never import from
- * `docs/exemple/...` (those files are documentation fixtures consumed
+ * `docs/example/...` (those files are documentation fixtures consumed
  * by tests through `loadExample(...)`, not ES modules). Embedded in
  * every layer-isolation block because flat config rule replacement
  * forbids relying on a separate "default" block.
  */
-const DOCS_EXEMPLE_BAN = {
-  group: ["**/docs/**", "**/exemple/**"],
+const DOCS_example_BAN = {
+  group: ["**/docs/**", "**/example/**"],
   message:
-    "Production sources must not import from docs/exemple/. Tests use loadExample() in src/test/_helpers/fixtures.ts (governance.mdc).",
+    "Production sources must not import from docs/example/. Tests use loadExample() in src/test/_helpers/fixtures.ts (governance.mdc).",
 };
 export default tseslint.config(
   {
@@ -169,7 +169,7 @@ export default tseslint.config(
     },
   },
 
-  // governance.mdc: `docs/exemple/` is documentation-grade fixture data.
+  // governance.mdc: `docs/example/` is documentation-grade fixture data.
   // Production source must never `import` from it — only tests may read it
   // via `loadExample(...)` (filesystem read, not module import).
   //
@@ -178,11 +178,11 @@ export default tseslint.config(
   // still covering bare `src/<root>.ts` files (e.g. extension.ts,
   // commands.ts) that no layer block matches.
   {
-    name: "data7/docs-exemple-isolation",
+    name: "data7/docs-example-isolation",
     files: ["src/**/*.ts"],
     ignores: ["src/test/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: [DOCS_EXEMPLE_BAN] }],
+      "no-restricted-imports": ["error", { patterns: [DOCS_example_BAN] }],
     },
   },
 
@@ -206,7 +206,7 @@ export default tseslint.config(
               message:
                 "system-library/ must not import services, providers, diagnostics, project tooling or extension (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -227,7 +227,7 @@ export default tseslint.config(
               group: ["**/providers/**", "**/extension"],
               message: "services/ must not import providers or extension.ts (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -254,7 +254,7 @@ export default tseslint.config(
               message:
                 "Providers must not import from services/ — extract shared logic into analysis/ instead (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -276,7 +276,7 @@ export default tseslint.config(
               group: ["../services/*", "**/services/**"],
               message: "providers/registration.ts must not import from services/ (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -304,7 +304,7 @@ export default tseslint.config(
               message:
                 "analysis/ must not import providers, services, diagnostics, project tooling or extension (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -326,7 +326,7 @@ export default tseslint.config(
               message:
                 "diagnostics/ must not import providers, services, project tooling or extension (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -349,7 +349,7 @@ export default tseslint.config(
               message:
                 "project/ must not import providers, services, diagnostics or extension (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -389,7 +389,7 @@ export default tseslint.config(
               message:
                 "src/project/parser/ may only import from src/utils/ and src/project/ast/ast (architecture.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -414,7 +414,7 @@ export default tseslint.config(
               message:
                 "@modelcontextprotocol/sdk and zod are reserved for src/mcp/ (project_stack.mdc + MCP-001).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -444,7 +444,7 @@ export default tseslint.config(
               message:
                 "infra/ is a leaf and must not import from other src/ folders (governance.mdc).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],
@@ -480,7 +480,7 @@ export default tseslint.config(
               message:
                 "src/mcp/ must not import 'vscode' directly; use src/mcp/runtime/vscode-shim instead (MCP-001).",
             },
-            DOCS_EXEMPLE_BAN,
+            DOCS_example_BAN,
           ],
         },
       ],

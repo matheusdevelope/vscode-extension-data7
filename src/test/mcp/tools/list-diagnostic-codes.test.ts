@@ -13,7 +13,7 @@ import { describe, test } from "node:test";
 import { DiagnosticCodes } from "../../../diagnostics/diagnostic-codes";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
-const DIAG_EXAMPLES_DIR = path.join(REPO_ROOT, "docs", "exemple", "diagnostics");
+const DIAG_EXAMPLES_DIR = path.join(REPO_ROOT, "docs", "example", "diagnostics");
 
 describe("data7_list_diagnostic_codes — DiagnosticCodes catalog", () => {
   test("catalog declares at least 19 stable codes", () => {

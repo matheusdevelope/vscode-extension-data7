@@ -165,7 +165,7 @@ End Try
 - `Catch ex As Exception` captura qualquer exceção. Para tipos específicos, use `Catch ex As MeuTipoExcecao`.
 - `Throw <expr>` levanta uma exceção. `Throw ex` re-levanta a atual.
 - `Throw New Exception("mensagem")` é o padrão.
-- `Finally` sempre executa (sucesso ou exceção). Use para `Free()` em recursos manuais (vide [`Using` em 10-acucares-atuais.md](./10-acucares-atuais.md#planejados)).
+- `Finally` sempre executa (sucesso ou exceção). Use para `Free()` em recursos manuais ou use o sugar [`Using` em 10-acucares-atuais.md](./10-acucares-atuais.md#fase-b--inicializacao-e-objeto) quando o padrão couber.
 
 ## `With`
 
@@ -276,5 +276,5 @@ End Function
 
 - [05-classes.md](./05-classes.md) — `Sub`, `Function`, parâmetros, sobrecarga.
 - [10-acucares-atuais.md](./10-acucares-atuais.md) — `For Each`, ternário, interpolação detalhados.
-- [`docs/exemple/sugar/for-each/`](../exemple/sugar/for-each) — exemplos canônicos de `For Each`.
-- [`docs/exemple/sugar/ternary/`](../exemple/sugar/ternary) — exemplos canônicos de ternário.
+- [`docs/example/sugar/for-each/`](../example/sugar/for-each) — exemplos canônicos de `For Each`.
+- [`docs/example/sugar/ternary/`](../example/sugar/ternary) — exemplos canônicos de ternário.

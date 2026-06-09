@@ -2,7 +2,7 @@
 
 > Estado atual do suporte a generics no Data7 Basic. Sintaxe alvo, mecanismo de monomorfização, limitações.
 >
-> **Status**: o pipeline textual ([`src/project/generics-pass.ts`](../../src/project/generics-pass.ts)) está ligado no Builder; a engine AST-based ([`src/project/generics-monomorphizer/`](../../src/project/generics-monomorphizer)) é dirigida por [`src/project/generics-driver.ts`](../../src/project/generics-driver.ts) e fica atrás da feature-flag `data7.experimental.useAstGenerics`. O linter live emite warnings (`generic-arity-mismatch`, `unknown-template`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`) já no design-time. IntelliSense (hover/completion/signature) sobre `TList<Product>` é resolvido pelo `WorkspaceSymbolIndexer` que injeta cópias monomórficas planas no índice de símbolos.
+> **Status**: o pipeline atual usa o parser/AST central em [`src/project/parser/`](../../src/project/parser), a árvore em [`src/project/ast/`](../../src/project/ast) e o monomorfizador em [`src/project/generics/`](../../src/project/generics). O `SugarTranspiler` executa esse pipeline no build/preview/MCP, e o linter live emite warnings (`generic-arity-mismatch`, `unknown-template`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`) já no design-time. IntelliSense (hover/completion/signature) sobre `TList<Product>` é resolvido pelo `WorkspaceSymbolIndexer`, que injeta cópias monomórficas planas no índice de símbolos.
 
 ## Por que monomorfização
 
@@ -103,41 +103,40 @@ Dim _filtered As TList_Product = _products.Filter(Helper.FindByName, "Coca-cola"
 Dim _numeros As New TList_Integer()
 ```
 
-## Dois pipelines lado a lado
+## Pipeline atual
 
-A monomorfização hoje convive em dois caminhos selecionados por feature-flag — o legado **textual** (default) e o novo **AST**, mais robusto:
+A monomorfização hoje passa pelo mesmo kernel de linguagem usado por linter, indexer, preview e MCP:
 
 ```mermaid
 flowchart LR
-  Build[Builder]
-  Flag{data7.experimental.useAstGenerics}
-  Textual[runGenericsPass<br/>regex + tokenizer]
-  AST[runGenericsViaAST<br/>parse → monomorphizer → serialize]
+  Build[Builder / Preview / MCP]
+  Parse[parseBasic + GenericsParserPlugin]
+  Collect[collectGenericsContext]
+  Mono[GenericsMonomorphizer]
+  Serialize[serializeUnitWithMap]
   Out[".bas monomorfizado"]
 
-  Build --> Flag
-  Flag -- false --> Textual --> Out
-  Flag -- true --> AST --> Out
+  Build --> Parse --> Collect --> Mono --> Serialize --> Out
 ```
 
-| Etapa | Textual ([`generics-pass.ts`](../../src/project/generics-pass.ts)) | AST ([`generics-driver.ts`](../../src/project/generics-driver.ts)) |
-|---|---|---|
-| 1. Coleta de templates | Regex linha-a-linha + tokenizer (`Class T<T>`, `Delegate <T>`, `Sub/Function <T>`) | [`Parser`](../../src/project/parser/parser.ts) constrói um `CompilationUnit` completo |
-| 2. Substituição de T | `instantiateTemplate` reescreve cada linha do corpo usando [`bas-tokenizer.ts`](../../src/utils/bas-tokenizer.ts) (lexically-aware) | `SubstitutionWalker` percorre a AST clonada e troca `TypeReference` + `OpaqueStatement` |
-| 3. Reescrita de usos | Regex direta nas linhas de uso (incluindo invocações `obj.Foo<Product>(...)`) | `GenericsMonomorphizer.monomorphize` enfileira instâncias e dedup via `GlobalInstantiatedSet` |
-| 4. Saída | Texto re-emitido pela mesma passagem | [`serializeUnit`](../../src/project/parser/serializer.ts) regenera fonte canônica |
-| Warnings | Emite `GenericsPassWarning` direto | `MonomorphizationWarning` mapeado para `GenericsPassWarning` em [`generics-driver.ts`](../../src/project/generics-driver.ts) |
+| Etapa | Implementação atual |
+|---|---|
+| 1. Parse | [`parseBasic`](../../src/project/parser/index.ts) com [`GenericsParserPlugin`](../../src/project/parser/generics-plugin.ts) constrói um `CompilationUnit`. |
+| 2. Coleta de contexto | [`collectGenericsContext`](../../src/analysis/generics-analyzer.ts) coleta templates e usos para diagnósticos e materialização externa. |
+| 3. Monomorfização | [`GenericsMonomorphizer`](../../src/project/generics/monomorphizer.ts) valida, poda templates, reescreve usos e drena a worklist. |
+| 4. Saída | [`serializeUnitWithMap`](../../src/project/parser/serializer.ts) regenera fonte canônica e preserva mapa de linhas para preview. |
+| Warnings | [`MonomorphizationWarning`](../../src/project/generics/warnings.ts) é mapeado para diagnósticos do transpilador e do linter. |
 
-Os dois pipelines emitem o **mesmo conjunto de warnings** e produzem texto **funcionalmente equivalente** para os exemplos canônicos em [`docs/exemple/sugar/generic-tlist/`](../../docs/exemple/sugar/generic-tlist/). O caminho AST será o default em uma versão futura — ele fecha gaps que o textual não consegue (parsing de namespaces aninhados, generic methods dentro de classes, validação estrutural sem regex frágeis).
+Os exemplos canônicos em [`docs/example/sugar/generic-tlist/`](../../docs/example/sugar/generic-tlist/) são fixtures do output real desse pipeline.
 
 ## Estrutura da engine AST
 
-A engine vive em [`src/project/generics-monomorphizer/`](../../src/project/generics-monomorphizer) e expõe a fachada [`GenericsMonomorphizer`](../../src/project/generics-monomorphizer/monomorphizer.ts):
+A engine vive em [`src/project/generics/`](../../src/project/generics) e expõe a fachada [`GenericsMonomorphizer`](../../src/project/generics/monomorphizer.ts):
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `ast.ts` | Tipos AST mínimos (`ClassDeclaration`, `TypeParameter`, `TypeReference`, …) — placeholder até um parser real chegar |
-| `clone.ts` | `deepClone(node)` para duplicar template antes de substituir tipos |
+| `../ast/ast.ts` | Tipos AST centrais (`ClassDeclaration`, `TypeParameter`, `TypeReference`, …) consumidos por parser, linter, providers e transpiler |
+| `../ast/clone.ts` | `deepClone(node)` para duplicar template antes de substituir tipos |
 | `registry.ts` | `TemplateRegistry` (templates coletados) + `GlobalInstantiatedSet` (dedupe global) |
 | `monomorphizer.ts` | Pipeline em 4 passos: validar → coletar/podar → reescrever usos → drenar worklist |
 | `warnings.ts` | `MonomorphizationWarning` (`flat-name-collision`, `instantiation-limit-exceeded`, …) |
@@ -164,7 +163,7 @@ flowchart LR
 
 ## Flat naming
 
-A função `flatNameOf` em [`monomorphizer.ts`](../../src/project/generics-monomorphizer/monomorphizer.ts) padroniza os nomes:
+A função `flatNameOf` em [`monomorphizer.ts`](../../src/project/generics/monomorphizer.ts) padroniza os nomes:
 
 ```
 flatNameOf({ name: "TList", typeArguments: [Integer] })             === "TList_Integer"
@@ -185,7 +184,7 @@ Colisões (dois templates diferentes que produziriam o mesmo flat name) emitem o
 | **Constraints paramétricos** (`T As List<U>`) não são aceitos | Constraints simples (`T As BaseEnum`) são aceitas e descartadas após validação |
 | **Generic methods dentro de classe** | Detectados e podados com warning `class-generic-method-unsupported` — gere `Map<T>` em namespace livre |
 | **Cap de 10.000 instanciações** | Programas patológicos disparam `instantiation-limit-exceeded` |
-| **Primitivos (`TList<Integer>`)** ainda em discussão (boxing vs classe específica) | Discutido em [11-limitacoes-conhecidas.md](./11-limitacoes-conhecidas.md) |
+| **Primitivos (`TList<Integer>`)** geram classe plana (`TList_Integer`) | Use quando o runtime aceitar o valor concreto; não há boxing genérico nativo |
 
 ## Como o linter trata genéricos (design-time)
 
@@ -202,34 +201,32 @@ A integração não viola a fence `analysis/` ↛ `project/`: o indexador clona 
 
 | Gap | Antes | Agora | Status |
 |---|---|---|---|
-| Substituição em variáveis locais nomeadas `T` | Reescrevia `Dim T As Integer` ⇒ `Dim Product As Integer` | `bas-tokenizer` distingue identificador em posição de tipo vs. valor; locais preservados | ✅ Fechado |
-| Substituição em comentários e strings (build-time) | Regex `\bT\b` reescrevia trivia | `stripStringsAndComments` em [`generics-analyzer.ts`](../../src/analysis/generics-analyzer.ts) mascara strings/comments antes do scan; `runGenericsPass` aplica a mesma máscara em cada linha | ✅ Fechado |
+| Substituição em variáveis locais nomeadas `T` | Reescrevia `Dim T As Integer` ⇒ `Dim Product As Integer` | [`substituteTypeParamsInLine`](../../src/project/generics/substitute.ts) usa tokens do lexer para distinguir posição de tipo vs. valor; locais preservados | ✅ Fechado |
+| Substituição em comentários e strings (build-time) | Regex `\bT\b` reescrevia trivia | [`stripStringsAndComments`](../../src/analysis/generics-analyzer.ts) mascara strings/comments antes do scan; o substituidor também usa tokens do lexer | ✅ Fechado |
 | Phantom flat-copies a partir de comentários do header (e.g. `@demonstrates: Class TList<T>`) | Pipeline textual gerava `TList_T` espúrio para cada exemplo cujo header mencionava `TList<T>` | Mesma máscara acima — exemplos canônicos `_expected/*.bas` validados por golden tests | ✅ Fechado |
 | Function self-reference (`Wrap = pValue`) não renomeado em template `Function Wrap<T>` | Após monomorfização para `Wrap_Integer`, o corpo ainda dizia `Wrap = pValue` → função retornava `Variant` default | Novo passe `substituteTemplateNameInBodyLine` renomeia o auto-referência lexicalmente (skipa member-access, strings, comments) | ✅ Fechado |
 | Generic free functions (`Sub Foo<T>` no namespace) | Não suportado | Reconhecido e monomorfizado pelos dois pipelines | ✅ Fechado |
 | Generic methods em classe (`Sub T.Foo<U>`) | Reescrita textual incorreta (corpo opaco) | Detectado e emitido `class-generic-method-unsupported`; declaração permanece verbatim — workaround: extrair para função livre no namespace | ⚠️ Detectado, sem reescrita automática |
 | Linter sem feedback até build | Nenhum diagnóstico até `Build` | Seis warnings emitidos por `DiagnosticsLinter` no save (`unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`) | ✅ Fechado |
 | Hover / completion / signature ignoravam tipo genérico | `_products.Add` resolvia para o template cru | Símbolos planos `TList_Product` registrados pelo `WorkspaceSymbolIndexer` (via [`collectGenericsContext`](../../src/analysis/generics-analyzer.ts)); resolver normaliza `TList<Product>` ⇒ `TList_Product` (também aninhado: `TList<TList<Integer>>` ⇒ `TList_TList_Integer`) | ✅ Fechado |
-| Engine AST desconectada | Vivia órfã em `generics-monomorphizer/` | Acessível via `data7.experimental.useAstGenerics = true`; alimentada por parser próprio em [`src/project/parser/`](../../src/project/parser) | ✅ Fechado |
-| Pipelines convergem para o mesmo `.bas` | N/A — só existia o textual | Golden tests em `src/test/project/generics-driver.test.ts` garantem paridade de saída e de warnings | ✅ Fechado |
+| Engine AST desconectada | Vivia em protótipo separado | Integrada ao `SugarTranspiler`, alimentada por [`src/project/parser/`](../../src/project/parser) e validada por [`generics-monomorphizer.test.ts`](../../src/test/project/generics-monomorphizer.test.ts) | ✅ Fechado |
+| Pipeline textual paralelo | Duplicava decisões semânticas | Removido da documentação operacional; a fonte real é parser + AST + monomorfizador | ✅ Fechado |
 | Arquitetura: parser leaf, isolado de `analysis`/`vscode` | N/A | `eslint.config.mjs` fence `data7/parser-isolation` + regra em `architecture.mdc` | ✅ Fechado |
-| Fences ESLint silenciosamente desativados pela ordenação dos blocos de config | Bug pré-existente: `docs-exemple-isolation` (último, broad pattern) substituía `no-restricted-imports` de todos os layer blocks | Movido para ANTES dos layer blocks; cada layer bloco agora embute `DOCS_EXEMPLE_BAN` explicitamente | ✅ Fechado |
+| Fences ESLint silenciosamente desativados pela ordenação dos blocos de config | Bug pré-existente: `docs-example-isolation` (último, broad pattern) substituía `no-restricted-imports` de todos os layer blocks | Movido para ANTES dos layer blocks; cada layer bloco agora embute `DOCS_example_BAN` explicitamente | ✅ Fechado |
 
 ## Padrão de uso recomendado
 
 1. **Defina coleções tipadas como subclasses** — não escreva `TList<T>` cru no código. Em vez disso, escreva `CardRecordList = TList<CardRecord>` ou (no futuro) `CardRecordList Inherits TList<CardRecord>`. Isso melhora mensagens de erro.
 2. **Use delegates monomorfizados** — `ListFindDelegate<Product>` em vez de `TObject`-erased.
-3. **Evite tipos profundamente aninhados** — `TList<Map<String, TList<Product>>>` funciona, mas o flat name fica gigante. Quebre em type aliases (planejado, vide [10-acucares-atuais.md](./10-acucares-atuais.md#planejados)).
+3. **Evite tipos profundamente aninhados** — `TList<Map<String, TList<Product>>>` funciona, mas o flat name fica gigante. Quebre em aliases/convenções nomeadas quando a legibilidade do `.bas` final importar.
 
 ## Cross-references
 
-- [`src/project/generics-monomorphizer/`](../../src/project/generics-monomorphizer) — engine AST.
-- [`src/project/generics-pass.ts`](../../src/project/generics-pass.ts) — pipeline textual (default).
-- [`src/project/generics-driver.ts`](../../src/project/generics-driver.ts) — driver AST + mapeamento de warnings.
+- [`src/project/generics/`](../../src/project/generics) — engine de monomorfização.
 - [`src/project/parser/`](../../src/project/parser) — parser, lexer e serializer compartilhados.
-- [`src/utils/bas-tokenizer.ts`](../../src/utils/bas-tokenizer.ts) — tokenizer lexical-aware usado pelos dois pipelines.
+- [`src/project/ast/`](../../src/project/ast) — tipos e helpers da AST central.
 - [`src/analysis/symbol-indexer.ts`](../../src/analysis/symbol-indexer.ts) — injeção de cópias monomórficas planas para IntelliSense.
 - [13-diagnostic-codes.md](./13-diagnostic-codes.md) — lista completa dos códigos de diagnóstico, incluindo os de generics.
-- [10-acucares-atuais.md § Planejados](./10-acucares-atuais.md#planejados) — F2 (parser textual) e features dependentes (auto-new, default indexer, spread em coleção).
+- [10-acucares-atuais.md](./10-acucares-atuais.md) — sugars e convenções que interagem com generics.
 - [11-limitacoes-conhecidas.md](./11-limitacoes-conhecidas.md) — discussão de generics + primitivos.
 - [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — padrão `TRecordList` tipado (workaround atual).

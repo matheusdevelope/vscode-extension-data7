@@ -45,5 +45,5 @@ jobs:
       - name: Generate System Library docs (sanity-check)
         run: node scripts/generate-system-library-docs.js
 
-      - name: Verify docs/exemple/README.md is in sync with .bas headers
+      - name: Verify docs/example/README.md is in sync with .bas headers
         run: node scripts/generate-examples-index.js --check

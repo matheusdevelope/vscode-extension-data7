@@ -1,6 +1,6 @@
 /**
  * Resource family `data7://examples/<path>` — serves the canonical
- * `.bas` examples from `docs/exemple/` plus the auto-generated index at
+ * `.bas` examples from `docs/example/` plus the auto-generated index at
  * `data7://examples/index`.
  *
  * Each example carries an `@example` / `@demonstrates` / `@diagnostics`
@@ -16,7 +16,7 @@ import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { getDocsRoot } from "../utils/paths";
 
-const FOLDER = "exemple";
+const FOLDER = "example";
 const INDEX_URI = "data7://examples/index";
 
 export interface ExampleHeader {
@@ -28,7 +28,7 @@ export interface ExampleHeader {
 }
 
 export interface ExampleEntry {
-  /** Relative path under `docs/exemple/`, forward-slashed, no extension. */
+  /** Relative path under `docs/example/`, forward-slashed, no extension. */
   readonly relativePath: string;
   /** Absolute path on disk. */
   readonly filePath: string;
@@ -205,7 +205,7 @@ export function registerExamples(server: McpServer): void {
     template,
     {
       title: "Exemplo canônico Data7 Basic",
-      description: "Conteúdo `.bas` versionado em docs/exemple/, com header parseável.",
+      description: "Conteúdo `.bas` versionado em docs/example/, com header parseável.",
     },
     (uri, variables) => {
       const raw = variables.path;

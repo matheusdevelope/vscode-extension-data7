@@ -124,4 +124,4 @@ Representa um documento XML que pode ser lido, manipulado e salvo.
 
 _3 classes/tipos, 0 delegates, 0 funções, ~45 membros próprios em classes, 0 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.252Z pela extensão Data7 Dev Studio._
+_Snapshot `3d4378a049a1` — gerado em 2026-06-09T18:50:11.693Z pela extensão Data7 Dev Studio._

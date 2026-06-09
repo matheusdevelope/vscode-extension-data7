@@ -39,13 +39,13 @@ Data7 Basic é um dialeto **VB.NET-like** com herança Delphi:
 
 A pasta [`mod_card_grouper/`](./mod_card_grouper) traz um projeto Data7 completo — adapter pattern, schema, extractor, grouper, controller, formulário. É a maior fonte concreta de **padrões idiomáticos** da linguagem.
 
-Veja também os exemplos canônicos em [`docs/exemple/`](../exemple/README.md) — fixtures pequenos com header `@example` que servem simultaneamente como referência humana e como entrada de testes automatizados.
+Veja também os exemplos canônicos em [`docs/example/`](../example/README.md) — fixtures pequenos com header `@example` que servem simultaneamente como referência humana e como entrada de testes automatizados.
 
 ## Cross-references
 
 - **System Library** (classes/funções nativas do ERP): [`docs/system-library/`](../system-library/README.md).
-- **Documentação oficial do ERP** (HTMLs originais): [`docs/Documentação Data7/`](../Documentação%20Data7).
+- **Documentação oficial do ERP**: não é versionada neste repositório; quando presente localmente, o extrator MCP gera artigos oficiais a partir dela.
 - **Diagnostic codes** (código-fonte): [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts).
 - **Engine de transpilação**: [`src/project/transpiler.ts`](../../src/project/transpiler.ts).
-- **Engine de monomorfização**: [`src/project/generics-monomorphizer/`](../../src/project/generics-monomorphizer).
+- **Engine de monomorfização**: [`src/project/generics/`](../../src/project/generics).
 - **Contexto técnico/arquitetural**: [`project_context.md`](../../project_context.md).

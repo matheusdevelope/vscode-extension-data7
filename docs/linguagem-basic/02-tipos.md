@@ -66,7 +66,7 @@ Dim v As Variant          ' v = NULL por default
 Dim p As TForm            ' p = NULL (objetos não inicializados são NULL)
 ```
 
-Acessar membro de um objeto `NULL` gera Access Violation em runtime. O futuro [optional chaining `?.`](./10-acucares-atuais.md#planejados) ataca esse padrão.
+Acessar membro de um objeto `NULL` gera Access Violation em runtime. Use guarda explícita (`If obj <> NULL Then ...`) ou o sugar [`?.`](./10-acucares-atuais.md#fase-a--quick-wins-de-assignment) nos contextos suportados pelo transpilador.
 
 ## `Variant`
 

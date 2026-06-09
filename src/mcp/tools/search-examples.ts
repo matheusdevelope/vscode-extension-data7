@@ -1,6 +1,6 @@
 /**
  * Tool `data7_search_examples` — full-text search across the canonical
- * `.bas` examples under `docs/exemple/`. Searches in headers
+ * `.bas` examples under `docs/example/`. Searches in headers
  * (`@example`, `@demonstrates`) and in the body content. Returns a
  * compact list of matches with their relative paths so the agent can
  * fetch the full file via `data7_get_canonical_example` or
@@ -43,7 +43,7 @@ export function registerSearchExamples(server: McpServer): void {
     {
       title: "Buscar exemplos canônicos Data7 Basic",
       description:
-        "Procura por palavra-chave nos headers e corpos dos exemplos versionados em docs/exemple/. Retorna paths para data7_get_canonical_example.",
+        "Procura por palavra-chave nos headers e corpos dos exemplos versionados em docs/example/. Retorna paths para data7_get_canonical_example.",
       inputSchema: {
         query: z
           .string()

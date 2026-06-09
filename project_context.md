@@ -39,6 +39,7 @@ A arquitetura distingue dois tipos de transformação em `src/project/transpiler
 
 **Açúcares Complexos e Namespaces Utilitários**:
 Todo açúcar complexo que necessita de utilitários comuns a mais de uma materialização deve colocá-los em um namespace específico (ex: `core_sugars_enum` contendo `CoreSugarBaseEnum`, ou `core_sugars_list` contendo `CoreSugarBaseList`).
+
 - O sugar materializa a lógica final/classe específica no local declarado (ex: a classe `Color` herda de `core_sugars_enum.CoreSugarBaseEnum`).
 - O transpiler injeta automaticamente o respectivo `Imports <namespace>` no topo do arquivo que utiliza o sugar.
 - A base utilitária e as dependências entre sugars (ex: `enum` dependendo de `list`) são registradas no `SugarRegistry` (`src/project/sugar-registry.ts`).
@@ -266,7 +267,6 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `missing-return-value` — a função pode retornar ou sair sem que um valor de retorno tenha sido definido em todas as ramificações de controle. Emite _Warning_.
 - `dead-code` — código inacessível após um `Return` ou `Exit` garantido, ou dentro de blocos condicionais constantes sempre falsos. Emite _Warning_.
 
-
 Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 
 - `missing-import` → "Importar X"
@@ -408,14 +408,14 @@ Suíte de testes automatizados unitários e de integração da extensão (**771 
 
 - `audit-system-library.js` — auditoria que falha com exit code ≠ 0 quando encontra: descrições stub, eventos `OnXxx: Variant`, `inheritsFrom` órfão, ou tipos desconhecidos.
 - `generate-system-library-docs.js` — wrapper CLI sobre `DocsGenerator` para regerar `docs/system-library/` no repositório (usado pelo CI).
-- `generate-examples-index.js` — regera o índice de `docs/exemple/README.md` a partir dos headers `@example`/`@demonstrates`/`@diagnostics` de cada `.bas`. Modo `--check` falha com exit code 1 quando o README está fora de sincronia (usado pelo CI). Acessível via `npm run docs:examples` (escrita) e `npm run docs:examples:check` (CI).
+- `generate-examples-index.js` — regera o índice de `docs/example/README.md` a partir dos headers `@example`/`@demonstrates`/`@diagnostics` de cada `.bas`. Modo `--check` falha com exit code 1 quando o README está fora de sincronia (usado pelo CI). Acessível via `npm run docs:examples` (escrita) e `npm run docs:examples:check` (CI).
 
 ### 5.12. Documentação versionada (`docs/`)
 
 - `docs/system-library/` — `README.md` + 1 `.md` por namespace, gerados automaticamente. Cada arquivo carrega o mesmo `Snapshot <hash>` no rodapé para detecção de drift.
 - `docs/levantamentos/` — CSVs brutos do autocomplete original do Data7 (TMS/DevExpress/VCL) usados como entrada para popular a System Library. Cada arquivo (ex.: `grid.txt`) lista `Categoria,Nome,Tipo,Suportado` e é a fonte de verdade quando precisamos repopular a definição de uma classe. Mantidos versionados para que mudanças no compilador apareçam como diffs revisáveis.
 - `docs/Documentação Data7/` — pasta com a documentação HTML original do ERP organizada por namespace/classe (`Collections/StringList`, `Data7/Report`, `Global/THttp`, `Net/TFTP`, `SQL/Command`, `XML/IXMLNode`, …). Algumas subpastas trazem também um `instrução.txt` (CSV canônico de autocomplete + Suportado, descrito em § 2.5) que serve de fonte para popular a System Library e é verificado em CI por `instrucao-coverage.test.ts`.
-- `docs/exemple/` — exemplos canônicos `.bas` (e mini-projetos) usados como referência humana **e** como fixtures de teste. Layout por feature: `sugar/<sugar-name>/` (For Each, etc.), `diagnostics/<código>/` (1 pasta por `DiagnosticCode`), `builder/<cenário>/`. Cada `.bas` abre com um header padronizado (`' @example`, `' @demonstrates`, `' @diagnostics`, e opcionalmente `' @transpiled-to`, `' @requires`) cujo contrato vive em `docs/exemple/README.md`. Carregados pelos testes via `loadExample("sugar/for-each/01-...bas")` para evitar drift entre documentação e cobertura.
+- `docs/example/` — exemplos canônicos `.bas` (e mini-projetos) usados como referência humana **e** como fixtures de teste. Layout por feature: `sugar/<sugar-name>/` (For Each, etc.), `diagnostics/<código>/` (1 pasta por `DiagnosticCode`), `builder/<cenário>/`. Cada `.bas` abre com um header padronizado (`' @example`, `' @demonstrates`, `' @diagnostics`, e opcionalmente `' @transpiled-to`, `' @requires`) cujo contrato vive em `docs/example/README.md`. Carregados pelos testes via `loadExample("sugar/for-each/01-...bas")` para evitar drift entre documentação e cobertura.
 - `docs/rfcs/` — Architecture Decision Records (ADRs). Convenção e ciclo de vida em [`docs/rfcs/README.md`](docs/rfcs/README.md). A primeira RFC (`MCP-001-mcp-server.md`) é a referência arquitetural do servidor MCP descrito em § 6.
 - `docs/mcp/` — manual do usuário final para o servidor MCP: instalação (Cursor / Claude Desktop / Continue), uso rápido, referência de Resources / Tools / Prompts, exemplos práticos e troubleshooting. Excluída do `.vsix` como o restante de `docs/`.
 
@@ -442,7 +442,7 @@ npm run format:check   # Prettier --check
 npm run test           # compile + node --test out/test/**/*.test.js
 node scripts/audit-system-library.js
 node scripts/generate-system-library-docs.js   # regera docs/system-library/
-node scripts/generate-examples-index.js        # regera docs/exemple/README.md
+node scripts/generate-examples-index.js        # regera docs/example/README.md
 node scripts/extract-official-articles.js      # regera out/mcp/data/articles.json
 npm run mcp:bundle                              # esbuild → out/mcp/server.bundled.js
 ```
@@ -455,7 +455,7 @@ A extensão embute um **servidor MCP** stdio que expõe a especificação e o ca
 
 A superfície atual: **10 famílias de Resources** (`data7://language/<chapter>`, `data7://system-library/<ns>`, `data7://examples/<path>`, `data7://diagnostics/codes`, `data7://idioms`, `data7://real-project/<file>`, `data7://official/<qualifiedName>`, `data7://guide/<slug>`, `data7://meta/snapshot`), **12 Tools** (7 lookup — incl. `data7_list_controls` — + 3 executable + 1 mixed + 1 cross-file lint) e **4 Prompts** (`data7_module_skeleton`, `data7_baseenum_pattern`, `data7_typed_recordlist`, `data7_form_skeleton`). Os tools executáveis reusam `SugarTranspiler` (puro) e `DiagnosticsLinter` (via `src/mcp/runtime/vscode-shim.ts`, cópia adaptada de `src/test/_setup/vscode-mock.ts` que intercepta `require("vscode")` em runtime). Sob `--workspace=<path>`, o servidor seed a `WorkspaceSymbolIndexer.createDetached()` para que o linter veja símbolos cross-file. Os 167 exemplos oficiais do ERP (extraídos de `docs/Documentação Data7/**/*.html` por `scripts/extract-official-articles.js` e materializados em `out/mcp/data/articles.json`) são consultáveis via `data7_get_official_example` e enriquecem `data7_describe_symbol` com signature + descrição + exemplo canônico em uma única chamada — substituindo a necessidade de injetar 60+ k tokens em `AGENTS.md`.
 
-Para o objetivo de **criar telas**, o servidor expõe: o capítulo `data7://language/construindo-telas` (idioma de composição de `Forms`: layout `Align`, hierarquia de pais, eventos, ciclo `Show`/`Free`, controles ricos Grid/TextBox/PageControl, extraído do framework real `mod_card_grouper`), os 7 exemplos canônicos `docs/exemple/forms/` + o mini-projeto buildável `docs/exemple/builder/tela-cadastro/` (consultáveis via `data7_search_examples`/`get_canonical_example`), o prompt `data7_form_skeleton` (gera o esqueleto de uma tela funcional, layouts `simple`/`header-content-footer`/`list`), a tool `data7_list_controls` (descobre os controles instanciáveis de `Forms` sem carregar o namespace inteiro) e o campo `formUsageHint` em `data7_describe_symbol` (instanciação + posicionamento por `Align` + eventos `On*` para controles `Forms`). A correção do falso-positivo `unknown-template` no operador `<>` (em `src/analysis/generics-analyzer.ts`) garante que o idioma de disparo de evento `If me.OnXEvent <> NULL Then ...` — onipresente em código de tela — não gere mais diagnósticos espúrios.
+Para o objetivo de **criar telas**, o servidor expõe: o capítulo `data7://language/construindo-telas` (idioma de composição de `Forms`: layout `Align`, hierarquia de pais, eventos, ciclo `Show`/`Free`, controles ricos Grid/TextBox/PageControl, extraído do framework real `mod_card_grouper`), os 7 exemplos canônicos `docs/example/forms/` + o mini-projeto buildável `docs/example/builder/tela-cadastro/` (consultáveis via `data7_search_examples`/`get_canonical_example`), o prompt `data7_form_skeleton` (gera o esqueleto de uma tela funcional, layouts `simple`/`header-content-footer`/`list`), a tool `data7_list_controls` (descobre os controles instanciáveis de `Forms` sem carregar o namespace inteiro) e o campo `formUsageHint` em `data7_describe_symbol` (instanciação + posicionamento por `Align` + eventos `On*` para controles `Forms`). A correção do falso-positivo `unknown-template` no operador `<>` (em `src/analysis/generics-analyzer.ts`) garante que o idioma de disparo de evento `If me.OnXEvent <> NULL Then ...` — onipresente em código de tela — não gere mais diagnósticos espúrios.
 
 A pasta de código vive em `src/mcp/` e segue uma fence arquitetural própria (`data7/mcp-isolation` em `eslint.config.mjs`): não pode importar `providers/`, `services/`, `extension`, `infra/configuration`, nem `vscode` direto. As dependências runtime adicionais (`@modelcontextprotocol/sdk` + `zod` como seu peer) são justificadas pela RFC MCP-001 (atualização sancionada em `project_stack.mdc`).
 

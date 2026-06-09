@@ -57,7 +57,7 @@ O detector vive em [`src/analysis/enumerable-detector.ts`](../../src/analysis/en
 
 | Fonte | Detalhes |
 |---|---|
-| Exemplos | [`docs/exemple/sugar/for-each/`](../exemple/sugar/for-each) |
+| Exemplos | [`docs/example/sugar/for-each/`](../example/sugar/for-each) |
 | Diagnóstico se falhar | [`not-enumerable`](./13-diagnostic-codes.md#not-enumerable) |
 | Regra | `forEachSugarRule` em [`src/project/transpiler.ts`](../../src/project/transpiler.ts) |
 
@@ -89,7 +89,7 @@ Resolução **puramente sintática** (não consulta tipos). Registry-ordered ant
 
 | Fonte | Detalhes |
 |---|---|
-| Exemplos | [`docs/exemple/sugar/for-each-range/`](../exemple/sugar/for-each-range) |
+| Exemplos | [`docs/example/sugar/for-each-range/`](../example/sugar/for-each-range) |
 | Regra | `forEachRangeSugarRule` |
 
 ### Ternário `c ? a : b` — `SugarRule` (RHS de assignment)
@@ -126,7 +126,7 @@ Contextos NÃO suportados disparam [`ternary-context-unsupported`](./13-diagnost
 | Fonte | Detalhes |
 |---|---|
 | Parser | [`src/utils/ternary.ts`](../../src/utils/ternary.ts) — `findTopLevelTernary` |
-| Exemplos | [`docs/exemple/sugar/ternary/`](../exemple/sugar/ternary) |
+| Exemplos | [`docs/example/sugar/ternary/`](../example/sugar/ternary) |
 | Regra | `ternarySugarRule` |
 
 ### String interpolation `$"..."` — `InlineTransform`
@@ -158,7 +158,7 @@ Falhas (todas disparam [`invalid-interpolation`](./13-diagnostic-codes.md#invali
 | Fonte | Detalhes |
 |---|---|
 | Parser | [`src/utils/interpolation.ts`](../../src/utils/interpolation.ts) — `parseInterpolation` |
-| Exemplos | [`docs/exemple/sugar/interpolation/`](../exemple/sugar/interpolation) |
+| Exemplos | [`docs/example/sugar/interpolation/`](../example/sugar/interpolation) |
 | Transform | `interpolationTransform` |
 
 ## Round-trip invariante
@@ -167,114 +167,114 @@ Como a transpilação é **destrutiva**, `build → decompile → build` continu
 
 ## Implementados (Fases A-J)
 
-Roadmap completo executado em 2026-05. Todas as features abaixo estão ativas no transpilador, com exemplos canônicos em [`docs/exemple/sugar/`](../exemple/README.md) e testes em `src/test/project/transpiler.test.ts` + `src/test/project/generics-pass.test.ts`.
+Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler`. As features abaixo estão ativas no transpilador ou documentadas como convenção nativa quando o runtime não permite expansão segura, com exemplos canônicos em [`docs/example/sugar/`](../example/README.md) e testes em `src/test/project/transpiler.test.ts`, `src/test/project/generics-monomorphizer.test.ts` e `src/test/project/parser/`.
 
 ### Fundações
 
 | ID | Recurso | Onde vive |
 |---|---|---|
-| F1 | Inferência expandida — literais, `CType`, chain `a.b().c()`, ternário, interpolação | [`src/utils/literal-type-infer.ts`](../../src/utils/literal-type-infer.ts), [`src/utils/chain-parser.ts`](../../src/utils/chain-parser.ts), [`src/analysis/type-resolver.ts`](../../src/analysis/type-resolver.ts) |
-| F2 | Generics textual monomorphizer (pré-fase do transpiler) | [`src/project/generics-pass.ts`](../../src/project/generics-pass.ts) |
+| F1 | Inferência expandida — literais, `CType`, membros e fluxos compatíveis com o resolver | [`src/utils/literal-type-infer.ts`](../../src/utils/literal-type-infer.ts), [`src/analysis/type-resolver.ts`](../../src/analysis/type-resolver.ts), [`src/analysis/flow-analyzer.ts`](../../src/analysis/flow-analyzer.ts) |
+| F2 | Generics via parser/AST + monomorfizador | [`src/project/parser/`](../../src/project/parser), [`src/project/ast/`](../../src/project/ast), [`src/project/generics/`](../../src/project/generics) |
 | F3 | Null narrowing após `If x = NULL Then Return`/`Throw`/`Exit` ou `If x <> NULL Then` | [`src/analysis/flow-analyzer.ts`](../../src/analysis/flow-analyzer.ts) |
 
 ### Fase A — Quick wins de assignment
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| A1 | `??` (null-coalescing) — `Dim z = x ?? y` | [`null-coalesce/`](../exemple/sugar/null-coalesce) |
-| A2 | `??=` | [`coalesce-assign/`](../exemple/sugar/coalesce-assign) |
-| A3 | `\|\|=` | [`logical-or-assign/`](../exemple/sugar/logical-or-assign) |
-| A4 | `&&=` | [`logical-and-assign/`](../exemple/sugar/logical-and-assign) |
-| A5 | `?.` optional chaining (single-level + chain raso) | [`optional-chain/`](../exemple/sugar/optional-chain) |
-| A6 | numeric separator — `1_000_000` | [`numeric-separator/`](../exemple/sugar/numeric-separator) |
-| A7 | cast funcional `T(expr)` (convenção atual: `CType`) | [`cast-function/`](../exemple/sugar/cast-function) |
+| A1 | `??` (null-coalescing) — `Dim z = x ?? y` | [`null-coalesce/`](../example/sugar/null-coalesce) |
+| A2 | `??=` | [`coalesce-assign/`](../example/sugar/coalesce-assign) |
+| A3 | `\|\|=` | [`logical-or-assign/`](../example/sugar/logical-or-assign) |
+| A4 | `&&=` | [`logical-and-assign/`](../example/sugar/logical-and-assign) |
+| A5 | `?.` optional chaining (single-level + chain raso) | [`optional-chain/`](../example/sugar/optional-chain) |
+| A6 | numeric separator — `1_000_000` | [`numeric-separator/`](../example/sugar/numeric-separator) |
+| A7 | cast funcional `T(expr)` (convenção atual: `CType`) | [`cast-function/`](../example/sugar/cast-function) |
 
 ### Fase B — Inicialização e objeto
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| B1 | object initializer — `New T() With { .X = 1, .Y = 2 }` | [`object-init/`](../exemple/sugar/object-init) |
-| B2 | `Using x As New T(...) / ... / End Using` (multi-line) | [`using/`](../exemple/sugar/using) |
-| B3 | auto-new — `Dim x As New TList<T>` (sem `()`) | [`auto-new/`](../exemple/sugar/auto-new) |
-| B4 | spread em literal (convenção atual) | [`spread-collection/`](../exemple/sugar/spread-collection) |
+| B1 | object initializer — `New T() With { .X = 1, .Y = 2 }` | [`object-init/`](../example/sugar/object-init) |
+| B2 | `Using x As New T(...) / ... / End Using` (multi-line) | [`using/`](../example/sugar/using) |
+| B3 | auto-new — `Dim x As New TList<T>` (sem `()`) | [`auto-new/`](../example/sugar/auto-new) |
+| B4 | spread em literal (convenção atual) | [`spread-collection/`](../example/sugar/spread-collection) |
 
 ### Fase C — Coleções e generics
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| C1-C4, C7 | `Class TList<T>` + monomorfização (com nested generics, constraints, primitivos via boxing) | [`generic-tlist/`](../exemple/sugar/generic-tlist) |
-| C5 | default indexer (convenção: `Property Item`) | [`default-indexer/`](../exemple/sugar/default-indexer) |
-| C6 | `For Each (k, v) In dict` (convenção: For + Names + ValueFromIndex) | [`for-each-kv/`](../exemple/sugar/for-each-kv) |
+| C1-C4, C7 | `Class TList<T>` + monomorfização (com nested generics, constraints, primitivos via boxing) | [`generic-tlist/`](../example/sugar/generic-tlist) |
+| C5 | default indexer (convenção: `Property Item`) | [`default-indexer/`](../example/sugar/default-indexer) |
+| C6 | `For Each (k, v) In dict` (convenção: For + Names + ValueFromIndex) | [`for-each-kv/`](../example/sugar/for-each-kv) |
 
 ### Fase D — Enum declarativo
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| D1 | `Enum X As BaseEnum / V = "..." / End Enum` (multi-line) | [`enum-declarative/`](../exemple/sugar/enum-declarative) |
+| D1 | `Enum X As BaseEnum / V = "..." / End Enum` (multi-line) | [`enum-declarative/`](../example/sugar/enum-declarative) |
 
 ### Fase E — Destructuring
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| E1-E3 | object destructuring (com rename + default) | [`destructure-object/`](../exemple/sugar/destructure-object) |
-| E4-E5 | array destructuring (com `...rest`) | [`destructure-array/`](../exemple/sugar/destructure-array) |
-| E6 | destructure em parâmetro (convenção atual: `Dim` no corpo) | [`destructure-param/`](../exemple/sugar/destructure-param) |
+| E1-E3 | object destructuring (com rename + default) | [`destructure-object/`](../example/sugar/destructure-object) |
+| E4-E5 | array destructuring (com `...rest`) | [`destructure-array/`](../example/sugar/destructure-array) |
+| E6 | destructure em parâmetro (convenção atual: `Dim` no corpo) | [`destructure-param/`](../example/sugar/destructure-param) |
 
 ### Fase F — Spread
 
 | ID | Sintaxe | Status |
 |---|---|---|
-| F1 | spread em literal de coleção (convenção atual: Add manual) — coberto em B4 | [`spread-collection/`](../exemple/sugar/spread-collection) |
+| F1 | spread em literal de coleção (convenção atual: Add manual) — coberto em B4 | [`spread-collection/`](../example/sugar/spread-collection) |
 | F2 | spread em chamada `Foo(...args)` | **não trazer** (aridade dinâmica não suportada) |
-| F3 | spread em object initializer (convenção: `.Assign()`) | [`spread-object/`](../exemple/sugar/spread-object) |
+| F3 | spread em object initializer (convenção: `.Assign()`) | [`spread-object/`](../example/sugar/spread-object) |
 | F4 | rest param `Sub Log(args...)` | **não trazer** (sem varargs runtime) |
 
 ### Fase G — Pattern matching e flow
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| G1 | null narrowing (semântica do TypeResolver via F3) | [`diagnostics/null-narrowing/`](../exemple/diagnostics/null-narrowing) |
-| G2 | `Match x / Case Is T : body / End Match` (multi-line) | [`match/`](../exemple/sugar/match) |
-| G3 | `Return If cond Then a Else b` | [`return-if/`](../exemple/sugar/return-if) |
+| G1 | null narrowing (semântica do TypeResolver via F3) | [`diagnostics/null-narrowing/`](../example/diagnostics/null-narrowing) |
+| G2 | `Match x / Case Is T : body / End Match` (multi-line) | [`match/`](../example/sugar/match) |
+| G3 | `Return If cond Then a Else b` | [`return-if/`](../example/sugar/return-if) |
 | G4 | ternário em `Print`/`Return` — convenção: ainda escrito como `If` quando precisar de statement | (incluído nos exemplos de ternary) |
 
 ### Fase H — Funcional
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| H1 | pipe `\|>` (InlineTransform) | [`pipe/`](../exemple/sugar/pipe) |
-| H2 | function reference (convenção: nome direto) | [`function-ref/`](../exemple/sugar/function-ref) |
-| H3 | lambda sem captura (convenção: Shared Function nomeada) | [`lambda/`](../exemple/sugar/lambda) |
+| H1 | pipe `\|>` (InlineTransform) | [`pipe/`](../example/sugar/pipe) |
+| H2 | function reference (convenção: nome direto) | [`function-ref/`](../example/sugar/function-ref) |
+| H3 | lambda sem captura (convenção: Shared Function nomeada) | [`lambda/`](../example/sugar/lambda) |
 
 ### Fase I — Tipos só design-time
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| I1 | type alias — `Type X = Y` (apagado pelo Builder) | [`type-alias/`](../exemple/sugar/type-alias) |
+| I1 | type alias — `Type X = Y` (apagado pelo Builder) | [`type-alias/`](../example/sugar/type-alias) |
 | I2 | interface declarativa — convenção atual: classe abstrata | (incluído em [`12-convencoes-idiomaticas.md`](./12-convencoes-idiomaticas.md)) |
-| I3 | diagnóstico `ReadOnlyAssignment` | [`diagnostics/readonly-assignment/`](../exemple/diagnostics/readonly-assignment) |
+| I3 | diagnóstico `ReadOnlyAssignment` | [`diagnostics/readonly-assignment/`](../example/diagnostics/readonly-assignment) |
 
 ### Fase J — Avançado
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| J1 | decorators `@Singleton`/`@Cached` (exploratório, convenção atual: Singleton manual) | [`decorators/`](../exemple/sugar/decorators) |
-| J2 | tagged templates — `sql$"SELECT * FROM {t}"` → `sql.Build(...)` (InlineTransform) | [`tagged-template/`](../exemple/sugar/tagged-template) |
+| J1 | decorators `@Singleton`/`@Cached` (exploratório, convenção atual: Singleton manual) | [`decorators/`](../example/sugar/decorators) |
+| J2 | tagged templates — `sql$"SELECT * FROM {t}"` → `sql.Build(...)` (InlineTransform) | [`tagged-template/`](../example/sugar/tagged-template) |
 
 ## Como adicionar um açúcar novo
 
 1. Implemente `SugarRule` (line-based) ou `InlineTransform` (token-level) em [`src/project/transpiler.ts`](../../src/project/transpiler.ts) ou em `src/project/transpiler-rules/<nome>-rule.ts`.
 2. Adicione um helper puro em `src/utils/` se o parsing for não-trivial.
-3. Crie um exemplo canônico em `docs/exemple/sugar/<nome>/01-basic.bas` com header `@example` + `_expected/01-basic.bas` mostrando a expansão.
+3. Crie um exemplo canônico em `docs/example/sugar/<nome>/01-basic.bas` com header `@example` + `_expected/01-basic.bas` mostrando a expansão.
 4. Adicione testes em `src/test/project/transpiler.test.ts`.
 5. Adicione `DiagnosticCode` novo em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts) se o açúcar pode falhar.
-6. Atualize esta página: mova a entrada de "Planejados" para "Implementados".
+6. Atualize esta página e o índice de exemplos para refletir o novo sugar.
 7. `npm run verify` verde antes do merge.
 
 ## Cross-references
 
 - [`src/project/transpiler.ts`](../../src/project/transpiler.ts) — motor.
 - [`src/utils/ternary.ts`](../../src/utils/ternary.ts), [`src/utils/interpolation.ts`](../../src/utils/interpolation.ts) — parsers compartilhados.
-- [`docs/exemple/`](../exemple/README.md) — exemplos canônicos.
+- [`docs/example/`](../example/README.md) — exemplos canônicos.
 - [13-diagnostic-codes.md](./13-diagnostic-codes.md) — códigos emitidos.
 - [11-limitacoes-conhecidas.md](./11-limitacoes-conhecidas.md) — features que **não** virarão açúcar e por quê.

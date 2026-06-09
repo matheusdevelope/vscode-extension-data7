@@ -1,6 +1,6 @@
 /**
  * Tests for the `data7_list_sugar` MCP tool. Verifies that the sugar
- * catalog can be enumerated from `docs/exemple/sugar/` and that each
+ * catalog can be enumerated from `docs/example/sugar/` and that each
  * sugar's first example has a parseable header.
  */
 import "../../_setup/global-hooks";
@@ -13,7 +13,7 @@ import { describe, test } from "node:test";
 import { listExamples } from "../../../mcp/resources/examples";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
-const SUGAR_ROOT = path.join(REPO_ROOT, "docs", "exemple", "sugar");
+const SUGAR_ROOT = path.join(REPO_ROOT, "docs", "example", "sugar");
 
 describe("data7_list_sugar — discovery", () => {
   test("sugar folder contains at least 20 subfolders", () => {

@@ -30,11 +30,11 @@ Em vez de injetar 60+ k tokens de documentação no contexto do agente toda vez 
 
 ## Por que essa pasta existe (e por que está fora do `.vsix`)
 
-A pasta `docs/mcp/` segue o mesmo padrão de `docs/linguagem-basic/` e `docs/exemple/`: é **documentação versionada do repo**, não documentação acessória empacotada no Marketplace. Está excluída do `.vsix` por [.vscodeignore](../../.vscodeignore) (tudo sob `docs/**` é excluído).
+A pasta `docs/mcp/` segue o mesmo padrão de `docs/linguagem-basic/` e `docs/example/`: é **documentação versionada do repo**, não documentação acessória empacotada no Marketplace. Está excluída do `.vsix` por [.vscodeignore](../../.vscodeignore) (tudo sob `docs/**` é excluído).
 
 Quem instala a extensão pelo Marketplace acessa esses documentos lendo o repo GitHub. Quem desenvolve a extensão (e a IA dele) lê localmente.
 
-A criação dessa pasta é uma **exceção sancionada** à regra "não criar docs proativamente" em `coding_standards.mdc`, justificada pela mesma razão de `docs/exemple/`: insumos versionados e tratados como contrato estável, não documentação acessória.
+A criação dessa pasta é uma **exceção sancionada** à regra "não criar docs proativamente" em `coding_standards.mdc`, justificada pela mesma razão de `docs/example/`: insumos versionados e tratados como contrato estável, não documentação acessória.
 
 ## Versão atual
 

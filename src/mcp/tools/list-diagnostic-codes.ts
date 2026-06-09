@@ -1,7 +1,7 @@
 /**
  * Tool `data7_list_diagnostic_codes` — enumerates the linter's stable
  * diagnostic codes together with the trigger example path (when one
- * exists under `docs/exemple/diagnostics/<code>/`).
+ * exists under `docs/example/diagnostics/<code>/`).
  *
  * Used by agents that want to teach the user the right code action to
  * apply, or to surface "did you mean missing-import?" suggestions.
@@ -22,7 +22,7 @@ interface DiagnosticEntry {
 }
 
 function buildCatalog(): DiagnosticEntry[] {
-  const diagnosticsDir = path.join(getDocsRoot(), "exemple", "diagnostics");
+  const diagnosticsDir = path.join(getDocsRoot(), "example", "diagnostics");
   return Object.entries(DiagnosticCodes).map(([enumKey, code]) => {
     const folder = path.join(diagnosticsDir, code);
     return {

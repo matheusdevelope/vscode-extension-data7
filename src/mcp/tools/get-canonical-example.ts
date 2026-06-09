@@ -1,6 +1,6 @@
 /**
  * Tool `data7_get_canonical_example` — returns the full `.bas` content
- * + parsed header of a specific example under `docs/exemple/`.
+ * + parsed header of a specific example under `docs/example/`.
  *
  * Lighter than reading via the `data7://examples/<path>` Resource for
  * agents that just need the snippet without the URI-template ceremony.
@@ -22,7 +22,7 @@ export function registerGetCanonicalExample(server: McpServer): void {
           .string()
           .min(1)
           .describe(
-            'Caminho relativo a docs/exemple/, sem extensão. Exemplo: "sugar/for-each/01-stringlist-explicit-type".',
+            'Caminho relativo a docs/example/, sem extensão. Exemplo: "sugar/for-each/01-stringlist-explicit-type".',
           ),
       },
     },

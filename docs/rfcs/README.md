@@ -62,6 +62,6 @@ Após `Accepted`, atualizações da RFC só devem corrigir fatos descobertos dur
 
 ## Por que essa pasta existe
 
-`coding_standards.mdc` proíbe criação proativa de documentação fora de `project_context.md` e `docs/exemple/`. Esta pasta é uma **exceção sancionada** porque RFCs são **insumo de decisão arquitetural**, não documentação acessória: cada RFC é referenciada por commits (`Implements MCP-001`), pull requests e regras `.mdc`, e fica versionada como a forma estável de revisitar "por que isso foi feito assim?".
+`coding_standards.mdc` proíbe criação proativa de documentação fora de `project_context.md` e `docs/example/`. Esta pasta é uma **exceção sancionada** porque RFCs são **insumo de decisão arquitetural**, não documentação acessória: cada RFC é referenciada por commits (`Implements MCP-001`), pull requests e regras `.mdc`, e fica versionada como a forma estável de revisitar "por que isso foi feito assim?".
 
 Não criar RFC para mudanças que não atendem os critérios acima — atualizar `project_context.md` continua sendo o caminho default.

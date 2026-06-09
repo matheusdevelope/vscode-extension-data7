@@ -16,7 +16,7 @@ Delegate Sub CardRecordForEachDelegate(pValue As CardRecord, i As Integer, extra
 - `Delegate Sub` não retorna nada.
 - A assinatura define o **contrato** que qualquer função/método passado deve cumprir.
 
-> **Nota sobre o syntax highlighting**: a gramática TextMate atual ([`syntaxes/d7basic.tmLanguage.json`](../../syntaxes/d7basic.tmLanguage.json)) **não** reconhece `Delegate` como keyword — ela aparece sem destaque especial no editor. O linter e o `generics-pass` reconhecem corretamente; é apenas uma melhoria pendente do highlighter. Vide [01-sintaxe.md § Gaps conhecidos](./01-sintaxe.md#tokens-reconhecidos-pela-gramática).
+> **Nota sobre o syntax highlighting**: a gramática TextMate atual ([`syntaxes/d7basic.tmLanguage.json`](../../syntaxes/d7basic.tmLanguage.json)) **não** reconhece `Delegate` como keyword — ela aparece sem destaque especial no editor. O parser, o linter e o pipeline de generics reconhecem corretamente; é apenas uma melhoria pendente do highlighter. Vide [01-sintaxe.md § Gaps conhecidos](./01-sintaxe.md#tokens-reconhecidos-pela-gramática).
 
 ## Onde usar
 
@@ -175,9 +175,9 @@ Os principais:
 
 Vide [`docs/system-library/`](../system-library/README.md) para o catálogo completo.
 
-## Açúcares planejados
+## Convenções relacionadas
 
-Vide [10-acucares-atuais.md § Planejados](./10-acucares-atuais.md#planejados):
+Vide [10-acucares-atuais.md](./10-acucares-atuais.md):
 
 - **Function reference com `@`** — `list.Filter(@Helper.FindByName)` (validação compile-time).
 - **Lambda sem captura** — `(p As CardRecord, i, x) => p.Valor > 100` gera `Shared Function __lambda_N` automaticamente.

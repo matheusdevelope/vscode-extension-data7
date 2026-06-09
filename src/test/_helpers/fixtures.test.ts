@@ -4,7 +4,7 @@ import { strict as assert } from "node:assert";
 import { loadExample, parseExampleHeader } from "./fixtures";
 
 describe("loadExample / parseExampleHeader", () => {
-  test("loads a real example from docs/exemple/ and parses its header", () => {
+  test("loads a real example from docs/example/ and parses its header", () => {
     const code = loadExample("sugar/for-each/01-stringlist-explicit-type.bas");
     const header = parseExampleHeader(code);
     assert.equal(header.example, "sugar/for-each/01-stringlist-explicit-type");

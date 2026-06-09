@@ -1533,6 +1533,7 @@ Classe base de janelas (formulários) da VCL Delphi. Adiciona suporte a posiçã
 | `BorderStyle` | `Integer` | Aparência e comportamento da borda do formulário (bsSizeable, bsSingle, bsDialog, bsNone, bsSizeToolWin, bsToolWindow). |
 | `BorderWidth` | `Integer` | Largura adicional desenhada entre a borda e a área cliente do formulário. |
 | `Canvas` | `TCanvas` | Acesso à área de desenho do formulário. |
+| `Caption` | `String` | Título da janela. |
 | `Ctl3D` | `Boolean` | Habilita o estilo 3D nos controles (legado pré-XP). |
 | `DefaultMonitor` | [`TDefaultMonitor`](#tdefaultmonitor) | Define em qual monitor o formulário aparece por padrão. |
 | `Designer` | `Variant` | Interface do designer para o formulário. |
@@ -1611,6 +1612,27 @@ Classe base de janelas (formulários) da VCL Delphi. Adiciona suporte a posiçã
 | `OnPaint` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre quando o formulário precisa ser redesenhado. |
 | `OnResize` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre quando o tamanho do formulário muda. |
 | `OnShow` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre quando o formulário se torna visível (após Show/ShowModal ou Visible := True). |
+
+#### `Timer`
+
+**Herda de:** [`TComponent`](#tcomponent)
+
+**Cadeia completa:** [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
+
+Componente não-visual que dispara um evento (OnTimer) em intervalos regulares definidos por Interval (ms). Wrapper do TTimer nativo do Delphi.
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `Enabled` | `Boolean` | Indica se o timer está habilitado, ela pausa ou ativa o evento OnTimer. |
+| `Interval` | `Integer` | Intervalo de tempo, em milissegundos, entre cada disparo do evento OnTimer. O valor padrão é 1000 (1 segundo). |
+
+**Eventos:**
+
+| Nome | Delegate | Assinatura | Descrição |
+|---|---|---|---|
+| `OnTimer` | `TNotifyEvent` | `(Sender As TObject)` | Evento disparado a cada intervalo definido por Interval, desde que Enabled seja true. O evento é do tipo TNotifyEvent, ou seja, um procedimento que recebe um parâmetro Sender do tipo TObject. |
 
 #### `TLabeledEdit`
 
@@ -3691,7 +3713,6 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 | `THoverFixedCells` | `-` | Set TMS que indica quais células fixas reagem a hover. |
 | `THoverRowCells` | `-` | Set TMS que indica quais células acompanham o destaque ao passar o mouse na linha (hcAll, hcSelected, hcNormal). |
 | `TImage` | [`TGraphicControl`](#tgraphiccontrol) | Componente de exibição de imagem da VCL. Ancestral de Imagem. |
-| `Timer` | [`TComponent`](#tcomponent) | Componente não-visual que dispara um evento (OnTimer) em intervalos regulares definidos por Interval (ms). Wrapper do TTimer nativo do Delphi. |
 | `TMascaraEditor` | [`TcxMaskEdit`](#tcxmaskedit) | Editor com máscara Data7 — ancestral de MaskTextBox (controle de máscara genérico). |
 | `TMemoEditor` | [`TcxMemo`](#tcxmemo) | Memo multilinha Data7 — ancestral de MemoTextBox. |
 | `TNumeroEditor` | [`TcxCalcEdit`](#tcxcalcedit) | Editor numérico Data7 — ancestral de NumberTextBox. |
@@ -3719,6 +3740,6 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 
 ---
 
-_168 classes/tipos, 129 delegates, 1 funções, ~1147 membros próprios em classes, 235 constantes associadas a tipos enumerados._
+_168 classes/tipos, 129 delegates, 1 funções, ~1151 membros próprios em classes, 235 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.232Z pela extensão Data7 Dev Studio._
+_Snapshot `3d4378a049a1` — gerado em 2026-06-09T18:50:11.651Z pela extensão Data7 Dev Studio._

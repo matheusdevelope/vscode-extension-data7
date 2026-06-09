@@ -120,7 +120,7 @@ Tags em comentário do header têm significado para a extensão e para o Builder
 | `'@Module` | Header do arquivo | Marca este `.bas` como um **módulo compartilhável** — elegível para importar em outros projetos via repositório privado. Sem essa tag o arquivo é considerado código local do projeto. |
 | `'@Module-Imported` | Header de um `.bas` dentro de `data7_modules/` | Marca a cópia local como **importada** (não-canônica). O canônico vive no repositório privado; arquivos com essa tag não são reexportáveis. |
 | `'@Description: ...` | Linha solta | Descrição livre exibida em hover/IntelliSense. |
-| `'@example`, `'@demonstrates`, `'@diagnostics`, `'@transpiled-to`, `'@requires` | Apenas em `docs/exemple/*.bas` | Headers de exemplos canônicos consumidos por testes via `loadExample(...)`. Vide [`docs/exemple/README.md`](../exemple/README.md). |
+| `'@example`, `'@demonstrates`, `'@diagnostics`, `'@transpiled-to`, `'@requires` | Apenas em `docs/example/*.bas` | Headers de exemplos canônicos consumidos por testes via `loadExample(...)`. Vide [`docs/example/README.md`](../example/README.md). |
 | `' data7:disable-line <code>` ou `' data7:disable-next-line <code>` | Linha solta | Suprime um diagnóstico específico nessa linha (ou na próxima). Código inexistente dispara [`unknown-suppression-code`](./13-diagnostic-codes.md#unknown-suppression-code). |
 
 ## Identificadores

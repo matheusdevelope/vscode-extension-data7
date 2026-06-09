@@ -29,13 +29,13 @@ export function loadFixture(relativePath: string): string {
 }
 
 /**
- * Loads a canonical Data7 Basic example from `docs/exemple/`. Same role as
+ * Loads a canonical Data7 Basic example from `docs/example/`. Same role as
  * {@link loadFixture}, but the file lives in the public, documentation-grade
  * folder so the same artifact is both a reference for ERP devs and a test
- * fixture for the extension. See `docs/exemple/README.md` for the layout and
+ * fixture for the extension. See `docs/example/README.md` for the layout and
  * for the contract of the header comment block.
  *
- * `relativePath` is relative to `docs/exemple/`, e.g.
+ * `relativePath` is relative to `docs/example/`, e.g.
  * `"sugar/for-each/01-stringlist-explicit-type.bas"`.
  *
  * When the file is missing, the error message lists every candidate path
@@ -44,10 +44,10 @@ export function loadFixture(relativePath: string): string {
  */
 export function loadExample(relativePath: string): string {
   // Walk up from `out/test/_helpers/` (compiled) or `src/test/_helpers/`
-  // (source) to the repository root, then into `docs/exemple/`.
+  // (source) to the repository root, then into `docs/example/`.
   const candidates = [
-    path.join(__dirname, "..", "..", "..", "docs", "exemple", relativePath), // out/test/_helpers → repo root
-    path.join(__dirname, "..", "..", "..", "..", "docs", "exemple", relativePath), // src/test/_helpers (4 hops via out/)
+    path.join(__dirname, "..", "..", "..", "docs", "example", relativePath), // out/test/_helpers → repo root
+    path.join(__dirname, "..", "..", "..", "..", "docs", "example", relativePath), // src/test/_helpers (4 hops via out/)
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return fs.readFileSync(candidate, "utf-8");
@@ -57,7 +57,7 @@ export function loadExample(relativePath: string): string {
 
 /**
  * Parsed shape of the `' @example / @demonstrates / @diagnostics / …` header
- * block that every `.bas` under `docs/exemple/` opens with.
+ * block that every `.bas` under `docs/example/` opens with.
  *
  * `diagnostics` is an array of `{ code, line }` parsed from
  * `@diagnostics: code@LINE[, code@LINE...]` (or empty when the header reads

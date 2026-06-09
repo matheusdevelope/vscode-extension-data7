@@ -73,7 +73,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ### Adicionado (Criar telas — orientação de Forms)
 
 - **Capítulo `docs/linguagem-basic/14-construindo-telas.md`** — idioma de composição de telas extraído do framework real (`mod_card_grouper`): layout por `Align`, hierarquia de pais, eventos + `extra As Variant`, ciclo `Show`/`Free`, e padrões de controles ricos (Grid `Cells`, editores `.Text`/`OnChange`, `PageControl`/`TabSheet`). Exposto como `data7://language/construindo-telas`.
-- **7 exemplos canônicos** em `docs/exemple/forms/` (formulário mínimo, layout header/content/footer, eventos, grid básico, grid com dados, validação de TextBox, abas) + 1 mini-projeto buildável `docs/exemple/builder/tela-cadastro/` (Principal + módulo de tela). Todos passam no linter e no transpiler.
+- **7 exemplos canônicos** em `docs/example/forms/` (formulário mínimo, layout header/content/footer, eventos, grid básico, grid com dados, validação de TextBox, abas) + 1 mini-projeto buildável `docs/example/builder/tela-cadastro/` (Principal + módulo de tela). Todos passam no linter e no transpiler.
 - **Tool `data7_list_controls`** — lista os controles instanciáveis de `Forms` (separando os abstratos VCL `T*` via flag `isBase`), para a IA descobrir o que existe sem carregar o namespace inteiro (~71 k tokens).
 - **`data7_describe_symbol` enriquecido** — para controles `Forms`, devolve `formUsageHint` com instanciação, posicionamento por `Align` e os eventos (`On*`) resolvidos pela cadeia de herança.
 
@@ -92,7 +92,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
   - **Isolamento de Escopo (Prevenção de Falso-Positivos)**: Garante que membros de classe e variáveis/parâmetros locais não entrem em conflito falso-positivo com símbolos externos (tais como funções globais da biblioteca do sistema como `Copy`, `Dispose` e `Length`, ou classes de namespaces importados), uma vez que estes pertencem a namespaces ou contextos de execução isolados.
   - **Conflito de Contexto (Shared vs Instância)**: Garante que variáveis locais em métodos `Shared` conflitem apenas com membros estáticos (`Shared`) da classe, enquanto variáveis em métodos de instância conflitam com todos os membros da classe.
   - **Namespace e Globais**: Impede colisões de nomes entre classes/estruturas e outros símbolos locais, importados via `Imports` ou globais do sistema (`SYSTEM_SYMBOLS` e `Principal.bas`).
-- **Exemplo de Teste de Diagnóstico**: Adicionado o exemplo de cobertura `docs/exemple/diagnostics/duplicate-declaration/trigger.bas` e atualizado o índice de exemplos da extensão.
+- **Exemplo de Teste de Diagnóstico**: Adicionado o exemplo de cobertura `docs/example/diagnostics/duplicate-declaration/trigger.bas` e atualizado o índice de exemplos da extensão.
 - **Suíte de Testes**: Implementada uma ampla suíte de testes unitários cobrindo todos os cenários de conflitos e não-conflitos no linter.
 
 ### Alterado (Melhoria no Comportamento do Autocomplete)
@@ -135,7 +135,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Posicionamento de classes materializadas**: Corrigido o bug em ambas as pipelines de genéricos (AST-based e textual) onde as classes materializadas eram inseridas no topo da unidade de compilação (acima dos `Imports`). Agora:
   - Se houver um `Namespace` na unidade de compilação, as classes materializadas são adicionadas ao final desse namespace.
   - Caso contrário, elas são adicionadas ao final da unidade de compilação (ficando sempre abaixo de todos os `Imports`).
-- **Testes**: Adicionados testes de unidade correspondentes em [generics-monomorphizer.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/project/generics-monomorphizer.test.ts) e atualizados os arquivos esperados dos testes golden em `docs/exemple/sugar/generic-tlist/_expected/`.
+- **Testes**: Adicionados testes de unidade correspondentes em [generics-monomorphizer.test.ts](file:///d:/DEV/Projects/data7/vscode-extension-data7/src/test/project/generics-monomorphizer.test.ts) e atualizados os arquivos esperados dos testes golden em `docs/example/sugar/generic-tlist/_expected/`.
 
 ### Corrigido (Linter — escopo de membros)
 

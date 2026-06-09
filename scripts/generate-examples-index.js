@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* eslint-disable */
 /**
- * Regenerates `docs/exemple/README.md` from the `@example` / `@demonstrates`
- * / `@diagnostics` headers of every `.bas` under `docs/exemple/`.
+ * Regenerates `docs/example/README.md` from the `@example` / `@demonstrates`
+ * / `@diagnostics` headers of every `.bas` under `docs/example/`.
  *
  * Usage:
  *   node scripts/generate-examples-index.js            # writes README.md
@@ -19,7 +19,7 @@ const fs = require("fs");
 const path = require("path");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
-const EXAMPLES_ROOT = path.join(REPO_ROOT, "docs", "exemple");
+const EXAMPLES_ROOT = path.join(REPO_ROOT, "docs", "example");
 const README_PATH = path.join(EXAMPLES_ROOT, "README.md");
 const MARKER = "<!-- BEGIN: auto-generated index — do not edit below by hand -->";
 
@@ -135,16 +135,16 @@ function main() {
   if (checkMode) {
     if (next !== existing) {
       console.error(
-        "docs/exemple/README.md is out of sync with the .bas headers. Run `node scripts/generate-examples-index.js` and commit the result.",
+        "docs/example/README.md is out of sync with the .bas headers. Run `node scripts/generate-examples-index.js` and commit the result.",
       );
       process.exit(1);
     }
-    console.log("docs/exemple/README.md is up to date.");
+    console.log("docs/example/README.md is up to date.");
     return;
   }
 
   fs.writeFileSync(README_PATH, next, "utf-8");
-  console.log(`docs/exemple/README.md updated.`);
+  console.log(`docs/example/README.md updated.`);
 }
 
 main();

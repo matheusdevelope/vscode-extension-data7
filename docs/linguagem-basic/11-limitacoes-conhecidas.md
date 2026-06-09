@@ -79,15 +79,13 @@ Tipos como `type Result<T, E> = Ok<T> | Err<E>` não têm representação nomina
 
 A System Library oferece **apenas** `Collections.StringList` (lista de strings + objetos opcionais). Não há `TList<T>`, `TDictionary<K,V>`, `TQueue<T>`, `TStack<T>` nativos.
 
-**Workaround atual**: classes tipadas derivando de uma `TRecordList` base (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
-
-**Workaround futuro**: monomorfização — `TList<T>` definido em `mod_list.bas` e instanciado pelo Builder (vide [07-generics.md](./07-generics.md)).
+**Workaround atual**: classes tipadas derivando de uma `TRecordList` base (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)) ou templates `TList<T>` monomorfizados pelo Builder/preview/MCP (vide [07-generics.md](./07-generics.md)).
 
 ### 11. Sem `Enum` nativo
 
 Data7 Basic não tem palavra-chave `Enum`. O equivalente é o padrão **`BaseEnum`** — classe que herda de `BaseEnum` e usa `Shared` factory methods (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
 
-**Workaround futuro**: sugar `Enum X / End Enum` que gera a classe BaseEnum (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
+**Workaround atual de tooling**: sugar `Enum X / End Enum` gera a classe `BaseEnum` equivalente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
 
 ### 12. Sem interface natively + `Implements`
 
@@ -163,7 +161,7 @@ Finally
 End Try
 ```
 
-**Workaround futuro**: sugar `Using x As New T(...) / ... / End Using` (vide [10-acucares-atuais.md § B2](./10-acucares-atuais.md#fase-b--inicializacao-e-objeto)).
+**Workaround atual de tooling**: sugar `Using x As New T(...) / ... / End Using` expande para `Try/Finally/x.Free()` (vide [10-acucares-atuais.md § B2](./10-acucares-atuais.md#fase-b--inicializacao-e-objeto)).
 
 ## Limitações da System Library
 
@@ -191,19 +189,19 @@ A maior parte da API FireDAC avançada (`Macros`, `FetchOptions`, `Aggregates`, 
 
 ## Limitações do tooling atual (a extensão)
 
-Estas a extensão **pode** evoluir — vide [10-acucares-atuais.md § Planejados](./10-acucares-atuais.md#planejados):
+Estas a extensão **pode** evoluir — vide [10-acucares-atuais.md](./10-acucares-atuais.md):
 
 | Item | Status |
 |---|---|
-| Generics em `.bas` (`Class TList<T>`) | engine pronta, integração ao Builder em planejamento |
-| Null narrowing após `If x <> NULL` | não implementado |
-| Inferência de literais (`Dim x = 42` → `Integer`) | inferência só por `New T()` e `obj.Method()` |
+| Generics em `.bas` (`Class TList<T>`) | ativo via parser/AST + `src/project/generics/` |
+| Null narrowing após guardas `NULL` | implementado para os padrões cobertos por `src/analysis/flow-analyzer.ts` |
+| Inferência de literais (`Dim x = 42` → `Integer`) | parcial; cobre literais e casos usados por transpiler/resolver, não todos os fluxos arbitrários |
 | Inferência por cadeia (`a.b().c().d`) | só 1 nível |
 | `For Each (k, v) In dict` | não implementado |
-| `Match` / pattern matching | não implementado |
-| Optional chaining `?.` | não implementado |
-| Null-coalescing `??` | não implementado |
-| Pipe `\|>` | não implementado |
+| `Match` / pattern matching | implementado como sugar `Match/Case Is` para `If/ElseIf` |
+| Optional chaining `?.` | implementado nos contextos suportados pelo transpilador |
+| Null-coalescing `??` | implementado em RHS de assignment suportado |
+| Pipe `\|>` | implementado como sugar de chamada encadeada |
 | Decorators `@Singleton` | não implementado |
 
 ## Cross-references

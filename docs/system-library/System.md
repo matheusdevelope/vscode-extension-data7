@@ -64,7 +64,7 @@ Alias para Double que armazena data e hora.
 | `AddYears` | [`TDateTime`](#tdatetime) | `(pYears As Integer)` | Adiciona ou subtrai anos da data especificada. |
 | `Date` | `Date` | `()` | Retorna apenas a porção de data. |
 | `EncodeTime` | [`TDateTime`](#tdatetime) | `(pHour As Integer, pMin As Integer, pSec As Integer, pMSec As Integer)` | Codifica horas, minutos, segundos e milissegundos em um objeto TDateTime. |
-| `ToString` | `String` | `()` | Converte o valor de data e hora para string formatada. |
+| `ToString` | `String` | `(pFormat As String = "")` | Converte o valor de data e hora para string formatada. |
 | `ToString` | `String` | `(pFormat As String = "")` | Formata a data/hora em formato string baseado no padrão informado (ex: "dd/mm/yyyy hh:nn:ss"). |
 | `ToString` | `String` | `(Optional pFormat As String)` | Converte a data/hora para String utilizando um formato opcional (ex: "dd/mm/yyyy hh:nn:ss"). |
 
@@ -139,4 +139,4 @@ Alias para Double que armazena data e hora.
 
 _13 classes/tipos, 0 delegates, 44 funções, ~28 membros próprios em classes, 0 constantes associadas a tipos enumerados._
 
-_Snapshot `2616b20d9001` — gerado em 2026-05-27T21:04:59.247Z pela extensão Data7 Dev Studio._
+_Snapshot `3d4378a049a1` — gerado em 2026-06-09T18:50:11.681Z pela extensão Data7 Dev Studio._

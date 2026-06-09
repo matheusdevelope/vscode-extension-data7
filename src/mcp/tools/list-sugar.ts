@@ -1,7 +1,7 @@
 /**
  * Tool `data7_list_sugar` — enumerates the syntactic sugars implemented
  * by the transpiler. The list is derived from
- * `docs/exemple/sugar/<sugar-name>/` (one subfolder per sugar) because
+ * `docs/example/sugar/<sugar-name>/` (one subfolder per sugar) because
  * each implemented sugar must carry a canonical example by convention
  * (testing.mdc), making the directory structure the canonical source.
  *
@@ -32,15 +32,13 @@ interface SugarInfo {
 }
 
 function buildSugarCatalog(): SugarInfo[] {
-  const sugarRoot = path.join(getDocsRoot(), "exemple", "sugar");
+  const sugarRoot = path.join(getDocsRoot(), "example", "sugar");
   const sugarFolders = fs.existsSync(sugarRoot)
     ? new Set(
-        fs
-          .readdirSync(sugarRoot)
-          .filter((entry) => {
-            const full = path.join(sugarRoot, entry);
-            return fs.statSync(full).isDirectory();
-          }),
+        fs.readdirSync(sugarRoot).filter((entry) => {
+          const full = path.join(sugarRoot, entry);
+          return fs.statSync(full).isDirectory();
+        }),
       )
     : new Set<string>();
 
@@ -60,7 +58,8 @@ function buildSugarCatalog(): SugarInfo[] {
       dependencies: registered.dependencies,
       utilityModules: registered.utilityModules,
       demonstratesFirst: first?.header?.demonstrates,
-      hasExpected: sugarFolders.has(sugar) && fs.existsSync(path.join(sugarRoot, sugar, "_expected")),
+      hasExpected:
+        sugarFolders.has(sugar) && fs.existsSync(path.join(sugarRoot, sugar, "_expected")),
       examplesCount: examples.length,
       examples: examples.map((e) => e.relativePath).sort(),
     };

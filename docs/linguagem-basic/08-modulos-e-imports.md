@@ -157,9 +157,9 @@ flowchart LR
 
 ## Cross-references
 
-- [`docs/exemple/diagnostics/missing-import/`](../exemple/diagnostics/missing-import) — exemplos canônicos.
-- [`docs/exemple/diagnostics/module-not-found/`](../exemple/diagnostics/module-not-found).
-- [`docs/exemple/diagnostics/module-not-declared/`](../exemple/diagnostics/module-not-declared).
+- [`docs/example/diagnostics/missing-import/`](../example/diagnostics/missing-import) — exemplos canônicos.
+- [`docs/example/diagnostics/module-not-found/`](../example/diagnostics/module-not-found).
+- [`docs/example/diagnostics/module-not-declared/`](../example/diagnostics/module-not-declared).
 - [`src/services/repository-service.ts`](../../src/services/repository-service.ts) — gerenciamento do repositório.
 - [`src/services/dependency-service.ts`](../../src/services/dependency-service.ts) — sincronização de dependências.
 - [01-sintaxe.md § Tags semânticas](./01-sintaxe.md#tags-semânticas) — detalhes das tags `@Module`/`@Module-Imported`.

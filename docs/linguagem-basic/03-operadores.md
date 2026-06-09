@@ -141,7 +141,7 @@ Contextos NÃO suportados (emitem [`ternary-context-unsupported`](./13-diagnosti
 - `Return c ? a : b`
 - `Foo(c ? a : b)` (dentro de chamada)
 
-Exemplos canônicos: [`docs/exemple/sugar/ternary/`](../exemple/sugar/ternary).
+Exemplos canônicos: [`docs/example/sugar/ternary/`](../example/sugar/ternary).
 
 ### String interpolation (`$"..."`) — açúcar transpilado
 
@@ -167,11 +167,11 @@ Falhas comuns (emitem [`invalid-interpolation`](./13-diagnostic-codes.md#invalid
 - `$"foo {bar` — `{` sem `}`
 - `$"foo {} bar"` — expressão vazia
 
-Exemplos canônicos: [`docs/exemple/sugar/interpolation/`](../exemple/sugar/interpolation).
+Exemplos canônicos: [`docs/example/sugar/interpolation/`](../example/sugar/interpolation).
 
-## Açúcares planejados
+## Açúcares relacionados
 
-Vide [10-acucares-atuais.md § Planejados](./10-acucares-atuais.md#planejados) para a lista completa de operadores TS-inspired que serão adicionados (null-coalescing `??`, optional chaining `?.`, logical assignment `||=`/`&&=`/`??=`, pipe `|>`, etc.).
+Vide [10-acucares-atuais.md](./10-acucares-atuais.md) para a lista de operadores TS-inspired já suportados pelo transpilador nos contextos documentados (`??`, `?.`, `||=`, `&&=`, `??=`, `|>`, etc.).
 
 ## Cross-references
 

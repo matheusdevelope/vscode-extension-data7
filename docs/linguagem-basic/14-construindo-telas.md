@@ -270,7 +270,7 @@ Muitos controles herdam propriedades VCL que o compilador Data7 **não traduz** 
 
 ## Exemplos canônicos
 
-Veja exemplos completos e versionados em [`docs/exemple/forms/`](../exemple/README.md):
+Veja exemplos completos e versionados em [`docs/example/forms/`](../example/README.md):
 
 | Exemplo | Cobre |
 |---|---|

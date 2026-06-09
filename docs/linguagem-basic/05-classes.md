@@ -212,7 +212,7 @@ Property Item(pIndex As Integer) As CardRecord
 End Property
 ```
 
-Acessada como `list.Item(0)` ou (após sugar futuro) `list(0)` — vide [10-acucares-atuais.md § Planejados](./10-acucares-atuais.md#planejados).
+Acessada como `list.Item(0)`. O exemplo [`default-indexer`](../example/sugar/default-indexer) documenta a convenção de design-time para `Property Item(...)`; `list(0)` ainda não é reescrito automaticamente pelo transpilador.
 
 ## `ReadOnly`
 
@@ -221,7 +221,7 @@ Campos `ReadOnly` só podem ser atribuídos:
 1. Na inicialização (`ReadOnly Adm As CardAdm = CardAdm.Stone`).
 2. Dentro do construtor (`Sub New`).
 
-Tentativa de atribuir fora disso dispara erro em runtime e (em breve) o diagnóstico `readonly-assignment`.
+Tentativa de atribuir fora disso dispara erro em runtime e o diagnóstico `readonly-assignment` quando o linter consegue identificar o alvo.
 
 ```basic
 Class CardGrouper

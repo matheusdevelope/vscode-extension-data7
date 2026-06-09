@@ -110,13 +110,13 @@ Cada arquivo exporta `symbols: SystemSymbolInfo[]` contendo membros (campo `name
 2. Crie `src/system-library/<NS>/<Symbol>.ts` usando os helpers de `symbol-helpers.ts`.
 3. Reexporte através de `src/system-library/<NS>/<NS>.ts`.
 4. Atualize `docs/system-library/<NS>.md` (auto-gerado por `npm run docs:system-library` — mas pode regenerar manualmente).
-5. Rode `npm run audit-system-library` para validar que tudo bate com os HTMLs originais em `docs/Documentação Data7/`.
+5. Rode `npm run docs:system-library` e os testes de System Library para validar que `src/system-library/` e `docs/system-library/` continuam sincronizados.
 
-## Documentação oficial (HTMLs)
+## Fonte versionada atual
 
-A pasta [`docs/Documentação Data7/`](../Documentação%20Data7) contém os HTMLs originais exportados do help-desk do ERP. São a **fonte primária** de verdade — quando há divergência entre os HTMLs e o nosso `src/system-library/`, os HTMLs ganham.
+A árvore atual deste repositório não contém os HTMLs exportados do help-desk do ERP. A fonte versionada consumida pela extensão é [`src/system-library/`](../../src/system-library), e a referência humana gerada fica em [`docs/system-library/`](../system-library/README.md).
 
-Algumas subpastas trazem `instrução.txt` (CSV canônico de autocomplete + flag `Suportado`) que serve de fonte para popular a System Library. Verificado em CI por `instrucao-coverage.test.ts`.
+Quando uma API nativa divergir do runtime real do ERP, atualize primeiro `src/system-library/<NS>/<Symbol>.ts`, regenere `docs/system-library/` e cubra a mudança com teste focado.
 
 ## Cross-references
 
@@ -124,4 +124,4 @@ Algumas subpastas trazem `instrução.txt` (CSV canônico de autocomplete + flag
 - Cada `docs/system-library/<NS>.md` — referência por namespace.
 - [`src/system-library/`](../../src/system-library) — código-fonte da modelagem.
 - [`src/system-library/types.ts`](../../src/system-library/types.ts) — `SystemContainer` (lista canônica).
-- [`scripts/audit-system-library.js`](../../scripts) — auditoria contra HTMLs originais.
+- [`src/test/system-library/`](../../src/test/system-library) — testes de cobertura e geração da System Library.
