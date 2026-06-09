@@ -19,4 +19,29 @@ export const symbols: SystemSymbolInfo[] = [
     description:
       "Container de abas (TabSheets) — wrapper sobre o TRzPageControl da Raize. Permite alternar entre múltiplas páginas filhas.",
   },
+
+  // ───────── Properties ─────────
+  {
+    name: "ActivePageIndex",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "PageControl",
+    description: "Obtem e define a tabsheet ativa no PageControl.",
+  },
+  {
+    name: "PageCount",
+    kind: "property",
+    isReadOnly: true,
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "PageControl",
+    description: "Obtem o número de tabsheets no PageControl.",
+  },
 ];

@@ -125,31 +125,26 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (138 arquivos)
+## Índice de exemplos (119 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (78)
+### sugar (59)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
 | [`sugar/auto-new/_expected/01-simple.bas`](./sugar/auto-new/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/auto-new/01-simple | `none` | — |
 | [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) expandido para `= New T()` | `none` | — |
-| [`sugar/cast-function/01-ctype-canonical.bas`](./sugar/cast-function/01-ctype-canonical.bas) | forma canônica de cast no Data7 — CType(expr, T) | `none` | — |
 | [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/coalesce-assign/01-simple | `none` | — |
 | [`sugar/coalesce-assign/01-simple.bas`](./sugar/coalesce-assign/01-simple.bas) | ??= compound assignment — vira If x = NULL Then x = y | `none` | — |
-| [`sugar/decorators/01-singleton.bas`](./sugar/decorators/01-singleton.bas) | decorator @Singleton — ainda exploratório, exemplo do alvo | `none` | — |
-| [`sugar/default-indexer/01-basic.bas`](./sugar/default-indexer/01-basic.bas) | convenção `Property Item(...)` para indexação tipada | `none` | — |
 | [`sugar/destructure-array/_expected/01-basic.bas`](./sugar/destructure-array/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/destructure-array/01-basic | `none` | — |
 | [`sugar/destructure-array/01-basic.bas`](./sugar/destructure-array/01-basic.bas) | Dim [first, second] = lista expandido para Dims com Item(i) | `none` | — |
 | [`sugar/destructure-array/02-rest.bas`](./sugar/destructure-array/02-rest.bas) | Dim [first, ...rest] = lista expandido com loop For | `none` | — |
 | [`sugar/destructure-object/_expected/01-basic.bas`](./sugar/destructure-object/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/destructure-object/01-basic | `none` | — |
 | [`sugar/destructure-object/01-basic.bas`](./sugar/destructure-object/01-basic.bas) | Dim { Nome, Idade } = pessoa expandido em Dims individuais | `none` | — |
 | [`sugar/destructure-object/02-rename-default.bas`](./sugar/destructure-object/02-rename-default.bas) | destructuring com rename (As n) e default (= "x") | `none` | — |
-| [`sugar/destructure-param/01-basic.bas`](./sugar/destructure-param/01-basic.bas) | convenção atual: declarar Dims no início do corpo manualmente | `none` | — |
 | [`sugar/enum-declarative/_expected/01-basic.bas`](./sugar/enum-declarative/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/enum-declarative/01-basic | `none` | — |
 | [`sugar/enum-declarative/01-basic.bas`](./sugar/enum-declarative/01-basic.bas) | Enum X / End Enum expandido para Class X Inherits BaseEnum | `none` | — |
-| [`sugar/for-each-kv/01-basic.bas`](./sugar/for-each-kv/01-basic.bas) | convenção atual para iterar pares Nome=Valor de uma StringList | `none` | — |
 | [`sugar/for-each-range/_expected/01-simple.bas`](./sugar/for-each-range/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/for-each-range/01-simple | `none` | — |
 | [`sugar/for-each-range/_expected/02-variable-end.bas`](./sugar/for-each-range/_expected/02-variable-end.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/for-each-range/02-variable-end | `none` | — |
 | [`sugar/for-each-range/01-simple.bas`](./sugar/for-each-range/01-simple.bas) | For Each i In 0..10 — açúcar para o For clássico com limites numéricos | `none` | — |
@@ -162,17 +157,6 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/for-each/03-nested-loops.bas`](./sugar/for-each/03-nested-loops.bas) | For Each aninhado — contadores __idx0 e __idx1 não colidem | `none` | — |
 | [`sugar/for-each/04-not-enumerable.bas`](./sugar/for-each/04-not-enumerable.bas) | For Each sobre tipo sem propriedade Count + indexer — emite not-enumerable e Builder mantém a linha intacta | `not-enumerable@12` | — |
 | [`sugar/for-each/05-method-call-operand.bas`](./sugar/for-each/05-method-call-operand.bas) | For Each sobre expressão complexa (chamada de método) — exige materialização em variável local antes | `not-enumerable@10` | — |
-| [`sugar/function-ref/01-basic.bas`](./sugar/function-ref/01-basic.bas) | function reference convencional (sem `@`) — handler nomeado | `none` | — |
-| [`sugar/generic-tlist/_expected/01-basic.bas`](./sugar/generic-tlist/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generic-tlist/01-basic | `none` | — |
-| [`sugar/generic-tlist/_expected/02-delegate.bas`](./sugar/generic-tlist/_expected/02-delegate.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generic-tlist/02-delegate | `none` | — |
-| [`sugar/generic-tlist/_expected/03-method.bas`](./sugar/generic-tlist/_expected/03-method.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generic-tlist/03-method | `none` | — |
-| [`sugar/generic-tlist/_expected/03-nested.bas`](./sugar/generic-tlist/_expected/03-nested.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generic-tlist/03-nested | `none` | — |
-| [`sugar/generic-tlist/_expected/04-shadowing.bas`](./sugar/generic-tlist/_expected/04-shadowing.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generic-tlist/04-shadowing | `none` | — |
-| [`sugar/generic-tlist/01-basic.bas`](./sugar/generic-tlist/01-basic.bas) | Class TList<T> monomorfizada para TList_Product | `none` | — |
-| [`sugar/generic-tlist/02-delegate.bas`](./sugar/generic-tlist/02-delegate.bas) | Delegate Function genérico monomorfizado para tipo concreto | `none` | — |
-| [`sugar/generic-tlist/03-method.bas`](./sugar/generic-tlist/03-method.bas) | Sub/Function generico livre (nivel namespace) monomorfizado para forma concreta | `none` | — |
-| [`sugar/generic-tlist/03-nested.bas`](./sugar/generic-tlist/03-nested.bas) | generics aninhados — TList<TList<Integer>> vira TList_TList_Integer | `none` | — |
-| [`sugar/generic-tlist/04-shadowing.bas`](./sugar/generic-tlist/04-shadowing.bas) | Bug 1 — variavel local nomeada `T` dentro do template NAO e | `none` | — |
 | [`sugar/interpolation/_expected/01-simple.bas`](./sugar/interpolation/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/interpolation/01-simple | `none` | — |
 | [`sugar/interpolation/_expected/02-multiple-expressions.bas`](./sugar/interpolation/_expected/02-multiple-expressions.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/interpolation/02-multiple-expressions | `none` | — |
 | [`sugar/interpolation/_expected/03-escaped-braces.bas`](./sugar/interpolation/_expected/03-escaped-braces.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/interpolation/03-escaped-braces | `none` | — |
@@ -180,13 +164,12 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/interpolation/02-multiple-expressions.bas`](./sugar/interpolation/02-multiple-expressions.bas) | $"..." com várias expressões — cada `{x}` vira `& (x) &` | `none` | — |
 | [`sugar/interpolation/03-escaped-braces.bas`](./sugar/interpolation/03-escaped-braces.bas) | chaves literais via `{{` e `}}` — preservadas como `{` e `}` no output | `none` | — |
 | [`sugar/interpolation/04-invalid-empty-expression.bas`](./sugar/interpolation/04-invalid-empty-expression.bas) | $"...{}..." sem expressão dentro das chaves — emite invalid-interpolation | `invalid-interpolation@9` | — |
-| [`sugar/lambda/01-no-capture.bas`](./sugar/lambda/01-no-capture.bas) | alternativa nativa enquanto lambdas inline não são transpilados | `none` | — |
+| [`sugar/logger-print/_expected/01-global-print.bas`](./sugar/logger-print/_expected/01-global-print.bas) | Print global reescrito para o core logger apos os demais sugars | `none` | — |
 | [`sugar/logger-print/01-global-print.bas`](./sugar/logger-print/01-global-print.bas) | Print global reescrito para o core logger apos os demais sugars | `none` | — |
 | [`sugar/logical-and-assign/_expected/01-simple.bas`](./sugar/logical-and-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/logical-and-assign/01-simple | `none` | — |
 | [`sugar/logical-and-assign/01-simple.bas`](./sugar/logical-and-assign/01-simple.bas) | &&= compound assignment — vira If x Then x = y | `none` | — |
 | [`sugar/logical-or-assign/_expected/01-simple.bas`](./sugar/logical-or-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/logical-or-assign/01-simple | `none` | — |
 | [`sugar/logical-or-assign/01-simple.bas`](./sugar/logical-or-assign/01-simple.bas) | \|\|= compound assignment — vira If Not x Then x = y | `none` | — |
-| [`sugar/match/01-basic.bas`](./sugar/match/01-basic.bas) | Match x / Case Is TFoo : ... / End Match expandido para If/ElseIf/End If | `none` | — |
 | [`sugar/null-coalesce/_expected/01-dim-assignment.bas`](./sugar/null-coalesce/_expected/01-dim-assignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/null-coalesce/01-dim-assignment | `none` | — |
 | [`sugar/null-coalesce/01-dim-assignment.bas`](./sugar/null-coalesce/01-dim-assignment.bas) | ?? em Dim — expandido para If/Then/Else multi-linha | `none` | — |
 | [`sugar/numeric-separator/_expected/01-simple.bas`](./sugar/numeric-separator/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/numeric-separator/01-simple | `none` | — |
@@ -201,14 +184,12 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/return-if/01-basic.bas`](./sugar/return-if/01-basic.bas) | Return If cond Then a Else b expandido para If/Then/Return | `none` | — |
 | [`sugar/spread-collection/01-basic.bas`](./sugar/spread-collection/01-basic.bas) | convenção atual de inicialização de StringList por Add manual | `none` | — |
 | [`sugar/spread-object/01-basic.bas`](./sugar/spread-object/01-basic.bas) | convenção atual usando .Assign() para spread em object init | `none` | — |
-| [`sugar/tagged-template/01-sql.bas`](./sugar/tagged-template/01-sql.bas) | tagged template sql$"..." — vira sql.Build("...", expr, ...) | `none` | — |
 | [`sugar/ternary/_expected/01-dim-assignment.bas`](./sugar/ternary/_expected/01-dim-assignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/ternary/01-dim-assignment | `none` | — |
 | [`sugar/ternary/_expected/02-reassignment.bas`](./sugar/ternary/_expected/02-reassignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/ternary/02-reassignment | `none` | — |
 | [`sugar/ternary/_expected/03-member-assignment.bas`](./sugar/ternary/_expected/03-member-assignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/ternary/03-member-assignment | `none` | — |
 | [`sugar/ternary/01-dim-assignment.bas`](./sugar/ternary/01-dim-assignment.bas) | ternário no RHS de Dim — expandido para If/Then/Else multi-linha | `none` | — |
 | [`sugar/ternary/02-reassignment.bas`](./sugar/ternary/02-reassignment.bas) | ternário em reassignment (sem Dim) — só emite o If/Then/Else | `none` | — |
 | [`sugar/ternary/03-member-assignment.bas`](./sugar/ternary/03-member-assignment.bas) | ternário atribuindo a `obj.prop` — funciona como reassignment | `none` | — |
-| [`sugar/type-alias/01-basic.bas`](./sugar/type-alias/01-basic.bas) | Type ProductId = String — alias só design-time | `none` | — |
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 

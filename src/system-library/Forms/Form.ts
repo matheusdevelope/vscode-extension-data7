@@ -4,7 +4,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "Show",
     kind: "method",
-    type: "Void",
+    type: "Boolean",
     isShared: false,
     isPrivate: false,
     parameters: [],
@@ -16,7 +16,7 @@ export const symbols: SystemSymbolInfo[] = [
     },
     fileUri: "system://library",
     containerName: "Forms.Form",
-    description: "Exibe o formulário.",
+    description: "Exibe o formulário e retorna False se o usuário cancelar ou clicar no ESC.",
   },
   {
     name: "Form",

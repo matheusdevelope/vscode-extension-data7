@@ -1,6 +1,9 @@
 Imports mod_tlist
 Imports mod_product
+Imports mod_tela_grid_dados
+Imports mod_tela_abas
 
+Try
 Dim _names[] As String = [
 "Produto 1",
 "Produto 2",
@@ -22,3 +25,16 @@ print _prods.ToString()
 If Forms.MessageBox.Confirmation("Deseja executar os logs com timer?") Then
    _prods.forEach((p2 As Product) =>    mod_logger.Printe(p2.ToString()))
 End If
+
+
+Using _form As New TTelaGridDados()
+   _form.Show()
+End Using
+
+Using _form2 As New TTelaAbas()
+   _form2.Show()
+End Using
+
+Catch ex As Exception
+   print ex.Message
+End Try

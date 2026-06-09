@@ -36,8 +36,7 @@ Namespace mod_tela_grid
       End Property
 
       Function Show() As Boolean
-         me._form.Show()
-         Show = True
+         Show = me._form.Show()
       End Function
 
       Sub Free()
