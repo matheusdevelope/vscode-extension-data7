@@ -1000,11 +1000,7 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
   });
 
   test("preserves constructor arguments in class fields declared `As New T(args)`", () => {
-    const code = [
-      "Class Holder",
-      '   Value As New LogInfo(2, "ok")',
-      "End Class",
-    ].join("\n");
+    const code = ["Class Holder", '   Value As New LogInfo(2, "ok")', "End Class"].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.match(out, /Value As LogInfo = New LogInfo\(2, "ok"\)/);

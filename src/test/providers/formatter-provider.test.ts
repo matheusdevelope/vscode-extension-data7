@@ -1,7 +1,7 @@
 import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { CodeFormatter } from "../../providers/formatter";
+import { CodeFormatter } from "../../providers/formatter-provider";
 
 describe("CodeFormatter", () => {
   describe("formatKeywordsInLine", () => {

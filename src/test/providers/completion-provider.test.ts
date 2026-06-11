@@ -155,12 +155,7 @@ End Namespace`;
 
       const provider = new D7BasicCompletionProvider();
       const items = (await Promise.resolve(
-        provider.provideCompletionItems(
-          doc,
-          pos(3, 6),
-          noopToken,
-          {} as vscode.CompletionContext,
-        ),
+        provider.provideCompletionItems(doc, pos(3, 6), noopToken, {} as vscode.CompletionContext),
       )) as unknown as MockCompletionItem[];
 
       const labels = items.map(labelOf);
@@ -219,12 +214,7 @@ End Namespace`;
 
       const provider = new D7BasicCompletionProvider();
       const items = (await Promise.resolve(
-        provider.provideCompletionItems(
-          doc,
-          pos(7, 10),
-          noopToken,
-          {} as vscode.CompletionContext,
-        ),
+        provider.provideCompletionItems(doc, pos(7, 10), noopToken, {} as vscode.CompletionContext),
       )) as unknown as MockCompletionItem[];
 
       const labels = items.map(labelOf);
@@ -263,12 +253,7 @@ End Namespace`;
 
       const provider = new D7BasicCompletionProvider();
       const items = (await Promise.resolve(
-        provider.provideCompletionItems(
-          doc,
-          pos(4, 7),
-          noopToken,
-          {} as vscode.CompletionContext,
-        ),
+        provider.provideCompletionItems(doc, pos(4, 7), noopToken, {} as vscode.CompletionContext),
       )) as unknown as MockCompletionItem[];
 
       const labels = items.map(labelOf);
@@ -300,10 +285,7 @@ End Namespace`;
 
       const labels = items.map(labelOf);
       assert.ok(labels.includes("pName"), `pName must appear; got ${labels.join(", ")}`);
-      assert.ok(
-        labels.includes("localCount"),
-        `localCount must appear; got ${labels.join(", ")}`,
-      );
+      assert.ok(labels.includes("localCount"), `localCount must appear; got ${labels.join(", ")}`);
     });
   });
 });

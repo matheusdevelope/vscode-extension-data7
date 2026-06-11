@@ -235,9 +235,7 @@ function serializeMethod(
 ): void {
   out.setLine(m.loc);
   const keyword = m.returnType !== undefined ? "Function" : "Sub";
-  const params = m.parameters
-    .map(emitParameter)
-    .join(", ");
+  const params = m.parameters.map(emitParameter).join(", ");
   const ret = m.returnType !== undefined ? ` As ${emitTypeRef(m.returnType)}` : "";
   const paramsStr = m.noParentheses ? "" : `(${params})`;
   out.push(
@@ -259,9 +257,7 @@ function serializeDelegate(
 ): void {
   out.setLine(d.loc);
   const keyword = d.returnType !== undefined ? "Function" : "Sub";
-  const params = d.parameters
-    .map(emitParameter)
-    .join(", ");
+  const params = d.parameters.map(emitParameter).join(", ");
   const ret = d.returnType !== undefined ? ` As ${emitTypeRef(d.returnType)}` : "";
   const paramsStr = d.noParentheses ? "" : `(${params})`;
   out.push(
@@ -281,11 +277,7 @@ function serializeProperty(
   out.setLine(p.loc);
   const isBlock = p.hasBlock || (p.getter ?? p.setter);
 
-  const params = p.parameters
-    ? p.parameters
-        .map(emitParameter)
-        .join(", ")
-    : "";
+  const params = p.parameters ? p.parameters.map(emitParameter).join(", ") : "";
   const paramsStr = p.parameters ? `(${params})` : "";
 
   out.push(
@@ -305,9 +297,7 @@ function serializeProperty(
     }
     if (p.setter) {
       out.setLine(p.setter.loc);
-      const params = p.setter.parameters
-        .map(emitParameter)
-        .join(", ");
+      const params = p.setter.parameters.map(emitParameter).join(", ");
       const paramsStr = p.setter.noParentheses ? "" : `(${params})`;
       out.push(indent(depth + 1, options) + `${emitModifiers(p.setter.modifiers)}Set${paramsStr}`);
       for (const s of p.setter.body) {
@@ -503,7 +493,9 @@ function emitExpressionRaw(expr: Expression): string {
       const callArgs = expr.arguments.map(emitExpression).join(", ");
       const typeArgs =
         expr.typeArguments.length > 0 ? `<${expr.typeArguments.map(emitTypeRef).join(", ")}>` : "";
-      const receiver = expr.callee ? emitExpression(expr.callee) + (expr.methodName ? "." : "") : "";
+      const receiver = expr.callee
+        ? emitExpression(expr.callee) + (expr.methodName ? "." : "")
+        : "";
       if (expr.noParentheses) {
         return `${receiver}${expr.methodName}${typeArgs} ${callArgs}`;
       }

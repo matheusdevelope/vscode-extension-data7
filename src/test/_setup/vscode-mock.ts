@@ -62,7 +62,10 @@ class Selection {
   ) {
     if (typeof anchorLineOrAnchor === "number") {
       this.anchor = { line: anchorLineOrAnchor, character: anchorCharOrActive as number };
-      this.active = { line: activeLine ?? anchorLineOrAnchor, character: activeChar ?? (anchorCharOrActive as number) };
+      this.active = {
+        line: activeLine ?? anchorLineOrAnchor,
+        character: activeChar ?? (anchorCharOrActive as number),
+      };
     } else {
       this.anchor = { line: anchorLineOrAnchor.line, character: anchorLineOrAnchor.character };
       const a = anchorCharOrActive as { line: number; character: number };

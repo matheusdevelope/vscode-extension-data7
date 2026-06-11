@@ -1,10 +1,11 @@
+import * as fs from "node:fs";
 import * as vscode from "vscode";
 import { parseBasic, tokenize, GenericsParserPlugin, parseExpr } from "../project/parser";
 import type { CompilationUnit, Expression } from "../project/ast/ast";
 import type { ParseError } from "../project/parser/parser-errors";
 import type { Token } from "../project/parser/token-types";
 import { logger } from "../infra/logger";
-import { isExcluded, readConfiguration } from "../infra/configuration";
+import { readConfiguration } from "../infra/configuration";
 import { SugarEngine } from "../project/sugars";
 
 export interface CachedDocument {
@@ -67,9 +68,7 @@ export class LanguageProcessor {
     }
 
     let actualContent = content;
-    if (actualContent === undefined) {
-      actualContent = this.readDocumentContent(uri) ?? "";
-    }
+    actualContent ??= this.readDocumentContent(uri) ?? "";
 
     return this.parseAndCache(uri, actualContent, 0);
   }
@@ -164,15 +163,17 @@ export class LanguageProcessor {
     try {
       const uri = vscode.Uri.parse(uriStr);
       // Try to find if already opened in vscode workspace
-      const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase());
+      const doc = vscode.workspace.textDocuments.find(
+        (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase(),
+      );
       if (doc) {
         return doc.getText();
       }
       // If not, read from file system
       if (uri.scheme === "file") {
         const fsPath = uri.fsPath;
-        if (require("fs").existsSync(fsPath)) {
-          return require("fs").readFileSync(fsPath, "utf-8");
+        if (fs.existsSync(fsPath)) {
+          return fs.readFileSync(fsPath, "utf-8");
         }
       }
     } catch (err) {

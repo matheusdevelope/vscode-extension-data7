@@ -2,7 +2,7 @@ import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as vscode from "vscode";
-import { D7BasicCodeActionProvider } from "../../providers/code-actions";
+import { D7BasicCodeActionProvider } from "../../providers/code-action-provider";
 import {
   DiagnosticCodes,
   type MissingImportPayload,
@@ -273,7 +273,11 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           range,
-          { diagnostics: [diagWith(DiagnosticCodes.DeclarationParenthesesMismatch, undefined, range)] } as any,
+          {
+            diagnostics: [
+              diagWith(DiagnosticCodes.DeclarationParenthesesMismatch, undefined, range),
+            ],
+          } as any,
           noopToken,
         ),
       )) as unknown as {
@@ -299,7 +303,11 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           range,
-          { diagnostics: [diagWith(DiagnosticCodes.DeclarationParenthesesMismatch, undefined, range)] } as any,
+          {
+            diagnostics: [
+              diagWith(DiagnosticCodes.DeclarationParenthesesMismatch, undefined, range),
+            ],
+          } as any,
           noopToken,
         ),
       )) as unknown as {
@@ -350,7 +358,15 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           range,
-          { diagnostics: [diagWith(DiagnosticCodes.MissingMyBaseNew, { code: DiagnosticCodes.MissingMyBaseNew, className: "Foo" }, range)] } as any,
+          {
+            diagnostics: [
+              diagWith(
+                DiagnosticCodes.MissingMyBaseNew,
+                { code: DiagnosticCodes.MissingMyBaseNew, className: "Foo" },
+                range,
+              ),
+            ],
+          } as any,
           noopToken,
         ),
       )) as any[];
@@ -371,7 +387,15 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           range,
-          { diagnostics: [diagWith(DiagnosticCodes.MissingMyBaseFree, { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" }, range)] } as any,
+          {
+            diagnostics: [
+              diagWith(
+                DiagnosticCodes.MissingMyBaseFree,
+                { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" },
+                range,
+              ),
+            ],
+          } as any,
           noopToken,
         ),
       )) as any[];
@@ -390,7 +414,15 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           range,
-          { diagnostics: [diagWith(DiagnosticCodes.MissingMyBaseFree, { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" }, range)] } as any,
+          {
+            diagnostics: [
+              diagWith(
+                DiagnosticCodes.MissingMyBaseFree,
+                { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" },
+                range,
+              ),
+            ],
+          } as any,
           noopToken,
         ),
       )) as any[];
@@ -406,16 +438,15 @@ describe("D7BasicCodeActionProvider", () => {
     test("emits an edit to insert 'Then' at the end of the line if missing", async () => {
       const doc = mockDoc("If x <> 1\n");
       const range = new vscode.Range(0, 9, 0, 10);
-      const diag = new vscode.Diagnostic(range, "Expected 'then', got '\\n'.", vscode.DiagnosticSeverity.Warning);
+      const diag = new vscode.Diagnostic(
+        range,
+        "Expected 'then', got '\\n'.",
+        vscode.DiagnosticSeverity.Warning,
+      );
       diag.code = "expected-token";
       const provider = new D7BasicCodeActionProvider();
       const all = (await Promise.resolve(
-        provider.provideCodeActions(
-          doc,
-          range,
-          { diagnostics: [diag] } as any,
-          noopToken,
-        ),
+        provider.provideCodeActions(doc, range, { diagnostics: [diag] } as any, noopToken),
       )) as any[];
       const actions = onlyQuickFixes(all);
       assert.ok(actions.length >= 1);
@@ -446,16 +477,9 @@ describe("D7BasicCodeActionProvider", () => {
       try {
         const provider = new D7BasicCodeActionProvider();
         const all = (await Promise.resolve(
-          provider.provideCodeActions(
-            doc,
-            firstRange,
-            { diagnostics: [first] } as any,
-            noopToken,
-          ),
+          provider.provideCodeActions(doc, firstRange, { diagnostics: [first] } as any, noopToken),
         )) as any[];
-        const bulk = onlyQuickFixes(all).find((a) =>
-          a.title.includes("todas as ocorrências"),
-        );
+        const bulk = onlyQuickFixes(all).find((a) => a.title.includes("todas as ocorrências"));
         assert.ok(bulk);
         assert.equal(bulk.edit.edits.length, 2);
         expectEdit(bulk.edit, { type: "insert", line: 0, textIncludes: " Then" });

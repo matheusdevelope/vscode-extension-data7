@@ -87,4 +87,3 @@ describe("data7_module_skeleton — output passes basic parsing", () => {
     assert.equal(blockers.length, 0, JSON.stringify(blockers, null, 2));
   });
 });
-

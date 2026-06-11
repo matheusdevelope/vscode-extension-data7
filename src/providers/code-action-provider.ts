@@ -600,7 +600,9 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     diagnostic: vscode.Diagnostic,
   ): void {
     const allDiags = vscode.languages.getDiagnostics(document.uri);
-    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.DeclarationParenthesesMismatch);
+    const mismatches = allDiags.filter(
+      (d) => d.code === DiagnosticCodes.DeclarationParenthesesMismatch,
+    );
     if (mismatches.length <= 1) return;
 
     const action = new vscode.CodeAction(
@@ -680,7 +682,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<MissingMyBaseFreePayload>(diagnostic, DiagnosticCodes.MissingMyBaseFree);
+    const payload = readPayload<MissingMyBaseFreePayload>(
+      diagnostic,
+      DiagnosticCodes.MissingMyBaseFree,
+    );
     if (!payload) return;
 
     // Check if the warning is on "Class" declaration (Sub Free is missing entirely)
@@ -799,10 +804,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const action = new vscode.CodeAction(
-      "Adicionar 'Then'",
-      vscode.CodeActionKind.QuickFix,
-    );
+    const action = new vscode.CodeAction("Adicionar 'Then'", vscode.CodeActionKind.QuickFix);
     action.diagnostics = [diagnostic];
     action.isPreferred = true;
 
@@ -818,7 +820,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     diagnostic: vscode.Diagnostic,
   ): void {
     const allDiags = vscode.languages.getDiagnostics(document.uri);
-    const missingThen = dedupeDiagnostics([diagnostic, ...allDiags.filter(isMissingThenDiagnostic)]);
+    const missingThen = dedupeDiagnostics([
+      diagnostic,
+      ...allDiags.filter(isMissingThenDiagnostic),
+    ]);
     if (missingThen.length <= 1) return;
 
     const action = new vscode.CodeAction(
@@ -879,9 +884,7 @@ function findDeclarationParenthesesInsertPosition(
 ): vscode.Position {
   const line = diagnostic.range.start.line;
   const lineText = document.lineAt(line).text;
-  const match = /\b(?:delegate\s+(?:sub|function)|sub|function)\s+([A-Za-z_]\w*)/i.exec(
-    lineText,
-  );
+  const match = /\b(?:delegate\s+(?:sub|function)|sub|function)\s+([A-Za-z_]\w*)/i.exec(lineText);
   const name = match?.[1];
   if (match && name) {
     const nameStart = match.index + match[0].lastIndexOf(name);
@@ -919,7 +922,14 @@ function dedupeDiagnostics(diagnostics: readonly vscode.Diagnostic[]): vscode.Di
   const seen = new Set<string>();
   const result: vscode.Diagnostic[] = [];
   for (const diagnostic of diagnostics) {
-    const key = `${String(diagnostic.code)}:${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`;
+    const code = diagnostic.code as unknown;
+    const codeVal =
+      code && typeof code === "object" && "value" in code
+        ? String((code as { value: string | number }).value)
+        : typeof code === "string" || typeof code === "number"
+          ? String(code)
+          : "";
+    const key = `${codeVal}:${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(diagnostic);

@@ -7,13 +7,16 @@ import type {
   UsingStatement,
   MatchStatement,
   SpreadExpression,
+  SourceLocation,
+  ParameterDeclaration,
+  Identifier,
 } from "../ast/ast";
-import type { Token } from "./token-types";
+import type { Token, TokenLocation } from "./token-types";
 import type { Parser } from "./parser";
 import type { ParserPlugin } from "./plugin";
 import { Precedence } from "./parser";
 
-function locOf(loc: any, endLoc?: any) {
+function locOf(loc: TokenLocation, endLoc?: TokenLocation): SourceLocation {
   return {
     startLine: loc.line,
     startChar: loc.column,
@@ -60,9 +63,9 @@ export class SugarsParserPlugin implements ParserPlugin {
             trueExpr,
             falseExpr,
             loc: locOf(startLoc),
-          } as any,
+          },
           loc: locOf(startLoc),
-        } as any;
+        };
       }
     }
     return null;
@@ -77,7 +80,6 @@ export class SugarsParserPlugin implements ParserPlugin {
     // Let's check how we designed the call in parser.ts:
     // we will design it so the core parser has already consumed the keyword, and calls it.
     // So the next token is the start of destructuring.
-    const nextToken = parser.peek();
     const isOpenBrace = parser.consume("punct", "{") !== null;
     const isOpenBracket = !isOpenBrace && parser.consume("punct", "[") !== null;
 
@@ -135,14 +137,14 @@ export class SugarsParserPlugin implements ParserPlugin {
       initializer,
       loc: locOf(startLoc),
       comment,
-    } as any; // Cast as any because the types in ast/ast are mapped
+    };
   }
 
   private isArrowFunction(parser: Parser): boolean {
     if (!parser.match("punct", "(")) return false;
     let depth = 0;
     let idx = 0;
-    while (true) {
+    for (;;) {
       const token = parser.peek(idx);
       if (token.kind === "eof" || token.kind === "newline") {
         break;
@@ -204,8 +206,11 @@ export class SugarsParserPlugin implements ParserPlugin {
             },
           ],
           body,
-          loc: locOf(startLoc, body.loc),
-        } as any;
+          loc: locOf(
+            startLoc,
+            body.loc ? { line: body.loc.endLine, column: body.loc.endChar } : undefined,
+          ),
+        };
       }
     }
 
@@ -213,7 +218,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     if (this.isArrowFunction(parser)) {
       const startLoc = token.loc;
       parser.advance(); // consume '('
-      const parameters: any[] = [];
+      const parameters: ParameterDeclaration[] = [];
       while (!parser.match("punct", ")") && !parser.isEOF()) {
         let isByRef = false;
         if (parser.consume("keyword", "byref") || parser.consume("identifier", "byref")) {
@@ -278,40 +283,9 @@ export class SugarsParserPlugin implements ParserPlugin {
         body,
         returnType,
         loc: locOf(startLoc, parser.peek().loc),
-      } as any;
+      };
     }
 
-    // Array literals: [item1, item2, ...]
-    // if (token.kind === "punct" && token.value === "[") {
-    //   const startLoc = token.loc;
-    //   parser.advance(); // consume '['
-    //   const elements: (Expression | SpreadExpression)[] = [];
-    //   parser.skipNewlines();
-    //   while (!parser.match("punct", "]") && !parser.isEOF()) {
-    //     parser.skipNewlines();
-    //     if (parser.match("punct", "]")) break;
-    //     if (parser.match("punct", "...")) {
-    //       const spreadLoc = parser.peek().loc;
-    //       parser.advance(); // consume '...'
-    //       const expr = parser.parseExpression();
-    //       elements.push({
-    //         kind: "SpreadExpression",
-    //         expression: expr,
-    //         loc: locOf(spreadLoc),
-    //       } as any);
-    //     } else {
-    //       elements.push(parser.parseExpression());
-    //     }
-    //     if (!parser.consume("punct", ",")) break;
-    //     parser.skipNewlines();
-    //   }
-    //   const endToken = parser.expect("punct", "]", { literal: true });
-    //   return {
-    //     kind: "ArrayLiteralExpression",
-    //     elements,
-    //     loc: locOf(startLoc, endToken?.loc),
-    //   } as any;
-    // }
     // Array literals: [item1, item2, ...]
     if (token.kind === "punct" && token.value === "[") {
       const startLoc = token.loc;
@@ -330,7 +304,7 @@ export class SugarsParserPlugin implements ParserPlugin {
             kind: "SpreadExpression",
             expression: expr,
             loc: locOf(spreadLoc),
-          } as any);
+          });
         } else {
           elements.push(parser.parseExpression());
         }
@@ -346,7 +320,7 @@ export class SugarsParserPlugin implements ParserPlugin {
         kind: "ArrayLiteralExpression",
         elements,
         loc: locOf(startLoc, endToken?.loc),
-      } as any;
+      };
     }
 
     // AddressOf operator
@@ -362,22 +336,22 @@ export class SugarsParserPlugin implements ParserPlugin {
         typeArguments: [],
         arguments: [arg],
         loc: locOf(token.loc),
-      } as any;
+      };
     }
 
     // Tagged template tag$"..."
     if (token.kind === "identifier" || token.kind === "keyword") {
-      const lower = token.value.toLowerCase();
+      const tag = token.value;
       const nextToken = parser.peek(1);
       if (nextToken.kind === "string" && nextToken.prefix === "$") {
-        const tag = parser.advance().value;
+        parser.advance(); // consume tag
         const bodyToken = parser.advance();
         return {
           kind: "TaggedTemplateExpression",
           tag,
           body: bodyToken.value,
           loc: locOf(token.loc),
-        } as any;
+        };
       }
     }
 
@@ -389,7 +363,7 @@ export class SugarsParserPlugin implements ParserPlugin {
         tag: "",
         body: strToken.value,
         loc: locOf(strToken.loc),
-      } as any;
+      };
     }
 
     // Object creation / Object Initializer (New T() With { ... })
@@ -431,20 +405,20 @@ export class SugarsParserPlugin implements ParserPlugin {
           parser.expect("punct", "}", { literal: true });
           return {
             kind: "ObjectInitializerExpression",
-            type: typeRef as any,
+            type: typeRef,
             arguments: args,
             assignments,
             loc: locOf(token.loc),
-          } as any;
+          };
         }
       }
 
       return {
         kind: "ObjectCreationExpression",
-        type: typeRef as any,
+        type: typeRef,
         arguments: args,
         loc: locOf(token.loc),
-      } as any;
+      };
     }
 
     return null;
@@ -478,21 +452,21 @@ export class SugarsParserPlugin implements ParserPlugin {
           typeArguments: [],
           arguments: args,
           loc: locOf(memberToken?.loc ?? token.loc),
-        } as any;
+        };
       } else {
         memberExpr = {
           kind: "MemberAccess",
-          target: { kind: "Identifier", name: "", loc: left.loc } as any,
+          target: { kind: "Identifier", name: "", loc: left.loc },
           member,
           loc: locOf(memberToken?.loc ?? token.loc),
-        } as any;
+        };
       }
       return {
         kind: "OptionalChainingExpression",
         target: left,
         member: memberExpr,
         loc: left.loc,
-      } as any;
+      };
     }
 
     // Ternary expression: cond ? true : false
@@ -507,7 +481,7 @@ export class SugarsParserPlugin implements ParserPlugin {
         trueExpr,
         falseExpr,
         loc: left.loc,
-      } as any;
+      };
     }
 
     // Null coalescing: left ?? right
@@ -519,7 +493,7 @@ export class SugarsParserPlugin implements ParserPlugin {
         left,
         right,
         loc: left.loc,
-      } as any;
+      };
     }
 
     // Pipe operator: left |> right
@@ -531,7 +505,7 @@ export class SugarsParserPlugin implements ParserPlugin {
         left,
         right,
         loc: left.loc,
-      } as any;
+      };
     }
 
     return null;
@@ -549,8 +523,8 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
     parser.skipToEndOfLine();
 
-    const entries: { name: string; value?: Expression; loc?: any }[] = [];
-    let endLoc: any;
+    const entries: { name: string; value?: Expression; loc?: SourceLocation }[] = [];
+    let endLoc: TokenLocation | undefined;
     while (!parser.isEOF()) {
       parser.skipNewlines();
       if (parser.matchEnd("enum")) {
@@ -589,18 +563,18 @@ export class SugarsParserPlugin implements ParserPlugin {
     return {
       kind: "EnumDeclaration",
       name,
-      baseType: baseType as any,
+      baseType,
       entries,
       loc: locOf(startLoc, endLoc),
       modifiers: [], // Modifiers are processed but not used in EnumDeclaration usually
-    } as any;
+    };
   }
 
   private parseUsing(parser: Parser): UsingStatement {
     const startLoc = parser.peek().loc;
     parser.advance(); // consume 'Using'
     const resourceVarToken = parser.expect("identifier", "<resource-variable>");
-    const resourceVar = {
+    const resourceVar: Identifier = {
       kind: "Identifier",
       name: resourceVarToken?.value ?? "",
       loc: locOf(resourceVarToken?.loc ?? startLoc),
@@ -625,7 +599,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     parser.skipToEndOfLine();
 
     const body: Statement[] = [];
-    let endLoc: any;
+    let endLoc: TokenLocation | undefined;
     while (!parser.isEOF()) {
       parser.skipNewlines();
       if (parser.matchEnd("using")) {
@@ -640,12 +614,12 @@ export class SugarsParserPlugin implements ParserPlugin {
 
     return {
       kind: "UsingStatement",
-      resourceVar: resourceVar as any,
-      resourceType: resourceType as any,
+      resourceVar,
+      resourceType,
       resourceArgs,
       body,
       loc: locOf(startLoc, endLoc),
-    } as any;
+    };
   }
 
   private parseMatch(parser: Parser): MatchStatement {
@@ -655,7 +629,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     parser.skipToEndOfLine();
 
     const cases: { typeName?: string; isElse: boolean; body: Statement[] }[] = [];
-    let endLoc: any;
+    let endLoc: TokenLocation | undefined;
     while (!parser.isEOF()) {
       parser.skipNewlines();
       if (parser.matchEnd("match")) {
@@ -711,6 +685,6 @@ export class SugarsParserPlugin implements ParserPlugin {
       subject,
       cases,
       loc: locOf(startLoc, endLoc),
-    } as any;
+    };
   }
 }

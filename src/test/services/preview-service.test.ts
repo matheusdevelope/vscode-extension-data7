@@ -271,10 +271,13 @@ describe("PreviewService and D7PreviewContentProvider", () => {
 
       documentChangeListeners[0]!(changeEvent);
 
-      assert.deepEqual(new Set(updatedUris), new Set([
-        "data7-preview:///path/to/teste.bas?originalScheme=file",
-        "data7-preview:///path/to/mod_tlist.bas?originalScheme=file",
-      ]));
+      assert.deepEqual(
+        new Set(updatedUris),
+        new Set([
+          "data7-preview:///path/to/teste.bas?originalScheme=file",
+          "data7-preview:///path/to/mod_tlist.bas?originalScheme=file",
+        ]),
+      );
     });
 
     test("workspace change listener ignores non-d7basic documents and preview documents themselves", () => {
@@ -369,7 +372,7 @@ describe("PreviewService and D7PreviewContentProvider", () => {
 
       const lineMap = provider.getLineMap(originalUri);
       assert.ok(Array.isArray(lineMap), "lineMap should be an array after transpilation");
-      assert.ok(lineMap!.length > 0, "lineMap should have entries");
+      assert.ok(lineMap.length > 0, "lineMap should have entries");
     });
 
     test("cursor sync: selection change listener is registered and fires without error", () => {
@@ -388,7 +391,11 @@ describe("PreviewService and D7PreviewContentProvider", () => {
         revealRange: () => {},
       };
       // Should not throw.
-      selectionChangeListeners[0]!({ textEditor: htmlEditor, selections: [], kind: undefined } as any);
+      selectionChangeListeners[0]!({
+        textEditor: htmlEditor,
+        selections: [],
+        kind: undefined,
+      } as any);
     });
 
     test("cursor sync: scrolls preview editor when source cursor moves", () => {
@@ -411,7 +418,9 @@ describe("PreviewService and D7PreviewContentProvider", () => {
       const previewEditor = {
         document: previewDoc,
         selection: { active: { line: 0, character: 0 } },
-        revealRange: (range: vscode.Range) => { revealedRange = range; },
+        revealRange: (range: vscode.Range) => {
+          revealedRange = range;
+        },
       };
 
       // Mock visibleTextEditors so the sync listener finds the preview editor.
@@ -423,11 +432,15 @@ describe("PreviewService and D7PreviewContentProvider", () => {
         selection: { active: { line: 3, character: 0 } },
         revealRange: () => {},
       };
-      selectionChangeListeners[0]!({ textEditor: sourceEditor, selections: [], kind: undefined } as any);
+      selectionChangeListeners[0]!({
+        textEditor: sourceEditor,
+        selections: [],
+        kind: undefined,
+      } as any);
 
       // lineMap[5] = 3, so outputLine 5 is the first line mapping to sourceLine 3.
       assert.ok(revealedRange, "preview editor revealRange should have been called");
-      assert.equal(revealedRange!.start.line, 5);
+      assert.equal(revealedRange.start.line, 5);
     });
   });
 });

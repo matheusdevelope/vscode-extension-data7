@@ -6,4 +6,3 @@ export type {
   SugarPlugin,
   SugarUtilityModule,
 } from "./types";
-

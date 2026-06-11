@@ -6,6 +6,7 @@ import {
   type TypeReference,
   type MethodInvocation,
   type OpaqueStatement,
+  type TopLevelMember,
 } from "../project/ast/ast";
 import { VIRTUAL_TEMPLATES } from "./virtual-templates";
 
@@ -248,7 +249,7 @@ class ASTGenericsCollector extends ASTWalker {
     this.walk(this.unit);
   }
 
-  private collectTemplates(members: any[]): void {
+  private collectTemplates(members: readonly TopLevelMember[]): void {
     for (const member of members) {
       if (member.kind === "NamespaceDeclaration") {
         this.collectTemplates(member.members);
@@ -270,7 +271,7 @@ class ASTGenericsCollector extends ASTWalker {
           this.templates.set(key, {
             kind: "class",
             name: member.name,
-            typeParams: member.typeParameters.map((tp: any) => tp.name),
+            typeParams: member.typeParameters.map((tp) => tp.name),
             line,
           });
         }
@@ -302,7 +303,7 @@ class ASTGenericsCollector extends ASTWalker {
         this.templates.set(key, {
           kind: "method",
           name: member.name,
-          typeParams: member.typeParameters.map((tp: any) => tp.name),
+          typeParams: member.typeParameters.map((tp) => tp.name),
           line,
         });
       }
@@ -321,7 +322,7 @@ class ASTGenericsCollector extends ASTWalker {
         this.templates.set(key, {
           kind: "delegate",
           name: member.name,
-          typeParams: member.typeParameters.map((tp: any) => tp.name),
+          typeParams: member.typeParameters.map((tp) => tp.name),
           line,
         });
       }
@@ -496,10 +497,6 @@ class ASTGenericsCollector extends ASTWalker {
         });
         break;
       }
-
-      const concreteArgs = hit.typeArgs.map((arg) => {
-        return { kind: "TypeReference" as const, name: arg, typeArguments: [] };
-      });
 
       const flat = flatNameOf(template.name, hit.typeArgs);
       const canonical = `${template.name}<${hit.typeArgs.join(",")}>`;

@@ -7,7 +7,7 @@ import {
   lookupSystemNamespaceOrClassByName,
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
-import { D7AstContext } from "./ast-context";
+import { D7AstContext } from "../analysis/ast-context";
 
 const KEYWORDS = [
   "Imports",
@@ -148,13 +148,15 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         if (activeClass) {
           const list: SymbolInfo[] = [];
           if (receiverLower === "me") {
-            const ownSymbols = fileSyms?.symbols.filter(
-              (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase()
-            ) ?? [];
+            const ownSymbols =
+              fileSyms?.symbols.filter(
+                (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase(),
+              ) ?? [];
             list.push(...ownSymbols);
           }
-          const inherited = TypeResolver.getInheritedMembers(activeClass.name, this.indexer)
-            .filter((s) => !s.isPrivate);
+          const inherited = TypeResolver.getInheritedMembers(activeClass.name, this.indexer).filter(
+            (s) => !s.isPrivate,
+          );
 
           // Deduplicate based on signature (override/shadowing)
           inherited.forEach((s) => {
@@ -220,7 +222,9 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       });
     }
 
-    KEYWORDS.forEach((kw) => items.push(new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword)));
+    KEYWORDS.forEach((kw) =>
+      items.push(new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword)),
+    );
     this.addSnippets(items);
     this.addGlobalSymbols(items, seenNames, document);
 
@@ -551,11 +555,7 @@ function isSimpleIdentifier(value: string): boolean {
   if (!isFirst) return false;
   for (let i = 1; i < value.length; i++) {
     const c = value.charCodeAt(i);
-    const ok =
-      (c >= 65 && c <= 90) ||
-      (c >= 97 && c <= 122) ||
-      (c >= 48 && c <= 57) ||
-      c === 95;
+    const ok = (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 95;
     if (!ok) return false;
   }
   return true;

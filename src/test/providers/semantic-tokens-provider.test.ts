@@ -97,18 +97,24 @@ End Namespace`;
     // There should only be two class tokens: the class definition Foo on line 1, and End Class on line 6.
     // There should be NO class tokens on line 3 (the string literal containing Foo) or line 4 (the trailing comment containing Foo).
     assert.ok(result);
-    let classTokensOnLines: number[] = [];
+    const classTokensOnLines: number[] = [];
     for (let i = 0; i < result.data.length; i += 5) {
       const line = result.data[i] ?? 0;
       const typeIdx = result.data[i + 3] ?? 0;
-      if (typeIdx === 0) { // 'class' is index 0 in legend
+      if (typeIdx === 0) {
+        // 'class' is index 0 in legend
         classTokensOnLines.push(line);
       }
     }
 
     assert.ok(classTokensOnLines.includes(1), "should find Class Foo on line 1");
-    assert.ok(!classTokensOnLines.includes(3), "should NOT tokenize Foo inside string literal on line 3");
-    assert.ok(!classTokensOnLines.includes(4), "should NOT tokenize Foo inside trailing comment on line 4");
+    assert.ok(
+      !classTokensOnLines.includes(3),
+      "should NOT tokenize Foo inside string literal on line 3",
+    );
+    assert.ok(
+      !classTokensOnLines.includes(4),
+      "should NOT tokenize Foo inside trailing comment on line 4",
+    );
   });
 });
-

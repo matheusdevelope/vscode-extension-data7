@@ -81,6 +81,13 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     diagnosticCodes: ["invalid-interpolation"],
   }),
   metadata({
+    id: "tagged-template",
+    displayName: "Tagged Templates",
+    description: "Expands tagged template expressions into custom builder calls.",
+    enabledByDefault: true,
+    syntaxKinds: ["TaggedTemplateExpression"],
+  }),
+  metadata({
     id: "object-initializer",
     displayName: "Object Initializer",
     description: "Expands New T() With { .A = ... } into creation plus assignments.",

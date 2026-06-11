@@ -51,7 +51,10 @@ export class TypeResolver {
     const varLower = varName.toLowerCase();
 
     // Walk the AST from the beginning of the file up to the cursor position
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
     const unit = cached.unit;
     const locals = new Map<string, string>();
     collectLocalDeclarations(unit, position, locals, indexer, document, position.line);
@@ -72,7 +75,7 @@ export class TypeResolver {
       const param = currentMethod.parameters.find((p) => p.name.toLowerCase() === varLower);
       if (param) return param.type;
     }
-    if (currentMethod && currentMethod.name.toLowerCase() === varLower) {
+    if (currentMethod?.name.toLowerCase() === varLower) {
       return currentMethod.type;
     }
 
@@ -86,7 +89,7 @@ export class TypeResolver {
       const param = currentProperty.parameters.find((p) => p.name.toLowerCase() === varLower);
       if (param) return param.type;
     }
-    if (currentProperty && currentProperty.name.toLowerCase() === varLower) {
+    if (currentProperty?.name.toLowerCase() === varLower) {
       return currentProperty.type;
     }
 
@@ -243,7 +246,12 @@ export class TypeResolver {
       case "Identifier":
         return TypeResolver.resolveIdentifierType(expr.name, document, lineIdx, indexer);
       case "MemberAccess": {
-        const targetType = TypeResolver.resolveExpressionType(expr.target, document, lineIdx, indexer);
+        const targetType = TypeResolver.resolveExpressionType(
+          expr.target,
+          document,
+          lineIdx,
+          indexer,
+        );
         if (!targetType) return undefined;
         return TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
       }
@@ -253,7 +261,11 @@ export class TypeResolver {
         if (expr.methodName.toLowerCase() === "typeof" && !expr.callee) {
           return "Boolean";
         }
-        if (expr.methodName.toLowerCase() === "ctype" && expr.arguments.length === 2 && !expr.callee) {
+        if (
+          expr.methodName.toLowerCase() === "ctype" &&
+          expr.arguments.length === 2 &&
+          !expr.callee
+        ) {
           const targetArg = expr.arguments[1];
           if (targetArg) {
             return expressionToTypeString(targetArg);
@@ -263,16 +275,31 @@ export class TypeResolver {
           const qualifiedType = qualifiedTypeNameFromInvocation(expr, indexer);
           if (qualifiedType) return qualifiedType;
 
-          const targetType = TypeResolver.resolveExpressionType(expr.callee, document, lineIdx, indexer);
+          const targetType = TypeResolver.resolveExpressionType(
+            expr.callee,
+            document,
+            lineIdx,
+            indexer,
+          );
           if (!targetType) return undefined;
-          return TypeResolver.findMember(targetType, expr.methodName, indexer, expr.arguments.length)?.type;
+          return TypeResolver.findMember(
+            targetType,
+            expr.methodName,
+            indexer,
+            expr.arguments.length,
+          )?.type;
         }
         const fileSyms = indexer.getFileSymbols(document.uri.toString());
         const activeClass = fileSyms?.symbols.find(
-          (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine
+          (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
         );
         if (activeClass) {
-          const member = TypeResolver.findMember(activeClass.name, expr.methodName, indexer, expr.arguments.length);
+          const member = TypeResolver.findMember(
+            activeClass.name,
+            expr.methodName,
+            indexer,
+            expr.arguments.length,
+          );
           if (member?.type) return member.type;
         }
         return (
@@ -283,16 +310,28 @@ export class TypeResolver {
       case "OptionalChainingExpression":
         return TypeResolver.resolveExpressionType(expr.member, document, lineIdx, indexer);
       case "TernaryExpression": {
-        const trueType = TypeResolver.resolveExpressionType(expr.trueExpr, document, lineIdx, indexer);
-        const falseType = TypeResolver.resolveExpressionType(expr.falseExpr, document, lineIdx, indexer);
+        const trueType = TypeResolver.resolveExpressionType(
+          expr.trueExpr,
+          document,
+          lineIdx,
+          indexer,
+        );
+        const falseType = TypeResolver.resolveExpressionType(
+          expr.falseExpr,
+          document,
+          lineIdx,
+          indexer,
+        );
         if (trueType && falseType) {
           return trueType.toLowerCase() === falseType.toLowerCase() ? trueType : "Variant";
         }
         return trueType ?? falseType;
       }
       case "NullCoalescingExpression":
-        return TypeResolver.resolveExpressionType(expr.left, document, lineIdx, indexer) ?? 
-               TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
+        return (
+          TypeResolver.resolveExpressionType(expr.left, document, lineIdx, indexer) ??
+          TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer)
+        );
       case "PipeExpression":
         return TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
       case "ArrayLiteralExpression":
@@ -382,7 +421,7 @@ export class TypeResolver {
     if (lower === "me" || lower === "mybase") {
       const fileSyms = indexer.getFileSymbols(document.uri.toString());
       const activeClass = fileSyms?.symbols.find(
-        (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine
+        (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
       );
       if (lower === "me") {
         return activeClass?.name;
@@ -395,8 +434,7 @@ export class TypeResolver {
     if (local) return local;
 
     const symbol =
-      indexer.findSymbolByName(name, document.uri.toString()) ??
-      lookupSystemClassByName(name)[0];
+      indexer.findSymbolByName(name, document.uri.toString()) ?? lookupSystemClassByName(name)[0];
     if (
       symbol &&
       (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "namespace")
@@ -491,7 +529,10 @@ export class TypeResolver {
       };
 
       SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
-      indexer.getAllSymbols().filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
+      indexer
+        .getAllSymbols()
+        .filter((s) => containerMatch(s.containerName))
+        .forEach(addSymbol);
 
       const parent = TypeResolver.resolveParent(classSymbol);
       if (parent) collect(parent);
@@ -598,7 +639,9 @@ export class TypeResolver {
         (s) => s.name.toLowerCase() === memberLower,
       );
       if (arity !== undefined) {
-        const arityHit = genericHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
+        const arityHit = genericHits.find(
+          (s) => (s.parameters ? s.parameters.length : 0) === arity,
+        );
         if (arityHit) return arityHit;
       }
       if (genericHits.length > 0) return genericHits[0];
@@ -757,7 +800,7 @@ export class TypeResolver {
       .map((p) => {
         const parts = p.trim().split(/\s+As\s+/i);
         const name = parts[0]?.trim() ?? "";
-        const constraint = parts[1]?.trim() || name;
+        const constraint = parts[1]?.trim() ?? name;
         return { name, constraint };
       })
       .filter((item) => item.name.length > 0);
@@ -869,8 +912,7 @@ function getGenericTemplateMembersForType(
       (s) =>
         (s.kind === "class" || s.kind === "delegate" || s.kind === "method") &&
         s.name.toLowerCase() === parsed.base.toLowerCase() &&
-        s.genericTypeParameters !== undefined &&
-        s.genericTypeParameters.length === parsed.args.length,
+        s.genericTypeParameters?.length === parsed.args.length,
     );
   if (!template?.genericTypeParameters) return [];
 
@@ -924,8 +966,7 @@ function getGenericTemplateParentForType(
       (s) =>
         s.kind === "class" &&
         s.name.toLowerCase() === parsed.base.toLowerCase() &&
-        s.genericTypeParameters !== undefined &&
-        s.genericTypeParameters.length === parsed.args.length,
+        s.genericTypeParameters?.length === parsed.args.length,
     );
   if (!template?.genericTypeParameters) return undefined;
 
@@ -967,9 +1008,7 @@ function substituteGenericParametersPreservingSyntax(
   return current;
 }
 
-function parseGenericTypeReference(
-  typeName: string,
-): { base: string; args: string[] } | undefined {
+function parseGenericTypeReference(typeName: string): { base: string; args: string[] } | undefined {
   const trimmed = typeName.trim();
   const lt = trimmed.indexOf("<");
   if (lt <= 0 || !trimmed.endsWith(">")) return undefined;
@@ -1137,12 +1176,14 @@ function qualifiedTypeNameFromInvocation(
   const systemMatch = lookupSystemClassByName(expr.methodName).some(
     (sym) => sym.containerName?.toLowerCase() === containerLower,
   );
-  const workspaceMatch = indexer.getAllSymbols().some(
-    (sym) =>
-      sym.name.toLowerCase() === nameLower &&
-      (sym.kind === "class" || sym.kind === "structure") &&
-      sym.containerName?.toLowerCase() === containerLower,
-  );
+  const workspaceMatch = indexer
+    .getAllSymbols()
+    .some(
+      (sym) =>
+        sym.name.toLowerCase() === nameLower &&
+        (sym.kind === "class" || sym.kind === "structure") &&
+        sym.containerName?.toLowerCase() === containerLower,
+    );
   return systemMatch || workspaceMatch ? qualifiedName : undefined;
 }
 
@@ -1176,50 +1217,42 @@ function collectLocalDeclarations(
   switch (node.kind) {
     case "CompilationUnit":
     case "NamespaceDeclaration":
-      if (node.members) {
-        for (const m of node.members) {
-          if (m.kind === "NamespaceDeclaration") {
-            const mLine = Math.max(0, (m.loc?.startLine ?? 1) - 1);
-            const mEndLine = Math.max(0, (m.loc?.endLine ?? 1) - 1);
-            if (position.line >= mLine && position.line <= mEndLine) {
-              collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
-            }
-          } else {
+      for (const m of node.members) {
+        if (m.kind === "NamespaceDeclaration") {
+          const mLine = Math.max(0, (m.loc?.startLine ?? 1) - 1);
+          const mEndLine = Math.max(0, (m.loc?.endLine ?? 1) - 1);
+          if (position.line >= mLine && position.line <= mEndLine) {
+            collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+          }
+        } else {
+          collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+        }
+      }
+      break;
+
+    case "ClassDeclaration":
+      for (const m of node.members) {
+        if (m.loc) {
+          const mLine = Math.max(0, m.loc.startLine - 1);
+          const mEndLine = Math.max(0, m.loc.endLine - 1);
+          if (position.line >= mLine && position.line <= mEndLine) {
             collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
           }
         }
       }
       break;
 
-    case "ClassDeclaration":
-      if (node.members) {
-        for (const m of node.members) {
-          if (m.loc) {
-            const mLine = Math.max(0, m.loc.startLine - 1);
-            const mEndLine = Math.max(0, m.loc.endLine - 1);
-            if (position.line >= mLine && position.line <= mEndLine) {
-              collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
-            }
-          }
-        }
-      }
-      break;
-
     case "MethodDeclaration":
-      if (node.parameters) {
-        for (const p of node.parameters) {
-          locals.set(p.name.toLowerCase(), typeRefToString(p.type) ?? "Variant");
-        }
+      for (const p of node.parameters) {
+        locals.set(p.name.toLowerCase(), typeRefToString(p.type) ?? "Variant");
       }
-      if (node.body) {
-        for (const s of node.body) {
-          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-        }
+      for (const s of node.body) {
+        collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
       }
       break;
 
     case "PropertyDeclaration":
-      if (node.getter && node.getter.loc) {
+      if (node.getter?.loc) {
         const gLine = Math.max(0, node.getter.loc.startLine - 1);
         const gEndLine = Math.max(0, node.getter.loc.endLine - 1);
         if (position.line >= gLine && position.line <= gEndLine) {
@@ -1231,7 +1264,7 @@ function collectLocalDeclarations(
           collectLocalDeclarations(node.getter, position, locals, indexer, document, lineIdx);
         }
       }
-      if (node.setter && node.setter.loc) {
+      if (node.setter?.loc) {
         const sLine = Math.max(0, node.setter.loc.startLine - 1);
         const sEndLine = Math.max(0, node.setter.loc.endLine - 1);
         if (position.line >= sLine && position.line <= sEndLine) {
@@ -1259,10 +1292,8 @@ function collectLocalDeclarations(
     }
 
     case "DestructuredVariableDeclaration":
-      if (node.bindings) {
-        for (const b of node.bindings) {
-          locals.set(b.name.toLowerCase(), "Variant");
-        }
+      for (const b of node.bindings) {
+        locals.set(b.name.toLowerCase(), "Variant");
       }
       break;
 
@@ -1275,10 +1306,8 @@ function collectLocalDeclarations(
             node.elementVar.name.toLowerCase(),
             typeRefToString(node.elementType) ?? "Variant",
           );
-          if (node.body) {
-            for (const s of node.body) {
-              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-            }
+          for (const s of node.body) {
+            collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
           }
         }
       }
@@ -1290,28 +1319,20 @@ function collectLocalDeclarations(
         const end = Math.max(0, node.loc.endLine - 1);
         if (position.line >= start && position.line <= end) {
           locals.set(node.counter.name.toLowerCase(), "Integer");
-          if (node.body) {
-            for (const s of node.body) {
-              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-            }
+          for (const s of node.body) {
+            collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
           }
         }
       }
       break;
 
     case "IfStatement":
-      if (node.thenBranch) {
-        for (const s of node.thenBranch) {
-          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-        }
+      for (const s of node.thenBranch) {
+        collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
       }
-      if (node.elseIfBranches) {
-        for (const b of node.elseIfBranches) {
-          if (b.body) {
-            for (const s of b.body) {
-              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-            }
-          }
+      for (const b of node.elseIfBranches) {
+        for (const s of b.body) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
         }
       }
       if (node.elseBranch) {
@@ -1324,30 +1345,27 @@ function collectLocalDeclarations(
     case "WhileStatement":
     case "UsingStatement":
     case "WithStatement":
-      if (node.body) {
-        for (const s of node.body) {
-          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-        }
+      for (const s of node.body) {
+        collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
       }
       break;
 
     case "TryCatchStatement":
-      if (node.tryBody) {
-        for (const s of node.tryBody) {
-          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-        }
+      for (const s of node.tryBody) {
+        collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
       }
-      if (node.catchBody) {
+      {
         let inCatch = false;
-        const lastTry = node.tryBody && node.tryBody.length > 0 ? node.tryBody[node.tryBody.length - 1] : undefined;
+        const lastTry = node.tryBody.length > 0 ? node.tryBody[node.tryBody.length - 1] : undefined;
         const nodeStart = node.loc ? node.loc.startLine : 0;
         const nodeEnd = node.loc ? node.loc.endLine : 0;
-        const tryEnd = lastTry && lastTry.loc
+        const tryEnd = lastTry?.loc
           ? Math.max(0, lastTry.loc.endLine - 1)
           : Math.max(0, nodeStart - 1);
 
-        const firstFinally = node.finallyBody && node.finallyBody.length > 0 ? node.finallyBody[0] : undefined;
-        const finallyStart = firstFinally && firstFinally.loc
+        const firstFinally =
+          node.finallyBody && node.finallyBody.length > 0 ? node.finallyBody[0] : undefined;
+        const finallyStart = firstFinally?.loc
           ? Math.max(0, firstFinally.loc.startLine - 1)
           : Math.max(0, nodeEnd - 1);
 
@@ -1372,22 +1390,16 @@ function collectLocalDeclarations(
       break;
 
     case "MatchStatement":
-      if (node.cases) {
-        for (const c of node.cases) {
-          if (c.body) {
-            for (const s of c.body) {
-              collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-            }
-          }
+      for (const c of node.cases) {
+        for (const s of c.body) {
+          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
         }
       }
       break;
 
     case "Block":
-      if (node.statements) {
-        for (const s of node.statements) {
-          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-        }
+      for (const s of node.statements) {
+        collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
       }
       break;
   }

@@ -11,12 +11,7 @@ import {
 } from "./generics-analyzer";
 import { parseBasic } from "../project/parser";
 import { SugarRegistry } from "../project/sugar-registry";
-import {
-  ASTWalker,
-  type CompilationUnit,
-  type TypeReference,
-  type Node,
-} from "../project/ast/ast";
+import { ASTWalker, type CompilationUnit, type TypeReference, type Node } from "../project/ast/ast";
 
 // Parameter info
 export interface ParameterInfo {
@@ -101,8 +96,6 @@ function typeRefToString(typeRef: TypeReference | undefined): string | undefined
     .join(", ")}>`;
 }
 
-
-
 class SymbolIndexerWalker extends ASTWalker {
   public readonly symbols: SymbolInfo[] = [];
   private activeNamespace: string | undefined;
@@ -110,7 +103,7 @@ class SymbolIndexerWalker extends ASTWalker {
 
   constructor(
     private readonly fileUri: string,
-    private readonly lines: readonly string[]
+    private readonly lines: readonly string[],
   ) {
     super();
   }
@@ -138,7 +131,7 @@ class SymbolIndexerWalker extends ASTWalker {
           endChar: loc.endChar,
         },
         fileUri: this.fileUri,
-        description: node.comment?.trim() || `Namespace ${node.name}`,
+        description: node.comment?.trim() ?? `Namespace ${node.name}`,
       };
       this.symbols.push(nsSymbol);
 
@@ -172,7 +165,7 @@ class SymbolIndexerWalker extends ASTWalker {
         },
         fileUri: this.fileUri,
         containerName: this.activeNamespace,
-        description: node.comment?.trim() || undefined,
+        description: node.comment?.trim() ?? undefined,
       };
       if (node.typeParameters.length > 0) {
         classSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
@@ -190,7 +183,9 @@ class SymbolIndexerWalker extends ASTWalker {
     if (node.kind === "MethodDeclaration") {
       const isPrivate = node.modifiers?.includes("private") ?? false;
       const isProtected = node.modifiers?.includes("protected") ?? false;
-      const isShared = (node.modifiers?.includes("shared") ?? false) || (!this.activeClass && !!this.activeNamespace);
+      const isShared =
+        (node.modifiers?.includes("shared") ?? false) ||
+        (!this.activeClass && !!this.activeNamespace);
 
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
       const params = node.parameters.map((p) => ({
@@ -203,7 +198,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const methodSymbol: SymbolInfo = {
         name: node.name,
         kind: "method",
-        type: node.returnType ? typeRefToString(node.returnType) ?? "Variant" : "Void",
+        type: node.returnType ? (typeRefToString(node.returnType) ?? "Variant") : "Void",
         isShared,
         isPrivate,
         isProtected,
@@ -216,7 +211,7 @@ class SymbolIndexerWalker extends ASTWalker {
         },
         fileUri: this.fileUri,
         containerName: this.activeClass ?? this.activeNamespace,
-        description: node.comment?.trim() || undefined,
+        description: node.comment?.trim() ?? undefined,
         noParentheses: node.noParentheses,
       };
       if (node.typeParameters.length > 0) {
@@ -242,7 +237,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const delegateSymbol: SymbolInfo = {
         name: node.name,
         kind: "delegate",
-        type: node.returnType ? typeRefToString(node.returnType) ?? "Variant" : "Void",
+        type: node.returnType ? (typeRefToString(node.returnType) ?? "Variant") : "Void",
         isShared,
         isPrivate,
         isProtected,
@@ -255,7 +250,7 @@ class SymbolIndexerWalker extends ASTWalker {
         },
         fileUri: this.fileUri,
         containerName: this.activeClass ?? this.activeNamespace,
-        description: node.comment?.trim() || undefined,
+        description: node.comment?.trim() ?? undefined,
         noParentheses: node.noParentheses,
       };
       if (node.typeParameters.length > 0) {
@@ -272,14 +267,15 @@ class SymbolIndexerWalker extends ASTWalker {
 
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
       const params = node.parameters ?? node.getter?.parameters ?? node.setter?.parameters;
-      const parsedParams = params && params.length > 0
-        ? params.map((p) => ({
-            name: p.name,
-            type: typeRefToString(p.type) ?? "Variant",
-            isByRef: p.isByRef ?? false,
-            isOptional: false,
-          }))
-        : undefined;
+      const parsedParams =
+        params && params.length > 0
+          ? params.map((p) => ({
+              name: p.name,
+              type: typeRefToString(p.type) ?? "Variant",
+              isByRef: p.isByRef ?? false,
+              isOptional: false,
+            }))
+          : undefined;
 
       const propSymbol: SymbolInfo = {
         name: node.name,
@@ -296,7 +292,7 @@ class SymbolIndexerWalker extends ASTWalker {
         },
         fileUri: this.fileUri,
         containerName: this.activeClass ?? this.activeNamespace,
-        description: node.comment?.trim() || undefined,
+        description: node.comment?.trim() ?? undefined,
       };
       if (parsedParams) {
         propSymbol.parameters = parsedParams;
@@ -326,7 +322,7 @@ class SymbolIndexerWalker extends ASTWalker {
         },
         fileUri: this.fileUri,
         containerName: this.activeClass ?? this.activeNamespace,
-        description: node.comment?.trim() || undefined,
+        description: node.comment?.trim() ?? undefined,
       };
       this.symbols.push(varSymbol);
       return;
@@ -353,7 +349,7 @@ class SymbolIndexerWalker extends ASTWalker {
         },
         fileUri: this.fileUri,
         containerName: this.activeNamespace,
-        description: node.comment?.trim() || undefined,
+        description: node.comment?.trim() ?? undefined,
         inheritsFrom: "CoreSugarBaseEnum",
       };
       this.symbols.push(enumSymbol);
@@ -398,7 +394,7 @@ class SymbolIndexerWalker extends ASTWalker {
           },
           fileUri: this.fileUri,
           containerName: this.activeNamespace,
-          description: node.comment?.trim() || undefined,
+          description: node.comment?.trim() ?? undefined,
         };
         this.symbols.push(varSymbol);
       }
@@ -974,11 +970,7 @@ function collectGenericTemplatesFromSymbols(
   const seen = new Set<string>();
   for (const sym of symbols) {
     if (sym.fileUri === currentFileUri) continue;
-    if (
-      sym.kind !== "class" &&
-      sym.kind !== "delegate" &&
-      sym.kind !== "method"
-    ) {
+    if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") {
       continue;
     }
     if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
@@ -1056,7 +1048,9 @@ function appendClonedMembers(
 ): void {
   const templateLower = template.name.toLowerCase();
   let lookupSource = source;
-  const hasTemplateMembers = source.some((sym) => sym.containerName?.toLowerCase() === templateLower);
+  const hasTemplateMembers = source.some(
+    (sym) => sym.containerName?.toLowerCase() === templateLower,
+  );
   if (!hasTemplateMembers) {
     const workspaceSymbols = indexer.getAllSymbols();
     const hasWorkspaceTemplateMembers = workspaceSymbols.some(

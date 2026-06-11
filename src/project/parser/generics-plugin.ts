@@ -1,7 +1,4 @@
-import type {
-  TypeParameter,
-  TypeReference,
-} from "../ast/ast";
+import type { TypeParameter, TypeReference } from "../ast/ast";
 import type { Parser } from "./parser";
 import type { ParserPlugin } from "./plugin";
 

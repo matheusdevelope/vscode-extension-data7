@@ -1,10 +1,6 @@
 import * as vscode from "vscode";
 import { LanguageProcessor } from "../analysis/language-processor";
-import type {
-  TopLevelMember,
-  ClassMember,
-  SourceLocation,
-} from "../project/ast/ast";
+import type { TopLevelMember, ClassMember, SourceLocation } from "../project/ast/ast";
 
 /**
  * Provides hierarchical symbols (Namespace > Class > Method/Property/Field)
@@ -18,7 +14,10 @@ export class D7BasicDocumentSymbolProvider implements vscode.DocumentSymbolProvi
   ): vscode.ProviderResult<vscode.DocumentSymbol[]> {
     if (token.isCancellationRequested) return undefined;
 
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
     const unit = cached.unit;
 
     const symbols: vscode.DocumentSymbol[] = [];
@@ -59,7 +58,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         "Namespace",
         vscode.SymbolKind.Namespace,
         range,
-        selRange
+        selRange,
       );
       for (const m of member.members) {
         sym.children.push(...processMember(m));
@@ -74,7 +73,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         detail,
         vscode.SymbolKind.Class,
         range,
-        selRange
+        selRange,
       );
       for (const m of member.members) {
         sym.children.push(...processMember(m));
@@ -86,15 +85,17 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
       const isSub = !member.returnType;
       const params = member.parameters.length;
       const paramStr = `(${params} param${params === 1 ? "" : "s"})`;
-      const detail = isSub 
-        ? (member.isConstructor ? "Sub New" : `Sub ${paramStr}`)
+      const detail = isSub
+        ? member.isConstructor
+          ? "Sub New"
+          : `Sub ${paramStr}`
         : `Function ${paramStr} → ${member.returnType ? member.returnType.name : "Variant"}`;
       const sym = new vscode.DocumentSymbol(
         member.name,
         detail,
         vscode.SymbolKind.Method,
         range,
-        selRange
+        selRange,
       );
       symbols.push(sym);
       break;
@@ -106,7 +107,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         detail,
         vscode.SymbolKind.Property,
         range,
-        selRange
+        selRange,
       );
       symbols.push(sym);
       break;
@@ -118,7 +119,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         detail,
         vscode.SymbolKind.Field,
         range,
-        selRange
+        selRange,
       );
       symbols.push(sym);
       break;
@@ -129,7 +130,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         "Enum",
         vscode.SymbolKind.Enum,
         range,
-        selRange
+        selRange,
       );
       for (const entry of member.entries) {
         const entryRange = toVsCodeRange(entry.loc);
@@ -139,7 +140,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
           "Enum Member",
           vscode.SymbolKind.EnumMember,
           entryRange,
-          entrySelRange
+          entrySelRange,
         );
         sym.children.push(entrySym);
       }
@@ -152,7 +153,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         "Delegate",
         vscode.SymbolKind.Event,
         range,
-        selRange
+        selRange,
       );
       symbols.push(sym);
       break;
@@ -165,7 +166,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
         detail,
         vscode.SymbolKind.Variable,
         range,
-        selRange
+        selRange,
       );
       symbols.push(sym);
       break;
@@ -179,7 +180,7 @@ function processMember(member: TopLevelMember | ClassMember): vscode.DocumentSym
           "Var (Destructured)",
           vscode.SymbolKind.Variable,
           bRange,
-          bSelRange
+          bSelRange,
         );
         symbols.push(sym);
       }

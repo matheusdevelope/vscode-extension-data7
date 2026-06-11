@@ -2,13 +2,13 @@ import * as vscode from "vscode";
 
 import { LANGUAGE_IDS } from "../infra/constants";
 
-import { D7BasicCodeActionProvider } from "./code-actions";
+import { D7BasicCodeActionProvider } from "./code-action-provider";
 import { D7BasicCompletionProvider } from "./completion-provider";
 import { D7BasicDefinitionProvider } from "./definition-provider";
 import { D7BasicDocumentLinkProvider } from "./document-link-provider";
 import { D7BasicDocumentSymbolProvider } from "./document-symbol-provider";
 import { D7BasicFoldingRangeProvider } from "./folding-provider";
-import { D7BasicFormattingProvider } from "./formatter";
+import { D7BasicFormattingProvider } from "./formatter-provider";
 import { D7BasicHoverProvider } from "./hover-provider";
 import { D7BasicReferenceProvider } from "./reference-provider";
 import { D7BasicRenameProvider } from "./rename-provider";

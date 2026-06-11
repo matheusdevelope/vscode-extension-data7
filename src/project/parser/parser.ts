@@ -276,7 +276,7 @@ export class Parser {
 
     if (head.kind === "keyword" || head.kind === "identifier") {
       const v = head.value.toLowerCase();
-      
+
       for (const plugin of this.plugins) {
         if (plugin.parseStatement) {
           const res = plugin.parseStatement(this);
@@ -289,7 +289,7 @@ export class Parser {
       if (v === "sub" || v === "function") return this.parseMethod();
       if (v === "delegate") return this.parseDelegate();
       if (v === "imports") return this.parseImportsDeclaration();
-      
+
       if (v === "dim" || v === "const") {
         this.parseModifiers();
         const startLoc = this.peek().loc;
@@ -431,7 +431,11 @@ export class Parser {
       const m = this.parseClassMember();
       if (m !== null) classMembers.push(m);
     }
-    this.recordError("unterminated-block", `${isStructure ? "Structure" : "Class"} '${name}' is missing 'End ${isStructure ? "Structure" : "Class"}'.`, startLoc);
+    this.recordError(
+      "unterminated-block",
+      `${isStructure ? "Structure" : "Class"} '${name}' is missing 'End ${isStructure ? "Structure" : "Class"}'.`,
+      startLoc,
+    );
     const decl: ClassDeclaration = {
       kind: "ClassDeclaration",
       name,
@@ -649,7 +653,10 @@ export class Parser {
     return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
   }
 
-  private parseSingleVariableDeclaration(startLoc: TokenLocation, isConst: boolean): VariableDeclaration {
+  private parseSingleVariableDeclaration(
+    startLoc: TokenLocation,
+    isConst: boolean,
+  ): VariableDeclaration {
     const nameToken = this.expect("identifier", "<variable-name>");
     const name = nameToken?.value ?? "";
     let type: TypeReference | undefined;
@@ -694,7 +701,10 @@ export class Parser {
     };
   }
 
-  public parseLocalVariableDeclarationAfterDim(startLoc: TokenLocation, isConst: boolean): Statement {
+  public parseLocalVariableDeclarationAfterDim(
+    startLoc: TokenLocation,
+    isConst: boolean,
+  ): Statement {
     const first = this.parseSingleVariableDeclaration(startLoc, isConst);
 
     if (this.match("punct", ",")) {
@@ -1034,7 +1044,7 @@ export class Parser {
           isUntil = Parser.eq(tailToken, "until");
           this.advance();
           condition = this.parseExpression();
-          if (condition && condition.loc) {
+          if (condition.loc) {
             endLoc = { line: condition.loc.endLine, column: condition.loc.endChar };
           }
         }
@@ -1131,8 +1141,6 @@ export class Parser {
       loc: locOf(startLoc, endLoc),
     };
   }
-
-
 
   private parseReturnStatement(): ReturnStatement {
     const startLoc = this.peek().loc;
@@ -1242,7 +1250,14 @@ export class Parser {
     const next = this.peek();
     if (
       next.kind === "punct" &&
-      (next.value === "=" || next.value === "+=" || next.value === "-=" || next.value === "*=" || next.value === "/=" || next.value === "??=" || next.value === "||=" || next.value === "&&=")
+      (next.value === "=" ||
+        next.value === "+=" ||
+        next.value === "-=" ||
+        next.value === "*=" ||
+        next.value === "/=" ||
+        next.value === "??=" ||
+        next.value === "||=" ||
+        next.value === "&&=")
     ) {
       const op = this.advance().value;
       const right = this.parseExpression();
@@ -1744,40 +1759,43 @@ export class Parser {
   private parseSelectCaseStatement(): SelectCaseStatement {
     const startLoc = this.peek().loc;
     this.advance(); // 'Select'
-    
+
     // Opcional: consome 'Case' se existir (ex.: Select Case x)
     if (this.match("keyword", "case") || this.match("identifier", "case")) {
       this.advance(); // consome 'Case'
     }
-    
+
     const expression = this.parseExpression();
     this.skipToEndOfLine();
-    
+
     const cases: SelectCaseBranch[] = [];
     let endLoc: TokenLocation | undefined;
-    
+
     while (!this.isEOF()) {
       this.skipNewlines();
-      
+
       if (this.matchEnd("select")) {
         endLoc = this.consumeEnd("select");
         this.skipToEndOfLine();
         break;
       }
-      
+
       const head = this.peek();
       if (head.kind === "identifier" || head.kind === "keyword") {
         const v = head.value.toLowerCase();
         if (v === "case") {
           const caseStartLoc = head.loc;
           this.advance(); // consome 'Case'
-          
+
           let isElse = false;
           const values: Expression[] = [];
-          
+
           // Verifica se é "Case Else"
           const next = this.peek();
-          if ((next.kind === "keyword" || next.kind === "identifier") && next.value.toLowerCase() === "else") {
+          if (
+            (next.kind === "keyword" || next.kind === "identifier") &&
+            next.value.toLowerCase() === "else"
+          ) {
             this.advance(); // consome 'Else'
             isElse = true;
           } else {
@@ -1790,11 +1808,11 @@ export class Parser {
             }
           }
           this.skipToEndOfLine();
-          
+
           const body: Statement[] = [];
           while (!this.isEOF()) {
             this.skipNewlines();
-            
+
             const nextHead = this.peek();
             if (nextHead.kind === "identifier" || nextHead.kind === "keyword") {
               const val = nextHead.value.toLowerCase();
@@ -1805,14 +1823,14 @@ export class Parser {
                 break;
               }
             }
-            
+
             const stmt = this.parseStatement();
             if (stmt !== null) {
               body.push(stmt);
             }
             this.skipStatementSeparator();
           }
-          
+
           const caseEndLoc = this.peek().loc;
           cases.push({
             kind: "SelectCaseBranch",
@@ -1824,12 +1842,12 @@ export class Parser {
           continue;
         }
       }
-      
+
       const errLoc = this.peek().loc;
       this.recordError("expected-token", "Expected 'Case', 'Case Else' or 'End Select'.", errLoc);
       this.advance();
     }
-    
+
     return {
       kind: "SelectCaseStatement",
       expression,
@@ -1896,7 +1914,16 @@ export class Parser {
       };
     }
     const comment = this.skipToEndOfLine();
-    return { kind: "FieldDeclaration", name, type, initializer, isArraySugar, loc: locOf(startLoc), modifiers, comment };
+    return {
+      kind: "FieldDeclaration",
+      name,
+      type,
+      initializer,
+      isArraySugar,
+      loc: locOf(startLoc),
+      modifiers,
+      comment,
+    };
   }
 
   private consumeArraySugarMarker(): boolean {
@@ -1986,7 +2013,7 @@ export class Parser {
 
     let depth = 1;
     let idx = 2;
-    while (true) {
+    for (;;) {
       const t = this.peek(idx);
       if (t.kind === "eof" || t.kind === "newline") return false;
       if (t.kind === "punct") {
@@ -2135,7 +2162,10 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "readonly",
 ]);
 
-function locOf(loc: TokenLocation, endLoc?: TokenLocation): {
+function locOf(
+  loc: TokenLocation,
+  endLoc?: TokenLocation,
+): {
   startLine: number;
   startChar: number;
   endLine: number;

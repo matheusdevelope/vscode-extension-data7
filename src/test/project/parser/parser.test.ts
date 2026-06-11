@@ -176,7 +176,7 @@ describe("parser/parser", () => {
       "   Else",
       "      y = 30",
       "   End If",
-      "End Sub"
+      "End Sub",
     ].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
@@ -203,7 +203,7 @@ describe("parser/parser", () => {
       "   For Each element As Integer In list",
       "      y = element",
       "   Next",
-      "End Sub"
+      "End Sub",
     ].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
@@ -222,7 +222,7 @@ describe("parser/parser", () => {
       "   Finally",
       "      Cleanup()",
       "   End Try",
-      "End Sub"
+      "End Sub",
     ].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
@@ -245,7 +245,7 @@ describe("parser/parser", () => {
       "   Using conn As New Connection(connString)",
       "      conn.Open()",
       "   End Using",
-      "End Sub"
+      "End Sub",
     ].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
@@ -269,7 +269,7 @@ describe("parser/parser", () => {
       "      Case Else:",
       "         Noop()",
       "   End Match",
-      "End Sub"
+      "End Sub",
     ].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
@@ -292,22 +292,22 @@ describe("parser/parser", () => {
       "   Dim a = cond ? x : y",
       "   Dim b = first ?? fallback",
       "   Dim c = data |> Trim |> UCase",
-      "   Dim d = sql$\"select * from {tbl}\"",
-      "End Sub"
+      '   Dim d = sql$"select * from {tbl}"',
+      "End Sub",
     ].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
     const m = r.unit.members[0] as MethodDeclaration;
-    
+
     const d1 = m.body[0] as VariableDeclaration;
     assert.equal(d1.initializer?.kind, "TernaryExpression");
-    
+
     const d2 = m.body[1] as VariableDeclaration;
     assert.equal(d2.initializer?.kind, "NullCoalescingExpression");
-    
+
     const d3 = m.body[2] as VariableDeclaration;
     assert.equal(d3.initializer?.kind, "PipeExpression");
-    
+
     const d4 = m.body[3] as VariableDeclaration;
     assert.equal(d4.initializer?.kind, "TaggedTemplateExpression");
   });
@@ -393,7 +393,7 @@ describe("parser/parser", () => {
       "Class TestProp",
       "   Property Item(pIndex As Integer) As String",
       "      Get",
-      "         Item = \"hello\"",
+      '         Item = "hello"',
       "      End Get",
       "      Set(pValue As String)",
       "         me.SetItem(pIndex, pValue)",
@@ -529,11 +529,7 @@ describe("parser/parser", () => {
   });
 
   test("parses Throw statement structurally (GAP-05)", () => {
-    const src = [
-      "Sub TestThrow()",
-      "   Throw New Exception(\"error\")",
-      "End Sub",
-    ].join("\n");
+    const src = ["Sub TestThrow()", '   Throw New Exception("error")', "End Sub"].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
     const m = r.unit.members[0] as MethodDeclaration;
@@ -542,10 +538,7 @@ describe("parser/parser", () => {
   });
 
   test("parses method parameters with default values (GAP-09)", () => {
-    const src = [
-      "Sub New(pTimeToStart As Integer = 10)",
-      "End Sub",
-    ].join("\n");
+    const src = ["Sub New(pTimeToStart As Integer = 10)", "End Sub"].join("\n");
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
     const m = r.unit.members[0] as MethodDeclaration;
@@ -557,11 +550,9 @@ describe("parser/parser", () => {
   });
 
   test("parses class field with inline initializer (GAP-07)", () => {
-    const src = [
-      "Class TestFieldInit",
-      "   CheckEvents As Boolean = False",
-      "End Class",
-    ].join("\n");
+    const src = ["Class TestFieldInit", "   CheckEvents As Boolean = False", "End Class"].join(
+      "\n",
+    );
     const r = parse(src);
     assert.deepEqual([...r.errors], []);
     const klass = r.unit.members[0] as ClassDeclaration;

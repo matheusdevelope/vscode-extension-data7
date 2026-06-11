@@ -96,7 +96,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
       LanguageProcessor.getInstance().handleDocumentChange(
         e.document.uri.toString(),
         e.document.getText(),
-        e.document.version
+        e.document.version,
       );
     }
   });

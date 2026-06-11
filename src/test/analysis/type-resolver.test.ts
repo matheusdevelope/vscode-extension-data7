@@ -747,7 +747,7 @@ End Namespace`;
       assert.equal(TypeResolver.getVariableType("n2", doc, pos1, indexer), "Nivel2");
 
       // Verify that calling n2.Func() resolves to Nivel2.Func (Integer)
-      const n2FuncType = TypeResolver.inferExpressionType("n2.Func(\"hello\")", doc, 15, indexer);
+      const n2FuncType = TypeResolver.inferExpressionType('n2.Func("hello")', doc, 15, indexer);
       assert.equal(n2FuncType, "Integer");
 
       // Verify that casted Nivel1(n2) resolves to Nivel1
@@ -755,7 +755,12 @@ End Namespace`;
       assert.equal(castType, "Nivel1");
 
       // Verify that calling Nivel1(n2).Func() resolves to Nivel1.Func (String)
-      const castedFuncType = TypeResolver.inferExpressionType("Nivel1(n2).Func(\"hello\")", doc, 15, indexer);
+      const castedFuncType = TypeResolver.inferExpressionType(
+        'Nivel1(n2).Func("hello")',
+        doc,
+        15,
+        indexer,
+      );
       assert.equal(castedFuncType, "String");
     });
   });

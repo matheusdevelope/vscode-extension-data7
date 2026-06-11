@@ -13,7 +13,7 @@ export const symbols: SystemSymbolInfo[] = [
         type: "String",
         isByRef: false,
         isOptional: false,
-      }
+      },
     ],
     range: {
       startLine: 0,

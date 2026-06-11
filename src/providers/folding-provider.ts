@@ -16,7 +16,10 @@ export class D7BasicFoldingRangeProvider implements vscode.FoldingRangeProvider 
   ): vscode.ProviderResult<vscode.FoldingRange[]> {
     if (token.isCancellationRequested) return undefined;
 
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
     const unit = cached.unit;
     const ranges: vscode.FoldingRange[] = [];
 

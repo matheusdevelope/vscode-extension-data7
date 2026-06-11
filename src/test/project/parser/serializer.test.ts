@@ -2,10 +2,7 @@ import "../../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { parse, serializeUnit } from "../../../project/parser";
-import type {
-  ClassDeclaration,
-  CompilationUnit,
-} from "../../../project/ast/ast";
+import type { ClassDeclaration, CompilationUnit } from "../../../project/ast/ast";
 
 describe("parser/serializer", () => {
   test("serialises an empty unit to an empty string", () => {
@@ -113,7 +110,7 @@ describe("parser/serializer", () => {
       "Class TestProp",
       "   Property Item(pIndex As Integer) As String",
       "      Get",
-      "         Item = \"hello\"",
+      '         Item = "hello"',
       "      End Get",
       "      Set(pValue As String)",
       "         me.SetItem(pIndex, pValue)",
@@ -157,11 +154,9 @@ describe("parser/serializer", () => {
   });
 
   test("serialises Exit statements inside single-line If", () => {
-    const src = [
-      "Sub TestExitIf()",
-      "   If pStart >= me.Length() Then Exit For",
-      "End Sub",
-    ].join("\n");
+    const src = ["Sub TestExitIf()", "   If pStart >= me.Length() Then Exit For", "End Sub"].join(
+      "\n",
+    );
     const r = parse(src);
     const out = serializeUnit(r.unit);
     assert.match(out, /If pStart >= me\.Length\(\) Then Exit For/);

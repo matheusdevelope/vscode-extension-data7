@@ -7,7 +7,7 @@ import { detectEnumerable } from "../analysis/enumerable-detector";
 import { formatParameterList } from "../utils/format-helpers";
 import { LANGUAGE_IDS } from "../infra/constants";
 import { inferLiteralType } from "../utils/literal-type-infer";
-import { D7AstContext, astLocalToSymbol, typeRefToString } from "./ast-context";
+import { D7AstContext, astLocalToSymbol, typeRefToString } from "../analysis/ast-context";
 
 export class D7BasicHoverProvider implements vscode.HoverProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -96,7 +96,9 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
           if (wordLower === "me") {
             targetSymbol = {
               ...activeClass,
-              description: `Representa a instancia atual da classe \`${activeClass.name}\`.` + (activeClass.description ? `\n\n${activeClass.description}` : ""),
+              description:
+                `Representa a instancia atual da classe \`${activeClass.name}\`.` +
+                (activeClass.description ? `\n\n${activeClass.description}` : ""),
             };
           } else {
             const parentName = activeClass.inheritsFrom ?? "TObject";
@@ -104,7 +106,9 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
             if (parentSymbol) {
               targetSymbol = {
                 ...parentSymbol,
-                description: `Acessa membros da classe base herdada \`${parentName}\`.` + (parentSymbol.description ? `\n\n${parentSymbol.description}` : ""),
+                description:
+                  `Acessa membros da classe base herdada \`${parentName}\`.` +
+                  (parentSymbol.description ? `\n\n${parentSymbol.description}` : ""),
               };
             } else {
               targetSymbol = {
@@ -129,11 +133,11 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
 
       if (!targetSymbol) {
         const activeMethod = ast.getActiveMethodSymbol();
-        if (activeMethod && activeMethod.name.toLowerCase() === wordLower) {
+        if (activeMethod?.name.toLowerCase() === wordLower) {
           targetSymbol = activeMethod;
         } else {
           const activeProperty = ast.getActivePropertySymbol();
-          if (activeProperty && activeProperty.name.toLowerCase() === wordLower) {
+          if (activeProperty?.name.toLowerCase() === wordLower) {
             targetSymbol = activeProperty;
           }
         }
@@ -149,13 +153,11 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
         }
       }
 
-      if (!targetSymbol) {
-        targetSymbol =
-          this.indexer.findSymbolByName(word, document.uri.toString()) ??
-          lookupSystemByName(word).find(
-            (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
-          );
-      }
+      targetSymbol ??=
+        this.indexer.findSymbolByName(word, document.uri.toString()) ??
+        lookupSystemByName(word).find(
+          (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
+        );
 
       if (!targetSymbol) {
         const constraint = ast.getGenericParametersInScope().get(wordLower);

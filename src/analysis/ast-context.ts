@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { TypeResolver } from "../analysis/type-resolver";
+import type { SymbolInfo } from "./symbol-indexer";
+import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
+import { TypeResolver } from "./type-resolver";
 import type { Token } from "../project/parser";
-import { LanguageProcessor } from "../analysis/language-processor";
+import { LanguageProcessor } from "./language-processor";
 import type {
   ClassDeclaration,
   ClassMember,
@@ -59,7 +59,10 @@ export class D7AstContext {
     public readonly position: vscode.Position,
     private readonly indexer: WorkspaceSymbolIndexer,
   ) {
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
     this.unit = cached.unit;
     this.tokens = cached.tokens;
     this.tokenAtPosition = this.findTokenAtPosition(position);
@@ -279,12 +282,20 @@ export class D7AstContext {
       if (expr.kind === "MemberAccess") {
         candidates.push({ memberName: expr.member, receiver: expr.target, arity: 0 });
       } else if (expr.kind === "MethodInvocation" && expr.callee) {
-        candidates.push({ memberName: expr.methodName, receiver: expr.callee, arity: expr.arguments.length });
+        candidates.push({
+          memberName: expr.methodName,
+          receiver: expr.callee,
+          arity: expr.arguments.length,
+        });
       } else if (expr.kind === "OptionalChainingExpression") {
         if (expr.member.kind === "MemberAccess") {
           candidates.push({ memberName: expr.member.member, receiver: expr.target, arity: 0 });
         } else if (expr.member.kind === "MethodInvocation") {
-          candidates.push({ memberName: expr.member.methodName, receiver: expr.target, arity: expr.member.arguments.length });
+          candidates.push({
+            memberName: expr.member.methodName,
+            receiver: expr.target,
+            arity: expr.member.arguments.length,
+          });
         }
       }
     });
@@ -482,9 +493,8 @@ export class D7AstContext {
 
   private bindingFromVariable(node: VariableDeclaration): AstLocalBinding {
     const explicitType = typeRefToString(node.type);
-    const inferredType = !explicitType && node.initializer
-      ? this.resolveExpressionType(node.initializer)
-      : undefined;
+    const inferredType =
+      !explicitType && node.initializer ? this.resolveExpressionType(node.initializer) : undefined;
     return {
       name: node.name,
       type: explicitType ?? inferredType ?? "Variant",

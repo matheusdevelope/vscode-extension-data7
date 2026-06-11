@@ -66,7 +66,8 @@ export class D7BasicReferenceProvider implements vscode.ReferenceProvider {
         // Resolve the exact column of the identifier token on the declaration line
         const declCached = LanguageProcessor.getInstance().getOrParse(declUri);
         const declToken = declCached.tokens.find(
-          (t) => t.loc.line === declLine + 1 && t.value.toLowerCase() === declaration.name.toLowerCase(),
+          (t) =>
+            t.loc.line === declLine + 1 && t.value.toLowerCase() === declaration.name.toLowerCase(),
         );
         if (declToken) {
           declChar = declToken.loc.column;

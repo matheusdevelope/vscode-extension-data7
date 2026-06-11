@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { D7AstContext } from "./ast-context";
+import { D7AstContext } from "../analysis/ast-context";
 
 export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();

@@ -1,9 +1,4 @@
-import type {
-  Expression,
-  Statement,
-  TypeParameter,
-  TypeReference,
-} from "../ast/ast";
+import type { Expression, Statement, TypeParameter, TypeReference } from "../ast/ast";
 import type { Parser } from "./parser";
 import type { Token } from "./token-types";
 

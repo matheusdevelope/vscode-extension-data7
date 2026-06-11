@@ -38,7 +38,10 @@ export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTok
     const lookup = this.buildSymbolLookup();
     const builder = new vscode.SemanticTokensBuilder(D7BasicSemanticTokensLegend);
 
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
     const tokens = cached.tokens;
     for (const t of tokens) {
       if (t.kind === "identifier") {

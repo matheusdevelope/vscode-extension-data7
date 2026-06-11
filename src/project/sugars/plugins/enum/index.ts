@@ -30,4 +30,3 @@ export const enumSugarPlugin: SugarPlugin = {
   syntaxKinds: ["EnumDeclaration"],
   utilityModules: () => [enumUtility],
 };
-
