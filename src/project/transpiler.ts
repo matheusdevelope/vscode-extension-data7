@@ -31,6 +31,8 @@ import {
   type BinaryExpression,
   type WithStatement,
   type ParameterDeclaration,
+  type IfStatement,
+  type ThrowStatement,
 } from "./ast/ast";
 
 export interface SugarDiagnostic {
@@ -1449,7 +1451,13 @@ export class ASTSugarTransformer extends ASTWalker {
           kind: "VariableDeclaration",
           name: s.resourceVar.name,
           type: s.resourceType,
-          initializer: {
+          loc: s.loc,
+        };
+
+        const instantiate: Assignment = {
+          kind: "Assignment",
+          target: s.resourceVar,
+          value: {
             kind: "ObjectCreationExpression",
             type: s.resourceType,
             arguments: s.resourceArgs,
@@ -1471,13 +1479,66 @@ export class ASTSugarTransformer extends ASTWalker {
           loc: s.loc,
         };
 
+        const catchVar: Identifier = {
+          kind: "Identifier",
+          name: "ex",
+          loc: s.loc,
+        };
+
+        const catchType: TypeReference = {
+          kind: "TypeReference",
+          name: "Exception",
+          typeArguments: [],
+          loc: s.loc,
+        };
+
+        const assignedCheck: MethodInvocation = {
+          kind: "MethodInvocation",
+          methodName: "Assigned",
+          typeArguments: [],
+          arguments: [s.resourceVar],
+          loc: s.loc,
+        };
+
+        const freeCallInCatch: ExpressionStatement = {
+          kind: "ExpressionStatement",
+          expression: {
+            kind: "MethodInvocation",
+            callee: s.resourceVar,
+            methodName: "Free",
+            typeArguments: [],
+            arguments: [],
+            loc: s.loc,
+          },
+          loc: s.loc,
+        };
+
+        const ifAssigned: IfStatement = {
+          kind: "IfStatement",
+          condition: assignedCheck,
+          thenBranch: [freeCallInCatch],
+          elseIfBranches: [],
+          loc: s.loc,
+        };
+
+        const throwStmt: ThrowStatement = {
+          kind: "ThrowStatement",
+          expression: {
+            kind: "Identifier",
+            name: "ex",
+            loc: s.loc,
+          },
+          loc: s.loc,
+        };
+
         return [
           resourceDecl,
           {
             kind: "TryCatchStatement",
-            tryBody: s.body,
-            catchBody: [],
-            finallyBody: [freeCall],
+            tryBody: [instantiate, ...s.body, freeCall],
+            catchVar,
+            catchType,
+            catchBody: [ifAssigned, throwStmt],
             loc: s.loc,
           },
         ];

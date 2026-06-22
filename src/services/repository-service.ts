@@ -437,7 +437,7 @@ export class RepositoryService {
           "Exclusão no repositório requer um workspace confiável.",
         )
       )
-        return;
+        {return;}
       const confirm = await vscode.window.showWarningMessage(
         `Deseja realmente excluir o módulo "${selected.label}" do repositório?`,
         { modal: true },

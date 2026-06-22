@@ -23,7 +23,7 @@
 export type SuppressionTarget = "*" | ReadonlySet<string>;
 
 const DIRECTIVE_REGEX =
-  /(?:'|REM\s)\s*data7:(disable-line|disable-next-line)(?:\s+([a-zA-Z0-9_\-, ]+))?/i;
+  /(?:'|REM\s)\s*data7:(disable-line|disable-next-line|disable\b)(?:\s+([a-zA-Z0-9_\-, ]+))?/i;
 
 /**
  * Parses all `data7:disable-*` directives in `text` and returns the set of
@@ -38,13 +38,45 @@ export function extractSuppressedCodes(text: string): Map<number, SuppressionTar
   const map = new Map<number, SuppressionTarget>();
   const lines = text.split(/\r?\n/);
 
+  // Pass 1: collect file-wide suppressions
+  const fileWideCodes = new Set<string>();
+  let disableAllFile = false;
+  const FILE_DIRECTIVE_REGEX = /(?:'|REM\s)\s*data7:disable\b(?:\s+([a-zA-Z0-9_\-, ]+))?/i;
+
+  for (const line of lines) {
+    
+    // Exclude disable-line and disable-next-line from file-wide check
+    if (/\bdata7:disable-(?:line|next-line)\b/i.test(line)) continue;
+
+    const match = FILE_DIRECTIVE_REGEX.exec(line);
+    if (!match) continue;
+
+    const codes = parseCodes(match[1]);
+    if (codes === "*") {
+      disableAllFile = true;
+    } else {
+      for (const c of codes) fileWideCodes.add(c);
+    }
+  }
+
+  // Pass 2: apply both file-wide and line-specific suppressions
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;
+
+    if (disableAllFile) {
+      mergeSuppression(map, i, "*");
+    } else if (fileWideCodes.size > 0) {
+      mergeSuppression(map, i, fileWideCodes);
+    }
+
     const match = DIRECTIVE_REGEX.exec(line);
     if (!match?.[1]) continue;
 
     const kind = match[1].toLowerCase();
+    // Skip file-wide "disable" since we already processed it in Pass 1
+    if (kind === "disable") continue;
+
     const codes = parseCodes(match[2]);
 
     if (kind === "disable-line") {

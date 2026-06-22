@@ -967,14 +967,19 @@ describe("SugarTranspiler — B1 object initializer", () => {
 describe("SugarTranspiler — B2 Using (multi-line)", () => {
   const ctx = makeContext({});
 
-  test("expands `Using x As New T(args) / body / End Using` into Try/Finally", () => {
+  test("expands `Using x As New T(args) / body / End Using` into Try/Catch with Free", () => {
     const code = ['Using form As New TFormCard("X")', "   form.Show()", "End Using"].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Dim form As TFormCard = New TFormCard\("X"\)/);
+    assert.match(out, /Dim form As TFormCard/);
     assert.match(out, /Try/);
-    assert.match(out, /Finally/);
+    assert.match(out, /form = New TFormCard\("X"\)/);
+    assert.match(out, /form\.Show\(\)/);
     assert.match(out, /form\.Free\(\)/);
+    assert.match(out, /Catch ex As Exception/);
+    assert.match(out, /If Assigned\(form\) Then/);
+    assert.match(out, /form\.Free\(\)/);
+    assert.match(out, /Throw ex/);
     assert.match(out, /End Try/);
   });
 });

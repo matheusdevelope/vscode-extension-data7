@@ -215,6 +215,8 @@ export const DiagnosticCodes = {
   DeadCode: "dead-code",
   /** Incompatible types assigned to a variable or function return value. */
   TypeMismatch: "type-mismatch",
+  /** Finally block inside Try-Catch is not supported due to compiler issues. */
+  FinallyBlockUnsupported: "finally-block-unsupported",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];

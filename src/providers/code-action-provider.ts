@@ -52,6 +52,21 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     // Per-diagnostic QuickFixes.
     for (const diagnostic of context.diagnostics) {
+      const rawCode = diagnostic.code;
+      let codeStr: string | undefined;
+      if (typeof rawCode === "string") {
+        codeStr = rawCode;
+      } else if (typeof rawCode === "number") {
+        codeStr = String(rawCode);
+      } else if (rawCode && typeof rawCode === "object" && "value" in rawCode) {
+        codeStr = String(rawCode.value);
+      }
+
+      if (codeStr) {
+        this.addLineSuppressionFix(actions, document, diagnostic, codeStr);
+        this.addFileSuppressionFix(actions, document, diagnostic, codeStr);
+      }
+
       switch (diagnostic.code) {
         case DiagnosticCodes.MissingImport:
           this.addMissingImportFix(actions, document, diagnostic);
@@ -836,6 +851,47 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     for (const match of missingThen) {
       edit.insert(document.uri, findMissingThenInsertPosition(document, match), " Then");
     }
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addLineSuppressionFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+    code: string,
+  ): void {
+    const line = diagnostic.range.start.line;
+    const lineText = document.lineAt(line).text;
+    const action = new vscode.CodeAction(
+      `Desabilitar erro "${code}" nesta linha`,
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const insertPos = new vscode.Position(line, lineText.length);
+    const trailing = lineText.endsWith(" ") ? "" : " ";
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(document.uri, insertPos, `${trailing}' data7:disable-line ${code}`);
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addFileSuppressionFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+    code: string,
+  ): void {
+    const action = new vscode.CodeAction(
+      `Desabilitar erro "${code}" no arquivo inteiro`,
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+    edit.insert(document.uri, new vscode.Position(0, 0), `' data7:disable ${code}${eol}`);
     action.edit = edit;
     actions.push(action);
   }

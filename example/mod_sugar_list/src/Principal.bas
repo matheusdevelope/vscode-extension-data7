@@ -1,3 +1,4 @@
+' data7:disable finally-block-unsupported
 Imports mod_tlist
 Imports mod_product
 Imports mod_tela_grid_dados
@@ -33,8 +34,18 @@ Try
 
    Using _form2 As New TTelaAbas()
       _form2.Show()
+      Try
+         print "teste"
+      Catch ex As Exception
+         print(ex.Message)
+      Finally
+         print "finally"
+      End Try
+
    End Using
 
 Catch ex As Exception
    print ex.Message
+Finally
+   print("Finally")
 End Try

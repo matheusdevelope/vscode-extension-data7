@@ -57,6 +57,7 @@ import {
   type ExpressionStatement,
   type OpaqueStatement,
   type SourceLocation,
+  type TryCatchStatement,
 } from "../project/ast/ast";
 
 export class DiagnosticsLinter {
@@ -1419,6 +1420,9 @@ class DiagnosticsASTWalker extends ASTWalker {
       case "ExpressionStatement":
         this.checkExpressionStatement(node);
         break;
+      case "TryCatchStatement":
+        this.checkTryCatchStatement(node);
+        break;
     }
 
     // Bare Identifier Unknown Symbol check
@@ -2331,6 +2335,25 @@ class DiagnosticsASTWalker extends ASTWalker {
         diag.code = DiagnosticCodes.LooseTypeStatement;
         this.diagnostics.push(diag);
       }
+    }
+  }
+
+  private checkTryCatchStatement(node: TryCatchStatement): void {
+    if (node.finallyBody && node.loc) {
+      const lineIdx = node.loc.startLine - 1;
+      const range = new vscode.Range(
+        lineIdx,
+        node.loc.startChar,
+        lineIdx,
+        node.loc.endChar,
+      );
+      const diag = new vscode.Diagnostic(
+        range,
+        `O uso de 'Finally' no bloco Try/Catch não é recomendado devido a um bug conhecido no compilador que sempre executa o bloco 'Catch'.`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.FinallyBlockUnsupported;
+      this.diagnostics.push(diag);
     }
   }
 }

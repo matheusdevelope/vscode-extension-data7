@@ -1,6 +1,6 @@
 import "../_setup/global-hooks";
 import { strict as assert } from "node:assert";
-import * as childProcess from "node:child_process";
+import type * as childProcess from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterEach, describe, test } from "node:test";
@@ -10,12 +10,12 @@ import { ProjectService } from "../../services/project-service";
 import { withTempDir } from "../_helpers/temp-dir";
 
 describe("BuildService.runProjectFileDirectly", () => {
-  const originalSpawn = childProcess.spawn;
+  const originalSpawn = BuildService._spawn;
   const originalEnsureExecutorPath = ProjectService.ensureExecutorPath;
   const originalGetConfiguration = vscode.workspace.getConfiguration;
 
   afterEach(() => {
-    (childProcess as unknown as { spawn: typeof childProcess.spawn }).spawn = originalSpawn;
+    BuildService._spawn = originalSpawn;
     ProjectService.ensureExecutorPath = originalEnsureExecutorPath;
     vscode.workspace.getConfiguration = originalGetConfiguration;
   });
@@ -34,7 +34,7 @@ describe("BuildService.runProjectFileDirectly", () => {
             options: { shell?: boolean };
           }
         | undefined;
-      (childProcess as unknown as { spawn: typeof childProcess.spawn }).spawn = ((
+      BuildService._spawn = ((
         executable: string,
         args: readonly string[],
         options: { shell?: boolean },

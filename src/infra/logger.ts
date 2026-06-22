@@ -49,10 +49,14 @@ function stringifyError(err: unknown): string {
 
 export const logger = {
   info(message: string): void {
-    ensureChannel().appendLine(format("INFO", message));
+    const ch = ensureChannel();
+    ch.appendLine(format("INFO", message));
+    ch.show(true);
   },
   warn(message: string): void {
-    ensureChannel().appendLine(format("WARN", message));
+    const ch = ensureChannel();
+    ch.appendLine(format("WARN", message));
+    ch.show(true);
   },
   error(message: string, err?: unknown): void {
     const ch = ensureChannel();
@@ -60,6 +64,7 @@ export const logger = {
     if (err !== undefined) {
       ch.appendLine(stringifyError(err));
     }
+    ch.show(true);
   },
   show(): void {
     ensureChannel().show(true);

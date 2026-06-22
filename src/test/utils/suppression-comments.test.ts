@@ -60,6 +60,26 @@ describe("suppression-comments", () => {
       const result = extractSuppressedCodes(code);
       assert.equal(result.get(0), "*");
     });
+
+    test("disable without codes suppresses ALL codes on every line of the file", () => {
+      const code = `' data7:disable\nDim x As Integer\nDim y As String\n`;
+      const result = extractSuppressedCodes(code);
+      assert.equal(result.get(0), "*");
+      assert.equal(result.get(1), "*");
+      assert.equal(result.get(2), "*");
+    });
+
+    test("disable with codes suppresses only those codes on every line of the file", () => {
+      const code = `' data7:disable missing-import,unused-import\nDim x As Integer\nDim y As String\n`;
+      const result = extractSuppressedCodes(code);
+      const target0 = result.get(0) as ReadonlySet<string>;
+      const target1 = result.get(1) as ReadonlySet<string>;
+      assert.ok(target0.has("missing-import"));
+      assert.ok(target0.has("unused-import"));
+      assert.ok(target1.has("missing-import"));
+      assert.ok(target1.has("unused-import"));
+      assert.equal(target0.has("other-code"), false);
+    });
   });
 
   describe("isSuppressed", () => {

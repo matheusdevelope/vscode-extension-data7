@@ -11,7 +11,7 @@
     <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>2026-06-22T18:34:24.938Z</Data>
+  <Data>2026-06-22T19:10:32.275Z</Data>
   <Codigo>Imports mod_logger
 Imports mod_tlist
 Imports mod_product
@@ -48,19 +48,27 @@ Try
          mod_logger.Printe(p2.ToString())
       Next
    End If
-   Dim _form As TTelaGridDados = New TTelaGridDados()
+   Dim _form As TTelaGridDados
    Try
+      _form = New TTelaGridDados()
       _form.Show()
-   Catch
-   Finally
       _form.Free()
+   Catch ex As Exception
+      If Assigned(_form) Then
+         _form.Free()
+      End If
+      Throw ex
    End Try
-   Dim _form2 As TTelaAbas = New TTelaAbas()
+   Dim _form2 As TTelaAbas
    Try
+      _form2 = New TTelaAbas()
       _form2.Show()
-   Catch
-   Finally
       _form2.Free()
+   Catch ex As Exception
+      If Assigned(_form2) Then
+         _form2.Free()
+      End If
+      Throw ex
    End Try
 Catch ex As Exception
    mod_logger.Printe(ex.Message)

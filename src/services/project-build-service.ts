@@ -30,8 +30,8 @@ export class ProjectBuildService {
         disabledSugarIds: sugars.disabledIds,
       },
       isExcluded,
-      onWarning: (message) => logger.warn(message),
-      validateTranspiled: this.validateTranspiled,
+      onWarning: (message) => { logger.warn(message); },
+      validateTranspiled: (sources, indexer) => { this.validateTranspiled(sources, indexer); },
     });
   }
 

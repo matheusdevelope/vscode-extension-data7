@@ -36,10 +36,11 @@ function diagWith(
  * Filters out source.* actions so per-diagnostic tests can assert only on the
  * QuickFixes for the diagnostic they passed in.
  */
-function onlyQuickFixes<T extends { kind?: { value?: string } | string }>(actions: T[]): T[] {
+function onlyQuickFixes<T extends { kind?: { value?: string } | string; title?: string }>(actions: T[]): T[] {
   return actions.filter((a) => {
     const v = typeof a.kind === "string" ? a.kind : a.kind?.value;
-    return v === "quickfix" || v === undefined;
+    const isSuppression = a.title?.includes("Desabilitar erro");
+    return (v === "quickfix" || v === undefined) && !isSuppression;
   });
 }
 
@@ -558,6 +559,36 @@ describe("D7BasicCodeActionProvider", () => {
       const fixAll = all.find((a) => a.kind?.value?.startsWith("source.fixAll"));
       assert.ok(fixAll, "source.fixAll.data7 must be present when fixable diagnostics exist");
       assert.ok((fixAll.edit?.edits.length ?? 0) > 0, "fixAll must aggregate at least one edit");
+    });
+  });
+
+  describe("suppression actions", () => {
+    test("generates line and file suppression quick fixes for any diagnostic", async () => {
+      const doc = mockDoc("g.PopupMenu = Nothing\n");
+      const range = new vscode.Range(0, 0, 0, 21);
+      const diag = diagWith("some-diagnostic-code", null, range);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diag] } as any,
+          noopToken,
+        ),
+      )) as unknown as { title: string; kind?: { value?: string }; edit: { edits: { type: string; text?: string }[] } }[];
+      const actions = all.filter((a) => {
+        const v = typeof a.kind === "string" ? a.kind : a.kind?.value;
+        return v === "quickfix" || v === undefined;
+      });
+
+      const lineFix = actions.find((a) => a.title.includes("nesta linha"));
+      const fileFix = actions.find((a) => a.title.includes("no arquivo inteiro"));
+
+      assert.ok(lineFix);
+      assert.ok(fileFix);
+
+      expectEdit(lineFix.edit, { type: "insert", textIncludes: "data7:disable-line some-diagnostic-code" });
+      expectEdit(fileFix.edit, { type: "insert", textIncludes: "data7:disable some-diagnostic-code" });
     });
   });
 });

@@ -19,6 +19,8 @@ interface ExecutorLogSession {
 let executorLogSession: ExecutorLogSession | undefined;
 
 export class BuildService {
+  public static _spawn = spawn;
+
   /** Builds the active project's `.7Proj`. */
   public static async build(): Promise<void> {
     if (
@@ -26,7 +28,7 @@ export class BuildService {
         "Compilar um projeto Data7 requer um workspace confiável.",
       )
     )
-      return;
+      {return;}
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -68,7 +70,7 @@ export class BuildService {
         "Executar um projeto Data7 requer um workspace confiável.",
       )
     )
-      return;
+      {return;}
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -150,7 +152,7 @@ export class BuildService {
         "Executar um projeto Data7 requer um workspace confiável.",
       )
     )
-      return;
+      {return;}
 
     const cfg = getRawConfiguration();
     const executorPath = await ProjectService.ensureExecutorPath(cfg);
@@ -203,7 +205,7 @@ export class BuildService {
       projectFilePath,
     ];
 
-    const child = spawn(executorPath, args, {
+    const child = this._spawn(executorPath, args, {
       cwd: path.dirname(projectFilePath),
       env: this.createExecutorEnvironment(executorPath),
       shell: false,
@@ -238,7 +240,7 @@ export class BuildService {
         "Abrir no Developer Studio requer um workspace confiável.",
       )
     )
-      return;
+      {return;}
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -301,7 +303,7 @@ export class BuildService {
     );
 
     // spawn with explicit argument array; detached + unref so the child outlives us.
-    const child = spawn(devStudioPath, [projectFilePath], {
+    const child = this._spawn(devStudioPath, [projectFilePath], {
       detached: true,
       stdio: "ignore",
     });
