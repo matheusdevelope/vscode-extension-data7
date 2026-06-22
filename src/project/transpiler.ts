@@ -188,7 +188,7 @@ function extractTypeNamesFromTypeArg(typeArg: string): string[] {
   return names;
 }
 
-function injectImportsForMaterializedGenericInstantiations(
+function _injectImportsForMaterializedGenericInstantiations(
   unit: { members: TopLevelMember[]; loc?: Node["loc"] },
   ctx: TranspileContext,
 ): void {
@@ -2782,7 +2782,6 @@ class LoggerPrintSugarTransformer {
     unit.members = unit.members.map((member) => this.transformTopLevelMember(member));
     if (this.usedLoggerPrint) {
       this.usedSugars.add("logger-print");
-      this.injectImport(unit.members, "mod_logger", unit.loc);
     }
   }
 
@@ -3101,7 +3100,7 @@ export class SugarTranspiler {
       requestedInstantiations: ctx.requestedGenericInstantiations,
     });
     const genericsResult = monomorphizer.monomorphize(finalUnit);
-    injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
+    // _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
 
     // 4. Transform AST-to-AST for sugars
     const declaredNamespaces = collectNamespaceNames(finalUnit);

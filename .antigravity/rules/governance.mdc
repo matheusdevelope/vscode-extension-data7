@@ -49,6 +49,7 @@ Enforced statically via `no-restricted-imports` blocks in `eslint.config.mjs`. E
 - For changes that touch the builder, decompiler, linter, indexer, providers, or `src/system-library/types.ts`, run the full test suite with `npm run test`.
 - For changes to shared types (`SystemContainer`, parser output shapes, diagnostic codes, configuration helpers), prefer `npm run compile` over piecemeal type checks so the whole project's type assumptions are validated together.
 - If compile, lint, format check, or tests cannot be run, or if remaining failures are outside the current scope, state that explicitly in the final handoff.
+- **Always update documentation**: Every change, new implementation, or refactoring MUST be documented by updating `CHANGELOG.md` (detailing what was added/changed/fixed), `project_context.md` (updating architecture, logic, or diagnostic descriptions), and `README.md` (updating feature descriptions or user guides).
 
 ## Tooling preferences
 

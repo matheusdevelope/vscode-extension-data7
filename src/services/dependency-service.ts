@@ -293,7 +293,7 @@ export class DependencyService {
   }
 
   /** Manual install of a shared module from the repository into the active project. */
-  public static async installModule(): Promise<void> {
+  public static async installModule(moduleName?: string): Promise<void> {
     const project = ProjectService.getActiveProject();
     if (!project) {
       vscode.window.showErrorMessage(
@@ -315,6 +315,23 @@ export class DependencyService {
     const projectMeta = readProjectMeta(configJsonPath) ?? { dependencies: {} };
     projectMeta.dependencies ??= {};
     const projectDeps = projectMeta.dependencies;
+
+    if (moduleName) {
+      const info = sharedModules.get(moduleName.toLowerCase());
+      if (!info) {
+        vscode.window.showErrorMessage(`Módulo "${moduleName}" não encontrado no repositório.`);
+        return;
+      }
+      const versionString = info.version ?? "1.0.0.0";
+      projectDeps[moduleName.toLowerCase()] = versionString;
+      fs.writeFileSync(configJsonPath, JSON.stringify(projectMeta, null, 2), "utf-8");
+      try {
+        await this.refreshActiveProject();
+      } catch (err: unknown) {
+        logger.error("Falha ao atualizar dependências após instalação automática.", err);
+      }
+      return;
+    }
 
     const quickPickItems = Array.from(sharedModules.values()).map((info) => {
       const isAlreadyInstalled = !!projectDeps[info.moduleName.toLowerCase()];
@@ -348,6 +365,42 @@ export class DependencyService {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Falha na instalação/build do módulo.", err);
       vscode.window.showErrorMessage(`Falha na instalação/build do módulo: ${message}`);
+    }
+  }
+
+  /** Install multiple shared modules from the repository into the active project in bulk. */
+  public static async installModules(moduleNames: string[]): Promise<void> {
+    const project = ProjectService.getActiveProject();
+    if (!project) return;
+
+    const repoBasPath = RepositoryService.getRepoBasPath();
+    const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
+    if (sharedModules.size === 0) return;
+
+    const configJsonPath = path.join(project.workspaceDir, PROJECT_CONFIG_FILENAME);
+    const projectMeta = readProjectMeta(configJsonPath) ?? { dependencies: {} };
+    projectMeta.dependencies ??= {};
+    const projectDeps = projectMeta.dependencies;
+
+    let addedAny = false;
+    for (const name of moduleNames) {
+      const info = sharedModules.get(name.toLowerCase());
+      if (info) {
+        const lowerName = name.toLowerCase();
+        if (!projectDeps[lowerName]) {
+          projectDeps[lowerName] = info.version ?? "1.0.0.0";
+          addedAny = true;
+        }
+      }
+    }
+
+    if (addedAny) {
+      fs.writeFileSync(configJsonPath, JSON.stringify(projectMeta, null, 2), "utf-8");
+      try {
+        await this.refreshActiveProject();
+      } catch (err: unknown) {
+        logger.error("Falha ao atualizar dependências em massa.", err);
+      }
     }
   }
 

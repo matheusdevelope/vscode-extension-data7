@@ -287,8 +287,9 @@ export class ProjectService {
   public static async createNewProject(): Promise<void> {
     if (
       !WorkspaceTrustService.ensureTrusted("Criar um novo projeto requer um workspace confiável.")
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     const projectName = await vscode.window.showInputBox({
       prompt: "Digite o nome do novo projeto:",

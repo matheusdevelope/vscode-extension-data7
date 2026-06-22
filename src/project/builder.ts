@@ -727,7 +727,6 @@ export class Builder {
 
     const eol = code.includes("\r\n") ? "\r\n" : "\n";
     const lines = code.split(/\r?\n/);
-    const hasLoggerImport = lines.some((line) => /^\s*Imports\s+mod_logger\s*$/i.test(line));
     let insertIdx = 0;
 
     for (let i = 0; i < lines.length; i++) {
@@ -737,9 +736,7 @@ export class Builder {
     }
 
     const escapedPath = vscodeLoggerFilePath.replace(/"/g, '""');
-    const injected: string[] = [];
-    if (!hasLoggerImport) injected.push("Imports mod_logger");
-    injected.push(`mod_logger.ConfigureVSCode("${escapedPath}")`);
+    const injected: string[] = [`mod_logger.ConfigureVSCode("${escapedPath}")`];
 
     lines.splice(insertIdx, 0, ...injected);
     return lines.join(eol);
@@ -813,7 +810,6 @@ export class Builder {
 
     return parts.join("\n") + "\n";
   }
-
 }
 
 // Re-export shared metadata types for callers that previously imported from `builder.ts`.

@@ -125,6 +125,11 @@
         "category": "Data7"
       },
       {
+        "command": "data7.installModulesBulk",
+        "title": "Instalar Módulos em Massa",
+        "category": "Data7"
+      },
+      {
         "command": "data7.updateDependencies",
         "title": "Atualizar Dependências",
         "category": "Data7"
@@ -557,7 +562,7 @@
     "mcp:articles": "node scripts/extract-official-articles.js",
     "mcp:bundle": "esbuild out/mcp/server.js --bundle --minify --platform=node --target=node22 --outfile=out/mcp/server.bundled.js --external:vscode",
     "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node scripts/audit-system-library.js && node scripts/generate-examples-index.js --check",
-    "build:extension":"npx @vscode/vsce package"
+    "build:extension": "npx @vscode/vsce package"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

@@ -44,6 +44,7 @@ export const COMMAND_IDS = {
   build: "data7.build",
   runProject: "data7.runProject",
   installModule: "data7.installModule",
+  installModulesBulk: "data7.installModulesBulk",
   updateDependencies: "data7.updateDependencies",
   importModuleToRepository: "data7.importModuleToRepository",
   bulkImportToRepository: "data7.bulkImportToRepository",

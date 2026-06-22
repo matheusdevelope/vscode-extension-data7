@@ -237,6 +237,12 @@ O linter realiza validação semântica em duas etapas:
 
 Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições novas devem ser documentadas aqui antes de qualquer uso no código. Cada código tem um payload tipado opcional (`MissingImportPayload`, `UnusedImportPayload`, `ModuleNotFoundPayload`, `ModuleNotDeclaredPayload`, `UnknownMemberPayload`) anexado a `Diagnostic.data` para que o `D7BasicCodeActionProvider` aplique correções sem reparsear a mensagem.
 
+**Regras Fundamentais para Diagnósticos e Quickfixes:**
+
+1. **Supressão via Comentário**: Todo diagnóstico gerado pela extensão deve fornecer uma opção para desabilitar o aviso/erro por meio de comentários, tanto localmente na linha afetada (`' data7:disable-line <code>`) quanto de forma global para todo o arquivo (`' data7:disable <code>`).
+2. **Correção em Massa (Bulk Quickfixes)**: Qualquer diagnóstico que declare uma correção rápida (Quickfix) do tipo texto ou comando deve possuir também uma opção correspondente para ser aplicada em massa em todas as ocorrências daquele mesmo problema no arquivo ativo (ex: "Importar todas as dependências em falta neste arquivo", "Remover todos os imports duplicados/não utilizados neste arquivo").
+3. **Inferência Ativa de Soluções**: Ao desenhar ou implementar um novo código de diagnóstico, o agente responsável deve tentar inferir uma correção algorítmica/sintática e consultar o usuário sobre sua inclusão na forma de um novo Quickfix.
+
 - `missing-import` — um tipo referenciado pertence a um namespace ausente da seção `Imports` do arquivo.
 - `unused-import` — uma diretiva `Imports` declarada no cabeçalho não é referenciada pelo restante do arquivo.
 - `duplicate-import` — a mesma diretiva `Imports` foi declarada mais de uma vez no cabeçalho.
@@ -268,18 +274,22 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função). Emite _Error_.
 - `missing-return-value` — a função pode retornar ou sair sem que um valor de retorno tenha sido definido em todas as ramificações de controle. Emite _Warning_.
 - `dead-code` — código inacessível após um `Return` ou `Exit` garantido, ou dentro de blocos condicionais constantes sempre falsos. Emite _Warning_.
+- `finally-block-unsupported` — o uso de `Finally` no bloco Try/Catch não é recomendado devido a um bug conhecido no compilador que sempre executa o bloco `Catch` (mesmo quando nenhuma exceção é lançada). O linter emite _Warning_ e é suprimido se o workaround `If Assigned(ex) Then` (onde `ex` é a variável da exceção) estiver envolvendo todo o corpo do `Catch`.
 
-Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
+Cada código com Quick Fix associado no `D7BasicCodeActionProvider` também oferece opções genéricas de **supressão de diagnóstico** via comentário para a linha atual (`' data7:disable-line <code>`) ou para todo o arquivo (`' data7:disable <code>`). Além disso, ações rápidas que alteram código suportam **correções em massa (Bulk Quickfixes)** aplicáveis a todas as ocorrências daquele mesmo erro no arquivo (ex: "Importar todas as dependências ausentes no arquivo", "Aplicar workaround a todos os blocos Finally do arquivo").
 
-- `missing-import` → "Importar X"
-- `unused-import` / `duplicate-import` → "Remover Imports X"
-- `module-not-declared` / `module-not-found` → "Instalar módulo X…" (dispara `data7.installModule`)
-- `unknown-member` → até 3 ações "Você quis dizer Y?" que substituem o nome no lugar.
-- `unsupported-member` → sem Quick Fix (substituição depende de contexto), apenas o warning visível no diagnostic.
+Os Quick Fixes disponíveis são:
+
+- `missing-import` → "Importar X" (e bulk "Importar todos em falta")
+- `unused-import` / `duplicate-import` → "Remover Imports X" (e bulk "Remover todos os imports duplicados ou não utilizados")
+- `module-not-declared` / `module-not-found` → "Instalar módulo X…" (dispara `data7.installModule`, e bulk "Instalar módulos ausentes")
+- `unknown-member` → até 3 ações "Você quis dizer Y?" que substituem o nome no lugar (e bulk correspondente).
+- `finally-block-unsupported` → "Aplicar workaround (If Assigned(ex) Then)" para contornar o bug do compilador (e bulk "Aplicar workaround a todos os blocos Finally do arquivo").
+- `unsupported-member` → sem Quick Fix direto para substituição semântica (pois depende do contexto), mas oferece bulk para comentar todas as linhas ou suprimir os avisos no arquivo.
 - `not-enumerable` → sem Quick Fix (a substituição depende da forma de iteração que o usuário pretende — converter para `For i = 0 To ... - 1` ou mudar o tipo do operando). Apenas o warning é exibido.
-- `unknown-suppression-code` → sem Quick Fix (o usuário pode ter digitado errado ou copiado de um release antigo). Apenas o warning é exibido.
-- `invalid-interpolation` → sem Quick Fix (depende de qual chave/escape o usuário esqueceu). Apenas o warning é exibido.
-- `ternary-context-unsupported` → sem Quick Fix (a refatoração depende da semântica do código circundante — converter para `If/Then/Else` separado, materializar em variável, etc.). Apenas o warning é exibido.
+- `unknown-suppression-code` → sem Quick Fix. Apenas o warning é exibido.
+- `invalid-interpolation` → sem Quick Fix. Apenas o warning é exibido.
+- `ternary-context-unsupported` → sem Quick Fix. Apenas o warning é exibido.
 - `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`, `duplicate-declaration` → sem Quick Fix (correções dependem da estrutura do template/uso; o usuário ajusta manualmente).
 
 ### 4.2. Compilação (`Builder`)

@@ -11,8 +11,8 @@
     <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>2026-06-22T19:10:32.275Z</Data>
-  <Codigo>Imports mod_logger
+  <Data>2026-06-22T21:53:31.584Z</Data>
+  <Codigo>&apos; data7:disable finally-block-unsupported
 Imports mod_tlist
 Imports mod_product
 Imports mod_tela_grid_dados
@@ -62,7 +62,13 @@ Try
    Dim _form2 As TTelaAbas
    Try
       _form2 = New TTelaAbas()
-      _form2.Show()
+      Try
+         _form2.Show()
+      Catch ex As Exception
+         mod_logger.Printe(ex.Message)
+      Finally
+         mod_logger.Printe(&quot;finally&quot;)
+      End Try
       _form2.Free()
    Catch ex As Exception
       If Assigned(_form2) Then
@@ -72,6 +78,8 @@ Try
    End Try
 Catch ex As Exception
    mod_logger.Printe(ex.Message)
+Finally
+   mod_logger.Printe(&quot;Finally&quot;)
 End Try</Codigo>
   <Aberto>true</Aberto>
   <OrdemAbertura>0</OrdemAbertura>
@@ -364,8 +372,9 @@ End Namespace</Codigo>
       <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
     </mod_console>
     <mod_logger>
-      <Codigo>Imports Collections
-Imports IO
+      <Codigo>Imports IO
+Imports mod_tlist
+Imports Collections
 &apos;@Module-Imported
 Namespace mod_logger
    Delegate Sub LogTransportWriter(pInfo As LogInfo, pFormatted As String)
@@ -660,7 +669,6 @@ Namespace mod_logger
          me.Name = &quot;console&quot;
       End Sub
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If Not IsNativePrintEnabled() Then Exit Sub
          Print(pFormatted)
          If me.ProcessMessages Then Forms.ProcessMessages()
       End Sub
@@ -714,30 +722,30 @@ Namespace mod_logger
       End Sub
    End Class
    Class LogTransportList
-      Private _list As StringList
+      Private _list As TTList_LogTransport
       Sub New()
          MyBase.New()
-         me._list = New StringList()
+         me._list = New TTList_LogTransport()
          me._list.OwnsObjects = True
       End Sub
       Sub Add(pTransport As LogTransport)
          If pTransport = NULL Then Exit Sub
-         me._list.AddObject(pTransport.GetID().ToUpper(), pTransport)
+         me._list.Push(pTransport.GetID().ToUpper(), pTransport)
       End Sub
       Function Take(pIndex As Integer) As LogTransport
-         Take = LogTransport(me._list.Objects(pIndex))
+         Take = me._list.Take(pIndex)
       End Function
       Function Take(pID As String) As LogTransport
-         Take = me.Take(me._list.IndexOf(pID.ToUpper()))
+         Take = me._list.Take(pID.ToUpper())
       End Function
       Function Count() As Integer
-         Count = me._list.Count
+         Count = me._list.Length
       End Function
       Sub Clear()
-         me._list.Clear()
+         me._list.Clean(True)
       End Sub
       Sub Free()
-         me._list.Free()
+         If Assigned(me._list) Then me._list.Free()
          MyBase.Free()
       End Sub
    End Class
@@ -879,6 +887,7 @@ Namespace mod_logger
    End Class
    Dim _defaultLogger As Logger
    Dim _timers As StringList
+   Dim _NativePrintEnabledInitialized As Boolean = False
    Dim _NativePrintEnabled As Boolean = True
    Function GetDefault() As Logger
       If _defaultLogger = NULL Then
@@ -891,6 +900,7 @@ Namespace mod_logger
    End Sub
    Sub SetNativePrintEnabled(pEnabled As Boolean)
       _NativePrintEnabled = pEnabled
+      _NativePrintEnabledInitialized = True
    End Sub
    Sub EnableNativePrint()
       SetNativePrintEnabled(True)
@@ -899,6 +909,19 @@ Namespace mod_logger
       SetNativePrintEnabled(False)
    End Sub
    Function IsNativePrintEnabled() As Boolean
+      If Not _NativePrintEnabledInitialized Then
+         _NativePrintEnabledInitialized = True
+         Try
+            Dim _exec As String = Data7.NomeArquivoExecutavel().ToUpper()
+            If _exec.EndsWith(&quot;DATA7.EXE&quot;) Then
+               _NativePrintEnabled = False
+            Else
+               _NativePrintEnabled = True
+            End If
+         Catch ex As Exception
+            _NativePrintEnabled = True
+         End Try
+      End If
       IsNativePrintEnabled = _NativePrintEnabled
    End Function
    Sub ConfigureConsole()
@@ -976,7 +999,6 @@ End Namespace</Codigo>
     </mod_logger>
     <mod_tlist>
       <Codigo>Imports mod_tobject
-Imports mod_product
 &apos;@Module-Imported
 Namespace mod_tlist
    Class TTList_String
@@ -1359,6 +1381,197 @@ Namespace mod_tlist
          MyBase.Free()
       End Sub
    End Class
+   Class TTList_LogTransport
+      Inherits TTComposerList
+      Sub New()
+         MyBase.New(me.Classname(), True)
+      End Sub
+      Private Function Wrap(pID As String, pValue As mod_logger.LogTransport) As TTObject
+         Wrap = New TTItem_LogTransport(pID, pValue)
+      End Function
+      Private Function Unwrap(pObj As TTObject) As mod_logger.LogTransport
+         Unwrap = TTItem_LogTransport(pObj).Value
+      End Function
+      Function GetItem(pIndex As Integer) As mod_logger.LogTransport
+         GetItem = me.Take(pIndex)
+      End Function
+      Sub SetItem(pIndex As Integer, pValue As mod_logger.LogTransport)
+         me._base.Item(pIndex) = me.Wrap(&quot;&quot;, pValue)
+      End Sub
+      Sub Push(pID As String, pValue As mod_logger.LogTransport)
+         me._base.Push(pID, me.Wrap(pID, pValue))
+      End Sub
+      Sub Push(pValue As mod_logger.LogTransport)
+         me.Push(&quot;&quot;, pValue)
+      End Sub
+      Sub Push(pValue As TTList_LogTransport)
+         me._base.Push(pValue)
+      End Sub
+      Sub Unshift(pIndex As Integer, pID As String, pValue As mod_logger.LogTransport)
+         me._base.Unshift(pIndex, pID, me.Wrap(pID, pValue))
+      End Sub
+      Sub Unshift(pIndex As Integer, pValue As mod_logger.LogTransport)
+         me.Unshift(pIndex, &quot;&quot;, pValue)
+      End Sub
+      Overrides Function Take(pIndex As Integer) As mod_logger.LogTransport
+         Take = me.Unwrap(me._base.Take(pIndex))
+      End Function
+      Function Take(pID As String) As mod_logger.LogTransport
+         Take = me.Unwrap(me._base.TakeFromId(pID))
+      End Function
+      Function First() As mod_logger.LogTransport
+         First = me.Unwrap(me._base.First())
+      End Function
+      Function Last() As mod_logger.LogTransport
+         Last = me.Unwrap(me._base.Last())
+      End Function
+      Function Pop() As mod_logger.LogTransport
+         Dim _extracted As TTObject = me._base.Pop()
+         Pop = me.Unwrap(_extracted)
+         If Assigned(_extracted) Then
+            TTItem_LogTransport(_extracted).Value = NULL
+            _extracted.Free()
+         End If
+      End Function
+      Function Shift() As mod_logger.LogTransport
+         Dim _extracted As TTObject = me._base.Shift()
+         Shift = me.Unwrap(_extracted)
+         If Assigned(_extracted) Then
+            TTItem_LogTransport(_extracted).Value = NULL
+            _extracted.Free()
+         End If
+      End Function
+      Sub Unshift(pValue As mod_logger.LogTransport)
+         me.Unshift(0, pValue)
+      End Sub
+      Function Includes(pValue As mod_logger.LogTransport) As Boolean
+         Dim i As Integer
+         Dim _len As Integer = me.Length
+         For i = 0 To _len - 1
+            Dim _current As mod_logger.LogTransport = me.Take(i)
+            Dim _equal As Boolean = me.GetIsEqual(_current, pValue)
+            If _equal Then
+               Includes = True
+               Exit Function
+            End If
+         Next
+         Includes = False
+      End Function
+      Function GetIsEqual(pValue1 As mod_logger.LogTransport, pValue2 As mod_logger.LogTransport) As Boolean
+         GetIsEqual = (pValue1 = pValue2)
+      End Function
+      Function Join(pSeparator As String) As String
+         Dim _str As String = &quot;&quot;
+         Dim i As Integer
+         Dim _len As Integer = me.Length
+         For i = 0 To _len - 1
+            If i &gt; 0 Then _str = _str &amp; pSeparator
+            Dim _val As mod_logger.LogTransport = me.Take(i)
+            _str = _str &amp; CStr(me.GetToString(_val))
+         Next
+         Join = _str
+      End Function
+      Function GetToString(pValue As mod_logger.LogTransport) As String
+         GetToString = CStr(pValue)
+      End Function
+      Function Slice(pStart As Integer, pEnd As Integer) As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport(me.Name)
+         _new._base = me._base.Slice(pStart, pEnd)
+         Slice = _new
+      End Function
+      Function Splice(pStart As Integer, pQty As Integer) As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport(me.Name)
+         _new._base = me._base.Splice(pStart, pQty)
+         Splice = _new
+      End Function
+      Function Clone() As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport(me.Name)
+         _new._base = me._base.Clone()
+         Clone = _new
+      End Function
+      Function First(pLimit As Integer) As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport(me.Name)
+         _new._base = me._base.Range(pLimit, False)
+         First = _new
+      End Function
+      Function Last(pLimit As Integer) As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport(me.Name)
+         _new._base = me._base.Range(pLimit, True)
+         Last = _new
+      End Function
+      Function IndexOf(pHandler As TFindDel_LogTransport) As Integer
+         IndexOf = me.IndexOf(pHandler, &quot;&quot;)
+      End Function
+      Function IndexOf(pHandler As TFindDel_LogTransport, extra As Variant) As Integer
+         Dim value As Integer = -1
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            If pHandler(me.Take(i), i, extra) Then
+               value = i
+               Exit For
+            End If
+         Next
+         IndexOf = value
+      End Function
+      Function Find(pHandler As TFindDel_LogTransport) As mod_logger.LogTransport
+         Find = me.Find(pHandler, &quot;&quot;)
+      End Function
+      Function Find(pHandler As TFindDel_LogTransport, extra As Variant) As mod_logger.LogTransport
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As mod_logger.LogTransport = me.Take(i)
+            If pHandler(_value, i, extra) Then
+               Find = _value
+               Exit Function
+            End If
+         Next
+      End Function
+      Function Filter(pHandler As TFindDel_LogTransport) As TTList_LogTransport
+         Filter = me.Filter(pHandler, &quot;&quot;)
+      End Function
+      Function Filter(pHandler As TFindDel_LogTransport, extra As Variant) As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport()
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As mod_logger.LogTransport = me.Take(i)
+            If pHandler(_value, i, extra) Then
+               Dim _id As String = me._base.Take(i).GetID()
+               _new.Push(_id, _value)
+            End If
+         Next
+         Filter = _new
+      End Function
+      Sub ForEach(pHandler As TForEachDel_LogTransport)
+         me.ForEach(pHandler, &quot;&quot;)
+      End Sub
+      Sub ForEach(pHandler As TForEachDel_LogTransport, extra As Variant)
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            pHandler(me.Take(i), i, extra)
+         Next
+      End Sub
+      Function Map(pHandler As TMapDel_LogTransport) As TTList_LogTransport
+         Map = me.Map(pHandler, &quot;&quot;)
+      End Function
+      Function Map(pHandler As TMapDel_LogTransport, extra As Variant) As TTList_LogTransport
+         Dim _new As TTList_LogTransport = New TTList_LogTransport()
+         Dim i As Integer
+         Dim _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As mod_logger.LogTransport = me.Take(i)
+            Dim _id As String = me._base.Take(i).GetID()
+            _new.Push(_id, pHandler(_value, i, extra))
+         Next
+         Map = _new
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
    Class TTItem_String
       Inherits TTObject
       Private _id As String
@@ -1423,6 +1636,70 @@ Namespace mod_tlist
    Delegate Function TFindDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant) As Boolean
    Delegate Sub TForEachDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant)
    Delegate Function TMapDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant) As mod_product.Product
+   Class TTItem_LogTransport
+      Inherits TTObject
+      Private _id As String
+      Value As mod_logger.LogTransport
+      Property ID As String
+         Get
+            ID = me._id
+         End Get
+      End Property
+      Sub New(pValue As mod_logger.LogTransport)
+         MyBase.New()
+         me._init(&quot;&quot;, pValue)
+      End Sub
+      Sub New(pID As String, pValue As mod_logger.LogTransport)
+         MyBase.New()
+         me._init(pID, pValue)
+      End Sub
+      Sub New(pValue As TTItem_LogTransport)
+         MyBase.New()
+         me.Assign(pValue)
+      End Sub
+      Private Sub _init(pID As String, pValue As mod_logger.LogTransport)
+         pID = pID.Trim()
+         If pID &lt;&gt; &quot;&quot; Then
+            me._id = pID
+         Else
+            me._id = CStr(me.GetHashCode)
+         End If
+         me.Value = pValue
+      End Sub
+      Sub Assign(pValue As TTItem_LogTransport)
+         If Assigned(pValue) Then
+            me._id = pValue.ID
+            me.Value = pValue.Value
+         End If
+      End Sub
+      Overrides Function Clone() As TTItem_LogTransport
+         Clone = New TTItem_LogTransport(me)
+      End Function
+      Overrides Function GetID() As String
+         GetID = me._id
+      End Function
+      Overrides Function ToString() As String
+         With me.BuildLogger(me.Classname)
+            .Prop(&quot;ID&quot;, me._id)
+            .Prop(&quot;Value&quot;, me.Value.ToString())
+            .Prop(&quot;Type&quot;, TypeName(me.Value))
+            ToString = .Text
+         End With
+      End Function
+      Overrides Sub Dispose()
+         me._id = Unassigned
+         If Assigned(me.Value) Then
+            me.Value.Free()
+            me.Value = NULL
+         End If
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Delegate Function TFindDel_LogTransport(pValue As mod_logger.LogTransport, i As Integer, extra As Variant) As Boolean
+   Delegate Sub TForEachDel_LogTransport(pValue As mod_logger.LogTransport, i As Integer, extra As Variant)
+   Delegate Function TMapDel_LogTransport(pValue As mod_logger.LogTransport, i As Integer, extra As Variant) As mod_logger.LogTransport
 End Namespace</Codigo>
       <Aberto>false</Aberto>
       <OrdemAbertura>0</OrdemAbertura>

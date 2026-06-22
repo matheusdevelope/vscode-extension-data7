@@ -11,6 +11,7 @@ import {
   type UnknownMemberPayload,
   type UnsupportedMemberPayload,
   type UnusedImportPayload,
+  type FinallyBlockUnsupportedPayload,
   setDiagnosticPayload,
 } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, noopToken } from "../_helpers/mock-doc";
@@ -36,7 +37,9 @@ function diagWith(
  * Filters out source.* actions so per-diagnostic tests can assert only on the
  * QuickFixes for the diagnostic they passed in.
  */
-function onlyQuickFixes<T extends { kind?: { value?: string } | string; title?: string }>(actions: T[]): T[] {
+function onlyQuickFixes<T extends { kind?: { value?: string } | string; title?: string }>(
+  actions: T[],
+): T[] {
   return actions.filter((a) => {
     const v = typeof a.kind === "string" ? a.kind : a.kind?.value;
     const isSuppression = a.title?.includes("Desabilitar erro");
@@ -562,6 +565,186 @@ describe("D7BasicCodeActionProvider", () => {
     });
   });
 
+  describe("finally-block-unsupported", () => {
+    test("finally-block-unsupported with declared catch variable wraps body", async () => {
+      const codeText = [
+        "Namespace mod_demo",
+        "  Sub Run()",
+        "    Try",
+        '      Print("Try")',
+        "    Catch ex As Exception",
+        "      Print(ex.Message)",
+        "    Finally",
+        '      Print("Finally")',
+        "    End Try",
+        "  End Sub",
+        "End Namespace",
+      ].join("\n");
+
+      const doc = mockDoc(codeText);
+      const payload: FinallyBlockUnsupportedPayload = {
+        code: DiagnosticCodes.FinallyBlockUnsupported,
+        catchLine: 4,
+        catchBodyStartLine: 5,
+        catchBodyEndLine: 5,
+        catchVarName: "ex",
+      };
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(2, 4, 8, 11),
+          { diagnostics: [diagWith(DiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+
+      const actions = onlyQuickFixes(all);
+      assert.equal(actions.length, 1);
+      const [fix] = actions;
+      assert.ok(fix);
+      assert.match(fix.title, /Encapsular bloco Catch com/);
+
+      // Verify the edit content
+      const edits = fix.edit?.edits;
+      assert.equal(edits?.length, 1);
+      assert.equal(edits[0].type, "replace");
+      assert.match(
+        edits[0].text,
+        /If Assigned\(ex\) Then\r?\n\s{8}Print\(ex\.Message\)\r?\n\s{6}End If/,
+      );
+    });
+
+    test("finally-block-unsupported without declared catch variable declares ex and wraps body", async () => {
+      const codeText = [
+        "Namespace mod_demo",
+        "  Sub Run()",
+        "    Try",
+        '      Print("Try")',
+        "    Catch",
+        '      Print("Error")',
+        "    Finally",
+        '      Print("Finally")',
+        "    End Try",
+        "  End Sub",
+        "End Namespace",
+      ].join("\n");
+
+      const doc = mockDoc(codeText);
+      const payload: FinallyBlockUnsupportedPayload = {
+        code: DiagnosticCodes.FinallyBlockUnsupported,
+        catchLine: 4,
+        catchBodyStartLine: 5,
+        catchBodyEndLine: 5,
+      };
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(2, 4, 8, 11),
+          { diagnostics: [diagWith(DiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+
+      const actions = onlyQuickFixes(all);
+      assert.equal(actions.length, 1);
+      const [fix] = actions;
+      assert.ok(fix);
+      assert.match(fix.title, /Declarar variável de exceção/);
+
+      const edits = fix.edit?.edits;
+      assert.equal(edits?.length, 2);
+
+      // First edit declares _ex
+      const catchEdit = edits.find((e: any) => e.text.includes("Catch _ex As Exception"));
+      assert.ok(catchEdit);
+      assert.equal(catchEdit.type, "replace");
+
+      // Second edit wraps the body
+      const bodyEdit = edits.find((e: any) => e.text.includes("If Assigned(_ex) Then"));
+      assert.ok(bodyEdit);
+      assert.equal(bodyEdit.type, "replace");
+    });
+
+    test("finally-block-unsupported bulk fix applies to all occurrences", async () => {
+      const codeText = [
+        "Namespace mod_demo",
+        "  Sub Run()",
+        "    Try",
+        '      Print("Try 1")',
+        "    Catch ex As Exception",
+        "      Print(ex.Message)",
+        "    Finally",
+        '      Print("Finally 1")',
+        "    End Try",
+        "    Try",
+        '      Print("Try 2")',
+        "    Catch",
+        '      Print("Error 2")',
+        "    Finally",
+        '      Print("Finally 2")',
+        "    End Try",
+        "  End Sub",
+        "End Namespace",
+      ].join("\n");
+
+      const doc = mockDoc(codeText);
+      const firstPayload: FinallyBlockUnsupportedPayload = {
+        code: DiagnosticCodes.FinallyBlockUnsupported,
+        catchLine: 4,
+        catchBodyStartLine: 5,
+        catchBodyEndLine: 5,
+        catchVarName: "ex",
+      };
+      const secondPayload: FinallyBlockUnsupportedPayload = {
+        code: DiagnosticCodes.FinallyBlockUnsupported,
+        catchLine: 12,
+        catchBodyStartLine: 13,
+        catchBodyEndLine: 13,
+      };
+
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      const diag1 = diagWith(
+        DiagnosticCodes.FinallyBlockUnsupported,
+        firstPayload,
+        new vscode.Range(2, 4, 8, 11),
+      );
+      const diag2 = diagWith(
+        DiagnosticCodes.FinallyBlockUnsupported,
+        secondPayload,
+        new vscode.Range(10, 4, 16, 11),
+      );
+      (vscode.languages as any).getDiagnostics = () => [diag1, diag2];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(
+            doc,
+            new vscode.Range(2, 4, 8, 11),
+            { diagnostics: [diag1] } as any,
+            noopToken,
+          ),
+        )) as any[];
+
+        const actions = onlyQuickFixes(all);
+        const bulkFix = actions.find((a) => a.title.includes("todos os blocos Catch"));
+        assert.ok(bulkFix, "Bulk fix should be available");
+
+        const edits = bulkFix.edit?.edits;
+        // The first diagnostic (with ex) has 1 edit (wrap body)
+        // The second diagnostic (no catch var) has 2 edits (declare var, wrap body)
+        // Total edits = 3
+        assert.equal(edits?.length, 3);
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+  });
+
   describe("suppression actions", () => {
     test("generates line and file suppression quick fixes for any diagnostic", async () => {
       const doc = mockDoc("g.PopupMenu = Nothing\n");
@@ -569,13 +752,12 @@ describe("D7BasicCodeActionProvider", () => {
       const diag = diagWith("some-diagnostic-code", null, range);
       const provider = new D7BasicCodeActionProvider();
       const all = (await Promise.resolve(
-        provider.provideCodeActions(
-          doc,
-          range,
-          { diagnostics: [diag] } as any,
-          noopToken,
-        ),
-      )) as unknown as { title: string; kind?: { value?: string }; edit: { edits: { type: string; text?: string }[] } }[];
+        provider.provideCodeActions(doc, range, { diagnostics: [diag] } as any, noopToken),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        edit: { edits: { type: string; text?: string }[] };
+      }[];
       const actions = all.filter((a) => {
         const v = typeof a.kind === "string" ? a.kind : a.kind?.value;
         return v === "quickfix" || v === undefined;
@@ -587,8 +769,97 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(lineFix);
       assert.ok(fileFix);
 
-      expectEdit(lineFix.edit, { type: "insert", textIncludes: "data7:disable-line some-diagnostic-code" });
-      expectEdit(fileFix.edit, { type: "insert", textIncludes: "data7:disable some-diagnostic-code" });
+      expectEdit(lineFix.edit, {
+        type: "insert",
+        textIncludes: "data7:disable-line some-diagnostic-code",
+      });
+      expectEdit(fileFix.edit, {
+        type: "insert",
+        textIncludes: "data7:disable some-diagnostic-code",
+      });
+    });
+  });
+
+  describe("bulk quickfixes additional tests", () => {
+    test("missing-import bulk fix gathers and inserts all missing imports", async () => {
+      const doc = mockDoc("Class Foo\nEnd Class\n");
+      const diag1 = diagWith(DiagnosticCodes.MissingImport, {
+        code: DiagnosticCodes.MissingImport,
+        namespace: "Forms",
+        typeName: "TForm",
+      });
+      const diag2 = diagWith(DiagnosticCodes.MissingImport, {
+        code: DiagnosticCodes.MissingImport,
+        namespace: "SQL",
+        typeName: "TQuery",
+      });
+
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [diag1, diag2];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(
+            doc,
+            new vscode.Range(0, 0, 0, 5),
+            { diagnostics: [diag1] } as any,
+            noopToken,
+          ),
+        )) as any[];
+
+        const actions = onlyQuickFixes(all);
+        const bulkFix = actions.find((a) => a.title.includes("todas as dependências em falta"));
+        assert.ok(bulkFix, "Bulk fix for missing imports should be present");
+        expectEdit(bulkFix.edit, { type: "insert", textIncludes: "Imports Forms" });
+        expectEdit(bulkFix.edit, { type: "insert", textIncludes: "Imports SQL" });
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+
+    test("unused-import / duplicate-import bulk fix removes all target lines", async () => {
+      const doc = mockDoc("Imports Forms\nImports SQL\nImports Forms\n");
+      const diag1 = diagWith(
+        DiagnosticCodes.UnusedImport,
+        {
+          code: DiagnosticCodes.UnusedImport,
+          namespace: "Forms",
+        },
+        new vscode.Range(0, 8, 0, 13),
+      );
+      const diag2 = diagWith(
+        DiagnosticCodes.DuplicateImport,
+        {
+          code: DiagnosticCodes.UnusedImport,
+          namespace: "Forms",
+        },
+        new vscode.Range(2, 8, 2, 13),
+      );
+
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [diag1, diag2];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(
+            doc,
+            new vscode.Range(0, 8, 0, 13),
+            { diagnostics: [diag1] } as any,
+            noopToken,
+          ),
+        )) as any[];
+
+        const actions = onlyQuickFixes(all);
+        const bulkFix = actions.find((a) =>
+          a.title.includes("Remover todos os imports duplicados"),
+        );
+        assert.ok(bulkFix, "Bulk fix for unused imports should be present");
+        assert.equal(bulkFix.edit?.edits.length, 2);
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
     });
   });
 });

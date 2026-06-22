@@ -27,8 +27,9 @@ export class BuildService {
       !WorkspaceTrustService.ensureTrusted(
         "Compilar um projeto Data7 requer um workspace confiável.",
       )
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -69,8 +70,9 @@ export class BuildService {
       !WorkspaceTrustService.ensureTrusted(
         "Executar um projeto Data7 requer um workspace confiável.",
       )
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -151,8 +153,9 @@ export class BuildService {
       !WorkspaceTrustService.ensureTrusted(
         "Executar um projeto Data7 requer um workspace confiável.",
       )
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     const cfg = getRawConfiguration();
     const executorPath = await ProjectService.ensureExecutorPath(cfg);
@@ -239,8 +242,9 @@ export class BuildService {
       !WorkspaceTrustService.ensureTrusted(
         "Abrir no Developer Studio requer um workspace confiável.",
       )
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     const project = ProjectService.getActiveProject();
     if (!project) {

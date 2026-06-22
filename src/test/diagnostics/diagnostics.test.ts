@@ -3,7 +3,10 @@ import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
 import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
-import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
+import {
+  DiagnosticCodes,
+  type FinallyBlockUnsupportedPayload,
+} from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, registerOpenDocument } from "../_helpers/mock-doc";
 import { expectDiagnostic, expectNoDiagnostic } from "../_helpers/assertions";
 import { loadExample, parseExampleHeader } from "../_helpers/fixtures";
@@ -1554,6 +1557,72 @@ Dim _pair As TPair<Integer>`;
       expectDiagnostic(diags, DiagnosticCodes.GenericArityMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownTemplate);
     });
+  });
+
+  test("finally-block-unsupported registers payload with Catch location details", () => {
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const uri = "file:///try_catch_finally_payload.bas";
+    const code = `Namespace mod_try
+   Class C
+      Public Sub Run()
+         Try
+            Print("Try")
+         Catch ex As Exception
+            Print(ex.Message)
+         Finally
+            Print("Finally")
+         End Try
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const doc = createMockDoc(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+    const diag = diags.find((d: any) => d.code === DiagnosticCodes.FinallyBlockUnsupported);
+    assert.ok(diag, "Should emit FinallyBlockUnsupported warning");
+    const payload = (diag as any).data as FinallyBlockUnsupportedPayload;
+    assert.ok(payload, "Payload should be attached");
+    assert.equal(payload.code, DiagnosticCodes.FinallyBlockUnsupported);
+    assert.equal(payload.catchVarName, "ex");
+    assert.equal(payload.catchLine, 5);
+    assert.equal(payload.catchBodyStartLine, 6);
+    assert.equal(payload.catchBodyEndLine, 6);
+  });
+
+  test("finally-block-unsupported is bypassed when catch body is wrapped with If Assigned", () => {
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const uri = "file:///try_catch_finally_wrapped.bas";
+    const code = `Namespace mod_try
+   Class C
+      Public Sub Run()
+         Try
+            Print("Try")
+         Catch ex As Exception
+            If Assigned(ex) Then
+               Print(ex.Message)
+            End If
+         Finally
+            Print("Finally")
+         End Try
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const doc = createMockDoc(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+    const diag = diags.find((d: any) => d.code === DiagnosticCodes.FinallyBlockUnsupported);
+    assert.ok(
+      !diag,
+      "Should NOT emit FinallyBlockUnsupported warning when catch body is wrapped with If Assigned",
+    );
   });
 
   test("returns empty diagnostics array for data7-preview documents", () => {

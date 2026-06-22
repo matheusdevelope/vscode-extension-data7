@@ -44,7 +44,6 @@ export function extractSuppressedCodes(text: string): Map<number, SuppressionTar
   const FILE_DIRECTIVE_REGEX = /(?:'|REM\s)\s*data7:disable\b(?:\s+([a-zA-Z0-9_\-, ]+))?/i;
 
   for (const line of lines) {
-    
     // Exclude disable-line and disable-next-line from file-wide check
     if (/\bdata7:disable-(?:line|next-line)\b/i.test(line)) continue;
 

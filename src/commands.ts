@@ -29,7 +29,14 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     [COMMAND_IDS.openDevStudio, () => BuildService.openInDevStudio()],
     [COMMAND_IDS.build, () => BuildService.build()],
     [COMMAND_IDS.runProject, () => BuildService.run()],
-    [COMMAND_IDS.installModule, () => DependencyService.installModule()],
+    [
+      COMMAND_IDS.installModule,
+      (moduleName?: string) => DependencyService.installModule(moduleName),
+    ],
+    [
+      COMMAND_IDS.installModulesBulk,
+      (moduleNames: string[]) => DependencyService.installModules(moduleNames),
+    ],
     [COMMAND_IDS.updateDependencies, () => DependencyService.updateDependencies()],
     [
       COMMAND_IDS.importModuleToRepository,

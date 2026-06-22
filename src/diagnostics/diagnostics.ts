@@ -29,6 +29,7 @@ import type {
   UnknownTemplatePayload,
   UnsupportedMemberPayload,
   DuplicateDeclarationPayload,
+  FinallyBlockUnsupportedPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
@@ -371,6 +372,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.DeadCode]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.MissingMyBaseFree]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.TypeMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.FinallyBlockUnsupported]: vscode.DiagnosticSeverity.Warning,
   };
 
   private static readonly VALID_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set(
@@ -2338,21 +2340,96 @@ class DiagnosticsASTWalker extends ASTWalker {
     }
   }
 
+  private isCatchBodyWrappedWithAssignedCheck(node: TryCatchStatement): boolean {
+    if (!node.catchVar) {
+      return false;
+    }
+    if (node.catchBody.length !== 1) {
+      return false;
+    }
+    const stmt = node.catchBody[0];
+    if (stmt?.kind !== "IfStatement") {
+      return false;
+    }
+    if (stmt.elseIfBranches.length > 0 || stmt.elseBranch) {
+      return false;
+    }
+    const cond = stmt.condition;
+    if (
+      cond.kind === "MethodInvocation" &&
+      cond.methodName.toLowerCase() === "assigned" &&
+      cond.arguments.length === 1
+    ) {
+      const arg = cond.arguments[0];
+      if (
+        arg?.kind === "Identifier" &&
+        arg.name.toLowerCase() === node.catchVar.name.toLowerCase()
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private checkTryCatchStatement(node: TryCatchStatement): void {
     if (node.finallyBody && node.loc) {
+      if (this.isCatchBodyWrappedWithAssignedCheck(node)) {
+        return;
+      }
+
       const lineIdx = node.loc.startLine - 1;
-      const range = new vscode.Range(
-        lineIdx,
-        node.loc.startChar,
-        lineIdx,
-        node.loc.endChar,
-      );
+      const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
       const diag = new vscode.Diagnostic(
         range,
         `O uso de 'Finally' no bloco Try/Catch não é recomendado devido a um bug conhecido no compilador que sempre executa o bloco 'Catch'.`,
-        vscode.DiagnosticSeverity.Error,
+        vscode.DiagnosticSeverity.Warning,
       );
       diag.code = DiagnosticCodes.FinallyBlockUnsupported;
+
+      if (node.catchBody.length > 0) {
+        const tryBody = node.tryBody;
+        const catchBody = node.catchBody;
+        const nodeLoc = node.loc;
+
+        const firstStmt = catchBody[0];
+        const lastStmt = catchBody[catchBody.length - 1];
+
+        if (firstStmt && lastStmt) {
+          let catchLine = -1;
+          let startSearchLine = nodeLoc.startLine;
+          if (tryBody.length > 0) {
+            const lastTryStmt = tryBody[tryBody.length - 1];
+            if (lastTryStmt?.loc) {
+              startSearchLine = lastTryStmt.loc.endLine;
+            }
+          }
+
+          const endSearchLine = firstStmt.loc?.startLine ?? nodeLoc.endLine;
+
+          for (let i = startSearchLine - 1; i < endSearchLine; i++) {
+            const lineText = this.lines[i] ?? "";
+            if (/^\s*Catch\b/i.test(lineText)) {
+              catchLine = i;
+              break;
+            }
+          }
+
+          const firstStmtLoc = firstStmt.loc;
+          const lastStmtLoc = lastStmt.loc;
+
+          if (catchLine !== -1 && firstStmtLoc && lastStmtLoc) {
+            const payload: FinallyBlockUnsupportedPayload = {
+              code: DiagnosticCodes.FinallyBlockUnsupported,
+              catchLine,
+              catchBodyStartLine: firstStmtLoc.startLine - 1,
+              catchBodyEndLine: lastStmtLoc.endLine - 1,
+              catchVarName: node.catchVar?.name,
+            };
+            setDiagnosticPayload(diag, payload);
+          }
+        }
+      }
+
       this.diagnostics.push(diag);
     }
   }

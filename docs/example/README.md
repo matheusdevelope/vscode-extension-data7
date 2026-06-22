@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (119 arquivos)
+## Índice de exemplos (120 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -193,7 +193,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (50)
+### diagnostics (51)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -211,6 +211,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
 | [`diagnostics/event-signature-mismatch/trigger.bas`](./diagnostics/event-signature-mismatch/trigger.bas) | handler atribuído a OnClick (TNotifyEvent espera 1 parâmetro Sender) mas o handler tem 0 | `event-signature-mismatch@11` | — |
+| [`diagnostics/finally-block-unsupported/trigger.bas`](./diagnostics/finally-block-unsupported/trigger.bas) | O uso de Finally no Try-Catch é desencorajado | `finally-block-unsupported@7` | — |
 | [`diagnostics/flat-name-collision/trigger.bas`](./diagnostics/flat-name-collision/trigger.bas) | source type carries `_` so two distinct usages collapse to the same flat name | `flat-name-collision@14` | `emitted by the SugarTranspiler at build-time (Fase 6); the live linter does not yet track flat-name collisions.` |
 | [`diagnostics/function-read-self/trigger.bas`](./diagnostics/function-read-self/trigger.bas) | reading from function name inside its own body | `function-read-self@10` | `linter implementation for function self read detection` |
 | [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |

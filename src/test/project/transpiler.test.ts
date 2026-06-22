@@ -200,7 +200,6 @@ describe("SugarTranspiler.transpile", () => {
     assert.equal(
       out,
       [
-        "Imports mod_logger",
         "Sub Run()",
         "   Dim list As StringList",
         "   ' For Each item As String In list — this is just a comment",
@@ -216,7 +215,7 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, ["Imports mod_logger", 'mod_logger.Printe("hello")'].join("\n"));
+    assert.equal(out, 'mod_logger.Printe("hello")');
   });
 
   test("runs logger print after functional list sugars materialize Print calls", () => {
@@ -231,7 +230,7 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /^Imports mod_logger$/m);
+    assert.doesNotMatch(out, /^Imports mod_logger$/m);
     assert.match(out, /mod_logger\.Printe\(x\)/);
     assert.doesNotMatch(out, /^\s*Print\(x\)$/m);
   });
@@ -803,7 +802,7 @@ describe("SugarTranspiler — ternary (`cond ? a : b`)", () => {
     assert.ok(diag);
     assert.equal(diag.code, "ternary-context-unsupported");
     assert.equal(diag.typeName, "non-assignment");
-    assert.equal(out, ["Imports mod_logger", 'mod_logger.Printe(cond ? "sim" : "nao")'].join("\n"));
+    assert.equal(out, 'mod_logger.Printe(cond ? "sim" : "nao")');
   });
 
   test("ignores `?` and `:` inside a regular string literal", () => {
@@ -871,7 +870,7 @@ describe("SugarTranspiler — A1 null-coalesce (`??`)", () => {
     const [diag] = diagnostics;
     assert.ok(diag);
     assert.equal(diag.code, "null-coalesce-context-unsupported");
-    assert.equal(out, ["Imports mod_logger", 'mod_logger.Printe(a ?? "x")'].join("\n"));
+    assert.equal(out, 'mod_logger.Printe(a ?? "x")');
   });
 });
 
@@ -943,7 +942,7 @@ describe("SugarTranspiler — A5 optional chaining (`?.`)", () => {
     const [diag] = diagnostics;
     assert.ok(diag);
     assert.equal(diag.code, "optional-chain-context-unsupported");
-    assert.equal(out, ["Imports mod_logger", "mod_logger.Printe(obj?.Nome)"].join("\n"));
+    assert.equal(out, "mod_logger.Printe(obj?.Nome)");
   });
 });
 

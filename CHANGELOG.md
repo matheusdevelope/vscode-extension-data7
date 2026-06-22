@@ -7,6 +7,26 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado (Try/Catch Warning, Correções em Massa e Workspace Trust — 2026-06-22)
+
+- **Aviso de Bloco Finally Não Recomendado (`finally-block-unsupported`)**: Adicionado diagnóstico (severidade `Warning`) que sinaliza o uso do bloco `Finally` em estruturas Try/Catch, devido a um bug conhecido no compilador que executa o `Catch` mesmo quando nenhuma exceção é lançada.
+  - O warning é suprimido automaticamente se for identificado o workaround `If Assigned(ex) Then` (onde `ex` é a variável da exceção) englobando o corpo do bloco `Catch`.
+- **Ações Rápidas em Massa (Bulk Quickfixes)**: Todos os diagnósticos que possuem Quickfixes agora suportam a aplicação em massa em todo o arquivo ativo de forma a agilizar a refatoração:
+  - Importar em massa todas as dependências ausentes.
+  - Remover em lote todos os `Imports` duplicados ou não utilizados.
+  - Declarar ou instalar todas as dependências em lote (utilizando o novo comando `data7.installModulesBulk`).
+  - Corrigir em massa nomes de membros/tipos incorretos (sugestões "Você quis dizer...?").
+  - Corrigir todas as ocorrências de parênteses em assinaturas/chamadas e métodos `MyBase.New`/`MyBase.Free` ausentes.
+  - Resolver em massa todos os avisos de `finally-block-unsupported` aplicando o workaround `If Assigned(ex) Then` em todo o arquivo.
+- **Supressão via Comentários**: Garantido que todo diagnóstico gerado pelo linter suporte a desativação tanto no escopo da linha (`' data7:disable-line <code>`) quanto no escopo global do arquivo (`' data7:disable <code>`).
+- **Workspace Trust Service**: Adição do `WorkspaceTrustService` no processo de inicialização, que bloqueia compilações, descompilações manuais e gravações no repositório privado em workspaces não confiáveis.
+- **Desativação do SyncWatcher Automático**: O watcher de sincronização em tempo real (`SyncWatcher`) foi totalmente desabilitado para evitar concorrências, colisões e reversões de código indesejadas no Windows. O processo de build e descompilação agora é estritamente manual e seguro.
+- **Diretrizes e Instruções de Agente (MDC)**: Reconfiguradas as diretrizes nos diretórios `.codex/rules/`, `.antigravity/rules/` e `.cursor/rules/`, incluindo regras de conformidade e o dever de atualizar a documentação (`CHANGELOG.md`, `project_context.md` e `README.md`) a cada entrega importante.
+
+### Corrigido (Try/Catch e Linter — 2026-06-22)
+
+- **Bypass do Linter para Try/Catch com Workaround**: O linter agora verifica a AST do catch body (`isCatchBodyWrappedWithAssignedCheck`) para validar se o workaround já foi aplicado, evitando reportar um warning duplicado ou indevido após a aplicação do Quickfix.
+
 ### Adicionado (Generics — metaprogramação e monomorfização por workspace)
 
 - **Diretivas de metaprogramação em templates genéricos**: O parser e o monomorfizador AST agora reconhecem blocos `<# IF ... THEN #>`, `<# ELSE #>` e `<# END IF #>` dentro de templates genéricos.

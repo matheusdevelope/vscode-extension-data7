@@ -18,8 +18,8 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - **Outline / Breadcrumbs / Sticky scroll** com símbolos hierárquicos.
 - **Signature Help** com destaque do parâmetro atual.
 - **Folding** semântico de `Namespace`, `Class`, `Sub`, `Function`, `If`, `For`, `While`.
-- **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`).
-- **Quick Fixes** automáticos para cada código de diagnóstico (importar, remover importação não usada, adicionar a `data7.json#dependencies`, instalar módulo, sugestão "você quis dizer X?").
+- **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`, `finally-block-unsupported`).
+- **Quick Fixes e Correções em Massa**: Ações rápidas individuais e em lote ("Aplicar a todas as ocorrências no arquivo") para importar/remover dependências, instalar módulos ausentes, resolver erros de escrita ("Você quis dizer X?") e aplicar contornos automáticos (como envolver o bloco catch do Try/Catch com `If Assigned(ex) Then`).
 
 ### Sistema de projeto
 

@@ -439,6 +439,17 @@ export interface MissingMyBaseFreePayload {
   className: string;
 }
 
+/**
+ * Payload for `FinallyBlockUnsupported`: identifies Catch line, catch body lines, and variable name.
+ */
+export interface FinallyBlockUnsupportedPayload {
+  code: typeof DiagnosticCodes.FinallyBlockUnsupported;
+  catchLine: number;
+  catchBodyStartLine: number;
+  catchBodyEndLine: number;
+  catchVarName?: string;
+}
+
 export type DiagnosticPayload =
   | MissingImportPayload
   | ModuleNotDeclaredPayload
@@ -462,7 +473,8 @@ export type DiagnosticPayload =
   | InstantiationLimitExceededPayload
   | DuplicateDeclarationPayload
   | MissingMyBaseNewPayload
-  | MissingMyBaseFreePayload;
+  | MissingMyBaseFreePayload
+  | FinallyBlockUnsupportedPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

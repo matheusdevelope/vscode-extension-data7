@@ -101,7 +101,7 @@ End Namespace
         Builder.buildProject(tmp, destXml, undefined, { vscodeLoggerFilePath: logFilePath });
 
         const xml = fs.readFileSync(destXml, "utf-8");
-        assert.match(xml, /Imports mod_logger/);
+        assert.doesNotMatch(xml, /Imports mod_logger/);
         assert.match(xml, /mod_logger\.ConfigureVSCode/);
         assert.match(xml, /mod_logger\.Printe\(&quot;hello&quot;\)/);
       });

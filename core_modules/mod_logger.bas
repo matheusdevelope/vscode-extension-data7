@@ -1,5 +1,7 @@
-Imports Collections
+
 Imports IO
+Imports mod_tlist
+Imports Collections
 
 '@Module
 Namespace mod_logger
@@ -345,7 +347,6 @@ Namespace mod_logger
       End Sub
 
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If Not IsNativePrintEnabled() Then Exit Sub
          Print(pFormatted)
          If me.ProcessMessages Then Forms.ProcessMessages()
       End Sub
@@ -419,37 +420,37 @@ Namespace mod_logger
 
    Class LogTransportList
 
-      Private _list As StringList
+      Private _list As TTList<LogTransport>
 
       Sub New()
          MyBase.New()
-         me._list = New StringList()
+         me._list = New TTList<LogTransport>()
          me._list.OwnsObjects = True
       End Sub
 
       Sub Add(pTransport As LogTransport)
          If pTransport = NULL Then Exit Sub
-         me._list.AddObject(pTransport.GetID().ToUpper(), pTransport)
+         me._list.Push(pTransport.GetID().ToUpper(), pTransport)
       End Sub
 
       Function Take(pIndex As Integer) As LogTransport
-         Take = LogTransport(me._list.Objects(pIndex))
+         Take = me._list.Take(pIndex)
       End Function
 
       Function Take(pID As String) As LogTransport
-         Take = me.Take(me._list.IndexOf(pID.ToUpper()))
+         Take = me._list.Take(pID.ToUpper())
       End Function
 
       Function Count() As Integer
-         Count = me._list.Count
+         Count = me._list.Length
       End Function
 
       Sub Clear()
-         me._list.Clear()
+         me._list.Clean(True)
       End Sub
 
       Sub Free()
-         me._list.Free()
+         If Assigned(me._list) Then me._list.Free()
          MyBase.Free()
       End Sub
 
@@ -619,9 +620,10 @@ Namespace mod_logger
 
    End Class
 
-   Private Dim _defaultLogger As Logger
-   Private Dim _timers As StringList
-   Private Dim _NativePrintEnabled As Boolean = True
+    Private Dim _defaultLogger As Logger
+    Private Dim _timers As StringList
+    Private Dim _NativePrintEnabledInitialized As Boolean = False
+    Private Dim _NativePrintEnabled As Boolean = True
 
    Function GetDefault() As Logger
       If _defaultLogger = NULL Then
@@ -634,21 +636,35 @@ Namespace mod_logger
       _defaultLogger = pLogger
    End Sub
 
-   Sub SetNativePrintEnabled(pEnabled As Boolean)
-      _NativePrintEnabled = pEnabled
-   End Sub
+    Sub SetNativePrintEnabled(pEnabled As Boolean)
+       _NativePrintEnabled = pEnabled
+       _NativePrintEnabledInitialized = True
+    End Sub
 
-   Sub EnableNativePrint()
-      SetNativePrintEnabled(True)
-   End Sub
+    Sub EnableNativePrint()
+       SetNativePrintEnabled(True)
+    End Sub
 
-   Sub DisableNativePrint()
-      SetNativePrintEnabled(False)
-   End Sub
+    Sub DisableNativePrint()
+       SetNativePrintEnabled(False)
+    End Sub
 
-   Function IsNativePrintEnabled() As Boolean
-      IsNativePrintEnabled = _NativePrintEnabled
-   End Function
+    Function IsNativePrintEnabled() As Boolean
+       If Not _NativePrintEnabledInitialized Then
+          _NativePrintEnabledInitialized = True
+          Try
+             Dim _exec As String = Data7.NomeArquivoExecutavel().ToUpper()
+             If _exec.EndsWith("DATA7.EXE") Then
+                _NativePrintEnabled = False
+             Else
+                _NativePrintEnabled = True
+             End If
+          Catch ex As Exception
+             _NativePrintEnabled = True
+          End Try
+       End If
+       IsNativePrintEnabled = _NativePrintEnabled
+    End Function
 
    Sub ConfigureConsole()
       EnableNativePrint()

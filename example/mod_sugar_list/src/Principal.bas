@@ -1,4 +1,4 @@
-' data7:disable finally-block-unsupported
+
 Imports mod_tlist
 Imports mod_product
 Imports mod_tela_grid_dados
@@ -27,15 +27,13 @@ Try
       _prods.forEach((p2 As Product) =>    mod_logger.Printe(p2.ToString()))
    End If
 
-
    Using _form As New TTelaGridDados()
       _form.Show()
    End Using
 
    Using _form2 As New TTelaAbas()
-      _form2.Show()
       Try
-         print "teste"
+         _form2.Show()
       Catch ex As Exception
          print(ex.Message)
       Finally
@@ -45,7 +43,9 @@ Try
    End Using
 
 Catch ex As Exception
-   print ex.Message
+   If Assigned(ex) Then
+      print ex.Message
+   End If
 Finally
    print("Finally")
 End Try

@@ -3,11 +3,7 @@ import * as vscode from "vscode";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { isExcluded, readConfiguration } from "../infra/configuration";
 import { logger } from "../infra/logger";
-import {
-  Builder,
-  type BuildProjectOptions,
-  type TranspiledBuildSource,
-} from "../project/builder";
+import { Builder, type BuildProjectOptions, type TranspiledBuildSource } from "../project/builder";
 import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 
 /**
@@ -30,8 +26,12 @@ export class ProjectBuildService {
         disabledSugarIds: sugars.disabledIds,
       },
       isExcluded,
-      onWarning: (message) => { logger.warn(message); },
-      validateTranspiled: (sources, indexer) => { this.validateTranspiled(sources, indexer); },
+      onWarning: (message) => {
+        logger.warn(message);
+      },
+      validateTranspiled: (sources, indexer) => {
+        this.validateTranspiled(sources, indexer);
+      },
     });
   }
 

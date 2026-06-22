@@ -8,6 +8,7 @@ import type {
   UnsupportedMemberPayload,
   UnusedImportPayload,
   MissingMyBaseFreePayload,
+  FinallyBlockUnsupportedPayload,
 } from "../diagnostics/diagnostic-codes";
 import { DiagnosticCodes } from "../diagnostics/diagnostic-codes";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
@@ -70,25 +71,32 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       switch (diagnostic.code) {
         case DiagnosticCodes.MissingImport:
           this.addMissingImportFix(actions, document, diagnostic);
+          this.addMissingImportBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.UnusedImport:
         case DiagnosticCodes.DuplicateImport:
           this.addRemoveImportFix(actions, document, diagnostic);
+          this.addRemoveImportBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.ModuleNotDeclared:
           this.addDeclareDependencyFix(actions, document, diagnostic);
+          this.addDeclareDependencyBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.ModuleNotFound:
           this.addInstallModuleFix(actions, diagnostic);
+          this.addInstallModuleBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.UnknownMember:
           this.addDidYouMeanFixes(actions, document, diagnostic);
+          this.addDidYouMeanBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.UnknownType:
           this.addUnknownTypeDidYouMeanFixes(actions, document, diagnostic);
+          this.addUnknownTypeDidYouMeanBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.UnsupportedMember:
           this.addUnsupportedMemberFixes(actions, document, diagnostic);
+          this.addUnsupportedMemberBulkFix(actions, document, diagnostic);
           break;
         case DiagnosticCodes.DeclarationParenthesesMismatch:
           this.addDeclarationParenthesesMismatchFix(actions, document, diagnostic);
@@ -107,6 +115,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
             this.addMissingThenFix(actions, document, diagnostic);
             this.addMissingThenBulkFix(actions, document, diagnostic);
           }
+          break;
+        case DiagnosticCodes.FinallyBlockUnsupported:
+          this.addFinallyBlockUnsupportedFix(actions, document, diagnostic);
+          this.addFinallyBlockUnsupportedBulkFix(actions, document, diagnostic);
           break;
         default:
           break;
@@ -894,6 +906,398 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     edit.insert(document.uri, new vscode.Position(0, 0), `' data7:disable ${code}${eol}`);
     action.edit = edit;
     actions.push(action);
+  }
+
+  private addFinallyBlockUnsupportedFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const payload = readPayload<FinallyBlockUnsupportedPayload>(
+      diagnostic,
+      DiagnosticCodes.FinallyBlockUnsupported,
+    );
+    if (!payload) return;
+
+    const { catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName } = payload;
+
+    const varName = catchVarName ?? "_ex";
+    const label = catchVarName
+      ? `Encapsular bloco Catch com 'If Assigned(${varName}) Then'`
+      : `Declarar variável de exceção e encapsular bloco Catch`;
+
+    const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
+    action.diagnostics = [diagnostic];
+    action.isPreferred = true;
+
+    const edit = new vscode.WorkspaceEdit();
+
+    if (!catchVarName) {
+      const catchLineText = document.lineAt(catchLine).text;
+      const catchRegex = /\bCatch\b/i;
+      const newCatchLineText = catchLineText.replace(catchRegex, `Catch ${varName} As Exception`);
+      edit.replace(
+        document.uri,
+        new vscode.Range(catchLine, 0, catchLine, catchLineText.length),
+        newCatchLineText,
+      );
+    }
+
+    const firstStmtLineText = document.lineAt(catchBodyStartLine).text;
+    const indentMatch = /^(\s*)/.exec(firstStmtLineText);
+    const bodyIndent = indentMatch?.[1] ?? "";
+
+    const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+    const wrappedLines: string[] = [];
+    wrappedLines.push(`${bodyIndent}If Assigned(${varName}) Then`);
+
+    for (let i = catchBodyStartLine; i <= catchBodyEndLine; i++) {
+      const lineText = document.lineAt(i).text;
+      if (lineText.trim() === "") {
+        wrappedLines.push("");
+      } else {
+        wrappedLines.push(`${bodyIndent}  ${lineText.trimStart()}`);
+      }
+    }
+
+    wrappedLines.push(`${bodyIndent}End If`);
+    const replacementText = wrappedLines.join(eol);
+
+    const startPos = new vscode.Position(catchBodyStartLine, 0);
+    const endPos = document.lineAt(catchBodyEndLine).range.end;
+    edit.replace(document.uri, new vscode.Range(startPos, endPos), replacementText);
+
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addFinallyBlockUnsupportedBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.FinallyBlockUnsupported);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Encapsular todos os blocos Catch com 'If Assigned' neste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+
+    // Sort in descending order of start line to avoid offset shift issues
+    const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+
+    for (const match of sorted) {
+      const payload = readPayload<FinallyBlockUnsupportedPayload>(
+        match,
+        DiagnosticCodes.FinallyBlockUnsupported,
+      );
+      if (!payload) continue;
+
+      const { catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName } = payload;
+      const varName = catchVarName ?? "_ex";
+
+      if (!catchVarName) {
+        const catchLineText = document.lineAt(catchLine).text;
+        const catchRegex = /\bCatch\b/i;
+        const newCatchLineText = catchLineText.replace(catchRegex, `Catch ${varName} As Exception`);
+        edit.replace(
+          document.uri,
+          new vscode.Range(catchLine, 0, catchLine, catchLineText.length),
+          newCatchLineText,
+        );
+      }
+
+      const firstStmtLineText = document.lineAt(catchBodyStartLine).text;
+      const indentMatch = /^(\s*)/.exec(firstStmtLineText);
+      const bodyIndent = indentMatch?.[1] ?? "";
+
+      const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+      const wrappedLines: string[] = [];
+      wrappedLines.push(`${bodyIndent}If Assigned(${varName}) Then`);
+
+      for (let i = catchBodyStartLine; i <= catchBodyEndLine; i++) {
+        const lineText = document.lineAt(i).text;
+        if (lineText.trim() === "") {
+          wrappedLines.push("");
+        } else {
+          wrappedLines.push(`${bodyIndent}  ${lineText.trimStart()}`);
+        }
+      }
+
+      wrappedLines.push(`${bodyIndent}End If`);
+      const replacementText = wrappedLines.join(eol);
+
+      const startPos = new vscode.Position(catchBodyStartLine, 0);
+      const endPos = document.lineAt(catchBodyEndLine).range.end;
+      edit.replace(document.uri, new vscode.Range(startPos, endPos), replacementText);
+    }
+
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addMissingImportBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.MissingImport);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Importar todas as dependências em falta neste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const namespacesToImport = new Set<string>();
+    for (const match of mismatches) {
+      const payload = readPayload<MissingImportPayload>(match, DiagnosticCodes.MissingImport);
+      const ns = payload?.namespace ?? extractNamespaceFromMessage(match.message);
+      if (ns) {
+        namespacesToImport.add(ns);
+      }
+    }
+
+    if (namespacesToImport.size === 0) return;
+
+    const edit = new vscode.WorkspaceEdit();
+    const sorted = Array.from(namespacesToImport).sort();
+    const insertLine = findImportInsertLine(document);
+
+    const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+    const insertionText = sorted.map((ns) => `Imports ${ns}`).join(eol) + eol;
+
+    edit.insert(document.uri, new vscode.Position(insertLine, 0), insertionText);
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addRemoveImportBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter(
+      (d) => d.code === DiagnosticCodes.UnusedImport || d.code === DiagnosticCodes.DuplicateImport,
+    );
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Remover todos os imports duplicados/não utilizados neste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+
+    for (const match of sorted) {
+      const line = match.range.start.line;
+      const start = new vscode.Position(line, 0);
+      const end =
+        line + 1 < document.lineCount
+          ? new vscode.Position(line + 1, 0)
+          : document.lineAt(line).range.end;
+      edit.delete(document.uri, new vscode.Range(start, end));
+    }
+
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addDeclareDependencyBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.ModuleNotDeclared);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Declarar todos os módulos não declarados em data7.json",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const moduleNames = new Set<string>();
+    for (const match of mismatches) {
+      const payload = readPayload<ModuleNotDeclaredPayload>(
+        match,
+        DiagnosticCodes.ModuleNotDeclared,
+      );
+      if (payload?.moduleName) {
+        moduleNames.add(payload.moduleName);
+      }
+    }
+
+    if (moduleNames.size === 0) return;
+
+    action.command = {
+      title: action.title,
+      command: "data7.installModulesBulk",
+      arguments: [Array.from(moduleNames)],
+    };
+    actions.push(action);
+  }
+
+  private addInstallModuleBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.ModuleNotFound);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Instalar todos os módulos não encontrados a partir do repositório",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const moduleNames = new Set<string>();
+    for (const match of mismatches) {
+      const payload = readPayload<ModuleNotFoundPayload>(match, DiagnosticCodes.ModuleNotFound);
+      if (payload?.moduleName) {
+        moduleNames.add(payload.moduleName);
+      }
+    }
+
+    if (moduleNames.size === 0) return;
+
+    action.command = {
+      title: action.title,
+      command: "data7.installModulesBulk",
+      arguments: [Array.from(moduleNames)],
+    };
+    actions.push(action);
+  }
+
+  private addDidYouMeanBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.UnknownMember);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Corrigir todos os membros desconhecidos neste arquivo com a primeira sugestão",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+
+    let appliedCount = 0;
+    for (const match of sorted) {
+      const payload = readPayload<UnknownMemberPayload>(match, DiagnosticCodes.UnknownMember);
+      if (payload && payload.suggestions.length > 0) {
+        edit.replace(document.uri, match.range, payload.suggestions[0]!);
+        appliedCount++;
+      }
+    }
+
+    if (appliedCount === 0) return;
+
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addUnknownTypeDidYouMeanBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.UnknownType);
+    if (mismatches.length <= 1) return;
+
+    const action = new vscode.CodeAction(
+      "Corrigir todos os tipos desconhecidos neste arquivo com a primeira sugestão",
+      vscode.CodeActionKind.QuickFix,
+    );
+    action.diagnostics = [diagnostic];
+
+    const edit = new vscode.WorkspaceEdit();
+    const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+
+    let appliedCount = 0;
+    for (const match of sorted) {
+      const payload = readPayload<UnknownTypePayload>(match, DiagnosticCodes.UnknownType);
+      if (payload && payload.suggestions.length > 0) {
+        edit.replace(document.uri, match.range, payload.suggestions[0]!);
+        appliedCount++;
+      }
+    }
+
+    if (appliedCount === 0) return;
+
+    action.edit = edit;
+    actions.push(action);
+  }
+
+  private addUnsupportedMemberBulkFix(
+    actions: vscode.CodeAction[],
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): void {
+    const allDiags = vscode.languages.getDiagnostics(document.uri);
+    const mismatches = allDiags.filter((d) => d.code === DiagnosticCodes.UnsupportedMember);
+    if (mismatches.length <= 1) return;
+
+    // 1. Bulk comment action
+    const commentAction = new vscode.CodeAction(
+      "Comentar todas as linhas de membros não suportados neste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    commentAction.diagnostics = [diagnostic];
+    {
+      const edit = new vscode.WorkspaceEdit();
+      const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+      for (const match of sorted) {
+        const line = match.range.start.line;
+        const lineText = document.lineAt(line).text;
+        const indentMatch = /^(\s*)/.exec(lineText);
+        const indent = indentMatch?.[1] ?? "";
+        const rest = lineText.slice(indent.length);
+        const range = new vscode.Range(line, 0, line, lineText.length);
+        edit.replace(document.uri, range, `${indent}' ${rest}`);
+      }
+      commentAction.edit = edit;
+      actions.push(commentAction);
+    }
+
+    // 2. Bulk suppression action
+    const suppressAction = new vscode.CodeAction(
+      "Suprimir avisos de membros não suportados em todas as ocorrências deste arquivo",
+      vscode.CodeActionKind.QuickFix,
+    );
+    suppressAction.diagnostics = [diagnostic];
+    {
+      const edit = new vscode.WorkspaceEdit();
+      const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
+      for (const match of sorted) {
+        const line = match.range.start.line;
+        const lineText = document.lineAt(line).text;
+        const insertPos = new vscode.Position(line, lineText.length);
+        const trailing = lineText.endsWith(" ") ? "" : " ";
+        edit.insert(document.uri, insertPos, `${trailing}' data7:disable-line unsupported-member`);
+      }
+      suppressAction.edit = edit;
+      actions.push(suppressAction);
+    }
   }
 }
 
