@@ -13,20 +13,22 @@ alwaysApply: true
 ## Top-level `src/` layout
 
 - **Root Files:** Only `src/extension.ts` and `src/commands.ts` are allowed at the root of `src/`. Introducing a new root file requires updating this rule.
-- `src/project/` — The central source of truth for syntax and project compilation:
+- `src/project/` — Build, decompile, transpile, project config, and the current language kernel:
   - `parser/` and `ast/`: The core syntax definitions and parsers.
   - `generics/` and `sugars/`: Implement pure transformations over the AST and canonical code.
-  - Also contains legacy tooling (`builder.ts`, `decompiler.ts`).
-- `src/analysis/` — Semantic reading, workspace indexing, type resolution, control flow analysis, and dependencies.
-- `src/diagnostics/` — Diagnostic codes, severity definitions, and diagnostic assembly.
-- `src/providers/` — VS Code UI features (Completion, Hover, Definition, Rename, Formatter, Code Actions). All providers MUST strictly depend on the AST/indexer from `src/analysis/` and never implement raw text parsing.
-- `src/services/` — Command implementations, VS Code integration, and orchestration.
-- `src/system-library/` — The native Data7 symbol catalog. Note: The external `docs/system-library` folder is derived strictly from this source.
-- `src/mcp/` — An isolated external adapter (Model Context Protocol) that reuses the existing runtime via shims.
+  - `builder.ts` and `transpiler.ts` are orchestration/compatibility hot paths, not homes for new independent semantic rules.
+- `src/analysis/` — Semantic reading, workspace indexing, type resolution, control flow, and dependency discovery. It may consume the parser/AST kernel.
+- `src/diagnostics/` — Diagnostic codes, severity definitions, and AST-driven diagnostic assembly.
+- `src/providers/` — VS Code UI adapters. Providers consume AST/context/indexer; they never implement semantic parsing through raw text or regex.
+- `src/services/` — Command implementations, VS Code integration, workspace trust, and IO orchestration.
+- `src/system-library/` — Native Data7 symbol catalog. `docs/system-library/` is derived from this source.
+- `src/mcp/` — Isolated MCP adapter that reuses the existing runtime via shims.
 - `src/infra/` — Configuration, constants, and logging.
-- `src/utils/` — Pure, domain-agnostic helpers.
+- `src/utils/` — Pure domain-agnostic helpers; do not place language semantics here.
 
 ## Files outside `src/`
 
-- `docs/example/` — Canonical test fixtures. The headers and `_expected` directories must perfectly reflect the real code before any test validation occurs. This folder is the absolute source of truth for both documentation and test inputs.
-- `docs/rfcs/` — Architecture Decision Records for changes that touch multiple files or introduce dependencies.
+- `docs/example/` — Canonical documentation fixtures. Headers and `_expected` output must reflect the current transpiler/linter before tests run; regenerate its README index from headers.
+- `docs/linguagem-basic/` — Current language and tooling reference; do not describe removed feature flags or superseded pipelines.
+- `docs/system-library/` — Generated human reference for `src/system-library/`.
+- `docs/rfcs/` — Historical architecture decisions. Mark assumptions absent from this checkout as historical rather than operational.

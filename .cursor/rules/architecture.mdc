@@ -13,18 +13,26 @@ alwaysApply: true
 
 - **Zero regex/text parsing in providers for semantic analysis.** Providers and language tools must exclusively consume `D7AstContext`, `LanguageProcessor`, `parseBasic`, or indexed symbols.
 - Regex in providers is STRICTLY PROHIBITED for language analysis and is only acceptable for local trivia, indentation heuristics, or UI-level text manipulation.
+- A provider that needs a syntactic fact must add it to the AST, context, or indexer instead of rescanning document text. Code actions, formatter, signature help, and document links follow the same rule.
 
 ## Layer Responsibilities & Runtime Flows
 
-- **Language Kernel (`src/project/parser`, `src/project/ast`, `src/project/generics`, `src/project/sugars`):** The absolute core of the language. This layer must remain completely deterministic and strictly isolated from the VS Code API.
-- **Analysis (`src/analysis/`):** Consumes the parser/AST and the `system-library`. Owns the `SymbolIndexer`, `TypeResolver`, control flow, enumerable logic, and dependency resolution. Must not contain any UI or VS Code presentation logic.
+- **Language Kernel (`src/project/parser`, `src/project/ast`, `src/project/generics`, `src/project/sugars`):** The shared syntax and transformation core. It must remain deterministic and isolated from the VS Code API. `analysis` is an approved consumer of this kernel.
+- **Analysis (`src/analysis/`):** Consumes the parser/AST and the `system-library`. Owns the `SymbolIndexer`, `TypeResolver`, control flow, enumerable logic, and dependency resolution. It must not contain UI, commands, or VS Code presentation logic.
 - **Diagnostics (`src/diagnostics/`):** Consumes the parser/AST and `analysis`, emitting `vscode.Diagnostic` objects. It is strictly a linter/validator and must NEVER become a build orchestrator.
-- **Project Tooling (`src/project/`):** Orchestrates the builder, decompiler, transpiler, and project configurations. _Rule:_ New semantic language rules must be born in the `analysis` or `kernel` layers, never crammed into a monolithic builder or transpiler.
+- **Project Tooling (`src/project/`):** Owns build, decompile, transpile, and project configuration. It currently orchestrates `analysis`, `diagnostics`, and `infra`; new semantic rules must be born in `analysis` or the kernel, never added directly to `Builder` or `SugarTranspiler`.
 - **Providers (`src/providers/`):** Act exclusively as editorial adapters bridging the AST/Indexer to the VS Code UI. They do not own or centralize any business logic.
 - **Services (`src/services/`):** Orchestrates VS Code specific features (Workspace Trust, commands, file I/O). Must not duplicate language semantics or parsing logic.
 - **MCP (`src/mcp/`):** Reuses the existing linter, transpiler, and indexer via shims. It must NEVER create a parallel parser, resolver, or symbol catalog.
 - **Infrastructure (`src/infra/`):** Contains configuration schemas, global constants, and centralized logging.
 
+## Cross-cutting Rules
+
+- Module discovery, dependency synchronization, namespace parsing, and project-file mutation must have one shared implementation. Do not recreate these decisions in services, builders, or providers.
+- Workspace trust, path validation, and destructive-operation gates belong in shared service helpers. Do not duplicate `ensureWorkspaceTrusted`-style functions per service.
+- A new MCP capability must call the existing parser, linter, transpiler, and indexer through the runtime adapter; it must not fork language behavior.
+
 ## Refactoring and Growth Directive
 
-- The `DiagnosticsLinter`, `SugarTranspiler`, and `Builder` are critical paths. When modifying or extending them, you must **prefer extracting a cohesive unit** (a new rule class, a dedicated visitor, or a helper) before adding new logic to the main flow. Prevent these modules from becoming monolithic God-classes.
+- The `DiagnosticsLinter`, `SugarTranspiler`, and `Builder` are critical paths. When modifying or extending them, prefer extracting a cohesive visitor, analyzer, or helper before adding to the main flow.
+- A change that introduces a new parser pass or regex scanner must justify why the central AST cannot represent the requirement; providers have no such exception.
