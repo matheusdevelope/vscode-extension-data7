@@ -1,6 +1,9 @@
 import * as fs from "fs";
 import type { ProjectMetadata, ProjectOptions } from "./project-metadata";
 
+/** Canonical filename for the Data7 project descriptor. */
+export const PROJECT_CONFIG_FILENAME = "data7.json" as const;
+
 /**
  * Single source of truth for reading and narrowing `data7.json` files.
  *

@@ -1,7 +1,7 @@
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as vscode from "vscode";
-import * as path from "path";
-import * as fs from "fs";
-import { spawn } from "child_process";
 import { Builder } from "../project/builder";
 import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
@@ -9,14 +9,7 @@ import { logger } from "../infra/logger";
 import { readConfiguration, getRawConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { readProjectConfig } from "../project/project-config";
-
-function ensureWorkspaceTrusted(reason: string): boolean {
-  if (!vscode.workspace.isTrusted) {
-    vscode.window.showErrorMessage(reason);
-    return false;
-  }
-  return true;
-}
+import { WorkspaceTrustService } from "./workspace-trust-service";
 
 interface ExecutorLogSession {
   readonly filePath: string;
@@ -28,7 +21,12 @@ let executorLogSession: ExecutorLogSession | undefined;
 export class BuildService {
   /** Builds the active project's `.7Proj`. */
   public static async build(): Promise<void> {
-    if (!ensureWorkspaceTrusted("Compilar um projeto Data7 requer um workspace confiável.")) return;
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Compilar um projeto Data7 requer um workspace confiável.",
+      )
+    )
+      return;
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -65,7 +63,12 @@ export class BuildService {
 
   /** Runs the Data7 Executor against the current project. */
   public static async run(): Promise<void> {
-    if (!ensureWorkspaceTrusted("Executar um projeto Data7 requer um workspace confiável.")) return;
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Executar um projeto Data7 requer um workspace confiável.",
+      )
+    )
+      return;
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -142,7 +145,12 @@ export class BuildService {
 
   /** Runs the Executor against a specific `.7Proj` file path. */
   public static async runProjectFileDirectly(projectFilePath: string): Promise<void> {
-    if (!ensureWorkspaceTrusted("Executar um projeto Data7 requer um workspace confiável.")) return;
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Executar um projeto Data7 requer um workspace confiável.",
+      )
+    )
+      return;
 
     const cfg = getRawConfiguration();
     const executorPath = await ProjectService.ensureExecutorPath(cfg);
@@ -153,7 +161,9 @@ export class BuildService {
       return;
     }
     if (!fs.existsSync(executorPath)) {
-      vscode.window.showErrorMessage(`Executor.exe não encontrado em "${executorPath}".`);
+      vscode.window.showErrorMessage(
+        "O Executor.exe configurado não foi encontrado. Revise data7.executorPath.",
+      );
       return;
     }
 
@@ -180,13 +190,9 @@ export class BuildService {
       }
     }
 
-    // spawn with explicit argument array avoids shell-injection from user-controlled
-    // executorPath / connectionId values (security.mdc).
-
-    const quote = (s: string): string => `"${s.replace(/"/g, '\\"')}"`;
     const args = [
       "-c",
-      quote(connectionId),
+      connectionId,
       "-e",
       String(config.companyCode),
       "-f",
@@ -194,22 +200,45 @@ export class BuildService {
       "-u",
       config.userName,
       "-p",
-      quote(projectFilePath),
+      projectFilePath,
     ];
 
-    const terminalName = "Data7 Executor";
-    const terminal =
-      vscode.window.terminals.find((t) => t.name === terminalName) ??
-      vscode.window.createTerminal(terminalName);
-    terminal.show();
-    terminal.sendText(this.formatCommandForTerminal(executorPath, args));
+    const child = spawn(executorPath, args, {
+      cwd: path.dirname(projectFilePath),
+      env: this.createExecutorEnvironment(executorPath),
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    child.stdout.on("data", (chunk: Buffer) => {
+      logger.info(`[Executor] ${chunk.toString("utf-8").trimEnd()}`);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      logger.error(`[Executor] ${chunk.toString("utf-8").trimEnd()}`);
+    });
+    child.once("error", (err: Error) => {
+      logger.error("Falha ao iniciar o Executor Data7.", err);
+      void vscode.window.showErrorMessage("Falha ao executar o projeto Data7.");
+    });
+    child.once("close", (code: number | null) => {
+      if (code === 0) {
+        logger.info(`Executor concluído para "${path.basename(projectFilePath)}".`);
+      } else {
+        logger.warn(`Executor terminou com código ${code ?? "desconhecido"}.`);
+      }
+    });
 
-    logger.info(`Executor lançado para "${path.basename(projectFilePath)}".`);
+    logger.info(`Executor iniciado para "${path.basename(projectFilePath)}".`);
+    logger.show();
   }
 
   /** Opens the active project in the Data7 Developer Studio. */
   public static async openInDevStudio(): Promise<void> {
-    if (!ensureWorkspaceTrusted("Abrir no Developer Studio requer um workspace confiável.")) return;
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Abrir no Developer Studio requer um workspace confiável.",
+      )
+    )
+      return;
 
     const project = ProjectService.getActiveProject();
     if (!project) {
@@ -244,7 +273,11 @@ export class BuildService {
   public static openInDevStudioDirectly(projectFilePath: string): Promise<void> {
     // No async work happens here, but the public API is `Promise<void>` so
     // callers can `await` consistently across all BuildService entry points.
-    if (!ensureWorkspaceTrusted("Abrir no Developer Studio requer um workspace confiável.")) {
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Abrir no Developer Studio requer um workspace confiável.",
+      )
+    ) {
       return Promise.resolve();
     }
 
@@ -345,14 +378,12 @@ export class BuildService {
     fs.watchFile(logFilePath, { interval: 250 }, readNewContent);
   }
 
-  /**
-   * Formats the Executor invocation as a single shell line for the terminal.
-   * Quotes every path/argument so spaces in user-controlled values do not break
-   * argument boundaries. This is the same data we spawn with `args[]` but
-   * routed through the integrated terminal so the user can see the output.
-   */
-  private static formatCommandForTerminal(executablePath: string, args: string[]): string {
-    // const quote = (s: string): string => `"${s.replace(/"/g, '\\"')}"`;
-    return [executablePath, ...args].join(" ");
+  private static createExecutorEnvironment(executorPath: string): NodeJS.ProcessEnv {
+    return {
+      PATH: process.env.PATH ?? path.dirname(executorPath),
+      SystemRoot: process.env.SystemRoot,
+      TEMP: process.env.TEMP,
+      TMP: process.env.TMP,
+    };
   }
 }

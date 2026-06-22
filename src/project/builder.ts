@@ -1,5 +1,6 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-metadata";
 import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
@@ -8,19 +9,14 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
-import { isExcluded, readConfiguration } from "../infra/configuration";
-import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
-import { logger } from "../infra/logger";
-import * as vscode from "vscode";
-import { DiagnosticsLinter } from "../diagnostics/diagnostics";
-import { readProjectConfig, writeProjectConfig } from "./project-config";
+import { readProjectConfig, writeProjectConfig, PROJECT_CONFIG_FILENAME } from "./project-config";
 import {
   SugarTranspiler,
   type TranspileContext,
   type SugarDiagnostic,
   type TranspileResult,
 } from "./transpiler";
-import { SugarRegistry } from "./sugar-registry";
+import { SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
 import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./generics";
 
 function collectOpenTypeParams(templates: readonly ExternalGenericTemplate[]): ReadonlySet<string> {
@@ -75,6 +71,18 @@ const BUILDER_PRIMITIVE_TYPE_NAMES = new Set([
 
 export interface BuildProjectOptions {
   readonly vscodeLoggerFilePath?: string;
+  readonly sugarOptions?: SugarEngineOptions;
+  readonly isExcluded?: (filePath: string) => boolean;
+  readonly onWarning?: (message: string) => void;
+  readonly validateTranspiled?: (
+    sources: readonly TranspiledBuildSource[],
+    indexer: WorkspaceSymbolIndexer,
+  ) => void;
+}
+
+export interface TranspiledBuildSource {
+  readonly fileUri: string;
+  readonly code: string;
 }
 
 /**
@@ -172,21 +180,20 @@ export class Builder {
   private static buildTranspileContext(
     srcDir: string,
     data7ModulesDir: string,
+    options: BuildProjectOptions,
   ): { transpileCtx: TranspileContext; indexer: WorkspaceSymbolIndexer } {
     const indexer = WorkspaceSymbolIndexer.createDetached();
-    this.preIndexDirectory(indexer, srcDir);
+    const isExcluded = options.isExcluded ?? (() => false);
+    const onWarning = options.onWarning ?? (() => undefined);
+    this.preIndexDirectory(indexer, srcDir, isExcluded, onWarning);
     if (fs.existsSync(data7ModulesDir)) {
-      this.preIndexDirectory(indexer, data7ModulesDir);
+      this.preIndexDirectory(indexer, data7ModulesDir, isExcluded, onWarning);
     }
-    // Read the experimental feature flag once per build. Falls back to
-    // `false` when running outside the VS Code extension host (e.g. in
-    // unit tests where `vscode.workspace.getConfiguration` is mocked).
     const externalGenericTemplates = this.collectExternalGenericTemplates(indexer);
     const requestedGenericInstantiations = this.collectRequestedGenericInstantiations(
       indexer,
       externalGenericTemplates,
     );
-    const sugarConfig = readConfiguration().sugars;
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -199,11 +206,7 @@ export class Builder {
       resolveTypeImport: (typeName: string) => this.resolveTypeImport(typeName, indexer),
       externalGenericTemplates,
       requestedGenericInstantiations,
-      sugarOptions: {
-        enabled: sugarConfig.enabled,
-        enabledSugarIds: sugarConfig.enabledIds,
-        disabledSugarIds: sugarConfig.disabledIds,
-      },
+      sugarOptions: options.sugarOptions,
     };
     return { transpileCtx, indexer };
   }
@@ -295,7 +298,12 @@ export class Builder {
     return requests;
   }
 
-  private static preIndexDirectory(indexer: WorkspaceSymbolIndexer, dir: string): void {
+  private static preIndexDirectory(
+    indexer: WorkspaceSymbolIndexer,
+    dir: string,
+    isExcluded: (filePath: string) => boolean,
+    onWarning: (message: string) => void,
+  ): void {
     if (!fs.existsSync(dir)) return;
     // Respect the user's `data7.exclude` patterns just like the live workspace
     // indexer does — otherwise files the user explicitly excluded (legacy
@@ -308,19 +316,17 @@ export class Builder {
       if (isExcluded(full)) continue;
       const stat = fs.statSync(full);
       if (stat.isDirectory()) {
-        this.preIndexDirectory(indexer, full);
+        this.preIndexDirectory(indexer, full, isExcluded, onWarning);
         continue;
       }
       const ext = path.extname(entry).toLowerCase();
       if (ext !== ".bas" && ext !== ".d7b") continue;
       try {
         const content = fs.readFileSync(full, "utf-8");
-        // File URIs use the `file://` scheme so `SymbolParser.parseBasFile`
-        // (which calls `vscode.Uri.parse(...).fsPath`) is happy.
-        const uri = vscode.Uri.file(full).toString();
+        const uri = pathToFileURL(full).toString();
         indexer.updateFileContent(uri, content);
       } catch (err: unknown) {
-        logger.warn(
+        onWarning(
           `Falha ao pré-indexar ${full} para o transpilador: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
@@ -336,10 +342,11 @@ export class Builder {
   private static reportSugarDiagnostics(
     fileLabel: string,
     diagnostics: readonly SugarDiagnostic[],
+    onWarning: (message: string) => void,
   ): void {
     if (diagnostics.length === 0) return;
     for (const d of diagnostics) {
-      logger.warn(
+      onWarning(
         `Transpiler [${fileLabel}:${(d.line + 1).toString()}]: o tipo "${d.typeName}" ` +
           `não expõe o par Count + indexador esperado pelo "For Each".`,
       );
@@ -379,6 +386,7 @@ export class Builder {
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
       srcDir,
       data7ModulesDir,
+      options,
     );
 
     const globalUsedSugars = new Set<string>();
@@ -538,7 +546,7 @@ export class Builder {
 
       transpiledSrcModules.push({
         name: filename,
-        fileUri: vscode.Uri.file(filePath).toString(),
+        fileUri: pathToFileURL(filePath).toString(),
         code: transpiled.code,
         diagnostics: transpiled.diagnostics,
         folderId,
@@ -591,7 +599,7 @@ export class Builder {
           }
           transpiledDepModules.push({
             name: filename,
-            fileUri: vscode.Uri.file(path.join(data7ModulesDir, file)).toString(),
+            fileUri: pathToFileURL(path.join(data7ModulesDir, file)).toString(),
             code: transpiled.code,
             diagnostics: transpiled.diagnostics,
             folderId: data7ModulesFolderId!,
@@ -629,7 +637,7 @@ export class Builder {
       });
     }
 
-    const mainUri = vscode.Uri.file(mainCodePath).toString();
+    const mainUri = pathToFileURL(mainCodePath).toString();
     buildIndexer.updateFileContent(mainUri, mainTranspiled.code);
     transpiledSrcModules.forEach((m) => {
       buildIndexer.updateFileContent(m.fileUri, m.code);
@@ -638,14 +646,22 @@ export class Builder {
       buildIndexer.updateFileContent(m.fileUri, m.code);
     });
 
-    // 4. Run strict linter and optimize/add to compile list
-    this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics);
-    this.runStrictNativeLinter(mainUri, mainTranspiled.code, buildIndexer);
+    const onWarning = options.onWarning ?? (() => undefined);
+    options.validateTranspiled?.(
+      [
+        { fileUri: mainUri, code: mainTranspiled.code },
+        ...transpiledSrcModules,
+        ...transpiledDepModules,
+      ],
+      buildIndexer,
+    );
+
+    // 4. Report transpilation diagnostics and optimize/add to compile list
+    this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
     const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
 
     transpiledSrcModules.forEach((m) => {
-      this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics);
-      this.runStrictNativeLinter(m.fileUri, m.code, buildIndexer);
+      this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
       const code = this.optimizeCode(m.code, minify, stripComments);
 
       newModulesMetadata[m.name] = {
@@ -665,8 +681,7 @@ export class Builder {
     });
 
     transpiledDepModules.forEach((m) => {
-      this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics);
-      this.runStrictNativeLinter(m.fileUri, m.code, buildIndexer);
+      this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics, onWarning);
       const code = this.optimizeCode(m.code, minify, stripComments);
 
       modulesToCompile.push({
@@ -799,38 +814,6 @@ export class Builder {
     return parts.join("\n") + "\n";
   }
 
-  private static runStrictNativeLinter(
-    fileUri: string,
-    code: string,
-    indexer: WorkspaceSymbolIndexer,
-  ): void {
-    indexer.updateFileContent(fileUri, code);
-
-    const mockDoc = {
-      uri: vscode.Uri.parse(fileUri),
-      languageId: "d7basic",
-      version: 1,
-      getText: () => code,
-    } as unknown as vscode.TextDocument;
-
-    const linter = new DiagnosticsLinter({ strict: true });
-    const diagnostics = linter.runDiagnostics(mockDoc, indexer);
-
-    const errors = diagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error);
-    if (errors.length > 0) {
-      const filename = path.basename(mockDoc.uri.fsPath);
-      const errorMsg = errors
-        .map(
-          (e) =>
-            `[${(e.range.start.line + 1).toString()}:${e.range.start.character.toString()}] ${e.message}`,
-        )
-        .join("\n");
-      logger.error(`[Build] Erro de Linter/Sintaxe Nativa em ${filename}:\n${errorMsg}`);
-      throw new Error(
-        `O build foi abortado devido a erros de validação strict native em ${filename}:\n${errorMsg}`,
-      );
-    }
-  }
 }
 
 // Re-export shared metadata types for callers that previously imported from `builder.ts`.

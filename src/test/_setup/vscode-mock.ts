@@ -526,7 +526,6 @@ const mockVsCode = {
     getConfiguration: () => ({
       get: (key: string) => {
         if (key === "sharedModulesPath") return "";
-        if (key === "enableAutoSync") return true;
         if (key === "autoFormatOnSave") return false;
         if (key === "exclude") return ["**/node_modules/**"];
         if (key === "diagnosticSeverity") return {};

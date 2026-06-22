@@ -30,6 +30,7 @@ import { readConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig, isRecord } from "../project/project-config";
+import { WorkspaceTrustService } from "./workspace-trust-service";
 
 export interface DbConnection {
   id: string;
@@ -284,7 +285,10 @@ export class ProjectService {
 
   /** Creates a new Data7 project on disk and opens it in VS Code. */
   public static async createNewProject(): Promise<void> {
-    if (!ensureWorkspaceTrusted("Criar um novo projeto requer um workspace confiável.")) return;
+    if (
+      !WorkspaceTrustService.ensureTrusted("Criar um novo projeto requer um workspace confiável.")
+    )
+      return;
 
     const projectName = await vscode.window.showInputBox({
       prompt: "Digite o nome do novo projeto:",
@@ -428,7 +432,11 @@ export class ProjectService {
    * Extracted out of `extension.ts` so the command callback there stays thin.
    */
   public static async openProject(uri: vscode.Uri | undefined): Promise<void> {
-    if (!ensureWorkspaceTrusted("Abrir e decompor um projeto requer um workspace confiável.")) {
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Abrir e decompor um projeto requer um workspace confiável.",
+      )
+    ) {
       return;
     }
 
@@ -568,7 +576,11 @@ export class ProjectService {
    * Decompiles/destructures the active project's .7Proj file in place.
    */
   public static async decomposeActiveProject(uri?: vscode.Uri): Promise<void> {
-    if (!ensureWorkspaceTrusted("Decompor um projeto Data7 requer um workspace confiável.")) {
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Decompor um projeto Data7 requer um workspace confiável.",
+      )
+    ) {
       return;
     }
 
@@ -676,12 +688,4 @@ export class ProjectService {
       },
     );
   }
-}
-
-function ensureWorkspaceTrusted(reason: string): boolean {
-  if (!vscode.workspace.isTrusted) {
-    vscode.window.showErrorMessage(reason);
-    return false;
-  }
-  return true;
 }

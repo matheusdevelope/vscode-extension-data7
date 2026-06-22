@@ -19,6 +19,8 @@ A extensão provê recursos avançados de:
 - Formatação de código.
 - Compilação e empacotamento (`Builder`) e descompilação (`Decompiler`) de projetos ERP.
 
+A árvore de fontes e o arquivo `.7proj` seguem um fluxo manual: use os comandos de decompor e compilar/rebuildar quando quiser propagar alterações. Não há sincronização automática, evitando concorrência entre gravações.
+
 ---
 
 ## 2. Definições Técnicas e Conceituais
@@ -298,7 +300,7 @@ Cada código tem um Quick Fix correspondente no `D7BasicCodeActionProvider`:
 
 ### 5.1. Entry point (`src/extension.ts` + `src/commands.ts`)
 
-- `src/extension.ts`: orquestrador da ativação. `activate()` chama, nesta ordem, `initLogger(context)`, `RepositoryService.initialize(context)`, `registerWorkspaceListeners(context)`, `registerCommands(context)`, `registerLanguageProviders(context)`, e os bootstrap de `DiagnosticService` / `ActivationService` / `SyncWatcher`. Não exporta lógica de negócio.
+- `src/extension.ts`: orquestrador da ativação. `activate()` chama, nesta ordem, `initLogger(context)`, `RepositoryService.initialize(context)`, `registerWorkspaceListeners(context)`, `registerCommands(context)`, `registerLanguageProviders(context)`, e os bootstrap de `DiagnosticService` / `ActivationService`. Não exporta lógica de negócio. Eventos de rename/delete apenas mantêm o índice; não recompilam o `.7proj` automaticamente.
 - `src/commands.ts`: declara `registerCommands(context)` — uma única tabela `Array<[CommandId, handler]>` mapeada para `vscode.commands.registerCommand`. Consome `COMMAND_IDS` de `infra/constants` para manter typos fora do escopo do compilador.
 - `src/providers/registration.ts`: declara `registerLanguageProviders(context)` — todos os 13 `vscode.languages.register*Provider` em um único arquivo, único lugar do projeto que importa todos os providers ao mesmo tempo (exceção arquitetural explícita em `eslint.config.mjs`).
 
@@ -354,7 +356,6 @@ Módulos puros (sem registro de provider) consumidos por providers, diagnostics 
 - `build-service.ts` — comandos de build/run/openInDevStudio. Todo `child_process` usa `spawn` com array de argumentos (sem shell-injection).
 - `dependency-service.ts` — detecção, sync e instalação de dependências do `data7.json`.
 - `repository-service.ts` — gestão do repositório privado de módulos com path-safety e Workspace Trust.
-- `sync-watcher.ts` — bidirectional sync `.bas` ↔ `.7Proj` com debounce.
 - `diagnostic-service.ts` — registro do `DiagnosticCollection`, debounce de refresh e cache por workspace.
 - `docs-service.ts` — integração VS Code: comandos `data7.generateSystemLibraryDocs` (escreve arquivos em pasta escolhida) e `data7.injectSystemLibraryDocs` (insere bloco delimitado em `AGENTS.md` idempotentemente). O motor puro (`DocsGenerator`) vive em `src/system-library/docs-generator.ts` (ver §5.8).
 
@@ -374,7 +375,7 @@ Leaf da árvore de dependências. Cada helper é uma função pura sem registro 
 - `src/utils/xml-helpers.ts`: Único módulo que instancia `fast-xml-parser`. Exporta `parseProjectXml`, `escapeXml`, `decodeHtmlEntities` e helpers de narrowing.
 - `src/utils/guid.ts`: Wrapper sobre `crypto.randomUUID()` no formato GUID do Data7.
 - `src/utils/path-safety.ts`: Validação anti path-traversal (`safeJoinInside`, `isSafeSegment`).
-- `src/utils/debounce.ts`: Helpers `debounce` e `debounceKeyed` consumidos pelo `DiagnosticService` e pelo `SyncWatcher`.
+- `src/utils/debounce.ts`: Helpers `debounce` e `debounceKeyed` consumidos pelo `DiagnosticService`.
 - `src/utils/regex-helpers.ts`: `escapeForRegex(s)` — escape de literais para `RegExp`, consumido pelos providers de Reference/Rename/DocumentLink.
 - `src/utils/symbol-kind.ts`: `mapSystemKindToVsCode(s)` — mapeamento canônico `SymbolInfo.kind` → `vscode.SymbolKind`, reusado por DocumentSymbol e WorkspaceSymbol providers.
 - `src/utils/format-helpers.ts`: `formatParameter(p)` / `formatParameterList(params)` — renderização canônica de assinaturas de parâmetro em Data7 Basic, reusada por hover-provider e docs-generator.

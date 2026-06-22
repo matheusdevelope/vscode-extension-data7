@@ -5,20 +5,14 @@ import { WorkspaceSymbolIndexer } from "./analysis/symbol-indexer";
 import { LanguageProcessor } from "./analysis/language-processor";
 import { CONFIG_NAMESPACE, LANGUAGE_IDS } from "./infra/constants";
 import { initLogger, logger } from "./infra/logger";
-import { Builder } from "./project/builder";
 import { registerCommands } from "./commands";
 import { registerLanguageProviders } from "./providers/registration";
 
 import { ActivationService } from "./services/activation-service";
-import { DependencyService } from "./services/dependency-service";
 import { DiagnosticService } from "./services/diagnostic-service";
 import { MCPService } from "./services/mcp-service";
-import { ProjectService } from "./services/project-service";
 import { RepositoryService } from "./services/repository-service";
-import { SyncWatcher } from "./services/sync-watcher";
 import { PreviewService } from "./services/preview-service";
-
-import { debounce } from "./utils/debounce";
 
 export function activate(context: vscode.ExtensionContext): void {
   initLogger(context);
@@ -31,7 +25,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
   DiagnosticService.initialize(context);
   ActivationService.initializeWorkspace(context);
-  SyncWatcher.startAutoSync(context);
   PreviewService.initialize(context);
 
   // Auto-install (idempotente) o binário MCP em globalStorage para que
@@ -49,17 +42,12 @@ export function activate(context: vscode.ExtensionContext): void {
   }, 1500);
 }
 
-export function deactivate(): void {
-  SyncWatcher.dispose();
-  logger.info("Extensão Data7 Dev Studio desativada.");
-}
-
 // -----------------------------------------------------------------------------
 // Workspace listeners
 //
-// Lives here (rather than in services/) because it wires together listeners
-// from indexer, dependency service, project service, and the builder — it is
-// activation glue, not a long-lived service with its own lifecycle.
+// Lives here (rather than in services/) because it wires together workspace
+// listeners with the indexer and diagnostics service — it is activation glue,
+// not a long-lived service with its own lifecycle.
 // -----------------------------------------------------------------------------
 
 function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
@@ -108,25 +96,11 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(docChangeListener, docCloseListener);
 
-  // Auto-rebuild on rename / delete inside a project. Debounced to absorb bursts.
-  const handleProjectChange = debounce((workspaceDir: string, projectFilePath: string) => {
-    void (async () => {
-      try {
-        await DependencyService.detectAndSyncProjectDependencies(workspaceDir);
-        Builder.buildProject(workspaceDir, projectFilePath);
-      } catch (err: unknown) {
-        logger.error(`Erro ao reconstruir projeto em ${workspaceDir}.`, err);
-      }
-    })();
-  }, 400);
-
   const renameListener = vscode.workspace.onDidRenameFiles((e) => {
     for (const file of e.files) {
       const oldPath = path.normalize(file.oldUri.fsPath).toLowerCase();
       const newPath = path.normalize(file.newUri.fsPath).toLowerCase();
       indexer.renameWorkspaceFolder(oldPath, newPath);
-      const paths = ProjectService.findProjectPaths(file.newUri.fsPath);
-      if (paths) handleProjectChange(paths.workspaceDir, paths.projectFilePath);
     }
   });
 
@@ -134,8 +108,6 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     for (const uri of e.files) {
       const deletedPath = path.normalize(uri.fsPath).toLowerCase();
       indexer.deleteWorkspaceFolder(deletedPath);
-      const paths = ProjectService.findProjectPaths(uri.fsPath);
-      if (paths) handleProjectChange(paths.workspaceDir, paths.projectFilePath);
     }
   });
 

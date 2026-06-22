@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Projeto_Data7 xmlns="http://www.se7esistemas.com.br/developer/2024" Version="2.0" Language="Basic" Type="Plugin" TargetPlataform="Default">
+<Projeto_Data7 xmlns="http://www.se7esistemas.com.br/developer/2024" Version="1.0.0.0" Language="Basic" Type="Plugin" TargetPlataform="Default">
   <Opcoes>
     <Autor>Matheus</Autor>
     <Versao>1.0.0.0</Versao>
@@ -11,19 +11,20 @@
     <IdentificacaoBancoDados>6B3204FB-3574-45D3-84F1-57F413F10C4E</IdentificacaoBancoDados>
   </Opcoes>
   <Nome>Principal</Nome>
-  <Data>09/06/2026 15:33:32</Data>
+  <Data>2026-06-22T18:34:24.938Z</Data>
   <Codigo>Imports mod_logger
 Imports mod_tlist
 Imports mod_product
 Imports mod_tela_grid_dados
 Imports mod_tela_abas
+mod_logger.ConfigureVSCode(&quot;d:\DEV\Projects\data7\vscode-extension-data7\example\mod_sugar_list\.data7\logs\vscode-executor.log&quot;)
 Try
    Dim _names As TTList_String = New TTList_String()
-   _names.Push("Produto 1")
-   _names.Push("Produto 2")
-   _names.Push("Produto 3")
+   _names.Push(&quot;Produto 1&quot;)
+   _names.Push(&quot;Produto 2&quot;)
+   _names.Push(&quot;Produto 3&quot;)
    Dim _prods As TTList_Product = New TTList_Product()
-   _prods.Push(New Product(0, "Manual"))
+   _prods.Push(New Product(0, &quot;Manual&quot;))
    Dim __src0 As TTList_Product = New TTList_Product()
    Dim __idx0 As Integer
    For __idx0 = 0 To _names.Length - 1
@@ -40,7 +41,7 @@ Try
    Dim _last As Product = _prods.Pop()
    mod_logger.Printe(_last.ToString())
    mod_logger.Printe(_prods.ToString())
-   If Forms.MessageBox.Confirmation("Deseja executar os logs com timer?") Then
+   If Forms.MessageBox.Confirmation(&quot;Deseja executar os logs com timer?&quot;) Then
       Dim __idx2 As Integer
       For __idx2 = 0 To _prods.Length - 1
          Dim p2 As Product = _prods.GetItem(__idx2)
@@ -66,7 +67,7 @@ Catch ex As Exception
 End Try</Codigo>
   <Aberto>true</Aberto>
   <OrdemAbertura>0</OrdemAbertura>
-  <ItemAberto>2</ItemAberto>
+  <ItemAberto>0</ItemAberto>
   <Pastas>
     <Pasta>
       <Nome>Unidades (7)</Nome>
@@ -115,8 +116,8 @@ Namespace mod_product
       End Function
       Overrides Function ToString() As String
          With me.BuildLogger(me.ClassName)
-            .Prop("Codigo", me.Codigo)
-            .Prop("Descricao", me.Descricao)
+            .Prop(&quot;Codigo&quot;, me.Codigo)
+            .Prop(&quot;Descricao&quot;, me.Descricao)
             ToString = .Text()
             .Free()
          End With
@@ -127,14 +128,14 @@ Namespace mod_product
    End Class
 End Namespace</Codigo>
       <Aberto>true</Aberto>
-      <OrdemAbertura>1</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{54E05AF7-D967-4CFD-A860-CEA0798BB971}</PastaID>
     </mod_product>
     <mod_tela_abas>
-      <Codigo>' @example: forms/07-abas-pagecontrol
-' @demonstrates: PageControl com abas (TabSheet) — cada aba é criada com o PageControl como pai e recebe Caption
-' @diagnostics: none
-'
+      <Codigo>&apos; @example: forms/07-abas-pagecontrol
+&apos; @demonstrates: PageControl com abas (TabSheet) — cada aba é criada com o PageControl como pai e recebe Caption
+&apos; @diagnostics: none
+&apos;
 Imports Forms
 Namespace mod_tela_abas
    Class TTelaAbas
@@ -142,31 +143,30 @@ Namespace mod_tela_abas
       Private _abas As Forms.PageControl
       Private _abaDados As Forms.TabSheet
       Private _abaConfig As Forms.TabSheet
-      Sub New(pTitle As String = "Configurações")
+      Sub New(pTitle As String = &quot;Configurações&quot;)
          MyBase.New()
          me._build(pTitle)
       End Sub
       Private Sub _build(pTitle As String)
          me._form = New Forms.Form()
          me._form.Caption = pTitle
-         ' o container de abas preenche a janela
+         &apos; o container de abas preenche a janela
          me._abas = New Forms.PageControl(me._form)
          me._abas.Align = alClient
-         ' cada aba é filha do PageControl
+         &apos; cada aba é filha do PageControl
          me._abaDados = New Forms.TabSheet(me._abas)
-         me._abaDados.Caption = "Dados"
+         me._abaDados.Caption = &quot;Dados&quot;
          me._abaConfig = New Forms.TabSheet(me._abas)
-         me._abaConfig.Caption = "Avançado"
+         me._abaConfig.Caption = &quot;Avançado&quot;
          me._abaConfig.TabVisible = True
-         ' conteúdo de cada aba usa a TabSheet como pai
+         &apos; conteúdo de cada aba usa a TabSheet como pai
          Dim titulo As Forms.StaticText = New Forms.StaticText(me._abaDados)
-         titulo.Caption = "Informações do cliente"
+         titulo.Caption = &quot;Informações do cliente&quot;
          titulo.Align = alTop
          me._abas.ActivePageIndex = 0
       End Sub
       Function Show() As Boolean
-         me._form.Show()
-         Show = True
+         Show = me._form.Show()
       End Function
       Sub Free()
          me._form.Free()
@@ -175,21 +175,21 @@ Namespace mod_tela_abas
    End Class
 End Namespace</Codigo>
       <Aberto>true</Aberto>
-      <OrdemAbertura>2</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{54E05AF7-D967-4CFD-A860-CEA0798BB971}</PastaID>
     </mod_tela_abas>
     <mod_tela_grid_dados>
-      <Codigo>' @example: forms/05-grid-com-dados
-' @demonstrates: Grid com cabeçalho fixo + preenchimento de células via Cells(col, row), ColCount/RowCount/FixedRows
-' @diagnostics: none
-'
+      <Codigo>&apos; @example: forms/05-grid-com-dados
+&apos; @demonstrates: Grid com cabeçalho fixo + preenchimento de células via Cells(col, row), ColCount/RowCount/FixedRows
+&apos; @diagnostics: none
+&apos;
 Imports Forms
 Namespace mod_tela_grid_dados
    Class TTelaGridDados
       Private _form As Forms.Form
       Private _content As Forms.PageControl
       Private _grid As Forms.Grid
-      Sub New(pTitle As String = "Clientes")
+      Sub New(pTitle As String = &quot;Clientes&quot;)
          MyBase.New()
          me._build(pTitle)
          me._popular()
@@ -202,28 +202,27 @@ Namespace mod_tela_grid_dados
          me._grid = New Forms.Grid(me._content)
          me._grid.Align = alClient
          me._grid.FixedRows = 1
-         ' primeira linha é o cabeçalho
+         &apos; primeira linha é o cabeçalho
       End Sub
       Private Sub _popular()
          me._grid.ColCount = 3
          me._grid.RowCount = 3
-         ' 1 cabeçalho + 2 dados
-         ' cabeçalho (linha 0)
-         me._grid.Cells(0, 0) = "Código"
-         me._grid.Cells(1, 0) = "Nome"
-         me._grid.Cells(2, 0) = "UF"
-         ' linha 1
-         me._grid.Cells(0, 1) = "1"
-         me._grid.Cells(1, 1) = "Se7e Sistemas"
-         me._grid.Cells(2, 1) = "PR"
-         ' linha 2
-         me._grid.Cells(0, 2) = "2"
-         me._grid.Cells(1, 2) = "Data7 ERP"
-         me._grid.Cells(2, 2) = "SP"
+         &apos; 1 cabeçalho + 2 dados
+         &apos; cabeçalho (linha 0)
+         me._grid.Cells(0, 0) = &quot;Código&quot;
+         me._grid.Cells(1, 0) = &quot;Nome&quot;
+         me._grid.Cells(2, 0) = &quot;UF&quot;
+         &apos; linha 1
+         me._grid.Cells(0, 1) = &quot;1&quot;
+         me._grid.Cells(1, 1) = &quot;Se7e Sistemas&quot;
+         me._grid.Cells(2, 1) = &quot;PR&quot;
+         &apos; linha 2
+         me._grid.Cells(0, 2) = &quot;2&quot;
+         me._grid.Cells(1, 2) = &quot;Data7 ERP&quot;
+         me._grid.Cells(2, 2) = &quot;SP&quot;
       End Sub
       Function Show() As Boolean
-         me._form.Show()
-         Show = True
+         Show = me._form.Show()
       End Function
       Sub Close()
          me._form.Close()
@@ -235,12 +234,12 @@ Namespace mod_tela_grid_dados
    End Class
 End Namespace</Codigo>
       <Aberto>true</Aberto>
-      <OrdemAbertura>3</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{54E05AF7-D967-4CFD-A860-CEA0798BB971}</PastaID>
     </mod_tela_grid_dados>
     <mod_console>
       <Codigo>Imports Collections
-'@Module-Imported
+&apos;@Module-Imported
 Namespace console
    Dim _ProcessMessages As Boolean
    Dim _ProcessMessagesSetted As Boolean
@@ -248,63 +247,63 @@ Namespace console
    Dim AlwaysPrint As Boolean = False
    Dim BlockPrint As Boolean = False
    Sub log(pMessage As Variant)
-      console.Printe("[LOG] " &amp; CStr(pMessage))
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage))
    End Sub
    Sub log(pMessage1 As Variant, pMessage2 As Variant)
-      console.Printe("[LOG] " &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2))
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2))
    End Sub
    Sub log(pMessage1 As Variant, pMessage2 As Variant, pMessage3 As Variant)
-      console.Printe("[LOG] " &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2) &amp; Char(13) &amp; CStr(pMessage3))
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2) &amp; Char(13) &amp; CStr(pMessage3))
    End Sub
    Sub log(pMessage1 As Variant, pMessage2 As Variant, pMessage3 As Variant, pMessage4 As Variant)
-      console.Printe("[LOG] " &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2) &amp; Char(13) &amp; CStr(pMessage3) &amp; Char(13) &amp; CStr(pMessage4))
+      console.Printe(&quot;[LOG] &quot; &amp; CStr(pMessage1) &amp; Char(13) &amp; CStr(pMessage2) &amp; Char(13) &amp; CStr(pMessage3) &amp; Char(13) &amp; CStr(pMessage4))
    End Sub
    Sub erro(pMessage As Variant, pEx As Exception)
-      console.Printe("[ERRO] " &amp; CStr(pMessage) &amp; Char(13) &amp; CStr(pEx._GetMessage()))
+      console.Printe(&quot;[ERRO] &quot; &amp; CStr(pMessage) &amp; Char(13) &amp; CStr(pEx._GetMessage()))
    End Sub
    Sub time(pMessage As Variant)
-      console.Printe("[" + DateTime().ToString("hh:nn:ss.zzz") + "] " &amp; CStr(pMessage))
+      console.Printe(&quot;[&quot; + DateTime().ToString(&quot;hh:nn:ss.zzz&quot;) + &quot;] &quot; &amp; CStr(pMessage))
    End Sub
    Sub time(pTime As TDateTime, pMessage As Variant)
       If pTime.IsDateTime Then
-         console.Printe("[" + pTime.ToString("dd/mm/yyyy hh:nn:ss.zzz") + "] " &amp; Cstr(pMessage))
+         console.Printe(&quot;[&quot; + pTime.ToString(&quot;dd/mm/yyyy hh:nn:ss.zzz&quot;) + &quot;] &quot; &amp; Cstr(pMessage))
       End If
       If pTime.IsDate Then
-         console.Printe("[" + pTime.ToString("dd/mm/yyyy") + "] " &amp; CStr(pMessage))
+         console.Printe(&quot;[&quot; + pTime.ToString(&quot;dd/mm/yyyy&quot;) + &quot;] &quot; &amp; CStr(pMessage))
       End If
       If pTime.IsTime Then
-         console.Printe("[" + pTime.ToString("dd/mm/yyyy") + "] " &amp; CStr(pMessage))
+         console.Printe(&quot;[&quot; + pTime.ToString(&quot;dd/mm/yyyy&quot;) + &quot;] &quot; &amp; CStr(pMessage))
       End If
    End Sub
-   Sub timeStart(pLabel As String, pMessage As String = "")
+   Sub timeStart(pLabel As String, pMessage As String = &quot;&quot;)
       console.addTime(pLabel)
-      console.printTime("START", pLabel, pMessage)
+      console.printTime(&quot;START&quot;, pLabel, pMessage)
    End Sub
-   Sub timeLog(pLabel As String, pMessage As String = "")
-      console.printTime("LOG", pLabel, pMessage)
+   Sub timeLog(pLabel As String, pMessage As String = &quot;&quot;)
+      console.printTime(&quot;LOG&quot;, pLabel, pMessage)
    End Sub
-   Sub timeEnd(pLabel As String, pMessage As String = "")
-      console.printTime("END", pLabel, pMessage)
+   Sub timeEnd(pLabel As String, pMessage As String = &quot;&quot;)
+      console.printTime(&quot;END&quot;, pLabel, pMessage)
       console.removeTime(pLabel)
    End Sub
-   Private Sub printTime(pStep As String, pLabel As String, pMessage As String = "")
+   Private Sub printTime(pStep As String, pLabel As String, pMessage As String = &quot;&quot;)
       Dim idx As Integer = console.timeIndex(pLabel)
       If idx &gt;= 0 Then
-         Dim time_str As String = console.timeDiff(pLabel).ToString("hh:nn:ss.zzz")
-         If time_str = "00:00:00.000" Then
-            time_str = ""
+         Dim time_str As String = console.timeDiff(pLabel).ToString(&quot;hh:nn:ss.zzz&quot;)
+         If time_str = &quot;00:00:00.000&quot; Then
+            time_str = &quot;&quot;
          End If
-         If pMessage &lt;&gt; "" Then
+         If pMessage &lt;&gt; &quot;&quot; Then
             pMessage = CHAR(13) &amp; pMessage
          End If
-         console.Printe("[TIME " &amp; CStr(pStep.ToUpper) &amp; "] " + pLabel + ": " &amp; time_str &amp; pMessage)
+         console.Printe(&quot;[TIME &quot; &amp; CStr(pStep.ToUpper) &amp; &quot;] &quot; + pLabel + &quot;: &quot; &amp; time_str &amp; pMessage)
       Else
-         console.Printe("[TIME " &amp; CStr(pStep.ToUpper) &amp; "] " + pLabel + ": Timer Not Setup")
+         console.Printe(&quot;[TIME &quot; &amp; CStr(pStep.ToUpper) &amp; &quot;] &quot; + pLabel + &quot;: Timer Not Setup&quot;)
       End If
    End Sub
    Private Sub addTime(pLabel As String)
       console.removeTime(pLabel)
-      _timers.Add(pLabel + CStr(_timers.NameValueSeparator) + DateTime().ToString("hh:nn:ss.zzz"))
+      _timers.Add(pLabel + CStr(_timers.NameValueSeparator) + DateTime().ToString(&quot;hh:nn:ss.zzz&quot;))
    End Sub
    Private Sub removeTime(pLabel As String)
       console.initTime()
@@ -320,17 +319,17 @@ Namespace console
       console.initTime()
       If console.timeIndex(pLabel) &gt;= 0 Then
          Dim time_str As String = _timers.Values(pLabel)
-         Dim hours As Integer = CInt(time_str.Split(":")[0])
-         Dim mins As Integer = CInt(time_str.Split(":")[1])
-         Dim secs As Integer = CInt(time_str.Split(":")[2].Split(".")[0])
-         Dim millisecs As Integer = CInt(time_str.Split(".")[1])
+         Dim hours As Integer = CInt(time_str.Split(&quot;:&quot;)[0])
+         Dim mins As Integer = CInt(time_str.Split(&quot;:&quot;)[1])
+         Dim secs As Integer = CInt(time_str.Split(&quot;:&quot;)[2].Split(&quot;.&quot;)[0])
+         Dim millisecs As Integer = CInt(time_str.Split(&quot;.&quot;)[1])
          timeDiff = DateTime() - DateTime().EncodeTime(hours, mins, secs, millisecs)
       End If
    End Function
    Private Sub initTime()
       If _timers = NULL Then
          _timers = New StringList()
-         _timers.NameValueSeparator = ";"
+         _timers.NameValueSeparator = &quot;;&quot;
       End If
    End Sub
    Sub ProcessMessages(pEnabled As Boolean)
@@ -353,13 +352,13 @@ Namespace console
    End Sub
 End Namespace</Codigo>
       <Aberto>false</Aberto>
-      <OrdemAbertura>-1</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
     </mod_console>
     <mod_logger>
       <Codigo>Imports Collections
 Imports IO
-'@Module-Imported
+&apos;@Module-Imported
 Namespace mod_logger
    Delegate Sub LogTransportWriter(pInfo As LogInfo, pFormatted As String)
    Class LogLevel
@@ -387,43 +386,43 @@ Namespace mod_logger
       Shared Function AsString(pLevel As Integer) As String
          Select Case pLevel
             Case 0
-               AsString = "ERROR"
+               AsString = &quot;ERROR&quot;
             Case 1
-               AsString = "WARN"
+               AsString = &quot;WARN&quot;
             Case 2
-               AsString = "INFO"
+               AsString = &quot;INFO&quot;
             Case 3
-               AsString = "HTTP"
+               AsString = &quot;HTTP&quot;
             Case 4
-               AsString = "VERBOSE"
+               AsString = &quot;VERBOSE&quot;
             Case 5
-               AsString = "DEBUG"
+               AsString = &quot;DEBUG&quot;
             Case 6
-               AsString = "SILLY"
+               AsString = &quot;SILLY&quot;
             Case Else
-               AsString = "LEVEL-" + pLevel.ToString()
+               AsString = &quot;LEVEL-&quot; + pLevel.ToString()
          End Select
       End Function
       Shared Function FromString(pLevel As String) As Integer
          pLevel = pLevel.ToUpper().Trim()
          Select Case pLevel
-            Case "ERROR"
+            Case &quot;ERROR&quot;
                FromString = 0
-            Case "ERRO"
+            Case &quot;ERRO&quot;
                FromString = 0
-            Case "WARN"
+            Case &quot;WARN&quot;
                FromString = 1
-            Case "WARNING"
+            Case &quot;WARNING&quot;
                FromString = 1
-            Case "INFO"
+            Case &quot;INFO&quot;
                FromString = 2
-            Case "HTTP"
+            Case &quot;HTTP&quot;
                FromString = 3
-            Case "VERBOSE"
+            Case &quot;VERBOSE&quot;
                FromString = 4
-            Case "DEBUG"
+            Case &quot;DEBUG&quot;
                FromString = 5
-            Case "SILLY"
+            Case &quot;SILLY&quot;
                FromString = 6
             Case Else
                FromString = 2
@@ -436,43 +435,43 @@ Namespace mod_logger
    Private Function LoggerLevelAsString(pLevel As Integer) As String
       Select Case pLevel
          Case 0
-            LoggerLevelAsString = "ERROR"
+            LoggerLevelAsString = &quot;ERROR&quot;
          Case 1
-            LoggerLevelAsString = "WARN"
+            LoggerLevelAsString = &quot;WARN&quot;
          Case 2
-            LoggerLevelAsString = "INFO"
+            LoggerLevelAsString = &quot;INFO&quot;
          Case 3
-            LoggerLevelAsString = "HTTP"
+            LoggerLevelAsString = &quot;HTTP&quot;
          Case 4
-            LoggerLevelAsString = "VERBOSE"
+            LoggerLevelAsString = &quot;VERBOSE&quot;
          Case 5
-            LoggerLevelAsString = "DEBUG"
+            LoggerLevelAsString = &quot;DEBUG&quot;
          Case 6
-            LoggerLevelAsString = "SILLY"
+            LoggerLevelAsString = &quot;SILLY&quot;
          Case Else
-            LoggerLevelAsString = "LEVEL-" + pLevel.ToString()
+            LoggerLevelAsString = &quot;LEVEL-&quot; + pLevel.ToString()
       End Select
    End Function
    Private Function LoggerLevelFromString(pLevel As String) As Integer
       pLevel = pLevel.ToUpper().Trim()
       Select Case pLevel
-         Case "ERROR"
+         Case &quot;ERROR&quot;
             LoggerLevelFromString = 0
-         Case "ERRO"
+         Case &quot;ERRO&quot;
             LoggerLevelFromString = 0
-         Case "WARN"
+         Case &quot;WARN&quot;
             LoggerLevelFromString = 1
-         Case "WARNING"
+         Case &quot;WARNING&quot;
             LoggerLevelFromString = 1
-         Case "INFO"
+         Case &quot;INFO&quot;
             LoggerLevelFromString = 2
-         Case "HTTP"
+         Case &quot;HTTP&quot;
             LoggerLevelFromString = 3
-         Case "VERBOSE"
+         Case &quot;VERBOSE&quot;
             LoggerLevelFromString = 4
-         Case "DEBUG"
+         Case &quot;DEBUG&quot;
             LoggerLevelFromString = 5
-         Case "SILLY"
+         Case &quot;SILLY&quot;
             LoggerLevelFromString = 6
          Case Else
             LoggerLevelFromString = 2
@@ -496,7 +495,7 @@ Namespace mod_logger
          me.Level = 2
          me.LevelName = LoggerLevelAsString(me.Level)
       End Sub
-      Sub New(pSeverity As Integer, pMessage As String, pExtra As String = "", pMeta As String = "", pLabel As String = "")
+      Sub New(pSeverity As Integer, pMessage As String, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;, pLabel As String = &quot;&quot;)
          MyBase.New()
          me.Timestamp = DateTime()
          me.Level = pSeverity
@@ -523,14 +522,14 @@ Namespace mod_logger
       End Function
       Function ToJson() As String
          Dim _json As TJSONObject = New TJSONObject()
-         _json.PutString("level", me.LevelName)
-         _json.PutString("message", me.Message)
-         _json.PutString("timestamp", me.Timestamp.ToString("yyyy-mm-dd hh:nn:ss.zzz"))
-         If me.Label &lt;&gt; "" Then _json.PutString("label", me.Label)
-         If me.DetailsText &lt;&gt; "" Then _json.PutString("extra", me.DetailsText)
-         If me.Meta &lt;&gt; "" Then _json.PutString("meta", me.Meta)
-         If me.DurationMs &gt; 0 Then _json.PutInteger("durationMs", me.DurationMs)
-         If me.IsException Then _json.PutString("exception", me.ExceptionMessage)
+         _json.PutString(&quot;level&quot;, me.LevelName)
+         _json.PutString(&quot;message&quot;, me.Message)
+         _json.PutString(&quot;timestamp&quot;, me.Timestamp.ToString(&quot;yyyy-mm-dd hh:nn:ss.zzz&quot;))
+         If me.Label &lt;&gt; &quot;&quot; Then _json.PutString(&quot;label&quot;, me.Label)
+         If me.DetailsText &lt;&gt; &quot;&quot; Then _json.PutString(&quot;extra&quot;, me.DetailsText)
+         If me.Meta &lt;&gt; &quot;&quot; Then _json.PutString(&quot;meta&quot;, me.Meta)
+         If me.DurationMs &gt; 0 Then _json.PutInteger(&quot;durationMs&quot;, me.DurationMs)
+         If me.IsException Then _json.PutString(&quot;exception&quot;, me.ExceptionMessage)
          ToJson = _json.ToString()
          _json.Free()
       End Function
@@ -545,29 +544,29 @@ Namespace mod_logger
       IncludeMeta As Boolean = True
       IncludeExtra As Boolean = True
       Json As Boolean = False
-      TimestampFormat As String = "yyyy-mm-dd hh:nn:ss.zzz"
+      TimestampFormat As String = &quot;yyyy-mm-dd hh:nn:ss.zzz&quot;
       Sub New()
          MyBase.New()
       End Sub
       Function Transform(pInfo As LogInfo) As String
          If pInfo = NULL Then
-            Transform = ""
+            Transform = &quot;&quot;
             Exit Function
          End If
          If me.Json Then
             Transform = pInfo.ToJson()
             Exit Function
          End If
-         Dim _message As String = ""
-         If me.IncludeTimestamp Then _message = _message + "[" + pInfo.Timestamp.ToString(me.TimestampFormat) + "] "
-         If me.IncludeLevel Then _message = _message + "[" + CStr(pInfo.LevelName) + "] "
-         If me.IncludeLabel And pInfo.Label &lt;&gt; "" Then _message = _message + "[" + CStr(pInfo.Label) + "] "
+         Dim _message As String = &quot;&quot;
+         If me.IncludeTimestamp Then _message = _message + &quot;[&quot; + pInfo.Timestamp.ToString(me.TimestampFormat) + &quot;] &quot;
+         If me.IncludeLevel Then _message = _message + &quot;[&quot; + CStr(pInfo.LevelName) + &quot;] &quot;
+         If me.IncludeLabel And pInfo.Label &lt;&gt; &quot;&quot; Then _message = _message + &quot;[&quot; + CStr(pInfo.Label) + &quot;] &quot;
          _message = _message + CStr(pInfo.Message)
-         If me.IncludeExtra And pInfo.DetailsText &lt;&gt; "" Then _message = _message + Char(13) + CStr(pInfo.DetailsText)
-         If pInfo.IsException And pInfo.ExceptionMessage &lt;&gt; "" Then _message = _message + Char(13) + CStr(pInfo.ExceptionMessage)
-         If me.IncludeMeta And pInfo.Meta &lt;&gt; "" Then _message = _message + Char(13) + CStr(pInfo.Meta)
+         If me.IncludeExtra And pInfo.DetailsText &lt;&gt; &quot;&quot; Then _message = _message + Char(13) + CStr(pInfo.DetailsText)
+         If pInfo.IsException And pInfo.ExceptionMessage &lt;&gt; &quot;&quot; Then _message = _message + Char(13) + CStr(pInfo.ExceptionMessage)
+         If me.IncludeMeta And pInfo.Meta &lt;&gt; &quot;&quot; Then _message = _message + Char(13) + CStr(pInfo.Meta)
          If pInfo.DurationMs &gt; 0 Then
-            _message = _message + " +" + pInfo.DurationMs.ToString() + "ms"
+            _message = _message + &quot; +&quot; + pInfo.DurationMs.ToString() + &quot;ms&quot;
          End If
          Transform = _message
       End Function
@@ -599,14 +598,14 @@ Namespace mod_logger
       End Sub
    End Class
    Class LogTransport
-      Name As String = "transport"
+      Name As String = &quot;transport&quot;
       Options As LogTransportOptions
       Sub New()
          MyBase.New()
          me.Options = New LogTransportOptions()
       End Sub
       Function GetID() As String
-         If me.Name &lt;&gt; "" Then
+         If me.Name &lt;&gt; &quot;&quot; Then
             GetID = me.Name
          Else
             GetID = me.GetHashCode().ToString()
@@ -638,7 +637,7 @@ Namespace mod_logger
          me.Log(pInfo, _formatted)
       End Sub
       Overridable Sub Log(pInfo As LogInfo, pFormatted As String)
-         Throw New Exception("LogTransport.Log must be implemented.")
+         Throw New Exception(&quot;LogTransport.Log must be implemented.&quot;)
       End Sub
       Sub Free()
          If Assigned(me.Options) Then me.Options.Free()
@@ -650,7 +649,7 @@ Namespace mod_logger
       ProcessMessages As Boolean = False
       Sub New()
          MyBase.New()
-         me.Name = "console"
+         me.Name = &quot;console&quot;
       End Sub
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
          If Not IsNativePrintEnabled() Then Exit Sub
@@ -664,13 +663,13 @@ Namespace mod_logger
    Class TransportFile
       Inherits LogTransport
       FileName As String
-      Sub New(pFileName As String = "")
+      Sub New(pFileName As String = &quot;&quot;)
          MyBase.New()
-         me.Name = "file"
+         me.Name = &quot;file&quot;
          me.FileName = pFileName
       End Sub
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If me.FileName = "" Then Exit Sub
+         If me.FileName = &quot;&quot; Then Exit Sub
          Dim _lines As StringList = New StringList()
          If File.Exists(me.FileName) Then _lines.LoadFromFile(me.FileName)
          _lines.Add(pFormatted)
@@ -683,9 +682,9 @@ Namespace mod_logger
    End Class
    Class TransportVSCode
       Inherits TransportFile
-      Sub New(pFileName As String = "")
+      Sub New(pFileName As String = &quot;&quot;)
          MyBase.New(pFileName)
-         me.Name = "vscode"
+         me.Name = &quot;vscode&quot;
       End Sub
       Sub Free()
          MyBase.Free()
@@ -761,7 +760,7 @@ Namespace mod_logger
          MyBase.New()
          me.Options = New LoggerOptions()
       End Sub
-      Function Child(pDefaultMeta As String, pLabel As String = "") As Logger
+      Function Child(pDefaultMeta As String, pLabel As String = &quot;&quot;) As Logger
          Dim _child As Logger = New Logger()
          _child.Options.Level = me.Options.Level
          _child.Options.StrictLevel = me.Options.StrictLevel
@@ -771,7 +770,7 @@ Namespace mod_logger
          _child.Options.Transports = me.Options.Transports
          _child.Options.DefaultMeta = me.MergeText(me.Options.DefaultMeta, pDefaultMeta)
          _child._sharedOptions = True
-         If pLabel &lt;&gt; "" Then
+         If pLabel &lt;&gt; &quot;&quot; Then
             _child.Options.Label = pLabel
          Else
             _child.Options.Label = me.Options.Label
@@ -784,7 +783,7 @@ Namespace mod_logger
       Sub ClearTransports()
          me.Options.Transports.Clear()
       End Sub
-      Sub Log(pLevel As Integer, pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Log(pLevel As Integer, pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          If me.Options.Silent Then Exit Sub
          If me.Options.StrictLevel Then
             If me.Options.Level &lt;&gt; pLevel Then Exit Sub
@@ -795,35 +794,35 @@ Namespace mod_logger
          me.Dispatch(_info)
          _info.Free()
       End Sub
-      Sub Log(pLevel As String, pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Log(pLevel As String, pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(LoggerLevelFromString(pLevel), pMessage, pExtra, pMeta)
       End Sub
-      Sub Exceptiom(pMessage As Variant, pEx As Exception, pMeta As String = "")
-         Dim _info As LogInfo = New LogInfo(0, CStr(pMessage), "", me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
+      Sub Exceptiom(pMessage As Variant, pEx As Exception, pMeta As String = &quot;&quot;)
+         Dim _info As LogInfo = New LogInfo(0, CStr(pMessage), &quot;&quot;, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
          _info.IsException = True
          If pEx &lt;&gt; NULL Then _info.ExceptionMessage = pEx._GetMessage()
          me.Dispatch(_info)
          _info.Free()
       End Sub
-      Sub Erro(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Erro(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(0, pMessage, pExtra, pMeta)
       End Sub
-      Sub Warn(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Warn(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(1, pMessage, pExtra, pMeta)
       End Sub
-      Sub Info(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Info(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(2, pMessage, pExtra, pMeta)
       End Sub
-      Sub Http(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Http(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(3, pMessage, pExtra, pMeta)
       End Sub
-      Sub Verbose(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Verbose(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(4, pMessage, pExtra, pMeta)
       End Sub
-      Sub Debug(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Debug(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(5, pMessage, pExtra, pMeta)
       End Sub
-      Sub Silly(pMessage As Variant, pExtra As String = "", pMeta As String = "")
+      Sub Silly(pMessage As Variant, pExtra As String = &quot;&quot;, pMeta As String = &quot;&quot;)
          me.Log(6, pMessage, pExtra, pMeta)
       End Sub
       Sub Printe(pMessage As Variant)
@@ -832,9 +831,9 @@ Namespace mod_logger
       Sub StartTimer(pLabel As String)
          StartTimer(pLabel)
       End Sub
-      Sub Profile(pLabel As String, pMessage As String = "")
+      Sub Profile(pLabel As String, pMessage As String = &quot;&quot;)
          Dim _duration As Integer = StopTimer(pLabel)
-         Dim _info As LogInfo = New LogInfo(2, pMessage, "", me.Options.DefaultMeta, pLabel)
+         Dim _info As LogInfo = New LogInfo(2, pMessage, &quot;&quot;, me.Options.DefaultMeta, pLabel)
          _info.DurationMs = _duration
          me.Dispatch(_info)
          _info.Free()
@@ -853,9 +852,9 @@ Namespace mod_logger
          Next
       End Sub
       Private Function MergeText(pBase As String, pExtra As String) As String
-         If pBase = "" Then
+         If pBase = &quot;&quot; Then
             MergeText = pExtra
-         ElseIf pExtra = "" Then
+         ElseIf pExtra = &quot;&quot; Then
             MergeText = pBase
          Else
             MergeText = pBase + Char(13) + pExtra
@@ -907,7 +906,7 @@ Namespace mod_logger
       _logger.ClearTransports()
       _logger.Options.Silent = False
       _logger.Options.Level = 6
-      _logger.Options.DefaultMeta = "transport=vscode"
+      _logger.Options.DefaultMeta = &quot;transport=vscode&quot;
       _logger.Add(New TransportVSCode(pLogFile))
    End Sub
    Sub ConfigureERP()
@@ -943,34 +942,34 @@ Namespace mod_logger
    Sub StartTimer(pLabel As String)
       If _timers = NULL Then
          _timers = New StringList()
-         _timers.NameValueSeparator = ";"
+         _timers.NameValueSeparator = &quot;;&quot;
       End If
       If _timers.IndexOfName(pLabel) &gt;= 0 Then _timers.Delete(_timers.IndexOfName(pLabel))
-      _timers.Add(pLabel + CStr(_timers.NameValueSeparator) + DateTime().ToString("hh:nn:ss.zzz"))
+      _timers.Add(pLabel + CStr(_timers.NameValueSeparator) + DateTime().ToString(&quot;hh:nn:ss.zzz&quot;))
    End Sub
    Function StopTimer(pLabel As String) As Integer
       StopTimer = 0
       If _timers = NULL Then Exit Function
       If _timers.IndexOfName(pLabel) &lt; 0 Then Exit Function
       Dim _time As String = _timers.Values(pLabel)
-      Dim _hours As Integer = CInt(_time.Split(":")[0])
-      Dim _mins As Integer = CInt(_time.Split(":")[1])
-      Dim _secs As Integer = CInt(_time.Split(":")[2].Split(".")[0])
-      Dim _millis As Integer = CInt(_time.Split(".")[1])
+      Dim _hours As Integer = CInt(_time.Split(&quot;:&quot;)[0])
+      Dim _mins As Integer = CInt(_time.Split(&quot;:&quot;)[1])
+      Dim _secs As Integer = CInt(_time.Split(&quot;:&quot;)[2].Split(&quot;.&quot;)[0])
+      Dim _millis As Integer = CInt(_time.Split(&quot;.&quot;)[1])
       Dim _diff As TDateTime = DateTime() - DateTime().EncodeTime(_hours, _mins, _secs, _millis)
-      Dim _diffText As String = _diff.ToString("hh:nn:ss.zzz")
-      StopTimer = (CInt(_diffText.Split(":")[0]) * 3600000) + (CInt(_diffText.Split(":")[1]) * 60000) + (CInt(_diffText.Split(":")[2].Split(".")[0]) * 1000) + CInt(_diffText.Split(".")[1])
+      Dim _diffText As String = _diff.ToString(&quot;hh:nn:ss.zzz&quot;)
+      StopTimer = (CInt(_diffText.Split(&quot;:&quot;)[0]) * 3600000) + (CInt(_diffText.Split(&quot;:&quot;)[1]) * 60000) + (CInt(_diffText.Split(&quot;:&quot;)[2].Split(&quot;.&quot;)[0]) * 1000) + CInt(_diffText.Split(&quot;.&quot;)[1])
       _timers.Delete(_timers.IndexOfName(pLabel))
    End Function
 End Namespace</Codigo>
       <Aberto>false</Aberto>
-      <OrdemAbertura>-1</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
     </mod_logger>
     <mod_tlist>
       <Codigo>Imports mod_tobject
 Imports mod_product
-'@Module-Imported
+&apos;@Module-Imported
 Namespace mod_tlist
    Class TTList_String
       Inherits TTComposerList
@@ -987,13 +986,13 @@ Namespace mod_tlist
          GetItem = me.Take(pIndex)
       End Function
       Sub SetItem(pIndex As Integer, pValue As String)
-         me._base.Item(pIndex) = me.Wrap("", pValue)
+         me._base.Item(pIndex) = me.Wrap(&quot;&quot;, pValue)
       End Sub
       Sub Push(pID As String, pValue As String)
          me._base.Push(pID, me.Wrap(pID, pValue))
       End Sub
       Sub Push(pValue As String)
-         me.Push("", pValue)
+         me.Push(&quot;&quot;, pValue)
       End Sub
       Sub Push(pValue As TTList_String)
          me._base.Push(pValue)
@@ -1002,7 +1001,7 @@ Namespace mod_tlist
          me._base.Unshift(pIndex, pID, me.Wrap(pID, pValue))
       End Sub
       Sub Unshift(pIndex As Integer, pValue As String)
-         me.Unshift(pIndex, "", pValue)
+         me.Unshift(pIndex, &quot;&quot;, pValue)
       End Sub
       Overrides Function Take(pIndex As Integer) As String
          Take = me.Unwrap(me._base.Take(pIndex))
@@ -1050,7 +1049,7 @@ Namespace mod_tlist
          GetIsEqual = (pValue1 = pValue2)
       End Function
       Function Join(pSeparator As String) As String
-         Dim _str As String = ""
+         Dim _str As String = &quot;&quot;
          Dim i As Integer
          Dim _len As Integer = me.Length
          For i = 0 To _len - 1
@@ -1089,7 +1088,7 @@ Namespace mod_tlist
          Last = _new
       End Function
       Function IndexOf(pHandler As TFindDel_String) As Integer
-         IndexOf = me.IndexOf(pHandler, "")
+         IndexOf = me.IndexOf(pHandler, &quot;&quot;)
       End Function
       Function IndexOf(pHandler As TFindDel_String, extra As Variant) As Integer
          Dim value As Integer = -1
@@ -1104,7 +1103,7 @@ Namespace mod_tlist
          IndexOf = value
       End Function
       Function Find(pHandler As TFindDel_String) As String
-         Find = me.Find(pHandler, "")
+         Find = me.Find(pHandler, &quot;&quot;)
       End Function
       Function Find(pHandler As TFindDel_String, extra As Variant) As String
          Dim i As Integer
@@ -1118,7 +1117,7 @@ Namespace mod_tlist
          Next
       End Function
       Function Filter(pHandler As TFindDel_String) As TTList_String
-         Filter = me.Filter(pHandler, "")
+         Filter = me.Filter(pHandler, &quot;&quot;)
       End Function
       Function Filter(pHandler As TFindDel_String, extra As Variant) As TTList_String
          Dim _new As TTList_String = New TTList_String()
@@ -1134,7 +1133,7 @@ Namespace mod_tlist
          Filter = _new
       End Function
       Sub ForEach(pHandler As TForEachDel_String)
-         me.ForEach(pHandler, "")
+         me.ForEach(pHandler, &quot;&quot;)
       End Sub
       Sub ForEach(pHandler As TForEachDel_String, extra As Variant)
          Dim i As Integer
@@ -1144,7 +1143,7 @@ Namespace mod_tlist
          Next
       End Sub
       Function Map(pHandler As TMapDel_String) As TTList_String
-         Map = me.Map(pHandler, "")
+         Map = me.Map(pHandler, &quot;&quot;)
       End Function
       Function Map(pHandler As TMapDel_String, extra As Variant) As TTList_String
          Dim _new As TTList_String = New TTList_String()
@@ -1176,13 +1175,13 @@ Namespace mod_tlist
          GetItem = me.Take(pIndex)
       End Function
       Sub SetItem(pIndex As Integer, pValue As mod_product.Product)
-         me._base.Item(pIndex) = me.Wrap("", pValue)
+         me._base.Item(pIndex) = me.Wrap(&quot;&quot;, pValue)
       End Sub
       Sub Push(pID As String, pValue As mod_product.Product)
          me._base.Push(pID, me.Wrap(pID, pValue))
       End Sub
       Sub Push(pValue As mod_product.Product)
-         me.Push("", pValue)
+         me.Push(&quot;&quot;, pValue)
       End Sub
       Sub Push(pValue As TTList_Product)
          me._base.Push(pValue)
@@ -1191,7 +1190,7 @@ Namespace mod_tlist
          me._base.Unshift(pIndex, pID, me.Wrap(pID, pValue))
       End Sub
       Sub Unshift(pIndex As Integer, pValue As mod_product.Product)
-         me.Unshift(pIndex, "", pValue)
+         me.Unshift(pIndex, &quot;&quot;, pValue)
       End Sub
       Overrides Function Take(pIndex As Integer) As mod_product.Product
          Take = me.Unwrap(me._base.Take(pIndex))
@@ -1237,7 +1236,7 @@ Namespace mod_tlist
          End If
       End Function
       Function Join(pSeparator As String) As String
-         Dim _str As String = ""
+         Dim _str As String = &quot;&quot;
          Dim i As Integer
          Dim _len As Integer = me.Length
          For i = 0 To _len - 1
@@ -1251,7 +1250,7 @@ Namespace mod_tlist
          If Assigned(pValue) Then
             GetToString = pValue.ToString()
          Else
-            GetToString = ""
+            GetToString = &quot;&quot;
          End If
       End Function
       Function Slice(pStart As Integer, pEnd As Integer) As TTList_Product
@@ -1280,7 +1279,7 @@ Namespace mod_tlist
          Last = _new
       End Function
       Function IndexOf(pHandler As TFindDel_Product) As Integer
-         IndexOf = me.IndexOf(pHandler, "")
+         IndexOf = me.IndexOf(pHandler, &quot;&quot;)
       End Function
       Function IndexOf(pHandler As TFindDel_Product, extra As Variant) As Integer
          Dim value As Integer = -1
@@ -1295,7 +1294,7 @@ Namespace mod_tlist
          IndexOf = value
       End Function
       Function Find(pHandler As TFindDel_Product) As mod_product.Product
-         Find = me.Find(pHandler, "")
+         Find = me.Find(pHandler, &quot;&quot;)
       End Function
       Function Find(pHandler As TFindDel_Product, extra As Variant) As mod_product.Product
          Dim i As Integer
@@ -1309,7 +1308,7 @@ Namespace mod_tlist
          Next
       End Function
       Function Filter(pHandler As TFindDel_Product) As TTList_Product
-         Filter = me.Filter(pHandler, "")
+         Filter = me.Filter(pHandler, &quot;&quot;)
       End Function
       Function Filter(pHandler As TFindDel_Product, extra As Variant) As TTList_Product
          Dim _new As TTList_Product = New TTList_Product()
@@ -1325,7 +1324,7 @@ Namespace mod_tlist
          Filter = _new
       End Function
       Sub ForEach(pHandler As TForEachDel_Product)
-         me.ForEach(pHandler, "")
+         me.ForEach(pHandler, &quot;&quot;)
       End Sub
       Sub ForEach(pHandler As TForEachDel_Product, extra As Variant)
          Dim i As Integer
@@ -1335,7 +1334,7 @@ Namespace mod_tlist
          Next
       End Sub
       Function Map(pHandler As TMapDel_Product) As TTList_Product
-         Map = me.Map(pHandler, "")
+         Map = me.Map(pHandler, &quot;&quot;)
       End Function
       Function Map(pHandler As TMapDel_Product, extra As Variant) As TTList_Product
          Dim _new As TTList_Product = New TTList_Product()
@@ -1363,7 +1362,7 @@ Namespace mod_tlist
       End Property
       Sub New(pValue As String)
          MyBase.New()
-         me._init("", pValue)
+         me._init(&quot;&quot;, pValue)
       End Sub
       Sub New(pID As String, pValue As String)
          MyBase.New()
@@ -1375,7 +1374,7 @@ Namespace mod_tlist
       End Sub
       Private Sub _init(pID As String, pValue As String)
          pID = pID.Trim()
-         If pID &lt;&gt; "" Then
+         If pID &lt;&gt; &quot;&quot; Then
             me._id = pID
          Else
             me._id = CStr(me.GetHashCode)
@@ -1396,9 +1395,9 @@ Namespace mod_tlist
       End Function
       Overrides Function ToString() As String
          With me.BuildLogger(me.Classname)
-            .Prop("ID", me._id)
-            .Prop("Value", me.Value.ToString())
-            .Prop("Type", TypeName(me.Value))
+            .Prop(&quot;ID&quot;, me._id)
+            .Prop(&quot;Value&quot;, me.Value.ToString())
+            .Prop(&quot;Type&quot;, TypeName(me.Value))
             ToString = .Text
          End With
       End Function
@@ -1418,12 +1417,12 @@ Namespace mod_tlist
    Delegate Function TMapDel_Product(pValue As mod_product.Product, i As Integer, extra As Variant) As mod_product.Product
 End Namespace</Codigo>
       <Aberto>false</Aberto>
-      <OrdemAbertura>-1</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
     </mod_tlist>
     <mod_tobject>
       <Codigo>Imports Collections
-'@Module-Imported
+&apos;@Module-Imported
 Namespace mod_tobject
    Delegate Function FindDel(pValue As TTObject, i As Integer, extra As Variant) As Boolean
    Delegate Function MapDel(pValue As TTObject, i As Integer, extra As Variant) As TTObject
@@ -1443,10 +1442,10 @@ Namespace mod_tobject
          me._closed = False
       End Sub
       Sub Prop(pLabel As String, pValue As Variant)
-         me._lines.Add(pLabel + ": " + CStr(pValue))
+         me._lines.Add(pLabel + &quot;: &quot; + CStr(pValue))
       End Sub
       Sub Prop(pLabel As String, pValue As TObject)
-         me._lines.Add(pLabel + ": " + pValue.ToString())
+         me._lines.Add(pLabel + &quot;: &quot; + pValue.ToString())
       End Sub
       Sub Prop(pValue As Variant)
          me._lines.Add(CStr(pValue))
@@ -1460,9 +1459,9 @@ Namespace mod_tobject
             If padding &lt; 0 Then padding = 0
             Dim leftPad As Integer = Int(padding / 2)
             Dim rightPad As Integer = padding - leftPad
-            Dim _str As String = " "
-            Dim topLine As String = Char(13) + CStr(_str.StringOfChar("_", leftPad)) + " " + _title + " " + CStr(_str.StringOfChar("_", rightPad))
-            Dim bottomLine As String = _str.StringOfChar("_", me._maxWidth - 2)
+            Dim _str As String = &quot; &quot;
+            Dim topLine As String = Char(13) + CStr(_str.StringOfChar(&quot;_&quot;, leftPad)) + &quot; &quot; + _title + &quot; &quot; + CStr(_str.StringOfChar(&quot;_&quot;, rightPad))
+            Dim bottomLine As String = _str.StringOfChar(&quot;_&quot;, me._maxWidth - 2)
             me._lines.Insert(0, topLine)
             me._lines.Add(bottomLine)
             me._closed = True
@@ -1489,10 +1488,10 @@ Namespace mod_tobject
          MyBase.New()
       End Sub
       Overridable Sub Assign(pValue As TObject)
-         Throw New Exception("You must to implement this method, do NOT use the Overrides, just declare: Sub Assign(pValue As [YouClass])")
+         Throw New Exception(&quot;You must to implement this method, do NOT use the Overrides, just declare: Sub Assign(pValue As [YouClass])&quot;)
       End Sub
       Overridable Function Clone() As TObject
-         Throw New Exception("You must to implement this method: Function Clone() As [YouClass]")
+         Throw New Exception(&quot;You must to implement this method: Function Clone() As [YouClass]&quot;)
       End Function
       Overridable Function GetID() As String
          GetID = CStr(me.GetHashCode)
@@ -1501,7 +1500,7 @@ Namespace mod_tobject
          ToString = MyBase.ToString()
       End Function
       Overridable Sub Dispose()
-         Throw New Exception("You must to implement this method: Sub Dispose()")
+         Throw New Exception(&quot;You must to implement this method: Sub Dispose()&quot;)
       End Sub
       Private Sub TriggerEvent(pList As TTObjectList, pItem As TTObject, pIndex As Integer, pMethod As OnActionListDel, pDelegate As OnActionListDel)
          If pMethod &lt;&gt; NULL Then pMethod(pList, pItem, pIndex)
@@ -1550,11 +1549,11 @@ Namespace mod_tobject
       End Sub
       Overridable Property Length As Integer
          Get
-            Throw New Exception("You must to implement this property: Property Length As Integer")
+            Throw New Exception(&quot;You must to implement this property: Property Length As Integer&quot;)
          End Get
       End Property
       Overridable Function Take(pIndex As Integer) As TTObject
-         Throw New Exception("You must to implement this method: Function Take(pIndex As Integer) As TTObject")
+         Throw New Exception(&quot;You must to implement this method: Function Take(pIndex As Integer) As TTObject&quot;)
       End Function
       Sub Free()
          MyBase.Free()
@@ -1573,7 +1572,7 @@ Namespace mod_tobject
       OnAfterClean As OnActionListDel
       OnBeforeDispose As OnActionListDel
       OnAfterDispose As OnActionListDel
-      Sub New(pName As String = "TTObjectList", pOwnsObjects As Boolean = True)
+      Sub New(pName As String = &quot;TTObjectList&quot;, pOwnsObjects As Boolean = True)
          MyBase.New()
          me.Name = pName
          me._list = New StringList()
@@ -1665,7 +1664,7 @@ Namespace mod_tobject
          IndexOf = me._list.IndexOf(pID)
       End Function
       Function IndexOf(pHandler As FindDel) As Integer
-         IndexOf = me.IndexOf(pHandler, "")
+         IndexOf = me.IndexOf(pHandler, &quot;&quot;)
       End Function
       Function IndexOf(pHandler As FindDel, extra As Variant) As Integer
          Dim value As Integer = -1
@@ -1680,7 +1679,7 @@ Namespace mod_tobject
          IndexOf = value
       End Function
       Function Find(pHandler As FindDel) As TObject
-         Find = me.Find(pHandler, "")
+         Find = me.Find(pHandler, &quot;&quot;)
       End Function
       Function Find(pHandler As FindDel, extra As Variant) As TObject
          Dim value As TObject
@@ -1695,7 +1694,7 @@ Namespace mod_tobject
          Find = value
       End Function
       Function Filter(pHandler As FindDel) As TTObjectList
-         Filter = me.Filter(pHandler, "")
+         Filter = me.Filter(pHandler, &quot;&quot;)
       End Function
       Function Filter(pHandler As FindDel, extra As Variant) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
@@ -1709,7 +1708,7 @@ Namespace mod_tobject
          Filter = _new
       End Function
       Sub ForEach(pHandler As FindDel)
-         me.ForEach(pHandler, "")
+         me.ForEach(pHandler, &quot;&quot;)
       End Sub
       Sub ForEach(pHandler As ForEachDel, extra As Variant)
          Dim i As Integer
@@ -1719,7 +1718,7 @@ Namespace mod_tobject
          Next
       End Sub
       Function Map(pHandler As FindDel) As TTObjectList
-         Map = me.Map(pHandler, "")
+         Map = me.Map(pHandler, &quot;&quot;)
       End Function
       Function Map(pHandler As MapDel, extra As Variant) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
@@ -1862,7 +1861,7 @@ Namespace mod_tobject
          me.DispatchAfterClean(me, NULL, -1)
       End Sub
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True)
-         me.Sort(pHandler, pAsc, "")
+         me.Sort(pHandler, pAsc, &quot;&quot;)
       End Sub
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True, pExtra As Variant)
          If pHandler &lt;&gt; NULL Then
@@ -1889,14 +1888,14 @@ Namespace mod_tobject
             me.OwnsObjects = tempOwnsObjects
             listTemp.Free()
          Else
-            Throw New Exception("You must send a handler")
+            Throw New Exception(&quot;You must send a handler&quot;)
          End If
          Exit Sub
       End Sub
       Function ToString() As String
          Dim i As Integer
          Dim _length As Integer = me.Length()
-         With New TTObjectPrinter(CStr(me.Name) + " Length: " + CStr(_length.ToString))
+         With New TTObjectPrinter(CStr(me.Name) + &quot; Length: &quot; + CStr(_length.ToString))
             For i = 0 To _length - 1
                .Prop(me.Take(i).ToString())
             Next
@@ -2149,7 +2148,7 @@ Namespace mod_tobject
    End Class
 End Namespace</Codigo>
       <Aberto>false</Aberto>
-      <OrdemAbertura>-1</OrdemAbertura>
+      <OrdemAbertura>0</OrdemAbertura>
       <PastaID>{5C130A7F-60C4-4638-9B25-81EF3566CFBC}</PastaID>
     </mod_tobject>
   </Modulos>

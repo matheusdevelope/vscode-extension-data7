@@ -13,7 +13,6 @@ import {
 import { BuildService } from "./build-service";
 import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
-import { SyncWatcher } from "./sync-watcher";
 import { DiagnosticCodes } from "../diagnostics/diagnostic-codes";
 
 /**
@@ -53,10 +52,6 @@ export class ActivationService {
     ProjectService.verifyProjectConnection(workspaceDir, projectFilePath).catch((err) => {
       logger.error("Erro ao verificar conexão do projeto.", err);
     });
-
-    if (fs.existsSync(projectFilePath)) {
-      SyncWatcher.watchExternalProjectFile(projectFilePath, workspaceDir);
-    }
 
     this.registerStatusBarItems(context);
 

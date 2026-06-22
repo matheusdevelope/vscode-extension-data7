@@ -12,8 +12,6 @@ export interface Data7Configuration {
   readonly companyCode: number;
   readonly branchCode: number;
   readonly databaseConnectionId: string;
-  readonly enableAutoSync: boolean;
-  readonly sincronizacao: { readonly modo: string };
   readonly exclude: readonly string[];
   readonly diagnosticSeverity: Readonly<Record<string, DiagnosticSeverityOverride>>;
   readonly autoFormatOnSave: boolean;
@@ -49,10 +47,6 @@ export function readConfiguration(): Data7Configuration {
     companyCode: cfg.get<number>("companyCode") ?? 1,
     branchCode: cfg.get<number>("branchCode") ?? 1,
     databaseConnectionId: cfg.get<string>("databaseConnectionId") ?? "",
-    enableAutoSync: cfg.get<boolean>("enableAutoSync") ?? true,
-    sincronizacao: cfg.get<{ modo: string }>("sincronizacao") ?? {
-      modo: "estrutura <> projeto.7proj",
-    },
     exclude: cfg.get<string[]>("exclude") ?? DEFAULT_EXCLUDE,
     diagnosticSeverity:
       cfg.get<Record<string, DiagnosticSeverityOverride>>("diagnosticSeverity") ?? {},

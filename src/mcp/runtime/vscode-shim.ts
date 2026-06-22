@@ -175,7 +175,6 @@ const vscodeShim = {
     getConfiguration: () => ({
       get: (key: string): unknown => {
         if (key === "sharedModulesPath") return "";
-        if (key === "enableAutoSync") return false;
         if (key === "autoFormatOnSave") return false;
         if (key === "exclude") return ["**/node_modules/**", "**/out/**"];
         if (key === "diagnosticSeverity") return {};

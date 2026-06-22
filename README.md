@@ -25,7 +25,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 - **Decompositor** (`.7Proj` → árvore de `.bas`): abre um `.7Proj` e gera a estrutura física do projeto.
 - **Builder** (`.bas` → `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências.
-- **Sincronização bidirecional** automática `.bas` ↔ `.7Proj`.
+- **Fluxo manual seguro**: decompõe `.7Proj` para edição e recompila sob comando explícito.
 - **Run** (F5): executa o projeto via Executor do Data7.
 - **Open in DevStudio**: abre o `.7Proj` no Data7 Developer Studio.
 
@@ -72,7 +72,6 @@ Veja `Settings` → busca por `data7.`:
 | `data7.sharedModulesPath`                       | string   | —                                                   | Pasta global de módulos compartilhados                                                                                                                                     |
 | `data7.userName` / `companyCode` / `branchCode` | int      | `1`                                                 | Códigos passados ao Executor (`-U` / `-E` / `-F`)                                                                                                                          |
 | `data7.databaseConnectionId`                    | string   | —                                                   | UUID da conexão de banco (`-C`); se vazio, lê do `data7.json`                                                                                                              |
-| `data7.enableAutoSync`                          | bool     | `true`                                              | Sincronização automática `.bas` ↔ `.7Proj`                                                                                                                                 |
 | `data7.exclude`                                 | string[] | `["**/node_modules/**", "**/.git/**", "**/out/**"]` | Globs ignorados pelo indexador e pelo linter. `data7_modules/**` é tratado separadamente: indexado para resolução de tipos, mas o linter não emite diagnósticos sobre eles |
 | `data7.diagnosticSeverity`                      | object   | `{}`                                                | Sobrescreve a severidade por código (`{"unused-import": "info"}`)                                                                                                          |
 | `data7.autoFormatOnSave`                        | bool     | `false`                                             | Formata arquivos `.bas` automaticamente ao salvar                                                                                                                          |

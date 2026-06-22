@@ -7,6 +7,7 @@ import { readConfiguration, getRawConfiguration } from "../infra/configuration";
 import { getRepoBasPath, initializeExtensionPaths } from "../infra/extension-paths";
 import { parseProjectXml, xmlText, xmlRawText, xmlRecord } from "../utils/xml-helpers";
 import { safeJoinInside, isSafeSegment } from "../utils/path-safety";
+import { WorkspaceTrustService } from "./workspace-trust-service";
 
 /**
  * Manages the private repository of shared `.bas` modules that the extension
@@ -99,7 +100,11 @@ export class RepositoryService {
   }
 
   public async importModule(): Promise<void> {
-    if (!ensureWorkspaceTrusted("Importação para o repositório requer um workspace confiável.")) {
+    if (
+      !WorkspaceTrustService.ensureTrusted(
+        "Importação para o repositório requer um workspace confiável.",
+      )
+    ) {
       return;
     }
 
@@ -211,7 +216,7 @@ export class RepositoryService {
 
   public async bulkImport(): Promise<void> {
     if (
-      !ensureWorkspaceTrusted(
+      !WorkspaceTrustService.ensureTrusted(
         "Importação em massa para o repositório requer um workspace confiável.",
       )
     ) {
@@ -427,7 +432,12 @@ export class RepositoryService {
       const doc = await vscode.workspace.openTextDocument(selected.filePath);
       await vscode.window.showTextDocument(doc);
     } else if (action === "Excluir Módulo do Repositório") {
-      if (!ensureWorkspaceTrusted("Exclusão no repositório requer um workspace confiável.")) return;
+      if (
+        !WorkspaceTrustService.ensureTrusted(
+          "Exclusão no repositório requer um workspace confiável.",
+        )
+      )
+        return;
       const confirm = await vscode.window.showWarningMessage(
         `Deseja realmente excluir o módulo "${selected.label}" do repositório?`,
         { modal: true },
@@ -462,14 +472,6 @@ export class RepositoryService {
     const destPath = safeJoinInside(this.repoBasPath, `${rawModName}.bas`);
     fs.writeFileSync(destPath, content, "utf-8");
   }
-}
-
-function ensureWorkspaceTrusted(reason: string): boolean {
-  if (!vscode.workspace.isTrusted) {
-    vscode.window.showErrorMessage(reason);
-    return false;
-  }
-  return true;
 }
 
 function errorMessage(err: unknown): string {

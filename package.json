@@ -465,35 +465,6 @@
           "default": "",
           "description": "UUID de Conexão com o Banco de Dados (-C). Se vazio, a extensão tentará ler do projeto data7.json."
         },
-        "data7.enableAutoSync": {
-          "type": "boolean",
-          "default": false,
-          "deprecationMessage": "Desativado em favor de compilação/decomposição manuais. Use os comandos 'Decompor Projeto' e 'Compilar/Rebuildar Projeto'.",
-          "markdownDescription": "**Desativado.** Anteriormente habilitava a sincronização automática bidirecional. A sincronização automática foi desativada para evitar problemas de concorrência."
-        },
-        "data7.sincronizacao": {
-          "type": "object",
-          "properties": {
-            "modo": {
-              "type": "string",
-              "enum": [
-                "estrutura <> projeto.7proj",
-                "estrutura > projeto.7proj",
-                "projeto.7proj > estrutura",
-                "disabled",
-                "desativado"
-              ],
-              "default": "disabled",
-              "deprecationMessage": "Desativado em favor de compilação/decomposição manuais. Use os comandos 'Decompor Projeto' e 'Compilar/Rebuildar Projeto'.",
-              "markdownDescription": "**Desativado.** Define o modo de sincronização. A sincronização automática foi desativada para evitar problemas de concorrência."
-            }
-          },
-          "default": {
-            "modo": "disabled"
-          },
-          "deprecationMessage": "Desativado em favor de compilação/decomposição manuais. Use os comandos 'Decompor Projeto' e 'Compilar/Rebuildar Projeto'.",
-          "markdownDescription": "**Desativado.** Configuração da sincronização automática do projeto."
-        },
         "data7.exclude": {
           "type": "array",
           "default": [
@@ -585,7 +556,8 @@
     "docs:examples:check": "node scripts/generate-examples-index.js --check",
     "mcp:articles": "node scripts/extract-official-articles.js",
     "mcp:bundle": "esbuild out/mcp/server.js --bundle --minify --platform=node --target=node22 --outfile=out/mcp/server.bundled.js --external:vscode",
-    "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node scripts/audit-system-library.js && node scripts/generate-examples-index.js --check"
+    "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node scripts/audit-system-library.js && node scripts/generate-examples-index.js --check",
+    "build:extension":"npx @vscode/vsce package"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

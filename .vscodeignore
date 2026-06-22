@@ -26,8 +26,8 @@ eslint.config.*
 .eslintrc.*
 .eslintignore
 
-# Documentation that lives in the repo but doesn't need to ship in the package.
-docs/**
+# MCP resources read the versioned language, example, and official-documentation
+# trees at runtime. Keep docs/ in the VSIX so --docs-root remains valid.
 project_context.md
 CONTRIBUTING.md
 CHANGELOG.md
