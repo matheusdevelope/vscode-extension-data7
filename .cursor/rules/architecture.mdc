@@ -36,3 +36,10 @@ alwaysApply: true
 
 - The `DiagnosticsLinter`, `SugarTranspiler`, and `Builder` are critical paths. When modifying or extending them, prefer extracting a cohesive visitor, analyzer, or helper before adding to the main flow.
 - A change that introduces a new parser pass or regex scanner must justify why the central AST cannot represent the requirement; providers have no such exception.
+
+## Sugar isolation (mandatory)
+
+- `SugarEngine` is the only authority for which sugars are enabled. Parser plugins and AST transformations must receive and honor its active IDs; do not instantiate an all-sugars parser outside the engine for a build/preview path.
+- Every sugar implementation belongs to `src/project/sugars/plugins/<sugar-id>/`. That folder owns its parser hook (when needed), transformation, diagnostics, types, helpers and tests. `SugarRegistry` and the transpiler orchestrator only compose plugins and order dependencies.
+- Disabled sugar syntax is lossless: it must be preserved as source/opaque syntax or produce an explicit error. It must never be partially consumed, silently rewritten or truncated.
+- Do not add another independent rule to an aggregate transformer when it has a dedicated sugar identity. Extract it into its plugin folder first, then wire it through the orchestrator.

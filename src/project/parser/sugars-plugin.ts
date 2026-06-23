@@ -1,7 +1,6 @@
 import type {
   Expression,
   Statement,
-  DestructuringBinding,
   TypeReference,
   EnumDeclaration,
   UsingStatement,
@@ -15,6 +14,8 @@ import type { Token, TokenLocation } from "./token-types";
 import type { Parser } from "./parser";
 import type { ParserPlugin } from "./plugin";
 import { Precedence } from "./parser";
+import { parseDestructuringDeclaration } from "./plugins/sugars/destructuring";
+import { removeNumericSeparators } from "../sugars/plugins/numeric-separator";
 
 function locOf(loc: TokenLocation, endLoc?: TokenLocation): SourceLocation {
   return {
@@ -25,8 +26,85 @@ function locOf(loc: TokenLocation, endLoc?: TokenLocation): SourceLocation {
   };
 }
 
+/**
+ * Detects source lines whose syntax belongs to a disabled sugar. They must be
+ * preserved verbatim because the base grammar can otherwise consume a prefix
+ * (for example `Return If` or `7_900`) and silently discard the remainder.
+ */
+export function isDisabledSugarSyntaxLine(
+  sourceLine: string,
+  disabledSugarIds: ReadonlySet<string>,
+): boolean {
+  if (disabledSugarIds.size === 0) return false;
+  const code = stripStringsAndComment(sourceLine);
+  const has = (id: string): boolean => disabledSugarIds.has(id);
+
+  if (has("numeric-separator") && removeNumericSeparators(sourceLine) !== sourceLine) return true;
+  if (has("return-if") && /^\s*return\s+if\b/i.test(code)) return true;
+  if (
+    (has("destructure-object") || has("destructure-array")) &&
+    /^\s*(?:dim|const)\s*[{[]/i.test(code)
+  ) {
+    return true;
+  }
+  if (has("enum") && /^\s*enum\b/i.test(code)) return true;
+  if (has("using") && /^\s*using\b/i.test(code)) return true;
+  if (has("match") && /^\s*match\b/i.test(code)) return true;
+  if (has("object-initializer") && /\bnew\b[\s\S]*\bwith\s*\{/i.test(code)) return true;
+  if (has("optional-chain") && code.includes("?.")) return true;
+  if (has("null-coalesce") && /\?\?=?/.test(code)) return true;
+  if (has("logical-assignment") && /(?:\|\|=|&&=)/.test(code)) return true;
+  if (has("pipe") && code.includes("|>")) return true;
+  if (has("ternary") && /\?(?![.?])/.test(code)) return true;
+  if (has("array-list") && (code.includes("=>") || code.includes("...") || code.includes("["))) {
+    return true;
+  }
+  if (has("interpolation") && sourceLine.includes('$"')) return true;
+  return has("tagged-template") && /\b[A-Za-z_]\w*\s*\$"/.test(sourceLine);
+}
+
+function stripStringsAndComment(sourceLine: string): string {
+  let output = "";
+  let index = 0;
+  while (index < sourceLine.length) {
+    const current = sourceLine[index] ?? "";
+    if (current === "'") break;
+    if (current === '"' || (current === "$" && sourceLine[index + 1] === '"')) {
+      if (current === "$") output += " ";
+      output += " ";
+      index += current === "$" ? 2 : 1;
+      while (index < sourceLine.length) {
+        if (sourceLine[index] === '"') {
+          if (sourceLine[index + 1] === '"') {
+            index += 2;
+            continue;
+          }
+          index++;
+          break;
+        }
+        index++;
+      }
+      continue;
+    }
+    output += current;
+    index++;
+  }
+  return output;
+}
+
 export class SugarsParserPlugin implements ParserPlugin {
   readonly name = "SugarsParserPlugin";
+  private readonly enabledSugarIds?: ReadonlySet<string>;
+
+  /**
+   * Without an explicit set this remains the legacy, all-sugars parser used
+   * by direct parser consumers. SugarEngine always supplies the active set.
+   */
+  constructor(enabledSugarIds?: Iterable<string>) {
+    this.enabledSugarIds = enabledSugarIds
+      ? new Set(Array.from(enabledSugarIds, (id) => id.toLowerCase()))
+      : undefined;
+  }
 
   parseStatement(parser: Parser): Statement | null {
     const head = parser.peek();
@@ -35,16 +113,16 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     const v = head.value.toLowerCase();
-    if (v === "enum") {
+    if (v === "enum" && this.isEnabled("enum")) {
       return this.parseEnum(parser);
     }
-    if (v === "using") {
+    if (v === "using" && this.isEnabled("using")) {
       return this.parseUsing(parser);
     }
-    if (v === "match") {
+    if (v === "match" && this.isEnabled("match")) {
       return this.parseMatch(parser);
     }
-    if (v === "return") {
+    if (v === "return" && this.isEnabled("return-if")) {
       const next = parser.peek(1);
       if (next.kind === "keyword" && next.value.toLowerCase() === "if") {
         const startLoc = parser.peek().loc;
@@ -72,72 +150,12 @@ export class SugarsParserPlugin implements ParserPlugin {
   }
 
   parseVariableDeclaration(parser: Parser): Statement | null {
-    // Intercept destructured variables declaration, e.g. Dim { a, b } = obj or Dim [ a, b ] = obj
-    const startLoc = parser.peek().loc;
-
-    // Check if the current token is Dim (already consumed by core parser, but let's be sure about state)
-    // Wait, the core parser consumes 'Dim' and then calls: plugin.parseVariableDeclaration(parser, startLoc, isConst)
-    // Let's check how we designed the call in parser.ts:
-    // we will design it so the core parser has already consumed the keyword, and calls it.
-    // So the next token is the start of destructuring.
-    const isOpenBrace = parser.consume("punct", "{") !== null;
-    const isOpenBracket = !isOpenBrace && parser.consume("punct", "[") !== null;
-
-    if (!isOpenBrace && !isOpenBracket) {
+    if (!this.isEnabled("destructure-object") && !this.isEnabled("destructure-array")) {
       return null;
     }
-
-    const isObject = isOpenBrace;
-    const bindings: DestructuringBinding[] = [];
-    const closeChar = isObject ? "}" : "]";
-
-    while (!parser.match("punct", closeChar) && !parser.isEOF() && !parser.match("newline")) {
-      let name = "";
-      let property: string | undefined;
-      let defaultValue: Expression | undefined;
-      let isRest = false;
-
-      if (!isObject && parser.consume("punct", "...")) {
-        isRest = true;
-      }
-
-      const nameToken = parser.expect("identifier", "<destructuring-name>");
-      const rawName = nameToken?.value ?? "";
-
-      if (isObject) {
-        if (parser.consume("keyword", "as") || parser.consume("identifier", "as")) {
-          const bindingToken = parser.expect("identifier", "<binding-name>");
-          name = bindingToken?.value ?? "";
-          property = rawName;
-        } else {
-          name = rawName;
-        }
-      } else {
-        name = rawName;
-      }
-
-      if (parser.consume("punct", "=")) {
-        defaultValue = parser.parseExpression();
-      }
-
-      bindings.push({ name, property, defaultValue, isRest });
-
-      if (!parser.consume("punct", ",")) break;
-    }
-
-    parser.expect("punct", closeChar, { literal: true });
-    parser.expect("punct", "=", { literal: true });
-    const initializer = parser.parseExpression();
-    const comment = parser.skipToEndOfLine();
-
-    return {
-      kind: "DestructuredVariableDeclaration",
-      isObject,
-      bindings,
-      initializer,
-      loc: locOf(startLoc),
-      comment,
-    };
+    if (parser.match("punct", "{") && !this.isEnabled("destructure-object")) return null;
+    if (parser.match("punct", "[") && !this.isEnabled("destructure-array")) return null;
+    return parseDestructuringDeclaration(parser);
   }
 
   private isArrowFunction(parser: Parser): boolean {
@@ -169,7 +187,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     const token = parser.peek();
 
     // Single-parameter arrow function: x => expr or x As T => expr
-    if (token.kind === "identifier") {
+    if (this.isEnabled("array-list") && token.kind === "identifier") {
       const arrowOffset =
         parser.peek(1).kind === "punct" && parser.peek(1).value === "=>"
           ? 1
@@ -215,7 +233,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // Arrow Function
-    if (this.isArrowFunction(parser)) {
+    if (this.isEnabled("array-list") && this.isArrowFunction(parser)) {
       const startLoc = token.loc;
       parser.advance(); // consume '('
       const parameters: ParameterDeclaration[] = [];
@@ -287,7 +305,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // Array literals: [item1, item2, ...]
-    if (token.kind === "punct" && token.value === "[") {
+    if (this.isEnabled("array-list") && token.kind === "punct" && token.value === "[") {
       const startLoc = token.loc;
       parser.advance(); // consume '['
       const elements: (Expression | SpreadExpression)[] = [];
@@ -343,7 +361,11 @@ export class SugarsParserPlugin implements ParserPlugin {
     if (token.kind === "identifier" || token.kind === "keyword") {
       const tag = token.value;
       const nextToken = parser.peek(1);
-      if (nextToken.kind === "string" && nextToken.prefix === "$") {
+      if (
+        this.isEnabled("tagged-template") &&
+        nextToken.kind === "string" &&
+        nextToken.prefix === "$"
+      ) {
         parser.advance(); // consume tag
         const bodyToken = parser.advance();
         return {
@@ -356,7 +378,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // String interpolation $"..."
-    if (token.kind === "string" && token.prefix === "$") {
+    if (this.isEnabled("interpolation") && token.kind === "string" && token.prefix === "$") {
       const strToken = parser.advance();
       return {
         kind: "TaggedTemplateExpression",
@@ -367,7 +389,11 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // Object creation / Object Initializer (New T() With { ... })
-    if (token.kind === "keyword" && token.value.toLowerCase() === "new") {
+    if (
+      this.isEnabled("object-initializer") &&
+      token.kind === "keyword" &&
+      token.value.toLowerCase() === "new"
+    ) {
       parser.advance(); // consume 'New'
       const typeRef = parser.parseTypeReference(false) ?? {
         kind: "TypeReference",
@@ -426,7 +452,7 @@ export class SugarsParserPlugin implements ParserPlugin {
 
   parseExpressionInfix(parser: Parser, left: Expression, token: Token): Expression | null {
     // Optional chaining ?.
-    if (token.kind === "punct" && token.value === "?.") {
+    if (this.isEnabled("optional-chain") && token.kind === "punct" && token.value === "?.") {
       parser.advance(); // consume '?.'
       const memberToken = parser.consume("identifier") ?? parser.consume("keyword");
       if (!memberToken) {
@@ -470,7 +496,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // Ternary expression: cond ? true : false
-    if (token.kind === "punct" && token.value === "?") {
+    if (this.isEnabled("ternary") && token.kind === "punct" && token.value === "?") {
       parser.advance(); // consume '?'
       const trueExpr = parser.parseExpression();
       parser.expect("punct", ":", { literal: true });
@@ -485,7 +511,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // Null coalescing: left ?? right
-    if (token.kind === "punct" && token.value === "??") {
+    if (this.isEnabled("null-coalesce") && token.kind === "punct" && token.value === "??") {
       parser.advance(); // consume '??'
       const right = parser.parseExpression(Precedence.NullCoalescing);
       return {
@@ -497,7 +523,7 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     // Pipe operator: left |> right
-    if (token.kind === "punct" && token.value === "|>") {
+    if (this.isEnabled("pipe") && token.kind === "punct" && token.value === "|>") {
       parser.advance(); // consume '|>'
       const right = parser.parseExpression(Precedence.Pipe);
       return {
@@ -509,6 +535,10 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
 
     return null;
+  }
+
+  private isEnabled(id: string): boolean {
+    return this.enabledSugarIds === undefined || this.enabledSugarIds.has(id.toLowerCase());
   }
 
   private parseEnum(parser: Parser): EnumDeclaration {

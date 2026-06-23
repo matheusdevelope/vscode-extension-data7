@@ -68,6 +68,11 @@ import { findInnerMostGenericUsage } from "../../analysis/generics-analyzer";
 import { parseBasic, GenericsParserPlugin } from "../parser";
 import { SugarRegistry } from "../sugar-registry";
 import { SugarEngine } from "../sugars";
+import {
+  canonicalNameOf as canonicalGenericNameOf,
+  flatNameFromParts as flattenGenericNameFromParts,
+  flatNameOf as flattenGenericName,
+} from "./type-names";
 
 // ============================================================================
 // Public API
@@ -178,19 +183,11 @@ export class GenericsMonomorphizer {
  * with code `flat-name-collision`.
  */
 export function flatNameOf(t: TypeReference): string {
-  if (t.typeArguments.length === 0) return t.name;
-  return flatNameFromParts(t.name, t.typeArguments);
+  return flattenGenericName(t);
 }
 
 export function flatNameFromParts(name: string, args: readonly TypeReference[]): string {
-  if (args.length === 0) return name;
-  return `${name}_${args.map(flatNameArgumentOf).join("_")}`;
-}
-
-function flatNameArgumentOf(t: TypeReference): string {
-  if (t.typeArguments.length > 0) return flatNameOf(t);
-  const lastDot = t.name.lastIndexOf(".");
-  return lastDot === -1 ? t.name : t.name.substring(lastDot + 1);
+  return flattenGenericNameFromParts(name, args);
 }
 
 /**
@@ -208,8 +205,7 @@ function flatNameArgumentOf(t: TypeReference): string {
  * sites yield different canonical strings.
  */
 export function canonicalNameOf(t: TypeReference): string {
-  if (t.typeArguments.length === 0) return t.name;
-  return `${t.name}<${t.typeArguments.map(canonicalNameOf).join(",")}>`;
+  return canonicalGenericNameOf(t);
 }
 
 // ============================================================================

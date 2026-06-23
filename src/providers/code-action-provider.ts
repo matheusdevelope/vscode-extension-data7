@@ -15,6 +15,15 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { SugarTranspiler } from "../project/transpiler";
+import {
+  dedupeDiagnostics,
+  extractNamespaceFromMessage,
+  findDeclarationParenthesesInsertPosition,
+  findImportInsertLine,
+  findMissingThenInsertPosition,
+  isMissingThenDiagnostic,
+  readDiagnosticPayload,
+} from "./code-action-helpers";
 
 /**
  * Provides Quick Fixes (lightbulb actions) for every canonical diagnostic
@@ -410,7 +419,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<MissingImportPayload>(diagnostic, DiagnosticCodes.MissingImport);
+    const payload = readDiagnosticPayload<MissingImportPayload>(
+      diagnostic,
+      DiagnosticCodes.MissingImport,
+    );
     const namespaceToImport = payload?.namespace ?? extractNamespaceFromMessage(diagnostic.message);
     if (!namespaceToImport) return;
 
@@ -437,7 +449,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<UnusedImportPayload>(diagnostic, DiagnosticCodes.UnusedImport);
+    const payload = readDiagnosticPayload<UnusedImportPayload>(
+      diagnostic,
+      DiagnosticCodes.UnusedImport,
+    );
     const namespaceToRemove = payload?.namespace;
     const label = namespaceToRemove
       ? `Remover Imports "${namespaceToRemove}"`
@@ -465,7 +480,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<ModuleNotDeclaredPayload>(
+    const payload = readDiagnosticPayload<ModuleNotDeclaredPayload>(
       diagnostic,
       DiagnosticCodes.ModuleNotDeclared,
     );
@@ -486,7 +501,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
   }
 
   private addInstallModuleFix(actions: vscode.CodeAction[], diagnostic: vscode.Diagnostic): void {
-    const payload = readPayload<ModuleNotFoundPayload>(diagnostic, DiagnosticCodes.ModuleNotFound);
+    const payload = readDiagnosticPayload<ModuleNotFoundPayload>(
+      diagnostic,
+      DiagnosticCodes.ModuleNotFound,
+    );
     if (!payload) return;
 
     const action = new vscode.CodeAction(
@@ -507,7 +525,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<UnknownMemberPayload>(diagnostic, DiagnosticCodes.UnknownMember);
+    const payload = readDiagnosticPayload<UnknownMemberPayload>(
+      diagnostic,
+      DiagnosticCodes.UnknownMember,
+    );
     if (!payload || payload.suggestions.length === 0) return;
 
     payload.suggestions.forEach((suggestion, idx) => {
@@ -538,7 +559,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<UnsupportedMemberPayload>(
+    const payload = readDiagnosticPayload<UnsupportedMemberPayload>(
       diagnostic,
       DiagnosticCodes.UnsupportedMember,
     );
@@ -604,7 +625,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<UnknownTypePayload>(diagnostic, DiagnosticCodes.UnknownType);
+    const payload = readDiagnosticPayload<UnknownTypePayload>(
+      diagnostic,
+      DiagnosticCodes.UnknownType,
+    );
     if (!payload || payload.suggestions.length === 0) return;
 
     payload.suggestions.forEach((suggestion, idx) => {
@@ -709,7 +733,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<MissingMyBaseFreePayload>(
+    const payload = readDiagnosticPayload<MissingMyBaseFreePayload>(
       diagnostic,
       DiagnosticCodes.MissingMyBaseFree,
     );
@@ -913,7 +937,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
   ): void {
-    const payload = readPayload<FinallyBlockUnsupportedPayload>(
+    const payload = readDiagnosticPayload<FinallyBlockUnsupportedPayload>(
       diagnostic,
       DiagnosticCodes.FinallyBlockUnsupported,
     );
@@ -992,7 +1016,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
 
     for (const match of sorted) {
-      const payload = readPayload<FinallyBlockUnsupportedPayload>(
+      const payload = readDiagnosticPayload<FinallyBlockUnsupportedPayload>(
         match,
         DiagnosticCodes.FinallyBlockUnsupported,
       );
@@ -1058,7 +1082,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     const namespacesToImport = new Set<string>();
     for (const match of mismatches) {
-      const payload = readPayload<MissingImportPayload>(match, DiagnosticCodes.MissingImport);
+      const payload = readDiagnosticPayload<MissingImportPayload>(
+        match,
+        DiagnosticCodes.MissingImport,
+      );
       const ns = payload?.namespace ?? extractNamespaceFromMessage(match.message);
       if (ns) {
         namespacesToImport.add(ns);
@@ -1130,7 +1157,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     const moduleNames = new Set<string>();
     for (const match of mismatches) {
-      const payload = readPayload<ModuleNotDeclaredPayload>(
+      const payload = readDiagnosticPayload<ModuleNotDeclaredPayload>(
         match,
         DiagnosticCodes.ModuleNotDeclared,
       );
@@ -1166,7 +1193,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     const moduleNames = new Set<string>();
     for (const match of mismatches) {
-      const payload = readPayload<ModuleNotFoundPayload>(match, DiagnosticCodes.ModuleNotFound);
+      const payload = readDiagnosticPayload<ModuleNotFoundPayload>(
+        match,
+        DiagnosticCodes.ModuleNotFound,
+      );
       if (payload?.moduleName) {
         moduleNames.add(payload.moduleName);
       }
@@ -1202,7 +1232,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     let appliedCount = 0;
     for (const match of sorted) {
-      const payload = readPayload<UnknownMemberPayload>(match, DiagnosticCodes.UnknownMember);
+      const payload = readDiagnosticPayload<UnknownMemberPayload>(
+        match,
+        DiagnosticCodes.UnknownMember,
+      );
       if (payload && payload.suggestions.length > 0) {
         edit.replace(document.uri, match.range, payload.suggestions[0]!);
         appliedCount++;
@@ -1235,7 +1268,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     let appliedCount = 0;
     for (const match of sorted) {
-      const payload = readPayload<UnknownTypePayload>(match, DiagnosticCodes.UnknownType);
+      const payload = readDiagnosticPayload<UnknownTypePayload>(match, DiagnosticCodes.UnknownType);
       if (payload && payload.suggestions.length > 0) {
         edit.replace(document.uri, match.range, payload.suggestions[0]!);
         appliedCount++;
@@ -1299,100 +1332,4 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       actions.push(suppressAction);
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// The type parameter T exists for the consumer's benefit (it picks the
-// payload type for the matching diagnostic code). The function body deals
-// only with the `code` discriminator, so T legitimately appears just once
-// here in the signature.
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
-function readPayload<T extends { code: string }>(
-  diagnostic: vscode.Diagnostic,
-  expectedCode: string,
-): T | undefined {
-  const data: unknown = (diagnostic as vscode.Diagnostic & { data?: unknown }).data;
-  if (data && typeof data === "object" && (data as { code?: unknown }).code === expectedCode) {
-    return data as T;
-  }
-  return undefined;
-}
-
-function extractNamespaceFromMessage(message: string): string | undefined {
-  const all = Array.from(message.matchAll(/"([a-zA-Z0-9_.]+)"/g));
-  if (all.length >= 2) return all[1]?.[1];
-  return all[0]?.[1];
-}
-
-function findImportInsertLine(document: vscode.TextDocument): number {
-  let insertLine = 0;
-  for (let i = 0; i < document.lineCount; i++) {
-    const lineText = document.lineAt(i).text.trim();
-    if (lineText.toLowerCase().startsWith("imports ")) {
-      insertLine = i + 1;
-    }
-  }
-  return insertLine;
-}
-
-function findDeclarationParenthesesInsertPosition(
-  document: vscode.TextDocument,
-  diagnostic: vscode.Diagnostic,
-): vscode.Position {
-  const line = diagnostic.range.start.line;
-  const lineText = document.lineAt(line).text;
-  const match = /\b(?:delegate\s+(?:sub|function)|sub|function)\s+([A-Za-z_]\w*)/i.exec(lineText);
-  const name = match?.[1];
-  if (match && name) {
-    const nameStart = match.index + match[0].lastIndexOf(name);
-    return new vscode.Position(line, nameStart + name.length);
-  }
-  return diagnostic.range.end;
-}
-
-function findMissingThenInsertPosition(
-  document: vscode.TextDocument,
-  diagnostic: vscode.Diagnostic,
-): vscode.Position {
-  const line = diagnostic.range.start.line;
-  const lineText = document.lineAt(line).text;
-
-  // Find the end of the expression or end of line before any comments.
-  let endChar = lineText.length;
-  const commentIdx = lineText.indexOf("'");
-  if (commentIdx !== -1) {
-    endChar = commentIdx;
-  }
-  const textBeforeComment = lineText.substring(0, endChar);
-  const trimmedLen = textBeforeComment.trimEnd().length;
-  return new vscode.Position(line, trimmedLen);
-}
-
-function isMissingThenDiagnostic(diagnostic: vscode.Diagnostic): boolean {
-  return (
-    diagnostic.code === "expected-token" &&
-    diagnostic.message.toLowerCase().includes("expected 'then'")
-  );
-}
-
-function dedupeDiagnostics(diagnostics: readonly vscode.Diagnostic[]): vscode.Diagnostic[] {
-  const seen = new Set<string>();
-  const result: vscode.Diagnostic[] = [];
-  for (const diagnostic of diagnostics) {
-    const code = diagnostic.code as unknown;
-    const codeVal =
-      code && typeof code === "object" && "value" in code
-        ? String((code as { value: string | number }).value)
-        : typeof code === "string" || typeof code === "number"
-          ? String(code)
-          : "";
-    const key = `${codeVal}:${diagnostic.range.start.line}:${diagnostic.range.start.character}:${diagnostic.range.end.line}:${diagnostic.range.end.character}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(diagnostic);
-  }
-  return result;
 }

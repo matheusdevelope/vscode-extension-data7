@@ -112,6 +112,8 @@ A extensão declara `untrustedWorkspaces.supported: "limited"`. Em workspaces n�
 
 Veja [`project_context.md`](./project_context.md) para a descrição arquitetural completa, e [`docs/system-library/README.md`](./docs/system-library/README.md) para a referência gerada de tipos nativos do ERP.
 
+Para mudanças no transpiler, parser ou açúcares sintáticos, siga também o contrato de [`docs/sugar-architecture.md`](./docs/sugar-architecture.md): cada sugar é isolado em `src/project/sugars/plugins/<id>/`, e sua configuração não pode causar perda de código.
+
 ## Desenvolvimento
 
 ```bash

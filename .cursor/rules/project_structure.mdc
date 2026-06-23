@@ -15,8 +15,8 @@ alwaysApply: true
 - **Root Files:** Only `src/extension.ts` and `src/commands.ts` are allowed at the root of `src/`. Introducing a new root file requires updating this rule.
 - `src/project/` — Build, decompile, transpile, project config, and the current language kernel:
   - `parser/` and `ast/`: The core syntax definitions and parsers.
-  - `generics/` and `sugars/`: Implement pure transformations over the AST and canonical code.
-  - `builder.ts` and `transpiler.ts` are orchestration/compatibility hot paths, not homes for new independent semantic rules.
+  - `generics/` and `sugars/`: Implement pure transformations over the AST and canonical code. Every sugar lives in `sugars/plugins/<sugar-id>/`; keep its parser, transformer, diagnostics, types and utility generation together there.
+  - `transpiler.ts` is a compatibility facade and `transpiler-orchestrator.ts` coordinates the pipeline. Neither is a home for sugar implementations. `parser.ts` coordinates parser components; expression and statement grammars belong in dedicated parser modules.
 - `src/analysis/` — Semantic reading, workspace indexing, type resolution, control flow, and dependency discovery. It may consume the parser/AST kernel.
 - `src/diagnostics/` — Diagnostic codes, severity definitions, and AST-driven diagnostic assembly.
 - `src/providers/` — VS Code UI adapters. Providers consume AST/context/indexer; they never implement semantic parsing through raw text or regex.
@@ -27,6 +27,8 @@ alwaysApply: true
 - `src/utils/` — Pure domain-agnostic helpers; do not place language semantics here.
 
 ## Files outside `src/`
+
+- `AGENTS.md` — Mandatory implementation contract for AI agents. Keep it synchronized with the architecture rules and `project_context.md`.
 
 - `docs/example/` — Canonical documentation fixtures. Headers and `_expected` output must reflect the current transpiler/linter before tests run; regenerate its README index from headers.
 - `docs/linguagem-basic/` — Current language and tooling reference; do not describe removed feature flags or superseded pipelines.

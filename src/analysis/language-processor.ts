@@ -127,7 +127,10 @@ export class LanguageProcessor {
         disabledSugarIds: sugarConfig.disabledIds,
       });
       const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
-      const { unit, errors } = parseBasic(content, { plugins });
+      const { unit, errors } = parseBasic(content, {
+        plugins,
+        preserveLine: sugarEngine.createDisabledSyntaxLinePreserver(),
+      });
       const tokens = tokenize(content);
       const cachedDoc: CachedDocument = {
         uri,

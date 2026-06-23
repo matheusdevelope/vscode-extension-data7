@@ -58,7 +58,6 @@ import type {
   ThrowStatement,
   WithStatement,
   Expression,
-  Identifier,
   VariableDeclaration,
   SelectCaseStatement,
   SelectCaseBranch,
@@ -69,6 +68,19 @@ import type { Token, TokenLocation } from "./token-types";
 import type { ParserPlugin } from "./plugin";
 import { SugarsParserPlugin } from "./sugars-plugin";
 import { GenericsParserPlugin } from "./generics-plugin";
+import {
+  parseExpression as parseExpressionGrammar,
+  parseExpressionWithLeft as parseExpressionWithLeftGrammar,
+  parseInfix as parseInfixGrammar,
+  parsePrefix as parsePrefixGrammar,
+} from "./expression-parser";
+import {
+  parseDoLoopStatement,
+  parseForOrForEachStatement,
+  parseIfStatement,
+  parseTryCatchStatement,
+  parseWhileStatement,
+} from "./statement-parsers";
 
 export interface ParseResult {
   readonly unit: CompilationUnit;
@@ -92,7 +104,7 @@ export enum Precedence {
   Primary = 13,
 }
 
-const PRECEDENCES: Record<string, number> = {
+export const PRECEDENCES: Record<string, number> = {
   or: Precedence.Logical,
   and: Precedence.Logical,
   xor: Precedence.Logical,
@@ -130,13 +142,19 @@ const PRECEDENCES: Record<string, number> = {
  */
 export interface ParseOptions {
   plugins?: ParserPlugin[];
+  /**
+   * Optional lossless fallback for syntax intentionally not handled by the
+   * active parser plugins. Returning true keeps the full source line as an
+   * `OpaqueStatement` instead of partially parsing and serializing it.
+   */
+  preserveLine?: (sourceLine: string) => boolean;
 }
 
 export function parse(source: string, options?: ParseOptions): ParseResult {
   const tokens = tokenize(source);
   const sourceLines = source.split(/\r?\n/);
   const plugins = options?.plugins ?? [new SugarsParserPlugin(), new GenericsParserPlugin()];
-  const parser = new Parser(tokens, sourceLines, plugins);
+  const parser = new Parser(tokens, sourceLines, plugins, options?.preserveLine);
   const unit = parser.parseCompilationUnit();
   return { unit, errors: parser.errors };
 }
@@ -160,6 +178,7 @@ export class Parser {
     public readonly tokens: readonly Token[],
     public readonly sourceLines: readonly string[],
     public readonly plugins: readonly ParserPlugin[] = [],
+    private readonly preserveLine?: (sourceLine: string) => boolean,
   ) {}
 
   // --------------------------------------------------------------------------
@@ -268,6 +287,8 @@ export class Parser {
   }
 
   private parseTopLevelMember(): TopLevelMember | null {
+    if (this.shouldPreserveCurrentLine()) return this.consumeLineAsOpaque();
+
     // Skip modifier prefixes that may precede a declaration so we can
     // peek at the actual declaration keyword.
     let lookahead = 0;
@@ -577,6 +598,7 @@ export class Parser {
 
   public parseStatement(): Statement | null {
     const startLoc = this.peek().loc;
+    if (this.shouldPreserveCurrentLine()) return this.consumeLineAsOpaque();
     if (this.currentLineIsMetaDirective()) {
       return this.consumeLineAsOpaque();
     }
@@ -729,417 +751,23 @@ export class Parser {
   }
 
   private parseIfStatement(): IfStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'If'
-    const condition = this.parseExpression();
-    this.expect("keyword", "then", { literal: true });
-
-    const nextToken = this.peek();
-    const isSingleLine =
-      nextToken.loc.line === startLoc.line &&
-      nextToken.kind !== "newline" &&
-      nextToken.kind !== "eof";
-
-    const thenBranch: Statement[] = [];
-    const elseIfBranches: { condition: Expression; body: Statement[] }[] = [];
-    let elseBranch: Statement[] | undefined;
-
-    if (isSingleLine) {
-      while (this.peek().loc.line === startLoc.line && !this.isEOF()) {
-        const token = this.peek();
-        if ((token.kind === "keyword" || token.kind === "identifier") && Parser.eq(token, "else")) {
-          break;
-        }
-        if (token.kind === "punct" && token.value === ":") {
-          this.advance();
-          continue;
-        }
-        if (token.kind === "newline") {
-          break;
-        }
-        const s = this.parseStatement();
-        if (s !== null) thenBranch.push(s);
-      }
-
-      const next = this.peek();
-      if (
-        next.loc.line === startLoc.line &&
-        (next.kind === "keyword" || next.kind === "identifier") &&
-        Parser.eq(next, "else")
-      ) {
-        this.advance(); // consume 'Else'
-        elseBranch = [];
-        while (this.peek().loc.line === startLoc.line && !this.isEOF()) {
-          const token = this.peek();
-          if (token.kind === "punct" && token.value === ":") {
-            this.advance();
-            continue;
-          }
-          if (token.kind === "newline") {
-            break;
-          }
-          const s = this.parseStatement();
-          if (s !== null) elseBranch.push(s);
-        }
-      }
-
-      if (this.peek().loc.line === startLoc.line) {
-        this.skipToEndOfLine();
-      }
-      return {
-        kind: "IfStatement",
-        condition,
-        thenBranch,
-        elseIfBranches: [],
-        elseBranch,
-        loc: locOf(startLoc),
-        singleLine: true,
-      };
-    }
-
-    this.skipToEndOfLine();
-
-    let endLoc: TokenLocation | undefined;
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd("if")) {
-        endLoc = this.consumeEnd("if");
-        this.skipToEndOfLine();
-        break;
-      }
-
-      const head = this.peek();
-      if ((head.kind === "keyword" || head.kind === "identifier") && Parser.eq(head, "elseif")) {
-        this.advance(); // consume 'ElseIf'
-        const elseIfCond = this.parseExpression();
-        this.expect("keyword", "then", { literal: true });
-        this.skipToEndOfLine();
-        const elseIfBody: Statement[] = [];
-        while (!this.isEOF()) {
-          this.skipNewlines();
-          if (this.peekIsElseIfOrElseOrEndIf()) break;
-          const s = this.parseStatement();
-          if (s !== null) elseIfBody.push(s);
-          this.skipStatementSeparator();
-        }
-        elseIfBranches.push({ condition: elseIfCond, body: elseIfBody });
-        continue;
-      }
-
-      if ((head.kind === "keyword" || head.kind === "identifier") && Parser.eq(head, "else")) {
-        this.advance(); // consume 'Else'
-        this.skipToEndOfLine();
-        elseBranch = [];
-        while (!this.isEOF()) {
-          this.skipNewlines();
-          if (this.matchEnd("if")) break;
-          const s = this.parseStatement();
-          if (s !== null) elseBranch.push(s);
-          this.skipStatementSeparator();
-        }
-        continue;
-      }
-
-      const s = this.parseStatement();
-      if (s !== null) thenBranch.push(s);
-      this.skipStatementSeparator();
-    }
-
-    return {
-      kind: "IfStatement",
-      condition,
-      thenBranch,
-      elseIfBranches,
-      elseBranch,
-      loc: locOf(startLoc, endLoc),
-    };
-  }
-
-  private peekIsElseIfOrElseOrEndIf(): boolean {
-    const head = this.peek();
-    if (head.kind !== "keyword" && head.kind !== "identifier") return false;
-    const val = head.value.toLowerCase();
-    if (val === "elseif" || val === "else") return true;
-    if (val === "end" && Parser.eq(this.peek(1), "if")) return true;
-    return false;
+    return parseIfStatement(this);
   }
 
   private parseForOrForEachStatement(): ForStatement | ForEachStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'For'
-
-    const nextToken = this.peek();
-    if (
-      (nextToken.kind === "keyword" || nextToken.kind === "identifier") &&
-      Parser.eq(nextToken, "each")
-    ) {
-      this.advance(); // consume 'Each'
-      const elementVarToken = this.expect("identifier", "<loop-variable>");
-      const elementVar: Identifier = {
-        kind: "Identifier",
-        name: elementVarToken?.value ?? "",
-        loc: locOf(elementVarToken?.loc ?? startLoc),
-      };
-      let elementType: TypeReference | undefined;
-      if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-        elementType = this.parseTypeReference() ?? undefined;
-      }
-      this.expect("keyword", "in", { literal: true });
-      const enumerable = this.parseExpression();
-      const comment = this.skipToEndOfLine();
-
-      const body: Statement[] = [];
-      let endLoc: TokenLocation | undefined;
-      while (!this.isEOF()) {
-        this.skipNewlines();
-        if (this.matchEnd("for") || this.matchNext()) {
-          endLoc = this.consumeNext();
-          this.skipToEndOfLine();
-          break;
-        }
-        const s = this.parseStatement();
-        if (s !== null) body.push(s);
-        this.skipStatementSeparator();
-      }
-
-      return {
-        kind: "ForEachStatement",
-        elementVar,
-        elementType,
-        enumerable,
-        body,
-        loc: locOf(startLoc, endLoc),
-        comment,
-      };
-    } else {
-      const counterToken = this.expect("identifier", "<loop-variable>");
-      const counter: Identifier = {
-        kind: "Identifier",
-        name: counterToken?.value ?? "",
-        loc: locOf(counterToken?.loc ?? startLoc),
-      };
-      this.expect("punct", "=", { literal: true });
-      const start = this.parseExpression();
-      this.expect("keyword", "to", { literal: true });
-      const end = this.parseExpression();
-      let step: Expression | undefined;
-      if (this.consume("keyword", "step") || this.consume("identifier", "step")) {
-        step = this.parseExpression();
-      }
-      const comment = this.skipToEndOfLine();
-
-      const body: Statement[] = [];
-      let endLoc: TokenLocation | undefined;
-      while (!this.isEOF()) {
-        this.skipNewlines();
-        if (this.matchEnd("for") || this.matchNext()) {
-          endLoc = this.consumeNext();
-          this.skipToEndOfLine();
-          break;
-        }
-        const s = this.parseStatement();
-        if (s !== null) body.push(s);
-        this.skipStatementSeparator();
-      }
-
-      return {
-        kind: "ForStatement",
-        counter,
-        start,
-        end,
-        step,
-        body,
-        loc: locOf(startLoc, endLoc),
-        comment,
-      };
-    }
-  }
-
-  private matchNext(): boolean {
-    return this.match("keyword", "next") || this.match("identifier", "next");
-  }
-
-  private consumeNext(): TokenLocation {
-    const nextKw = this.advance(); // consume 'Next'
-    let lastLoc = nextKw.loc;
-    if (nextKw.value.toLowerCase() === "end") {
-      const nextToken = this.peek();
-      if (nextToken.value.toLowerCase() === "for") {
-        lastLoc = this.advance().loc;
-      }
-    } else {
-      const nextToken = this.peek();
-      if (nextToken.kind === "identifier") {
-        lastLoc = this.advance().loc;
-      }
-    }
-    return lastLoc;
+    return parseForOrForEachStatement(this);
   }
 
   private parseWhileStatement(): WhileStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'While'
-    const condition = this.parseExpression();
-    this.skipToEndOfLine();
-
-    const body: Statement[] = [];
-    let endLoc: TokenLocation | undefined;
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (
-        this.matchEnd("while") ||
-        this.match("keyword", "wend") ||
-        this.match("identifier", "wend")
-      ) {
-        if (this.matchEnd("while")) {
-          endLoc = this.consumeEnd("while");
-        } else {
-          endLoc = this.advance().loc; // consume 'Wend'
-        }
-        this.skipToEndOfLine();
-        break;
-      }
-      const s = this.parseStatement();
-      if (s !== null) body.push(s);
-      this.skipStatementSeparator();
-    }
-
-    return {
-      kind: "WhileStatement",
-      condition,
-      body,
-      loc: locOf(startLoc, endLoc),
-    };
+    return parseWhileStatement(this);
   }
 
   private parseDoLoopStatement(): WhileStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'Do'
-
-    let condition: Expression | undefined;
-    let isUntil = false;
-    const nextToken = this.peek();
-    if (
-      (nextToken.kind === "keyword" || nextToken.kind === "identifier") &&
-      (Parser.eq(nextToken, "while") || Parser.eq(nextToken, "until"))
-    ) {
-      isUntil = Parser.eq(nextToken, "until");
-      this.advance();
-      condition = this.parseExpression();
-    }
-    this.skipToEndOfLine();
-
-    const body: Statement[] = [];
-    let endLoc: TokenLocation | undefined;
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.match("keyword", "loop") || this.match("identifier", "loop")) {
-        const loopKw = this.advance(); // consume 'Loop'
-        endLoc = loopKw.loc;
-        const tailToken = this.peek();
-        if (
-          (tailToken.kind === "keyword" || tailToken.kind === "identifier") &&
-          (Parser.eq(tailToken, "while") || Parser.eq(tailToken, "until"))
-        ) {
-          isUntil = Parser.eq(tailToken, "until");
-          this.advance();
-          condition = this.parseExpression();
-          if (condition.loc) {
-            endLoc = { line: condition.loc.endLine, column: condition.loc.endChar };
-          }
-        }
-        this.skipToEndOfLine();
-        break;
-      }
-      const s = this.parseStatement();
-      if (s !== null) body.push(s);
-      this.skipStatementSeparator();
-    }
-
-    let finalCondition = condition ?? { kind: "Literal", value: true, loc: locOf(startLoc) };
-    if (isUntil) {
-      finalCondition = {
-        kind: "UnaryExpression",
-        operator: "Not",
-        argument: finalCondition,
-        loc: finalCondition.loc,
-      };
-    }
-
-    return {
-      kind: "WhileStatement",
-      condition: finalCondition,
-      body,
-      loc: locOf(startLoc, endLoc),
-    };
+    return parseDoLoopStatement(this);
   }
 
   private parseTryCatchStatement(): TryCatchStatement {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'Try'
-    this.skipToEndOfLine();
-
-    const tryBody: Statement[] = [];
-    let catchVar: Identifier | undefined;
-    let catchType: TypeReference | undefined;
-    const catchBody: Statement[] = [];
-    let finallyBody: Statement[] | undefined;
-    let currentBlock: "try" | "catch" | "finally" = "try";
-    let endLoc: TokenLocation | undefined;
-
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd("try")) {
-        endLoc = this.consumeEnd("try");
-        this.skipToEndOfLine();
-        break;
-      }
-
-      const head = this.peek();
-      if ((head.kind === "keyword" || head.kind === "identifier") && Parser.eq(head, "catch")) {
-        this.advance(); // consume 'Catch'
-        currentBlock = "catch";
-        if (this.peek().kind === "identifier") {
-          const varToken = this.advance();
-          catchVar = {
-            kind: "Identifier",
-            name: varToken.value,
-            loc: locOf(varToken.loc),
-          };
-          if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-            catchType = this.parseTypeReference() ?? undefined;
-          }
-        }
-        this.skipToEndOfLine();
-        continue;
-      }
-
-      if ((head.kind === "keyword" || head.kind === "identifier") && Parser.eq(head, "finally")) {
-        this.advance(); // consume 'Finally'
-        currentBlock = "finally";
-        finallyBody = [];
-        this.skipToEndOfLine();
-        continue;
-      }
-
-      const s = this.parseStatement();
-      if (s !== null) {
-        if (currentBlock === "try") tryBody.push(s);
-        else if (currentBlock === "catch") catchBody.push(s);
-        else if (finallyBody) finallyBody.push(s);
-      }
-      this.skipStatementSeparator();
-    }
-
-    return {
-      kind: "TryCatchStatement",
-      tryBody,
-      catchVar,
-      catchType,
-      catchBody,
-      finallyBody,
-      loc: locOf(startLoc, endLoc),
-    };
+    return parseTryCatchStatement(this);
   }
 
   private parseReturnStatement(): ReturnStatement {
@@ -1315,295 +943,25 @@ export class Parser {
     };
   }
 
-  private getPrecedence(token: Token): Precedence {
-    if (token.kind === "punct" && token.value === "(") {
-      return Precedence.Call;
-    }
-    if (token.kind === "punct" && token.value === "[") {
-      return Precedence.Call;
-    }
-    if (token.kind === "punct" && token.value === ".") {
-      return Precedence.Call;
-    }
-    if (token.kind === "punct" && token.value === "?.") {
-      return Precedence.OptionalChain;
-    }
-    if (token.kind === "keyword" || token.kind === "identifier" || token.kind === "punct") {
-      return PRECEDENCES[token.value.toLowerCase()] ?? Precedence.None;
-    }
-    return Precedence.None;
-  }
+  // --------------------------------------------------------------------------
+  // Expression grammar
+  // --------------------------------------------------------------------------
 
   public parseExpressionWithLeft(left: Expression, precedence = Precedence.None): Expression {
-    let currentLeft = left;
-    while (precedence < this.getPrecedence(this.peek())) {
-      const next = this.peek();
-      const updatedLeft = this.parseInfix(currentLeft, next);
-      if (updatedLeft === null) break;
-      currentLeft = updatedLeft;
-    }
-    return currentLeft;
+    return parseExpressionWithLeftGrammar(this, left, precedence);
   }
 
   public parseExpression(precedence = Precedence.None): Expression {
-    const left = this.parsePrefix();
-    if (left === null) {
-      const errLoc = this.peek().loc;
-      this.recordError(
-        "expected-token",
-        `Expected an expression, got '${this.peek().value || this.peek().kind}'.`,
-        errLoc,
-      );
-      this.advance(); // Advance past the unexpected token to prevent infinite loop
-      return { kind: "Identifier", name: "", loc: locOf(errLoc) };
-    }
-
-    return this.parseExpressionWithLeft(left, precedence);
+    return parseExpressionGrammar(this, precedence);
   }
 
   public parsePrefix(): Expression | null {
-    for (const plugin of this.plugins) {
-      if (plugin.parseExpressionPrefix) {
-        const res = plugin.parseExpressionPrefix(this);
-        if (res !== null) return res;
-      }
-    }
-
-    const token = this.peek();
-    if (token.kind === "number") {
-      this.advance();
-      const val = token.value.includes(".") ? parseFloat(token.value) : parseInt(token.value);
-      return { kind: "Literal", value: isNaN(val) ? token.value : val, loc: locOf(token.loc) };
-    }
-    if (token.kind === "string") {
-      const strToken = this.advance();
-      return { kind: "Literal", value: strToken.value, loc: locOf(strToken.loc) };
-    }
-    if (token.kind === "identifier" || token.kind === "keyword") {
-      if (this.isGenericTypeArgumentsLookahead()) {
-        const startLoc = token.loc;
-        const typeRef = this.parseTypeReference(false);
-        if (typeRef !== null) {
-          return {
-            kind: "TypeReferenceExpression",
-            type: typeRef,
-            loc: locOf(startLoc, this.peek().loc),
-          };
-        }
-      }
-      const lower = token.value.toLowerCase();
-      if (lower === "typeof") {
-        this.advance();
-        const checkedExpr = this.parseExpression(Precedence.Comparison);
-        this.expect("keyword", "is", { literal: true });
-        const typeRef = this.parseTypeReference(false) ?? {
-          kind: "TypeReference",
-          name: "",
-          typeArguments: [],
-          loc: locOf(token.loc),
-        };
-        return {
-          kind: "MethodInvocation",
-          methodName: "TypeOf",
-          typeArguments: [],
-          arguments: [
-            checkedExpr,
-            {
-              kind: "TypeReferenceExpression",
-              type: typeRef,
-              loc: typeRef.loc,
-            },
-          ],
-          loc: locOf(token.loc),
-        };
-      }
-      if (lower === "true") {
-        this.advance();
-        return { kind: "Literal", value: true, loc: locOf(token.loc) };
-      }
-      if (lower === "false") {
-        this.advance();
-        return { kind: "Literal", value: false, loc: locOf(token.loc) };
-      }
-      if (lower === "null" || lower === "nothing") {
-        this.advance();
-        return { kind: "Literal", value: null, loc: locOf(token.loc) };
-      }
-      if (lower === "not" || token.value === "!") {
-        this.advance();
-        const arg = this.parseExpression(Precedence.Unary);
-        return { kind: "UnaryExpression", operator: "Not", argument: arg, loc: locOf(token.loc) };
-      }
-      if (lower === "new") {
-        this.advance();
-        const typeRef = this.parseTypeReference(false) ?? {
-          kind: "TypeReference",
-          name: "",
-          typeArguments: [],
-          loc: locOf(token.loc),
-        };
-        const args: Expression[] = [];
-        this.expect("punct", "(", { literal: true });
-        while (!this.match("punct", ")") && !this.isEOF()) {
-          args.push(this.parseExpression());
-          if (!this.consume("punct", ",")) break;
-        }
-        this.expect("punct", ")", { literal: true });
-
-        return {
-          kind: "ObjectCreationExpression",
-          type: typeRef,
-          arguments: args,
-          loc: locOf(token.loc),
-        };
-      }
-      this.advance();
-      return { kind: "Identifier", name: token.value, loc: locOf(token.loc) };
-    }
-    if (token.kind === "punct" && token.value === "-") {
-      this.advance();
-      const arg = this.parseExpression(Precedence.Unary);
-      return { kind: "UnaryExpression", operator: "-", argument: arg, loc: locOf(token.loc) };
-    }
-    if (token.kind === "punct" && token.value === "(") {
-      this.advance();
-      const expr = this.parseExpression();
-      this.expect("punct", ")", { literal: true });
-      expr.parenthesized = true;
-      return expr;
-    }
-    if (token.kind === "punct" && token.value === ".") {
-      this.advance();
-      // Member names can be keywords in some contexts (e.g., `MyBase.New()`).
-      const memberToken = this.consume("identifier") ?? this.consume("keyword");
-      if (!memberToken) {
-        this.recordError(
-          "expected-token",
-          `Expected '<member-name>', got '${this.peek().value || this.peek().kind}'.`,
-          this.peek().loc,
-        );
-      }
-      const member = memberToken?.value ?? "";
-      return {
-        kind: "MemberAccess",
-        target: { kind: "Identifier", name: "", loc: locOf(token.loc) },
-        member,
-        loc: locOf(token.loc),
-      };
-    }
-    return null;
+    return parsePrefixGrammar(this);
   }
 
   public parseInfix(left: Expression, token: Token): Expression | null {
-    for (const plugin of this.plugins) {
-      if (plugin.parseExpressionInfix) {
-        const res = plugin.parseExpressionInfix(this, left, token);
-        if (res !== null) return res;
-      }
-    }
-
-    if (token.kind === "punct" && token.value === "(") {
-      this.advance();
-      const args: Expression[] = [];
-      while (!this.match("punct", ")") && !this.isEOF()) {
-        args.push(this.parseExpression());
-        if (!this.consume("punct", ",")) break;
-      }
-      this.expect("punct", ")", { literal: true });
-      if (left.kind === "MemberAccess") {
-        return {
-          kind: "MethodInvocation",
-          callee: left.target,
-          methodName: left.member,
-          typeArguments: [],
-          arguments: args,
-          loc: left.loc,
-        };
-      }
-      if (left.kind === "Identifier") {
-        return {
-          kind: "MethodInvocation",
-          methodName: left.name,
-          typeArguments: [],
-          arguments: args,
-          loc: left.loc,
-        };
-      }
-      return {
-        kind: "MethodInvocation",
-        callee: left,
-        methodName: "",
-        typeArguments: [],
-        arguments: args,
-        loc: left.loc,
-      };
-    }
-    if (token.kind === "punct" && token.value === "[") {
-      this.advance();
-      const index = this.parseExpression();
-      this.expect("punct", "]", { literal: true });
-      return {
-        kind: "ArrayAccessExpression",
-        target: left,
-        index,
-        loc: left.loc,
-      };
-    }
-    if (token.kind === "punct" && token.value === ".") {
-      this.advance();
-      // Member names can be keywords in some contexts (e.g., `MyBase.New()`).
-      const memberToken = this.consume("identifier") ?? this.consume("keyword");
-      if (!memberToken) {
-        this.recordError(
-          "expected-token",
-          `Expected '<member-name>', got '${this.peek().value || this.peek().kind}'.`,
-          this.peek().loc,
-        );
-      }
-      const member = memberToken?.value ?? "";
-      const typeArguments: TypeReference[] = [];
-      for (const plugin of this.plugins) {
-        if (plugin.parseTypeArguments) {
-          const res = plugin.parseTypeArguments(this);
-          if (res !== null) {
-            typeArguments.push(...res);
-            break;
-          }
-        }
-      }
-      if (typeArguments.length > 0) {
-        return {
-          kind: "MethodInvocation",
-          callee: left,
-          methodName: member,
-          typeArguments,
-          arguments: [],
-          loc: left.loc,
-        };
-      }
-      return {
-        kind: "MemberAccess",
-        target: left,
-        member,
-        loc: left.loc,
-      };
-    }
-    const lower = token.value.toLowerCase();
-    const prec: Precedence = PRECEDENCES[lower] ?? Precedence.None;
-    if (prec !== Precedence.None) {
-      this.advance();
-      const right = this.parseExpression(prec);
-      return {
-        kind: "BinaryExpression",
-        left,
-        operator: token.value,
-        right,
-        loc: left.loc,
-      };
-    }
-    return null;
+    return parseInfixGrammar(this, left, token);
   }
-
   // --------------------------------------------------------------------------
   // Delegate
   // --------------------------------------------------------------------------
@@ -2007,7 +1365,7 @@ export class Parser {
     return { params, hasParentheses: true };
   }
 
-  private isGenericTypeArgumentsLookahead(): boolean {
+  public isGenericTypeArgumentsLookahead(): boolean {
     const next = this.peek(1);
     if (next.kind !== "punct" || next.value !== "<") return false;
 
@@ -2097,6 +1455,12 @@ export class Parser {
     const text = this.sourceLines[lineNo - 1] ?? "";
     if (text.trim().length === 0) return null;
     return { kind: "OpaqueStatement", text, loc: locOf(startLoc) };
+  }
+
+  private shouldPreserveCurrentLine(): boolean {
+    if (!this.preserveLine || this.isEOF()) return false;
+    const sourceLine = this.sourceLines[this.peek().loc.line - 1] ?? "";
+    return this.preserveLine(sourceLine);
   }
 
   private currentLineIsMetaDirective(): boolean {

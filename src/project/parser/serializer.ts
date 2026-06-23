@@ -25,14 +25,14 @@ import type {
   SourceLocation,
   Assignment,
   VariableDeclaration,
-  Node,
   EnumDeclaration,
   DestructuredVariableDeclaration,
   SelectCaseStatement,
   MethodInvocation,
 } from "../ast/ast";
 import { deepClone } from "../ast/clone";
-import { ASTWalker } from "../ast/ast";
+import { obfuscateLocalVariables } from "./serializer/local-obfuscator";
+export { obfuscateLocalVariables } from "./serializer/local-obfuscator";
 
 const INDENT_UNIT = "   ";
 
@@ -798,96 +798,9 @@ function indent(depth: number, options: SerializeOptions): string {
   return s;
 }
 
-class LocalObfuscator {
-  private renameMap = new Map<string, string>();
-  private counter = 0;
-
-  obfuscate(method: MethodDeclaration): void {
-    this.renameMap.clear();
-    this.counter = 0;
-
-    for (const p of method.parameters) {
-      const newName = `__v${this.counter++}`;
-      this.renameMap.set(p.name, newName);
-      p.name = newName;
-    }
-
-    this.collectLocalVars(method.body);
-
-    const refRenamer = new (class extends ASTWalker {
-      constructor(private readonly renameMap: Map<string, string>) {
-        super();
-      }
-      protected override visitTypeReference(_: TypeReference): void {
-        //to nothing
-      }
-      override walk(node: Node): void {
-        if (node.kind === "Identifier") {
-          const renamed = this.renameMap.get(node.name);
-          if (renamed !== undefined) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-            (node as any).name = renamed;
-          }
-          return;
-        }
-        super.walk(node);
-      }
-    })(this.renameMap);
-
-    for (const s of method.body) {
-      refRenamer.walk(s);
-    }
-  }
-
-  private collectLocalVars(stmts: Statement[]): void {
-    for (const s of stmts) {
-      if (s.kind === "VariableDeclaration") {
-        const newName = `__v${this.counter++}`;
-        this.renameMap.set(s.name, newName);
-        s.name = newName;
-      } else if (s.kind === "IfStatement") {
-        this.collectLocalVars(s.thenBranch);
-        for (const b of s.elseIfBranches) this.collectLocalVars(b.body);
-        if (s.elseBranch) this.collectLocalVars(s.elseBranch);
-      } else if (s.kind === "ForStatement") {
-        const newName = `__v${this.counter++}`;
-        this.renameMap.set(s.counter.name, newName);
-        s.counter.name = newName;
-        this.collectLocalVars(s.body);
-      } else if (s.kind === "ForEachStatement") {
-        const newName = `__v${this.counter++}`;
-        this.renameMap.set(s.elementVar.name, newName);
-        s.elementVar.name = newName;
-        this.collectLocalVars(s.body);
-      } else if (s.kind === "WhileStatement") {
-        this.collectLocalVars(s.body);
-      } else if (s.kind === "TryCatchStatement") {
-        if (s.catchVar) {
-          const newName = `__v${this.counter++}`;
-          this.renameMap.set(s.catchVar.name, newName);
-          s.catchVar.name = newName;
-        }
-        this.collectLocalVars(s.tryBody);
-        this.collectLocalVars(s.catchBody);
-        if (s.finallyBody) this.collectLocalVars(s.finallyBody);
-      } else if (s.kind === "UsingStatement") {
-        const newName = `__v${this.counter++}`;
-        this.renameMap.set(s.resourceVar.name, newName);
-        s.resourceVar.name = newName;
-        this.collectLocalVars(s.body);
-      } else if (s.kind === "MatchStatement") {
-        for (const c of s.cases) this.collectLocalVars(c.body);
-      } else if (s.kind === "SelectCaseStatement") {
-        for (const c of s.cases) this.collectLocalVars(c.body);
-      } else if (s.kind === "Block") {
-        this.collectLocalVars(s.statements);
-      }
-    }
-  }
-}
-
 // Atualize a função obfuscateLocalVariables:
-export function obfuscateLocalVariables(unit: CompilationUnit): void {
+/* Legacy implementation retained temporarily for source-history context.
+function legacyObfuscateLocalVariables(unit: CompilationUnit): void {
   const walker = new (class extends ASTWalker {
     protected override visitTypeReference(_: TypeReference): void {
       //do nothing
@@ -907,6 +820,7 @@ export function obfuscateLocalVariables(unit: CompilationUnit): void {
   walker.walk(unit);
 }
 
+*/
 function serializeEnum(
   e: EnumDeclaration,
   depth: number,

@@ -4,6 +4,8 @@
 
 ## Arquitetura
 
+> Contrato atual: `transpiler.ts` é uma fachada e `transpiler-orchestrator.ts` coordena os plugins. Cada sugar deve ser isolado em `src/project/sugars/plugins/<id>/`, onde ficam parser, transformação, diagnósticos, tipos e utilitários da feature. `SugarEngine` é a única autoridade para habilitar IDs; quando uma feature estiver desabilitada, sua sintaxe deve ser preservada sem perda. Detalhes em [`docs/sugar-architecture.md`](../sugar-architecture.md).
+
 [`src/project/transpiler.ts`](../../src/project/transpiler.ts) implementa o motor que aplica os açúcares em ordem definida:
 
 ```mermaid

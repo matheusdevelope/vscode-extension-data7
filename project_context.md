@@ -1,5 +1,7 @@
 # Contexto e Arquitetura do Projeto: vscode-extension-data7
 
+> **Contrato vigente de modularização:** consulte [`docs/sugar-architecture.md`](./docs/sugar-architecture.md) e [`AGENTS.md`](./AGENTS.md). O transpiler é apenas fachada/orquestração; cada sugar deve ser isolado em `src/project/sugars/plugins/<id>/`, com parser, transformação, diagnósticos, tipos e utilitários próprios. `SugarEngine` é a única autoridade de ativação, e sintaxe de sugar desabilitado deve ser preservada sem perda.
+
 Este documento consolida o contexto de negócio, regras conceituais, objetivos, arquitetura de software e definições técnicas da extensão VS Code para a linguagem/plataforma do ERP Data7. Ele serve como a **única fonte de verdade conceitual e arquitetural** da extensão para guiar desenvolvimentos futuros.
 
 > **Especificação da linguagem-alvo**: a referência sistemática do Data7 Basic — sintaxe, tipos, classes, generics, açúcares, limitações, diagnostic codes — vive em [`docs/linguagem-basic/`](./docs/linguagem-basic/README.md). Esse documento (`project_context.md`) cobre arquitetura **da extensão**; aquela pasta cobre a linguagem para a qual transpilamos.

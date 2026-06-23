@@ -1159,6 +1159,52 @@ describe("SugarTranspiler — A6 numeric separator", () => {
   });
 });
 
+describe("SugarTranspiler — disabled sugar syntax", () => {
+  test("preserves a numeric separator when the numeric-separator sugar is disabled", () => {
+    const code = "Dim n As Long = 7_900_000_000";
+    const { code: out, diagnostics } = SugarTranspiler.transpile(
+      code,
+      makeContext({}, {}, { sugarOptions: { disabledSugarIds: ["numeric-separator"] } }),
+    );
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, code);
+  });
+
+  test("preserves Return If when the return-if sugar is disabled", () => {
+    const code = 'Return If x > 0 Then "pos" Else "neg"';
+    const { code: out, diagnostics } = SugarTranspiler.transpile(
+      code,
+      makeContext({}, {}, { sugarOptions: { disabledSugarIds: ["return-if"] } }),
+    );
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, code);
+  });
+
+  test("preserves destructuring when its sugar is disabled", () => {
+    const code = "Dim { Nome, Idade } = pessoa";
+    const { code: out, diagnostics } = SugarTranspiler.transpile(
+      code,
+      makeContext({}, {}, { sugarOptions: { disabledSugarIds: ["destructure-object"] } }),
+    );
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, code);
+  });
+
+  test("preserves destructuring when all sugars are disabled", () => {
+    const code = "Dim [first, second] = lista";
+    const { code: out, diagnostics } = SugarTranspiler.transpile(
+      code,
+      makeContext({}, {}, { sugarOptions: { enabled: false } }),
+    );
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, code);
+  });
+});
+
 describe("SugarTranspiler — array-list", () => {
   const ctx = makeContext(
     {},
