@@ -1,10 +1,11 @@
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
+  // WhatsappSend class
   {
-    name: "TField",
+    name: "WhatsappSend",
     kind: "class",
-    type: "TField",
+    type: "WhatsappSend",
     isShared: false,
     isPrivate: false,
     range: {
@@ -14,11 +15,53 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "SQL",
-    description: "Representa um campo retornado de uma consulta de banco de dados.",
+    inheritsFrom: "TObject",
+    description: "Classe nativa do sistema para envio de mensagens via WhatsApp.",
   },
   {
-    name: "AsString",
+    name: "SendMessage",
+    kind: "method",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      {
+        name: "pMessage",
+        type: "WhatsappMessage",
+        isByRef: false,
+        isOptional: false,
+      },
+    ],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "WhatsappSend",
+    description: "Envia uma mensagem do WhatsApp e retorna True em caso de sucesso.",
+  },
+
+  // WhatsappMessage class
+  {
+    name: "WhatsappMessage",
+    kind: "class",
+    type: "WhatsappMessage",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    inheritsFrom: "TObject",
+    description: "Representa uma mensagem do WhatsApp a ser enviada.",
+  },
+  {
+    name: "Recipient",
     kind: "property",
     type: "String",
     isShared: false,
@@ -30,13 +73,13 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "TField",
-    description: "Valor do campo convertido em String.",
+    containerName: "WhatsappMessage",
+    description: "Número do destinatário no formato internacional (ex: 5511999999999).",
   },
   {
-    name: "AsInteger",
+    name: "Subject",
     kind: "property",
-    type: "Integer",
+    type: "String",
     isShared: false,
     isPrivate: false,
     range: {
@@ -46,13 +89,13 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "TField",
-    description: "Valor do campo convertido em Integer.",
+    containerName: "WhatsappMessage",
+    description: "Assunto da mensagem do WhatsApp.",
   },
   {
-    name: "AsFloat",
+    name: "Content",
     kind: "property",
-    type: "Double",
+    type: "String",
     isShared: false,
     isPrivate: false,
     range: {
@@ -62,13 +105,13 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "TField",
-    description: "Valor do campo convertido em Double/Float.",
+    containerName: "WhatsappMessage",
+    description: "Texto/Conteúdo da mensagem do WhatsApp.",
   },
   {
-    name: "AsBoolean",
+    name: "Signature",
     kind: "property",
-    type: "Boolean",
+    type: "String",
     isShared: false,
     isPrivate: false,
     range: {
@@ -78,13 +121,13 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "TField",
-    description: "Valor do campo convertido em Boolean.",
+    containerName: "WhatsappMessage",
+    description: "Assinatura da mensagem do WhatsApp.",
   },
   {
-    name: "AsDate",
+    name: "Attachments",
     kind: "property",
-    type: "TDateTime",
+    type: "TStringList",
     isShared: false,
     isPrivate: false,
     range: {
@@ -94,43 +137,7 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "TField",
-    description: "Valor do campo convertido em TDateTime (somente data).",
-  },
-  {
-    name: "AsDateTime",
-    kind: "property",
-    type: "TDateTime",
-    isShared: false,
-    isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
-    containerName: "TField",
-    description: "Valor do campo convertido em TDateTime (data e hora).",
-  },
-  {
-    name: "SaveToFile",
-    kind: "method",
-    type: "Void",
-    isShared: false,
-    isPrivate: false,
-    parameters: [
-      { name: "pFileName", type: "String", isByRef: false, isOptional: false }
-    ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
-    containerName: "TField",
-    description: "Salva o conteúdo do campo em um arquivo.",
+    containerName: "WhatsappMessage",
+    description: "Lista de caminhos de arquivos anexos.",
   },
 ];
-

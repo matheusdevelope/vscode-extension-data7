@@ -23,6 +23,7 @@ describe("PRIMITIVE_TYPES", () => {
       "single",
       "char",
       "byte",
+      "currency",
     ]) {
       assert.ok(PRIMITIVE_TYPES.has(expected), `missing primitive "${expected}"`);
     }

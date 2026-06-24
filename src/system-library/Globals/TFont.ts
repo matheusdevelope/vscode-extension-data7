@@ -1,0 +1,72 @@
+import type { SystemSymbolInfo } from "../types";
+
+const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
+
+export const symbols: SystemSymbolInfo[] = [
+  {
+    name: "TFont",
+    kind: "class",
+    type: "TFont",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    description:
+      "Fonte usada por controles e elementos visuais. Expõe nome, tamanho, estilo e cor.",
+  },
+  {
+    name: "Name",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "TFont",
+    description: "Nome da fonte.",
+  },
+  {
+    name: "Size",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "TFont",
+    description: "Tamanho da fonte em pontos.",
+  },
+  {
+    name: "Height",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "TFont",
+    description: "Altura da fonte em pixels lógicos.",
+  },
+  {
+    name: "Color",
+    kind: "property",
+    type: "TColor",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "TFont",
+    description: "Cor do texto renderizado com a fonte.",
+  },
+  {
+    name: "Style",
+    kind: "property",
+    type: "TFontStyle",
+    isShared: false,
+    isPrivate: false,
+    range: range,
+    fileUri: "system://library",
+    containerName: "TFont",
+    description: "Estilo da fonte (bold, italic, underline, strikeout).",
+  },
+];

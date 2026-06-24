@@ -36,7 +36,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "EditorDescricao",
     kind: "property",
-    type: "TextBox",
+    type: "TcxCustomEdit",
     isShared: false,
     isPrivate: false,
     range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
@@ -44,6 +44,17 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "SearchTextBox",
     description:
       "Editor de texto auxiliar que exibe a descrição do registro selecionado pela pesquisa.",
+  },
+  {
+    name: "ExpressaoFiltro",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "SearchTextBox",
+    description: "Expressão SQL de filtro aplicada na pesquisa.",
   },
   {
     name: "AsString",

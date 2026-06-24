@@ -415,9 +415,9 @@ const constants: readonly ConstSpec[] = [
 const typeAliases: readonly TypeAliasSpec[] = [
   { name: "Real", type: "Real", description: "Alias para Double (número real)." },
   {
-    name: "TDateTime",
-    type: "TDateTime",
-    description: "Alias para Double que armazena data e hora.",
+    name: "Exception",
+    type: "Exception",
+    description: "Classe de exceção genérica para representar erros e situações excepcionais.",
   },
   { name: "Longint", type: "Long", description: "Alias para inteiro com sinal de 32 bits." },
   { name: "LongWord", type: "Long", description: "Alias para inteiro sem sinal de 32 bits." },

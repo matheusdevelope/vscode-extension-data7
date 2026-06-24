@@ -78,7 +78,6 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    containerName: "Forms",
     inheritsFrom: "TObject",
     description: "Classe do Delphi que gerencia as margens de posicionamento de um controle.",
   },

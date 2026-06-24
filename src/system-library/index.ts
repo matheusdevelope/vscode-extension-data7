@@ -5,6 +5,7 @@ import { symbols as sym_Collections_Collections } from "./Collections/Collection
 import { symbols as sym_Collections_StringList } from "./Collections/StringList";
 import { symbols as sym_Collections_TStrings } from "./Collections/TStrings";
 import { symbols as sym_Collections_TStringList } from "./Collections/TStringList";
+import { symbols as sym_Collections_TObjectList } from "./Collections/TObjectList";
 
 // ───────── Data7 ─────────
 import { symbols as sym_Data7_CodEmpresa } from "./Data7/CodEmpresa";
@@ -54,14 +55,12 @@ import { symbols as sym_Forms_TcxCustomTextEdit } from "./Forms/TcxCustomTextEdi
 import { symbols as sym_Forms_TCustomEdit } from "./Forms/TCustomEdit";
 import { symbols as sym_Forms_TCustomButtonedEdit } from "./Forms/TCustomButtonedEdit";
 import { symbols as sym_Forms_TButtonedEdit } from "./Forms/TButtonedEdit";
+import { symbols as sym_Forms_compat } from "./Forms/_compat";
 
 // ───────── Forms — namespace + utility ─────────
 import { symbols as sym_Forms_Forms } from "./Forms/Forms";
 import { symbols as sym_Forms_MessageBox } from "./Forms/MessageBox";
 import { symbols as sym_Forms_ProcessMessages } from "./Forms/ProcessMessages";
-import { symbols as sym_Forms_TAlign } from "./Forms/TAlign";
-import { symbols as sym_Forms_TAlignment } from "./Forms/TAlignment";
-import { symbols as sym_Forms_TMargins } from "./Forms/TMargins";
 
 // ───────── Forms — type aliases & intermediate classes ─────────
 import { symbols as sym_Forms_aliases } from "./Forms/_aliases";
@@ -99,7 +98,6 @@ import { symbols as sym_Forms_TShapeType } from "./Forms/TShapeType";
 import { symbols as sym_Forms_TWindowState } from "./Forms/TWindowState";
 import { symbols as sym_Forms_TAnchorKind } from "./Forms/TAnchorKind";
 import { symbols as sym_Forms_TBorderIcon } from "./Forms/TBorderIcon";
-import { symbols as sym_Forms_TCloseAction } from "./Forms/TCloseAction";
 import { symbols as sym_Forms_TLabelPosition } from "./Forms/TLabelPosition";
 import { symbols as sym_Forms_TProgressBarOrientation } from "./Forms/TProgressBarOrientation";
 import { symbols as sym_Forms_TProgressBarState } from "./Forms/TProgressBarState";
@@ -155,6 +153,7 @@ import { symbols as sym_Globals_Char } from "./Globals/Char";
 import { symbols as sym_Globals_CInt } from "./Globals/CInt";
 import { symbols as sym_Globals_CStr } from "./Globals/CStr";
 import { symbols as sym_Globals_DateTime } from "./Globals/DateTime";
+import { symbols as sym_Globals_dateUtils } from "./Globals/dateUtils";
 import { symbols as sym_Globals_FileToBase64 } from "./Globals/FileToBase64";
 import { symbols as sym_Globals_InStr } from "./Globals/InStr";
 import { symbols as sym_Globals_LCase } from "./Globals/LCase";
@@ -166,6 +165,8 @@ import { symbols as sym_Globals_Space } from "./Globals/Space";
 import { symbols as sym_Globals_taCenter } from "./Globals/taCenter";
 import { symbols as sym_Globals_taLeftJustify } from "./Globals/taLeftJustify";
 import { symbols as sym_Globals_taRightJustify } from "./Globals/taRightJustify";
+import { symbols as sym_Globals_TAlign } from "./Globals/TAlign";
+import { symbols as sym_Globals_TAlignment } from "./Globals/TAlignment";
 import { symbols as sym_Globals_THTTP } from "./Globals/THTTP";
 import { symbols as sym_Globals_Timer } from "./Globals/Timer";
 import { symbols as sym_Globals_TJSONArray } from "./Globals/TJSONArray";
@@ -174,21 +175,27 @@ import { symbols as sym_Globals_TLSv1 } from "./Globals/TLSv1";
 import { symbols as sym_Globals_TLSv1_1 } from "./Globals/TLSv1_1";
 import { symbols as sym_Globals_TLSv1_2 } from "./Globals/TLSv1_2";
 import { symbols as sym_Globals_TLSv1_3 } from "./Globals/TLSv1_3";
+import { symbols as sym_Globals_TMargins } from "./Globals/TMargins";
 import { symbols as sym_Globals_TObject } from "./Globals/TObject";
 import { symbols as sym_Globals_TPersistent } from "./Globals/TPersistent";
 import { symbols as sym_Globals_TryStrToInt } from "./Globals/TryStrToInt";
 import { symbols as sym_Globals_UCase } from "./Globals/UCase";
 import { symbols as sym_Globals_ZipFile } from "./Globals/ZipFile";
+import { symbols as sym_Globals_Whatsapp } from "./Globals/Whatsapp";
+import { symbols as sym_Globals_Clipboard } from "./Globals/Clipboard";
+import { symbols as sym_Globals_Math } from "./Globals/Math";
 // Globals — tipos comuns Delphi (TColor, TCursor, TPoint, TRect, TFontStyle, TMouseButton + event delegates)
 import { symbols as sym_Globals_Exception } from "./Globals/Exception";
 import { symbols as sym_Globals_TColor } from "./Globals/TColor";
 import { symbols as sym_Globals_TCursor } from "./Globals/TCursor";
+import { symbols as sym_Globals_TFont } from "./Globals/TFont";
 import { symbols as sym_Globals_TPoint } from "./Globals/TPoint";
 import { symbols as sym_Globals_TRect } from "./Globals/TRect";
 import { symbols as sym_Globals_TFontStyle } from "./Globals/TFontStyle";
 import { symbols as sym_Globals_TMouseButton } from "./Globals/TMouseButton";
 import { symbols as sym_Globals_TNotifyEvent } from "./Globals/TNotifyEvent";
 import { symbols as sym_Globals_TMouseEvent } from "./Globals/TMouseEvent";
+import { symbols as sym_Globals_TCloseAction } from "./Globals/TCloseAction";
 import { symbols as sym_Globals_TKeyEvent } from "./Globals/TKeyEvent";
 import { symbols as sym_Globals_TKeyPressEvent } from "./Globals/TKeyPressEvent";
 import { symbols as sym_Globals_eventTypes } from "./Globals/_event-types";
@@ -211,6 +218,7 @@ import { symbols as sym_Primitives_Integer } from "./Primitives/Integer";
 import { symbols as sym_Primitives_Single } from "./Primitives/Single";
 import { symbols as sym_Primitives_String } from "./Primitives/String";
 import { symbols as sym_Primitives_TDateTime } from "./Primitives/TDateTime";
+import { symbols as sym_Primitives_compat } from "./Primitives/_compat";
 
 // ───────── SQL ─────────
 import { symbols as sym_SQL_Command } from "./SQL/Command";
@@ -241,6 +249,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Collections_StringList,
   ...sym_Collections_TStrings,
   ...sym_Collections_TStringList,
+  ...sym_Collections_TObjectList,
   // Data7
   ...sym_Data7_CodEmpresa,
   ...sym_Data7_CodFilial,
@@ -286,13 +295,14 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_TCustomEdit,
   ...sym_Forms_TCustomButtonedEdit,
   ...sym_Forms_TButtonedEdit,
+  ...sym_Forms_compat,
   // Forms — utility
   ...sym_Forms_Forms,
   ...sym_Forms_MessageBox,
   ...sym_Forms_ProcessMessages,
-  ...sym_Forms_TAlign,
-  ...sym_Forms_TAlignment,
-  ...sym_Forms_TMargins,
+  ...sym_Globals_TAlign,
+  ...sym_Globals_TAlignment,
+  ...sym_Globals_TMargins,
   // Forms — type aliases & intermediate classes
   ...sym_Forms_aliases,
   // Forms — enum types & constants
@@ -326,7 +336,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_TWindowState,
   ...sym_Forms_TAnchorKind,
   ...sym_Forms_TBorderIcon,
-  ...sym_Forms_TCloseAction,
+  ...sym_Globals_TCloseAction,
   ...sym_Forms_TLabelPosition,
   ...sym_Forms_TProgressBarOrientation,
   ...sym_Forms_TProgressBarState,
@@ -380,6 +390,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_CInt,
   ...sym_Globals_CStr,
   ...sym_Globals_DateTime,
+  ...sym_Globals_dateUtils,
   ...sym_Globals_FileToBase64,
   ...sym_Globals_InStr,
   ...sym_Globals_LCase,
@@ -404,10 +415,14 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_TryStrToInt,
   ...sym_Globals_UCase,
   ...sym_Globals_ZipFile,
+  ...sym_Globals_Whatsapp,
+  ...sym_Globals_Clipboard,
+  ...sym_Globals_Math,
   // Globals — tipos comuns Delphi
   ...sym_Globals_Exception,
   ...sym_Globals_TColor,
   ...sym_Globals_TCursor,
+  ...sym_Globals_TFont,
   ...sym_Globals_TPoint,
   ...sym_Globals_TRect,
   ...sym_Globals_TFontStyle,
@@ -433,6 +448,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Primitives_Single,
   ...sym_Primitives_String,
   ...sym_Primitives_TDateTime,
+  ...sym_Primitives_compat,
   // SQL
   ...sym_SQL_Command,
   ...sym_SQL_Connection,

@@ -108,4 +108,18 @@ export const symbols: SystemSymbolInfo[] = [
     description:
       "Ocorre periodicamente durante operações lentas que afetam a imagem (carregamento/conversão).",
   },
+  {
+    name: "LoadFromFile",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      { name: "pFileName", type: "String", isByRef: false, isOptional: false }
+    ],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "Imagem",
+    description: "Carrega uma imagem a partir de um arquivo.",
+  },
 ];

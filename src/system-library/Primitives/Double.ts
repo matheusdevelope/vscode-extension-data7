@@ -99,4 +99,28 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "Double",
     description: "Arredonda o valor para o número de casas decimais especificado.",
   },
+  {
+    name: "RoundTo",
+    kind: "method",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    parameters: [
+      {
+        name: "pExponent",
+        type: "Integer",
+        isByRef: false,
+        isOptional: false,
+      },
+    ],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "Double",
+    description: "Rounds the value using the requested decimal exponent.",
+  },
 ];

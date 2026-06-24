@@ -390,7 +390,17 @@ export const symbols: SystemSymbolInfo[] = [
     description:
       "Se o editor é somente leitura — usuário pode focar/copiar mas não modificar o valor.",
   },
-
+  {
+    name: "Text",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TcxCustomEdit",
+    description: "Texto/Caption exibido no editor.",
+  },
   // ───────── Data7-specific (wrapper sobre Properties.HelpId/Hint do Data7) ─────────
   {
     name: "Ajuda",

@@ -22,7 +22,7 @@
  */
 
 const STRING_LITERAL_REGEX = /^"(?:[^"]|"")*"$/;
-const INTEGER_LITERAL_REGEX = /^[+-]?(?:0[xX][0-9A-Fa-f]+|\d+)$/;
+const INTEGER_LITERAL_REGEX = /^[+-]?(?:0[xX][0-9A-Fa-f]+|&[hH][0-9A-Fa-f]+|\d+)$/;
 const DOUBLE_LITERAL_REGEX = /^[+-]?(?:\d+\.\d*|\.\d+|\d+[eE][+-]?\d+|\d+\.\d*[eE][+-]?\d+)$/;
 const NEW_EXPR_REGEX = /^New\s+([\w.]+)\s*\(/i;
 const CTYPE_EXPR_REGEX = /^CType\s*\(\s*.+?\s*,\s*([\w.]+)\s*\)\s*$/i;

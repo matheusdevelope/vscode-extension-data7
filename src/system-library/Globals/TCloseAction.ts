@@ -23,7 +23,6 @@ export const symbols: SystemSymbolInfo[] = [
     isPrivate: false,
     range: range,
     fileUri: "system://library",
-    containerName: "Forms",
     description:
       "Ação a ser tomada no fechamento de um Form. Recebido como parâmetro `Action` (ByRef) em TCloseEvent — você pode alterar para controlar o que acontece após OnClose.",
   },

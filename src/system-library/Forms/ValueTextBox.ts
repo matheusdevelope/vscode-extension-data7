@@ -87,4 +87,15 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "ValueTextBox",
     description: "Valor atual como Double (ponto flutuante).",
   },
+  {
+    name: "Value",
+    kind: "property",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "ValueTextBox",
+    description: "Valor numérico atual no editor.",
+  },
 ];

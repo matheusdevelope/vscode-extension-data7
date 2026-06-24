@@ -39,11 +39,17 @@ export type SystemContainer =
   | "TObject"
   | "TPersistent"
   | "THTTP"
+  | "WhatsappSend"
+  | "WhatsappMessage"
   | "TJSONObject"
   | "TJSONArray"
+  | "TFont"
   | "TPoint"
   | "TRect"
   | "Exception"
+  | "dateUtils"
+  | "Math"
+  | "Clipboard"
 
   // ───────── Globals — delegates / event types VCL ─────────
   | "TMethod"
@@ -75,6 +81,7 @@ export type SystemContainer =
   | "TStrings"
   | "TStringList"
   | "StringList"
+  | "TObjectList"
 
   // ───────── XML ─────────
   | "TXMLDocument"

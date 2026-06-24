@@ -25,20 +25,28 @@ Namespace mod_tobject
          me._closed = False
       End Sub
 
+      Sub PropStr(pLabel As String, pValue As String)
+         me._lines.Add(pLabel + ": " + pValue)
+      End Sub
+
       Sub Prop(pLabel As String, pValue As Variant)
-         me._lines.Add(pLabel + ": " + CStr(pValue))
+         me.PropStr(pLabel, CStr(pValue))
       End Sub
 
       Sub Prop(pLabel As String, pValue As TObject)
-         me._lines.Add(pLabel + ": " + pValue.ToString())
+         me.PropStr(pLabel, pValue.ToString())
+      End Sub
+
+      Sub PropStr(pValue As String)
+         me._lines.Add(pValue)
       End Sub
 
       Sub Prop(pValue As Variant)
-         me._lines.Add(CStr(pValue))
+         me.PropStr(CStr(pValue))
       End Sub
 
       Sub Prop(pValue As TObject)
-         me._lines.Add(pValue.ToString())
+         me.PropStr(pValue.ToString())
       End Sub
 
       Sub Close()
