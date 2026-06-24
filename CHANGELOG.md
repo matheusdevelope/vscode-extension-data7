@@ -9,12 +9,17 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Adicionado
 
+- Novo sugar plugin `inline-if` para converter automaticamente declarações `If` inline em bloco `If ... Then ... End If` durante a transpilação.
+- Novo diagnóstico `inline-if-then` (Warning) para sugerir a substituição de `If` inline por bloco estruturado, com opções de Quick Fix correspondentes.
 - Inicialização automática do linter para todo o projeto (arquivos físicos locais com esquema `file`) ao abrir o workspace.
 - Novo comando `data7.runLinter` ("Reiniciar/Rodar Linter no Projeto") para reavaliar todo o projeto sob demanda.
 - Exibição de notificação informativa com resumo dos problemas (Erros/Avisos/Informações) após execução do linter de projeto, com botões para "Corrigir Tudo" e "Reiniciar Linter".
 
 ### Corrigido
 
+- Removido completamente o sugar `Match`/`Case Is`, incluindo AST, parser, transformação, formatação e documentação associada.
+- O diagnóstico e o Quick Fix de `missing-then` agora reconhecem comentários no fim da linha como terminadores, preservam o alinhamento antes do comentário e evitam inserir `Then` duas vezes em correções em massa.
+- O Quick Fix de `return-unrecommended` agora reescreve a linha inteira da declaração `If` inline para o formato de bloco com `End If` (preservando o escopo correto da instrução `Exit`), em vez de apenas substituir o `Return` na linha única.
 - O linter agora ignora documentos virtuais sem esquema `file` (como views de diff do Git) para evitar falsos positivos de arquivos modificados/antigos no editor.
 - O comando de ajuste em massa (`data7.fixAllWorkspace`) foi aprimorado para resolver de forma inteiramente dinâmica as correções, aplicando o primeiro Quick Fix corretivo real disponível de cada diagnóstico no projeto e ignorando ações de supressão/desativação.
 - O Quick Fix de `return-unrecommended` continua disponivel quando o VS Code recria o diagnostico sem o payload interno: a extensao recupera a rotina e o contexto condicional pela estrutura do documento, sem depender da mensagem do warning.

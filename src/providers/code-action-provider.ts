@@ -10,10 +10,7 @@ import {
   addDeclareDependencyFix,
   addDeclareDependencyBulkFix,
 } from "./quick-fixes/module-not-declared";
-import {
-  addInstallModuleFix,
-  addInstallModuleBulkFix,
-} from "./quick-fixes/module-not-found";
+import { addInstallModuleFix, addInstallModuleBulkFix } from "./quick-fixes/module-not-found";
 import { addDidYouMeanFixes, addDidYouMeanBulkFix } from "./quick-fixes/unknown-member";
 import {
   addUnknownTypeDidYouMeanFixes,
@@ -31,7 +28,10 @@ import {
   addObjectCreationParenthesesMissingFix,
   addObjectCreationParenthesesMissingBulkFix,
 } from "./quick-fixes/object-creation-parentheses-missing";
-import { addMissingMyBaseNewFix, addMissingMyBaseNewBulkFix } from "./quick-fixes/missing-mybase-new";
+import {
+  addMissingMyBaseNewFix,
+  addMissingMyBaseNewBulkFix,
+} from "./quick-fixes/missing-mybase-new";
 import {
   addMissingMyBaseFreeFix,
   addMissingMyBaseFreeBulkFix,
@@ -45,6 +45,7 @@ import {
   addReturnUnrecommendedFix,
   addReturnUnrecommendedBulkFix,
 } from "./quick-fixes/return-unrecommended";
+import { addInlineIfThenFix, addInlineIfThenBulkFix } from "./quick-fixes/inline-if-then";
 import {
   addFinallyBlockUnsupportedFix,
   addFinallyBlockUnsupportedBulkFix,
@@ -59,6 +60,13 @@ import {
   addConvertClassicForToForEachAction,
 } from "./refactor-actions/convert-for-each";
 import { logger } from "../infra/logger";
+
+const DIAGNOSTIC_PRIORITY: Record<string, number> = {
+  [DiagnosticCodes.ReturnUnrecommended]: 1,
+  [DiagnosticCodes.InlineIfThen]: 2,
+  [DiagnosticCodes.ElseIfWhitespace]: 3,
+  [DiagnosticCodes.MissingThen]: 4,
+};
 
 /**
  * Provides Quick Fixes (lightbulb actions) for every canonical diagnostic
@@ -159,6 +167,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         addReturnUnrecommendedFix(actions, document, diagnostic);
         addReturnUnrecommendedBulkFix(actions, document, diagnostic);
         break;
+      case DiagnosticCodes.InlineIfThen:
+        addInlineIfThenFix(actions, document, diagnostic);
+        addInlineIfThenBulkFix(actions, document, diagnostic);
+        break;
       case "expected-token":
         if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
           addMissingThenFix(actions, document, diagnostic);
@@ -211,7 +223,15 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
   ): { edit: vscode.WorkspaceEdit; count: number } | undefined {
     const collected: vscode.CodeAction[] = [];
 
-    for (const diagnostic of diagnostics) {
+    const sortedDiags = [...diagnostics].sort((a, b) => {
+      const codeA = getDiagnosticCode(a) ?? "";
+      const codeB = getDiagnosticCode(b) ?? "";
+      const prioA = DIAGNOSTIC_PRIORITY[codeA] ?? 10;
+      const prioB = DIAGNOSTIC_PRIORITY[codeB] ?? 10;
+      return prioA - prioB;
+    });
+
+    for (const diagnostic of sortedDiags) {
       const actions = this.getQuickFixesForDiagnostic(document, diagnostic);
       const firstFix = actions.find(
         (action) =>
@@ -234,12 +254,32 @@ export function mergeActionEdits(
 ): { edit: vscode.WorkspaceEdit; count: number } | undefined {
   const merged = new vscode.WorkspaceEdit();
   let count = 0;
+  const acceptedRanges = new Map<string, vscode.Range[]>();
+
+  const checkAndAdd = (uriStr: string, range: vscode.Range): boolean => {
+    let ranges = acceptedRanges.get(uriStr);
+    if (!ranges) {
+      ranges = [];
+      acceptedRanges.set(uriStr, ranges);
+    }
+    for (const accepted of ranges) {
+      if (rangesConflict(accepted, range)) {
+        return false;
+      }
+    }
+    ranges.push(range);
+    return true;
+  };
 
   for (const action of actions) {
     if (!action.edit) continue;
     if (typeof action.edit.entries === "function") {
       for (const [uri, edits] of action.edit.entries()) {
+        const uriStr = uri.toString();
         for (const edit of edits) {
+          if (!checkAndAdd(uriStr, edit.range)) {
+            continue;
+          }
           if (edit.newText === "") {
             merged.delete(uri, edit.range);
           } else if (edit.range.isEmpty) {
@@ -260,22 +300,46 @@ export function mergeActionEdits(
         | { type: "insert"; uri: vscode.Uri; position: vscode.Position; text: string }
         | { type: "replace"; uri: vscode.Uri; range: vscode.Range; text: string }
         | { type: "delete"; uri: vscode.Uri; range: vscode.Range };
+
+      const uriStr = entry.uri.toString();
+      const range =
+        entry.type === "insert" ? new vscode.Range(entry.position, entry.position) : entry.range;
+
+      if (!checkAndAdd(uriStr, range)) {
+        continue;
+      }
+
       if (entry.type === "insert") {
         merged.insert(entry.uri, entry.position, entry.text);
         count++;
-        continue;
-      }
-      if (entry.type === "replace") {
+      } else if (entry.type === "replace") {
         merged.replace(entry.uri, entry.range, entry.text);
         count++;
-        continue;
+      } else {
+        merged.delete(entry.uri, entry.range);
+        count++;
       }
-      merged.delete(entry.uri, entry.range);
-      count++;
     }
   }
 
   return count > 0 ? { edit: merged, count } : undefined;
+}
+
+function rangesConflict(r1: vscode.Range, r2: vscode.Range): boolean {
+  if (r1.isEmpty && r2.isEmpty) {
+    return r1.start.isEqual(r2.start);
+  }
+  if (r1.isEmpty) {
+    return r1.start.line >= r2.start.line && r1.start.line <= r2.end.line;
+  }
+  if (r2.isEmpty) {
+    return r2.start.line >= r1.start.line && r2.start.line <= r1.end.line;
+  }
+  const start1 = r1.start.line;
+  const end1 = r1.end.line;
+  const start2 = r2.start.line;
+  const end2 = r2.end.line;
+  return Math.max(start1, start2) <= Math.min(end1, end2);
 }
 
 function addFixAllAction(

@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { getCommentStartIndex } from "../utils/suppression-comments";
 
 /** Normalizes the diagnostic code shape exposed by VS Code. */
 export function getDiagnosticCode(diagnostic: vscode.Diagnostic): string | undefined {
@@ -94,7 +95,7 @@ export function findMissingThenInsertPosition(
 ): vscode.Position {
   const line = diagnostic.range.start.line;
   const lineText = document.lineAt(line).text;
-  const commentIdx = lineText.indexOf("'");
+  const commentIdx = getCommentStartIndex(lineText);
   const textBeforeComment = lineText.substring(0, commentIdx === -1 ? lineText.length : commentIdx);
   return new vscode.Position(line, textBeforeComment.trimEnd().length);
 }

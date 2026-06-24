@@ -30,7 +30,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 ### Sistema de projeto
 
-Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then` e `return-unrecommended`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correÃ§Ã£o em massa do workspace.
+Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then` e `return-unrecommended`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correÃ§Ã£o em massa do workspace. Para `missing-then`, comentários inline e seu espaçamento de alinhamento são preservados.
 
 - **Decompositor** (`.7Proj` → árvore de `.bas`): abre um `.7Proj` e gera a estrutura física do projeto.
 - **Builder** (`.bas` → `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências.

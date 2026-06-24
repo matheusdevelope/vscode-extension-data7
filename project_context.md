@@ -8,7 +8,7 @@ Este documento consolida o contexto de negócio, regras conceituais, objetivos, 
 
 ---
 
-Os Quick Fixes de `return-unrecommended` usam a linha atual do documento: um `Return` fora de condicional vira apenas atribuicao ao alvo do metodo/propriedade, enquanto retornos em condicionais tambem recebem o `Exit` correspondente. O Quick Fix de `missing-mybase-free` insere `MyBase.Free()` imediatamente antes de `End Sub`, preservando todas as liberacoes de recursos anteriores.
+Os Quick Fixes de `return-unrecommended` usam a linha atual do documento: um `Return` fora de condicional vira apenas atribuicao ao alvo do metodo/propriedade, enquanto retornos em condicionais tambem recebem o `Exit` correspondente. O Quick Fix de `missing-mybase-free` insere `MyBase.Free()` imediatamente antes de `End Sub`, preservando todas as liberacoes de recursos anteriores. O Quick Fix de `missing-then` insere a palavra-chave no fim da expressão, antes dos espaços de alinhamento e do comentário inline, e deduplica diagnósticos equivalentes durante correções em massa.
 
 Quando o VS Code nao preserva `Diagnostic.data`, o Quick Fix de `return-unrecommended` recupera o alvo e o contexto condicional pela estrutura do documento; ele nao depende de texto localizado da mensagem.
 
@@ -163,10 +163,6 @@ End Class
 - Expandido para a classe específica do Enum que herda de `TEnum` (do namespace `mod_tenum`). A base herda de `TTObject`, preservando identidade, cópia e descarte para uso seguro em `TTList`, e a classe gerada expõe Initialize lazy, Shared Function por valor, Load por String e GetOptions.
 - O linter ignora a verificação do método `Sub Free()` para classes que herdam de `TEnum`.
 
-#### `Match x / Case Is T : body / End Match` (multi-line)
-
-- Expandido para `If x.InheritsFrom(T) Then body / ElseIf ... / Else / End If`. Pattern matching baseado em hierarquia de classes.
-
 #### `Return If cond Then a Else b`
 
 - Expandido para `If cond Then Return a / Return b`. Early return inline em uma linha.
@@ -295,6 +291,7 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função que não seja a função/método ou propriedade ativa no escopo atual). Emite _Error_.
 - `missing-return-value` — a função pode retornar ou sair sem que um valor de retorno tenha sido definido em todas as ramificações de controle. Emite _Warning_.
 - `dead-code` — código inacessível após um `Return` ou `Exit` garantido, ou dentro de blocos condicionais constantes sempre falsos. Emite _Warning_.
+- `inline-if-then` — a sintaxe 'If ... Then' inline não é recomendada. Emite _Warning_ sugerindo a conversão para formato de bloco com 'End If'.
 
 Cada código com Quick Fix associado no `D7BasicCodeActionProvider` também oferece opções genéricas de **supressão de diagnóstico** via comentário para a linha atual (`' data7:disable-line <code>`) ou para todo o arquivo (`' data7:disable <code>`). Além disso, ações rápidas que alteram código suportam **correções em massa (Bulk Quickfixes)** aplicáveis a todas as ocorrências daquele mesmo erro no arquivo (ex: "Importar todas as dependências ausentes no arquivo").
 

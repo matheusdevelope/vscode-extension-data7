@@ -223,6 +223,7 @@ export const DiagnosticCodes = {
   MissingThen: "missing-then",
   /** A Return statement was used when method/property assignment + Exit is preferred. */
   ReturnUnrecommended: "return-unrecommended",
+  InlineIfThen: "inline-if-then",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -486,6 +487,12 @@ export interface ReturnUnrecommendedPayload {
   exitType: "Sub" | "Function" | "Property";
   targetName?: string;
   isConditional: boolean;
+  isSingleLineIf?: boolean;
+}
+
+export interface InlineIfThenPayload {
+  code: typeof DiagnosticCodes.InlineIfThen;
+  line: number;
 }
 
 export type DiagnosticPayload =
@@ -515,7 +522,8 @@ export type DiagnosticPayload =
   | FinallyBlockUnsupportedPayload
   | ElseIfWhitespacePayload
   | MissingThenPayload
-  | ReturnUnrecommendedPayload;
+  | ReturnUnrecommendedPayload
+  | InlineIfThenPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

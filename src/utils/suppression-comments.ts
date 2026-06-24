@@ -195,3 +195,24 @@ function findNextNonBlankLine(lines: readonly string[], startIdx: number): numbe
   }
   return -1;
 }
+
+/**
+ * Finds the starting index of a comment (') in a line of code, ignoring single quotes inside string literals.
+ * Returns -1 if no comment character is found.
+ */
+export function getCommentStartIndex(lineText: string): number {
+  let inString = false;
+  for (let i = 0; i < lineText.length; i++) {
+    const char = lineText[i];
+    if (char === '"') {
+      if (inString && lineText[i + 1] === '"') {
+        i++; // skip escaped quote
+      } else {
+        inString = !inString;
+      }
+    } else if (char === "'" && !inString) {
+      return i;
+    }
+  }
+  return -1;
+}

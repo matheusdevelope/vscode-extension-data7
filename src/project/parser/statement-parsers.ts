@@ -48,7 +48,12 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
   const hasThen =
     parser.consume("keyword", "then") !== null || parser.consume("identifier", "then") !== null;
   const nextToken = parser.peek();
-  if (!hasThen && nextToken.kind !== "newline" && nextToken.kind !== "eof") {
+  if (
+    !hasThen &&
+    nextToken.kind !== "newline" &&
+    nextToken.kind !== "eof" &&
+    nextToken.kind !== "comment"
+  ) {
     parser.expect("keyword", "then", { literal: true });
   }
   const isSingleLine =
@@ -122,7 +127,12 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
       const elseIfCond = parser.parseExpression();
       const hasThenElseIf =
         parser.consume("keyword", "then") !== null || parser.consume("identifier", "then") !== null;
-      if (!hasThenElseIf && parser.peek().kind !== "newline" && parser.peek().kind !== "eof") {
+      if (
+        !hasThenElseIf &&
+        parser.peek().kind !== "newline" &&
+        parser.peek().kind !== "eof" &&
+        parser.peek().kind !== "comment"
+      ) {
         parser.expect("keyword", "then", { literal: true });
       }
       parser.skipToEndOfLine();

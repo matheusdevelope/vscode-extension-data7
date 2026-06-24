@@ -39,7 +39,9 @@ Namespace mod_tela_eventos
       ' handler do clique — assinatura de TNotifyEvent: Sub (Sender As TObject)
       Private Sub _handleSalvar(pSender As TObject)
          ' repassa para o evento público da tela, se alguém assinou
-         If me.OnSalvarEvent <> NULL Then me.OnSalvarEvent(me)
+         If me.OnSalvarEvent <> NULL Then
+            me.OnSalvarEvent(me)
+         End If
       End Sub
 
       Function Show() As Boolean

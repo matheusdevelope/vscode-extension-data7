@@ -16,6 +16,7 @@ import {
   type ElseIfWhitespacePayload,
   type MissingThenPayload,
   type ReturnUnrecommendedPayload,
+  type InlineIfThenPayload,
   setDiagnosticPayload,
 } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, noopToken } from "../_helpers/mock-doc";
@@ -585,14 +586,15 @@ describe("D7BasicCodeActionProvider", () => {
       const fix = onlyQuickFixes(all).find((action) => action.title.includes("MyBase.Free"));
       assert.ok(fix, "The local MyBase.Free() quick fix should be offered");
 
-      const insertEdit = expectEdit(fix.edit, { type: "insert", line: 4, textIncludes: "MyBase.Free()" });
+      const insertEdit = expectEdit(fix.edit, {
+        type: "insert",
+        line: 4,
+        textIncludes: "MyBase.Free()",
+      });
       const insertPosition = insertEdit.position as { line: number; character: number };
       assert.equal(insertPosition.character, 0);
       const applied = applyInsertEdit(source, insertEdit as any);
-      assert.match(
-        applied,
-        /me\._cache\.Free\(\)\n\s+MyBase\.Free\(\)\n\s+End Sub/,
-      );
+      assert.match(applied, /me\._cache\.Free\(\)\n\s+MyBase\.Free\(\)\n\s+End Sub/);
     });
 
     test("bulk fix inserts MyBase.Free() before each matching End Sub", async () => {
@@ -626,14 +628,11 @@ describe("D7BasicCodeActionProvider", () => {
       try {
         const provider = new D7BasicCodeActionProvider();
         const all = (await Promise.resolve(
-          provider.provideCodeActions(
-            doc,
-            first.range,
-            { diagnostics: [first] } as any,
-            noopToken,
-          ),
+          provider.provideCodeActions(doc, first.range, { diagnostics: [first] } as any, noopToken),
         )) as any[];
-        const bulk = onlyQuickFixes(all).find((action) => action.title.includes("todas as classes"));
+        const bulk = onlyQuickFixes(all).find((action) =>
+          action.title.includes("todas as classes"),
+        );
         assert.ok(bulk);
         assert.equal(bulk.edit.edits.length, 2);
         assert.deepEqual(
@@ -646,7 +645,9 @@ describe("D7BasicCodeActionProvider", () => {
     });
 
     test("source fix-all applies structured missing-mybase-free diagnostics", () => {
-      const doc = mockDoc("Class Foo\n   Sub Free()\n      me._resource.Free()\n   End Sub\nEnd Class\n");
+      const doc = mockDoc(
+        "Class Foo\n   Sub Free()\n      me._resource.Free()\n   End Sub\nEnd Class\n",
+      );
       const diagnostic = diagWith(
         DiagnosticCodes.MissingMyBaseFree,
         undefined,
@@ -763,6 +764,30 @@ describe("D7BasicCodeActionProvider", () => {
       assert.equal(fix.edit.edits[0]?.position.character, 8);
     });
 
+    test("missing-then preserves alignment before a trailing comment", async () => {
+      const source = "If ready    ' Edit\n";
+      const doc = mockDoc(source);
+      const payload: MissingThenPayload = {
+        code: DiagnosticCodes.MissingThen,
+        line: 0,
+        insertColumn: 8,
+      };
+      const range = new vscode.Range(0, 0, 0, source.length - 1);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.MissingThen, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title === "Adicionar 'Then'");
+      assert.ok(fix);
+      const applied = applyInsertEdit(source, fix.edit.edits[0]);
+      assert.equal(applied, "If ready Then    ' Edit\n");
+    });
+
     test("return-unrecommended rewrites Return to assignment plus Exit inside conditionals", async () => {
       const doc = mockDoc("         Return a + 1\n");
       const payload: ReturnUnrecommendedPayload = {
@@ -823,7 +848,11 @@ describe("D7BasicCodeActionProvider", () => {
       )) as any[];
       const fix = onlyQuickFixes(all).find((action) => action.title.includes("Path"));
       assert.ok(fix);
-      const replaceEdit = expectEdit(fix.edit, { type: "replace", line: 2, textIncludes: "Path = me._path_qrcode" });
+      const replaceEdit = expectEdit(fix.edit, {
+        type: "replace",
+        line: 2,
+        textIncludes: "Path = me._path_qrcode",
+      });
       assert.ok(!replaceEdit.text?.includes("Exit Property"));
       const applied = applyReplaceEdit(source, replaceEdit as any);
       assert.match(applied, /^\s+Path = me\._path_qrcode$/m);
@@ -886,7 +915,10 @@ describe("D7BasicCodeActionProvider", () => {
         line: 3,
         textIncludes: "Path = me._path_qrcode",
       });
-      assert.ok(!replaceEdit.text?.includes("Exit Property"), "Non-conditional path must not add Exit Property");
+      assert.ok(
+        !replaceEdit.text?.includes("Exit Property"),
+        "Non-conditional path must not add Exit Property",
+      );
     });
 
     test("return-unrecommended with empty Return replaces with Exit Property / Exit Function", async () => {
@@ -917,7 +949,10 @@ describe("D7BasicCodeActionProvider", () => {
         line: 4,
         textIncludes: "Exit Property",
       });
-      assert.ok(!replaceEdit.text?.includes("="), "Must not include assignment when Return has no expression");
+      assert.ok(
+        !replaceEdit.text?.includes("="),
+        "Must not include assignment when Return has no expression",
+      );
     });
 
     test("return-unrecommended fallback with complex modifiers (Friend Override Function)", async () => {
@@ -945,6 +980,68 @@ describe("D7BasicCodeActionProvider", () => {
         line: 2,
         textIncludes: "Calc = 100",
       });
+    });
+
+    test("return-unrecommended inside inline If converts entire If statement to block If", async () => {
+      const source = "      If Not _initialized Then Return False\n";
+      const doc = mockDoc(source);
+      const payload: ReturnUnrecommendedPayload = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 0,
+        startChar: 31,
+        endChar: 43,
+        expressionText: "False",
+        exitType: "Function",
+        targetName: "_IsCached",
+        isConditional: true,
+        isSingleLineIf: true,
+      };
+      const range = new vscode.Range(0, 31, 0, 43);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("_IsCached"));
+      assert.ok(fix);
+      const replaceEdit = expectEdit(fix.edit, { type: "replace", line: 0 });
+      assert.match(replaceEdit.text ?? "", /If Not _initialized Then/);
+      assert.match(replaceEdit.text ?? "", /_IsCached = False/);
+      assert.match(replaceEdit.text ?? "", /Exit Function/);
+      assert.match(replaceEdit.text ?? "", /End If/);
+    });
+  });
+
+  describe("inline-if-then quick-fix", () => {
+    test("converts single-line If Then into block If Then End If", async () => {
+      const source = "      If a > 10 Then a = 10\n";
+      const doc = mockDoc(source);
+      const payload: InlineIfThenPayload = {
+        code: DiagnosticCodes.InlineIfThen,
+        line: 0,
+      };
+      const range = new vscode.Range(0, 6, 0, 27);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.InlineIfThen, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.title.includes("Converter 'If' inline"),
+      );
+      assert.ok(fix);
+      const replaceEdit = expectEdit(fix.edit, { type: "replace", line: 0 });
+      assert.match(replaceEdit.text ?? "", /If a > 10 Then/);
+      assert.match(replaceEdit.text ?? "", /a = 10/);
+      assert.match(replaceEdit.text ?? "", /End If/);
     });
   });
 
@@ -1049,7 +1146,9 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           new vscode.Range(2, 4, 8, 11),
-          { diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
+          {
+            diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)],
+          } as any,
           noopToken,
         ),
       )) as any[];
@@ -1098,7 +1197,9 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           new vscode.Range(2, 4, 8, 11),
-          { diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
+          {
+            diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)],
+          } as any,
           noopToken,
         ),
       )) as any[];
@@ -1335,6 +1436,76 @@ describe("D7BasicCodeActionProvider", () => {
 
       const editsStr = JSON.stringify(result.edit);
       assert.ok(!editsStr.includes("disable-line"));
+    });
+
+    test("deduplicates overlapping fixes on the same line, prioritizing return-unrecommended", () => {
+      const doc = mockDoc("         If Not _enum_cache_initialized Then Return False\n");
+      const range1 = new vscode.Range(0, 9, 0, 56);
+      const diag1 = new vscode.Diagnostic(
+        range1,
+        "A sintaxe 'If ... Then' inline não é recomendada.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag1.code = DiagnosticCodes.InlineIfThen;
+      (diag1 as any).data = {
+        code: DiagnosticCodes.InlineIfThen,
+        line: 0,
+      };
+
+      const range2 = new vscode.Range(0, 45, 0, 56);
+      const diag2 = new vscode.Diagnostic(
+        range2,
+        "O uso de 'Return' não é recomendado.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag2.code = DiagnosticCodes.ReturnUnrecommended;
+      (diag2 as any).data = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 0,
+        startChar: 45,
+        endChar: 56,
+        exitType: "Function",
+        targetName: "_IsCached",
+        isConditional: true,
+        isSingleLineIf: true,
+      };
+
+      const provider = new D7BasicCodeActionProvider();
+      const result = provider.buildFixAllWorkspaceEdit(doc, [diag1, diag2]);
+      assert.ok(result);
+      const mockEdits = (result.edit as any).edits;
+      assert.equal(mockEdits.length, 1);
+      const edit = mockEdits[0];
+      assert.ok(edit.text.includes("Exit Function"));
+      assert.ok(edit.text.includes("_IsCached = False"));
+    });
+
+    test("deduplicates parser and linter missing-then fixes at the same position", () => {
+      const source = "If ready    ' Edit\n";
+      const doc = mockDoc(source);
+      const range = new vscode.Range(0, 0, 0, source.length - 1);
+      const parserDiagnostic = new vscode.Diagnostic(
+        range,
+        "Expected 'then', got '' Edit'.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      parserDiagnostic.code = "expected-token";
+      const linterDiagnostic = diagWith(
+        DiagnosticCodes.MissingThen,
+        {
+          code: DiagnosticCodes.MissingThen,
+          line: 0,
+          insertColumn: 8,
+        } satisfies MissingThenPayload,
+        range,
+      );
+
+      const provider = new D7BasicCodeActionProvider();
+      const result = provider.buildFixAllWorkspaceEdit(doc, [parserDiagnostic, linterDiagnostic]);
+      assert.ok(result);
+      assert.equal(result.count, 1);
+      const edit = (result.edit as any).edits[0];
+      assert.equal(applyInsertEdit(source, edit), "If ready Then    ' Edit\n");
     });
   });
 });

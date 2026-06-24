@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import {
   extractSuppressedCodes,
   isSuppressed,
+  getCommentStartIndex,
   type SuppressionTarget,
 } from "../../utils/suppression-comments";
 
@@ -98,6 +99,25 @@ describe("suppression-comments", () => {
     test("returns false for lines without suppressions", () => {
       const map = new Map<number, SuppressionTarget>();
       assert.equal(isSuppressed(map, 0, "missing-import"), false);
+    });
+  });
+
+  describe("getCommentStartIndex", () => {
+    test("returns -1 when there is no comment", () => {
+      assert.equal(getCommentStartIndex("Dim x = 123"), -1);
+    });
+
+    test("returns index of comment outside strings", () => {
+      assert.equal(getCommentStartIndex("Dim x = 123 ' my comment"), 12);
+    });
+
+    test("ignores single quotes inside double-quoted string literals", () => {
+      assert.equal(getCommentStartIndex("IF pValue = \"''\""), -1);
+      assert.equal(getCommentStartIndex("IF pValue = \"'\" ' my comment"), 16);
+    });
+
+    test("handles escaped quotes in strings correctly", () => {
+      assert.equal(getCommentStartIndex('x = "escaped "" quote \' here" \' comment'), 30);
     });
   });
 });

@@ -2043,12 +2043,15 @@ End Namespace`;
   test("prefers class field or property over same-named global method", () => {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     const mockUri = "file:///mock_global.bas";
-    indexer.updateFileContent(mockUri, `Namespace ns
+    indexer.updateFileContent(
+      mockUri,
+      `Namespace ns
    Class GlobalMethods
       Public Sub Delete()
       End Sub
    End Class
-End Namespace`);
+End Namespace`,
+    );
     const uri = "file:///class_member_override.bas";
     const code = `Namespace mod_local
    Class Client
@@ -2248,10 +2251,14 @@ End Namespace`;
 End Namespace`;
     indexer.updateFileContent(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-    
+
     const missingThenDiags = diags.filter((d: any) => d.code === DiagnosticCodes.MissingThen);
-    assert.equal(missingThenDiags.length, 2, "Should emit two missing-then warnings (one for If, one for ElseIf)");
-    
+    assert.equal(
+      missingThenDiags.length,
+      2,
+      "Should emit two missing-then warnings (one for If, one for ElseIf)",
+    );
+
     const elseIfSpaceDiag = diags.find((d: any) => d.code === DiagnosticCodes.ElseIfWhitespace);
     assert.ok(elseIfSpaceDiag, "Should emit elseif-whitespace error");
     assert.equal(elseIfSpaceDiag.severity, vscode.DiagnosticSeverity.Error);
@@ -2272,20 +2279,116 @@ End Namespace`;
 End Namespace`;
     indexer.updateFileContent(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-    
+
     const returnDiags = diags.filter((d: any) => d.code === DiagnosticCodes.ReturnUnrecommended);
     assert.equal(returnDiags.length, 2, "Should emit return-unrecommended warning twice");
-    
+
     // First Return (inside If - conditional)
     const firstReturn = returnDiags[0]!;
     assert.equal((firstReturn as any).data.isConditional, true);
     assert.equal((firstReturn as any).data.targetName, "Calc");
     assert.equal((firstReturn as any).data.exitType, "Function");
-    
+
     // Second Return (at root - non-conditional)
     const secondReturn = returnDiags[1]!;
     assert.equal((secondReturn as any).data.isConditional, false);
     assert.equal((secondReturn as any).data.targetName, "Calc");
     assert.equal((secondReturn as any).data.exitType, "Function");
+  });
+
+  test("warns on inline If statements and sets isSingleLineIf on Return payload", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///inline_if_test.bas";
+    const code = `Namespace mod_test_inline_if
+   Class Test
+      Public Function Calc(a As Integer) As Integer
+         If a > 10 Then Return a * 2
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    // Warns on inline If
+    const inlineIfDiags = diags.filter((d: any) => d.code === DiagnosticCodes.InlineIfThen);
+    assert.equal(inlineIfDiags.length, 1, "Should emit inline-if-then warning once");
+    assert.equal(inlineIfDiags[0]!.severity, vscode.DiagnosticSeverity.Warning);
+
+    // Also warns on return inside it and sets isSingleLineIf
+    const returnDiags = diags.filter((d: any) => d.code === DiagnosticCodes.ReturnUnrecommended);
+    assert.equal(
+      returnDiags.length,
+      1,
+      "Should emit return-unrecommended warning inside inline If",
+    );
+    assert.equal((returnDiags[0] as any).data.isSingleLineIf, true);
+  });
+
+  test("warns on missing-then and computes insertColumn correctly when single quotes are inside string literals", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///missing_then_string_test.bas";
+    const code = `Namespace mod_test_missing_then
+   Class Test
+      Public Sub Run(pValue As String)
+         If pValue = "''"
+            Dim x As Integer = 1
+         End If
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    const missingThenDiags = diags.filter((d: any) => d.code === DiagnosticCodes.MissingThen);
+    assert.equal(missingThenDiags.length, 1);
+    const payload = (missingThenDiags[0] as any).data;
+    assert.equal(payload.insertColumn, 25);
+  });
+
+  test("positions missing-then before aligned trailing comments", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///missing_then_comment_test.bas";
+    const code = `Namespace mod_test_missing_then
+   Class Test
+      Public Sub Run()
+         If me.pixRegistered <> NULL    ' Edit
+            Run()
+         End If
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    const missingThen = diags.filter((d: any) => d.code === DiagnosticCodes.MissingThen);
+    assert.equal(missingThen.length, 1);
+    const payload = (missingThen[0] as any).data;
+    assert.equal(payload.insertColumn, "         If me.pixRegistered <> NULL".length);
+    assert.ok(!diags.some((d: any) => d.code === "expected-token"));
+  });
+
+  test("accepts Match function assignment and does not trigger missing-return-value warning", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///regex_test_match.bas";
+    const code = `Namespace ns
+   Class Regex
+      Public Function Match(pValue As String) As Boolean
+         Dim matches As Variant = me._regExp.Execute(pValue)
+         If matches.count > 0 Then
+            Match = True
+            Exit Function
+         End If
+
+         Match = False
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    const missingReturnDiags = diags.filter(
+      (d: any) => d.code === DiagnosticCodes.MissingReturnValue,
+    );
+    assert.deepEqual(missingReturnDiags, []);
   });
 });

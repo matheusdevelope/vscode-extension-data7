@@ -5,28 +5,40 @@ import {
 } from "../../diagnostics/diagnostic-codes";
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 import { LanguageProcessor } from "../../analysis/language-processor";
-import { ASTWalker, type Node, type MethodDeclaration, type PropertyDeclaration } from "../../project/ast/ast";
+import {
+  ASTWalker,
+  type Node,
+  type MethodDeclaration,
+  type PropertyDeclaration,
+  type IfStatement,
+  type Statement,
+  type CompilationUnit,
+} from "../../project/ast/ast";
+import { deepClone } from "../../project/ast/clone";
+import { serializeUnit } from "../../project/parser/serializer";
 
 export function addReturnUnrecommendedFix(
   actions: vscode.CodeAction[],
   document: vscode.TextDocument,
   diagnostic: vscode.Diagnostic,
 ): void {
-  const payload = readDiagnosticPayload<ReturnUnrecommendedPayload>(
-    diagnostic,
-    DiagnosticCodes.ReturnUnrecommended,
-  ) ?? resolveReturnPayloadFromDocument(document, diagnostic);
+  const payload =
+    readDiagnosticPayload<ReturnUnrecommendedPayload>(
+      diagnostic,
+      DiagnosticCodes.ReturnUnrecommended,
+    ) ?? resolveReturnPayloadFromDocument(document, diagnostic);
   if (!payload) return;
 
   const resolved = resolveReturnUnrecommendedReplacement(document, diagnostic, payload);
 
   if (!resolved) return;
 
-  const label = payload.targetName && resolved.replacement.includes("=")
-    ? payload.isConditional
-      ? `Substituir por atribuicao a '${payload.targetName}' e Exit ${payload.exitType}`
-      : `Substituir por atribuicao a '${payload.targetName}'`
-    : `Substituir por 'Exit ${payload.exitType}'`;
+  const label =
+    payload.targetName && resolved.replacement.includes("=")
+      ? payload.isConditional
+        ? `Substituir por atribuicao a '${payload.targetName}' e Exit ${payload.exitType}`
+        : `Substituir por atribuicao a '${payload.targetName}'`
+      : `Substituir por 'Exit ${payload.exitType}'`;
   const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
   action.isPreferred = true;
@@ -35,7 +47,6 @@ export function addReturnUnrecommendedFix(
   edit.replace(document.uri, resolved.range, resolved.replacement);
   action.edit = edit;
   actions.push(action);
-
 }
 
 export function addReturnUnrecommendedBulkFix(
@@ -55,16 +66,15 @@ export function addReturnUnrecommendedBulkFix(
   action.diagnostics = [diagnostic];
 
   const edit = new vscode.WorkspaceEdit();
-  const sorted = [...matches].sort(
-    (left, right) => right.range.start.line - left.range.start.line,
-  );
+  const sorted = [...matches].sort((left, right) => right.range.start.line - left.range.start.line);
 
   let replacementCount = 0;
   for (const match of sorted) {
-    const payload = readDiagnosticPayload<ReturnUnrecommendedPayload>(
-      match,
-      DiagnosticCodes.ReturnUnrecommended,
-    ) ?? resolveReturnPayloadFromDocument(document, match);
+    const payload =
+      readDiagnosticPayload<ReturnUnrecommendedPayload>(
+        match,
+        DiagnosticCodes.ReturnUnrecommended,
+      ) ?? resolveReturnPayloadFromDocument(document, match);
     if (!payload) continue;
 
     const resolved = resolveReturnUnrecommendedReplacement(document, match, payload);
@@ -93,8 +103,6 @@ class ReturnPayloadResolver extends ASTWalker {
   }
 
   public override walk(node: Node): void {
-    if (!node) return;
-
     if (node.loc) {
       const startL = node.loc.startLine - 1;
       const endL = node.loc.endLine - 1;
@@ -116,11 +124,18 @@ class ReturnPayloadResolver extends ASTWalker {
       this.conditionalDepth++;
     } else if (node.kind === "ReturnStatement") {
       const inProperty = !!this.activeProperty;
-      const inSub = !!this.activeMethod && !this.activeMethod.returnType;
       const inFunction = !!this.activeMethod && !!this.activeMethod.returnType;
 
-      const targetName = inProperty ? this.activeProperty?.name : (inFunction ? this.activeMethod?.name : undefined);
-      const exitType: "Sub" | "Function" | "Property" = inProperty ? "Property" : (inFunction ? "Function" : "Sub");
+      const targetName = inProperty
+        ? this.activeProperty?.name
+        : inFunction
+          ? this.activeMethod?.name
+          : undefined;
+      const exitType: "Sub" | "Function" | "Property" = inProperty
+        ? "Property"
+        : inFunction
+          ? "Function"
+          : "Sub";
 
       this.foundPayload = {
         code: DiagnosticCodes.ReturnUnrecommended,
@@ -158,10 +173,37 @@ function resolveReturnPayloadFromDocument(
   const line = diagnostic.range.start.line;
   if (line < 0 || line >= document.lineCount) return undefined;
 
-  const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+  const cachedDoc = LanguageProcessor.getInstance().getOrParse(
+    document.uri.toString(),
+    document.getText(),
+  );
   const resolver = new ReturnPayloadResolver(line);
   resolver.walk(cachedDoc.unit);
   return resolver.getPayload();
+}
+
+class InlineIfResolver extends ASTWalker {
+  public foundIf: IfStatement | undefined;
+
+  constructor(private readonly targetLine: number) {
+    super();
+  }
+
+  public override walk(node: Node): void {
+    if (node.loc) {
+      const startL = node.loc.startLine - 1;
+      const endL = node.loc.endLine - 1;
+      if (this.targetLine < startL || this.targetLine > endL) {
+        return;
+      }
+    }
+
+    if (node.kind === "IfStatement" && node.singleLine) {
+      this.foundIf = node;
+    }
+
+    super.walk(node);
+  }
 }
 
 function resolveReturnUnrecommendedReplacement(
@@ -177,11 +219,99 @@ function resolveReturnUnrecommendedReplacement(
   const codeEnd = commentStart === -1 ? lineText.length : commentStart;
   const commentSuffix = commentStart === -1 ? "" : lineText.slice(commentStart);
   const expressionText =
-    (payload.expressionText !== undefined && payload.expressionText.trim().length > 0)
+    payload.expressionText !== undefined && payload.expressionText.trim().length > 0
       ? payload.expressionText.trim()
-      : lineText
-          .slice(Math.min(codeEnd, returnStart + "Return".length), codeEnd)
-          .trim();
+      : lineText.slice(Math.min(codeEnd, returnStart + "Return".length), codeEnd).trim();
+
+  if (payload.isSingleLineIf) {
+    const cachedDoc = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
+    const resolver = new InlineIfResolver(line);
+    resolver.walk(cachedDoc.unit);
+    const foundIf = resolver.foundIf;
+    if (foundIf) {
+      const ifNode = deepClone(foundIf);
+      ifNode.singleLine = false;
+
+      const replaceReturnInList = (list: Statement[]): Statement[] => {
+        const newList: Statement[] = [];
+        for (const stmt of list) {
+          if (stmt.kind === "ReturnStatement" && stmt.loc?.startChar === payload.startChar) {
+            if (payload.targetName && expressionText.length > 0) {
+              newList.push({
+                kind: "Assignment",
+                target: {
+                  kind: "Identifier",
+                  name: payload.targetName,
+                  loc: stmt.loc,
+                },
+                value: stmt.expression
+                  ? deepClone(stmt.expression)
+                  : {
+                      kind: "Literal",
+                      value: expressionText,
+                      loc: stmt.loc,
+                    },
+                loc: stmt.loc,
+              });
+            }
+            newList.push({
+              kind: "ExitStatement",
+              target: payload.exitType,
+              loc: stmt.loc,
+            });
+          } else {
+            newList.push(stmt);
+          }
+        }
+        return newList;
+      };
+
+      ifNode.thenBranch = replaceReturnInList(ifNode.thenBranch);
+      if (ifNode.elseBranch) {
+        ifNode.elseBranch = replaceReturnInList(ifNode.elseBranch);
+      }
+
+      const eol = getDocumentEol(document);
+      const syntheticUnit: CompilationUnit = {
+        kind: "CompilationUnit",
+        members: [
+          {
+            kind: "MethodDeclaration",
+            name: "__synth",
+            modifiers: [],
+            parameters: [],
+            typeParameters: [],
+            body: [ifNode],
+            loc: undefined,
+          },
+        ],
+        loc: undefined,
+      };
+
+      const serialized = serializeUnit(syntheticUnit, { eol });
+      const lines = serialized.split(/\r?\n/);
+      const startIdx = lines.findIndex((l) => l.includes("Sub __synth()"));
+      const endIdx = lines.findIndex((l) => l.includes("End Sub"));
+
+      if (startIdx !== -1 && endIdx > startIdx) {
+        const bodyLines = lines.slice(startIdx + 1, endIdx);
+        const unindented = bodyLines.map((l) => (l.startsWith("   ") ? l.substring(3) : l));
+
+        if (commentSuffix && unindented[0] !== undefined && !unindented[0].includes("'")) {
+          unindented[0] = unindented[0] + " " + commentSuffix.trim();
+        }
+
+        const replacement = unindented.map((l) => indent + l).join(eol);
+        return {
+          range: new vscode.Range(line, 0, line, lineText.length),
+          replacement,
+        };
+      }
+    }
+  }
 
   if (!payload.targetName || expressionText.length === 0) {
     return {

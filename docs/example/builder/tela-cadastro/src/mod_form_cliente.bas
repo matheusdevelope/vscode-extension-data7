@@ -40,7 +40,9 @@ Namespace mod_form_cliente
       End Sub
 
       Private Sub _handleSalvar(pSender As TObject)
-         If me.OnSalvarEvent <> NULL Then me.OnSalvarEvent(me)
+         If me.OnSalvarEvent <> NULL Then
+            me.OnSalvarEvent(me)
+         End If
       End Sub
 
       Property Nome As String

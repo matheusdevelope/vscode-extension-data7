@@ -22,11 +22,16 @@ import type {
   MissingThenPayload,
   ElseIfWhitespacePayload,
   ReturnUnrecommendedPayload,
+  InlineIfThenPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configuration";
-import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
+import {
+  extractSuppressedCodes,
+  listSuppressionDirectives,
+  getCommentStartIndex,
+} from "../utils/suppression-comments";
 import { parseInterpolation } from "../utils/interpolation";
 import { LanguageProcessor } from "../analysis/language-processor";
 import { ASTFlowAnalyzer } from "./ast-flow-analyzer";
@@ -432,6 +437,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.ElseIfWhitespace]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.MissingThen]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ReturnUnrecommended]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.InlineIfThen]: vscode.DiagnosticSeverity.Warning,
   };
 
   private static readonly VALID_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set([
@@ -561,9 +567,10 @@ export class DiagnosticsLinter {
       const target = suppressions.get(lineIdx);
       if (target === "*" || (target && codeStr && target.has(codeStr))) continue;
 
-      const defaultSeverity = diag.severity !== vscode.DiagnosticSeverity.Error
-        ? diag.severity
-        : (this.DEFAULT_SEVERITY[codeStr] ?? diag.severity);
+      const defaultSeverity =
+        diag.severity !== vscode.DiagnosticSeverity.Error
+          ? diag.severity
+          : (this.DEFAULT_SEVERITY[codeStr] ?? diag.severity);
       const resolved = resolveDiagnosticSeverity(codeStr, defaultSeverity, overrides);
       if (resolved === undefined) continue;
       diag.severity = resolved;
@@ -1519,9 +1526,7 @@ class DiagnosticsASTWalker extends ASTWalker {
           this.indexer,
         );
       }
-      if (!resolvedLhs) {
-        resolvedLhs = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
-      }
+      resolvedLhs ??= this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
     } else if (node.target.kind === "MemberAccess") {
       const type = TypeResolver.resolveExpressionType(
         node.target.target,
@@ -1906,6 +1911,23 @@ class DiagnosticsASTWalker extends ASTWalker {
   }
 
   private checkIfStatement(node: IfStatement): void {
+    if (node.singleLine && node.loc) {
+      const lineIdx = node.loc.startLine - 1;
+      const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+      const diag = new vscode.Diagnostic(
+        range,
+        "A sintaxe 'If ... Then' inline não é recomendada. Prefira usar bloco 'If ... Then ... End If'.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.InlineIfThen;
+      const payload: InlineIfThenPayload = {
+        code: DiagnosticCodes.InlineIfThen,
+        line: lineIdx,
+      };
+      setDiagnosticPayload(diag, payload);
+      this.diagnostics.push(diag);
+    }
+
     if (node.hasThen === false && node.loc) {
       let insertLine = node.loc.startLine - 1;
       while (insertLine < this.lines.length) {
@@ -1916,11 +1938,10 @@ class DiagnosticsASTWalker extends ASTWalker {
         insertLine++;
       }
       const targetLineText = this.lines[insertLine] ?? "";
-      const commentIdx = targetLineText.indexOf("'");
-      let insertCol = targetLineText.length;
-      if (commentIdx !== -1) {
-        insertCol = commentIdx;
-      }
+      const commentIdx = getCommentStartIndex(targetLineText);
+      const insertCol = targetLineText
+        .substring(0, commentIdx === -1 ? targetLineText.length : commentIdx)
+        .trimEnd().length;
 
       const range = new vscode.Range(insertLine, 0, insertLine, targetLineText.length);
       const diag = new vscode.Diagnostic(
@@ -1941,8 +1962,12 @@ class DiagnosticsASTWalker extends ASTWalker {
     for (const branch of node.elseIfBranches) {
       if (branch.hasSpace && branch.loc) {
         const lineIdx = branch.loc.startLine - 1;
-        const lineText = this.lines[lineIdx] ?? "";
-        const range = new vscode.Range(lineIdx, branch.loc.startChar, lineIdx, branch.loc.startChar + 7);
+        const range = new vscode.Range(
+          lineIdx,
+          branch.loc.startChar,
+          lineIdx,
+          branch.loc.startChar + 7,
+        );
         const diag = new vscode.Diagnostic(
           range,
           `A sintaxe 'Else If' com espaço não é aceita pelo compilador. Use 'ElseIf'.`,
@@ -1968,11 +1993,10 @@ class DiagnosticsASTWalker extends ASTWalker {
           insertLine++;
         }
         const targetLineText = this.lines[insertLine] ?? "";
-        const commentIdx = targetLineText.indexOf("'");
-        let insertCol = targetLineText.length;
-        if (commentIdx !== -1) {
-          insertCol = commentIdx;
-        }
+        const commentIdx = getCommentStartIndex(targetLineText);
+        const insertCol = targetLineText
+          .substring(0, commentIdx === -1 ? targetLineText.length : commentIdx)
+          .trimEnd().length;
 
         const range = new vscode.Range(insertLine, 0, insertLine, targetLineText.length);
         const diag = new vscode.Diagnostic(
@@ -1995,12 +2019,27 @@ class DiagnosticsASTWalker extends ASTWalker {
   private checkReturnStatement(node: ReturnStatement): void {
     if (!node.loc) return;
 
+    let isSingleLineIf = false;
+    for (let i = this.parentStack.length - 1; i >= 0; i--) {
+      const parentNode = this.parentStack[i];
+      if (parentNode?.kind === "IfStatement") {
+        if (parentNode.singleLine) {
+          isSingleLineIf = true;
+        }
+        break;
+      }
+    }
+
     const inProperty = !!this.activeProperty;
     const inSub = !!this.activeMethod && !this.activeMethod.returnType;
     const inFunction = !!this.activeMethod && !!this.activeMethod.returnType;
 
-    const targetName = inProperty ? this.activeProperty?.name : (inFunction ? this.activeMethod?.name : undefined);
-    const exitType = inProperty ? "Property" : (inFunction ? "Function" : "Sub");
+    const targetName = inProperty
+      ? this.activeProperty?.name
+      : inFunction
+        ? this.activeMethod?.name
+        : undefined;
+    const exitType = inProperty ? "Property" : inFunction ? "Function" : "Sub";
 
     let msg = "O uso de 'Return' não é recomendado devido a lentidão gerada no compilador.";
     if (inSub) {
@@ -2036,6 +2075,7 @@ class DiagnosticsASTWalker extends ASTWalker {
       exitType,
       targetName,
       isConditional: this.conditionalBlockDepth > 0,
+      isSingleLineIf,
     };
     setDiagnosticPayload(diag, payload);
     this.diagnostics.push(diag);

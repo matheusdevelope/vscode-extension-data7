@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { DiagnosticCodes, type MissingThenPayload } from "../../diagnostics/diagnostic-codes";
 import {
-  dedupeDiagnostics,
   findMissingThenInsertPosition,
   hasDiagnosticCode,
   isMissingThenDiagnostic,
@@ -37,7 +36,7 @@ export function addMissingThenBulkFix(
   diagnostic: vscode.Diagnostic,
 ): void {
   const allDiags = vscode.languages.getDiagnostics(document.uri);
-  const missingThen = dedupeDiagnostics([
+  const missingThen = dedupeMissingThenDiagnostics(document, [
     diagnostic,
     ...allDiags.filter(
       (d) => isMissingThenDiagnostic(d) || hasDiagnosticCode(d, DiagnosticCodes.MissingThen),
@@ -61,4 +60,29 @@ export function addMissingThenBulkFix(
   }
   action.edit = edit;
   actions.push(action);
+}
+
+/**
+ * Parser recovery can expose `expected-token` alongside the structured
+ * `missing-then` diagnostic for the same source location. Collapse by the
+ * effective insertion point so a bulk edit never inserts `Then` twice.
+ */
+function dedupeMissingThenDiagnostics(
+  document: vscode.TextDocument,
+  diagnostics: readonly vscode.Diagnostic[],
+): vscode.Diagnostic[] {
+  const seenPositions = new Set<string>();
+  return diagnostics.filter((diagnostic) => {
+    const payload = readDiagnosticPayload<MissingThenPayload>(
+      diagnostic,
+      DiagnosticCodes.MissingThen,
+    );
+    const position = payload
+      ? new vscode.Position(payload.line, payload.insertColumn)
+      : findMissingThenInsertPosition(document, diagnostic);
+    const key = `${position.line}:${position.character}`;
+    if (seenPositions.has(key)) return false;
+    seenPositions.add(key);
+    return true;
+  });
 }
