@@ -171,7 +171,7 @@ describe("parser/parser", () => {
       "Sub TestIf()",
       "   If x = 1 Then",
       "      y = 10",
-      "   ElseIf x = 2 Then",
+      "   Else If x = 2 Then",
       "      y = 20",
       "   Else",
       "      y = 30",
@@ -562,5 +562,142 @@ describe("parser/parser", () => {
     assert.equal((klass.members[0] as any).type.name, "Boolean");
     assert.ok((klass.members[0] as any).initializer);
     assert.equal((klass.members[0] as any).initializer.kind, "Literal");
+  });
+
+  test("parses Declare statements as OpaqueStatement preserving verbatim line", () => {
+    const src = [
+      "Namespace mod_winapi",
+      '   Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" As Long',
+      '   Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" (dwFlags As Long, dpX As Long)',
+      "End Namespace",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const ns = r.unit.members[0] as NamespaceDeclaration;
+    assert.equal(ns.members.length, 2);
+    assert.equal(ns.members[0]?.kind, "OpaqueStatement");
+    assert.equal(
+      (ns.members[0] as any).text.trim(),
+      'Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" As Long',
+    );
+    assert.equal(ns.members[1]?.kind, "OpaqueStatement");
+    assert.equal(
+      (ns.members[1] as any).text.trim(),
+      'Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" (dwFlags As Long, dpX As Long)',
+    );
+  });
+
+  test("parses nested class and structure declarations", () => {
+    const src = [
+      "Namespace mod_demo",
+      "   Class Outer",
+      "      Class InnerClass",
+      "         Shared Sub Test()",
+      "         End Sub",
+      "      End Class",
+      "      Structure InnerStruct",
+      "         Dim Value As Long",
+      "      End Structure",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const ns = r.unit.members[0] as NamespaceDeclaration;
+    const outer = ns.members[0] as ClassDeclaration;
+    assert.equal(outer.name, "Outer");
+    assert.equal(outer.members.length, 2);
+
+    const innerClass = outer.members[0] as ClassDeclaration;
+    assert.equal(innerClass.kind, "ClassDeclaration");
+    assert.equal(innerClass.name, "InnerClass");
+    assert.equal(innerClass.members.length, 1);
+    assert.equal(innerClass.members[0]?.kind, "MethodDeclaration");
+
+    const innerStruct = outer.members[1] as ClassDeclaration;
+    assert.equal(innerStruct.kind, "ClassDeclaration");
+    assert.equal(innerStruct.name, "InnerStruct");
+    assert.ok(innerStruct.modifiers?.includes("structure"));
+    assert.equal(innerStruct.members.length, 1);
+    assert.equal(innerStruct.members[0]?.kind, "FieldDeclaration");
+  });
+
+  test("parses object creation without empty parentheses", () => {
+    const src = ["Sub Build()", "   Dim cmd As PowerCommand = New PowerCommand", "End Sub"].join(
+      "\n",
+    );
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const decl = m.body[0] as VariableDeclaration;
+    assert.equal(decl.kind, "VariableDeclaration");
+    assert.equal(decl.initializer?.kind, "ObjectCreationExpression");
+    if (decl.initializer?.kind === "ObjectCreationExpression") {
+      assert.equal(decl.initializer.type.name, "PowerCommand");
+      assert.equal(decl.initializer.arguments.length, 0);
+      assert.equal(decl.initializer.noParentheses, true);
+    }
+  });
+
+  test("parses multiline If blocks even when Then is omitted before newline", () => {
+    const src = [
+      "Sub Normalize()",
+      '   If value <> ""',
+      '      value = "(" + value + ")"',
+      "   Else",
+      '      value = ""',
+      "   End If",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.body[0]?.kind, "IfStatement");
+  });
+
+  test("treats trailing underscore as line continuation", () => {
+    const src = [
+      "Sub Compose()",
+      '   Dim text As String = "" +_',
+      '      "A" +_',
+      '      "B"',
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const decl = m.body[0] as VariableDeclaration;
+    assert.equal(decl.kind, "VariableDeclaration");
+    assert.equal(decl.initializer?.kind, "BinaryExpression");
+  });
+
+  test("continues an expression through a comment-only continuation line", () => {
+    const src = [
+      "Sub Compose()",
+      '   Dim text As String = "A" +_',
+      "   ' ignored by the native continuation",
+      '   "B"',
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const method = r.unit.members[0] as MethodDeclaration;
+    assert.equal(method.body[0]?.kind, "VariableDeclaration");
+  });
+
+  test("accepts Match as a method name and preserves Continue losslessly", () => {
+    const src = [
+      "Class Regex",
+      "   Function Match(pValue As String) As Boolean",
+      "      Continue",
+      "   End Function",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    const method = klass.members[0] as MethodDeclaration;
+    assert.equal(method.name, "Match");
+    assert.equal(method.body[0]?.kind, "ContinueStatement");
   });
 });

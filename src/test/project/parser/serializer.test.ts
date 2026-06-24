@@ -189,4 +189,37 @@ describe("parser/serializer", () => {
     const out = serializeUnit(r.unit);
     assert.match(out, /Public x As Integer = 42/);
   });
+
+  test("serialises and indents nested classes and structures correctly", () => {
+    const src = [
+      "Namespace mod_demo",
+      "   Class OuterClass",
+      "      Class InnerClass",
+      "         Shared Sub Test()",
+      "         End Sub",
+      "      End Class",
+      "      Structure InnerStruct",
+      "         Public Value As Long",
+      "      End Structure",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    const expected = [
+      "Namespace mod_demo",
+      "   Class OuterClass",
+      "      Class InnerClass",
+      "         Shared Sub Test()",
+      "         End Sub",
+      "      End Class",
+      "      Structure InnerStruct",
+      "         Public Value As Long",
+      "      End Structure",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    assert.equal(out.trim(), expected.trim());
+  });
 });

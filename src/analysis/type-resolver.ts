@@ -282,30 +282,51 @@ export class TypeResolver {
             indexer,
           );
           if (!targetType) return undefined;
-          return TypeResolver.findMember(
+          const member = TypeResolver.findMember(
             targetType,
             expr.methodName,
             indexer,
             expr.arguments.length,
-          )?.type;
+          );
+          if (!member) return undefined;
+          if (member.kind === "variable" || member.kind === "property") {
+            const delegateSym =
+              indexer.findSymbolByName(member.type, document.uri.toString()) ??
+              lookupSystemByName(member.type).find((s) => s.kind === "delegate");
+            if (delegateSym?.kind === "delegate") {
+              return delegateSym.type;
+            }
+          }
+          return member.type;
         }
         const fileSyms = indexer.getFileSymbols(document.uri.toString());
         const activeClass = fileSyms?.symbols.find(
           (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
         );
+        let member: SymbolInfo | undefined;
         if (activeClass) {
-          const member = TypeResolver.findMember(
+          member = TypeResolver.findMember(
             activeClass.name,
             expr.methodName,
             indexer,
             expr.arguments.length,
           );
-          if (member?.type) return member.type;
         }
-        return (
+        member ??=
           indexer.findSymbolByName(expr.methodName, document.uri.toString()) ??
-          lookupSystemByName(expr.methodName).find((s) => !s.containerName)
-        )?.type;
+          lookupSystemByName(expr.methodName).find((s) => !s.containerName);
+        if (member) {
+          if (member.kind === "variable" || member.kind === "property") {
+            const delegateSym =
+              indexer.findSymbolByName(member.type, document.uri.toString()) ??
+              lookupSystemByName(member.type).find((s) => s.kind === "delegate");
+            if (delegateSym?.kind === "delegate") {
+              return delegateSym.type;
+            }
+          }
+          return member.type;
+        }
+        return undefined;
       }
       case "OptionalChainingExpression":
         return TypeResolver.resolveExpressionType(expr.member, document, lineIdx, indexer);
@@ -452,6 +473,37 @@ export class TypeResolver {
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
     const op = expr.operator.toLowerCase();
+    if (["and", "or", "xor"].includes(op)) {
+      const left = TypeResolver.resolveExpressionType(expr.left, document, lineIdx, indexer);
+      const right = TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
+      const leftLower = left?.toLowerCase();
+      const rightLower = right?.toLowerCase();
+
+      const isNumericType = (t: string | undefined): boolean => {
+        if (!t) return false;
+        return [
+          "integer",
+          "byte",
+          "long",
+          "short",
+          "single",
+          "double",
+          "decimal",
+          "extended",
+          "longint",
+          "word",
+          "currency",
+        ].includes(t);
+      };
+
+      if (isNumericType(leftLower) || isNumericType(rightLower)) {
+        if (leftLower && isNumericType(leftLower)) return left;
+        if (rightLower && isNumericType(rightLower)) return right;
+        return "Integer";
+      }
+      return "Boolean";
+    }
+
     if (
       [
         "=",
@@ -463,9 +515,6 @@ export class TypeResolver {
         "is",
         "isnot",
         "like",
-        "and",
-        "or",
-        "xor",
         "andalso",
         "orelse",
       ].includes(op)
@@ -485,7 +534,30 @@ export class TypeResolver {
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
-    if (expr.operator.toLowerCase() === "not") return "Boolean";
+    if (expr.operator.toLowerCase() === "not") {
+      const argType = TypeResolver.resolveExpressionType(expr.argument, document, lineIdx, indexer);
+      const argLower = argType?.toLowerCase();
+      const isNumericType = (t: string | undefined): boolean => {
+        if (!t) return false;
+        return [
+          "integer",
+          "byte",
+          "long",
+          "short",
+          "single",
+          "double",
+          "decimal",
+          "extended",
+          "longint",
+          "word",
+          "currency",
+        ].includes(t);
+      };
+      if (isNumericType(argLower)) {
+        return argType;
+      }
+      return "Boolean";
+    }
     return TypeResolver.resolveExpressionType(expr.argument, document, lineIdx, indexer);
   }
 
@@ -1225,7 +1297,15 @@ function collectLocalDeclarations(
             collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
           }
         } else {
-          collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+          if (m.kind === "MethodDeclaration" && m.loc) {
+            const mLine = Math.max(0, m.loc.startLine - 1);
+            const mEndLine = Math.max(0, m.loc.endLine - 1);
+            if (position.line >= mLine && position.line <= mEndLine) {
+              collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+            }
+          } else {
+            collectLocalDeclarations(m, position, locals, indexer, document, lineIdx);
+          }
         }
       }
       break;

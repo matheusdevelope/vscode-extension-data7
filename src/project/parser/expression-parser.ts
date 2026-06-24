@@ -122,8 +122,15 @@ export function parsePrefix(parser: Parser): Expression | null {
         typeArguments: [],
         loc: locOf(token.loc),
       };
-      const args = parseArgumentList(parser, true);
-      return { kind: "ObjectCreationExpression", type, arguments: args, loc: locOf(token.loc) };
+      const hasParentheses = parser.match("punct", "(");
+      const args = hasParentheses ? parseArgumentList(parser, true) : [];
+      return {
+        kind: "ObjectCreationExpression",
+        type,
+        arguments: args,
+        noParentheses: !hasParentheses,
+        loc: locOf(token.loc),
+      };
     }
     parser.advance();
     return { kind: "Identifier", name: token.value, loc: locOf(token.loc) };
@@ -216,11 +223,13 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
       );
     }
     const typeArguments: TypeReference[] = [];
-    for (const plugin of parser.plugins) {
-      const result = plugin.parseTypeArguments?.(parser);
-      if (result !== null && result !== undefined) {
-        typeArguments.push(...result);
-        break;
+    if (parser.isGenericTypeArgumentsLookahead()) {
+      for (const plugin of parser.plugins) {
+        const result = plugin.parseTypeArguments?.(parser);
+        if (result !== null && result !== undefined) {
+          typeArguments.push(...result);
+          break;
+        }
       }
     }
     const member = memberToken?.value ?? "";

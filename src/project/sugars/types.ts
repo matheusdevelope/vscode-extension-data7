@@ -17,6 +17,7 @@ export interface SugarPlugin {
   readonly syntaxKinds?: readonly string[];
   readonly diagnosticCodes?: readonly string[];
   createParserPlugin?(): ParserPlugin;
+  requiredImports?(): readonly string[];
   utilityModules?(): readonly SugarUtilityModule[];
 }
 

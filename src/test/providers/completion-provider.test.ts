@@ -10,10 +10,33 @@ interface MockCompletionItem {
   label: string | { label: string; detail?: string };
   detail?: string;
   tags?: number[];
+  sortText?: string;
 }
 
 function labelOf(item: MockCompletionItem): string {
   return typeof item.label === "string" ? item.label : item.label.label;
+}
+
+function positionAfterLine(code: string, lineText: string): vscode.Position {
+  const lines = code.split(/\r?\n/);
+  const line = lines.findIndex((entry) => entry.includes(lineText));
+  assert.notEqual(line, -1, `line "${lineText}" must exist in fixture`);
+  return pos(line, (lines[line] ?? "").length);
+}
+
+function positionAfterToken(code: string, token: string): vscode.Position {
+  const lines = code.split(/\r?\n/);
+  const line = lines.findIndex((entry) => entry.includes(token));
+  assert.notEqual(line, -1, `token "${token}" must exist in fixture`);
+  return pos(line, (lines[line] ?? "").indexOf(token) + token.length);
+}
+
+function assertBefore(labels: readonly string[], first: string, second: string): void {
+  const firstIndex = labels.indexOf(first);
+  const secondIndex = labels.indexOf(second);
+  assert.notEqual(firstIndex, -1, `${first} must appear in completion list`);
+  assert.notEqual(secondIndex, -1, `${second} must appear in completion list`);
+  assert.ok(firstIndex < secondIndex, `${first} must appear before ${second}`);
 }
 
 describe("D7BasicCompletionProvider", () => {
@@ -286,6 +309,107 @@ End Namespace`;
       const labels = items.map(labelOf);
       assert.ok(labels.includes("pName"), `pName must appear; got ${labels.join(", ")}`);
       assert.ok(labels.includes("localCount"), `localCount must appear; got ${labels.join(", ")}`);
+    });
+
+    test("orders suggestions from block to global and alphabetically inside each scope", async () => {
+      const code = `Namespace mod_scope_order
+   Class BaseBucket
+      Public BaseZulu As Integer
+      Public BaseAlpha As Integer
+   End Class
+
+   Class NsBucketZulu
+   End Class
+
+   Class NsBucketAlpha
+   End Class
+
+   Class ChildBucket
+      Inherits BaseBucket
+      Public ClassZulu As Integer
+      Public ClassAlpha As Integer
+
+      Public Sub Run(pMethodZulu As Integer, pMethodAlpha As Integer)
+         Dim methodZulu As Integer
+         Dim methodAlpha As Integer
+         If True Then
+            Dim blockZulu As Integer
+            Dim blockAlpha As Integer
+         End If
+      End Sub
+   End Class
+End Namespace
+
+Class GlobalZulu
+End Class
+
+Class GlobalAlpha
+End Class`;
+      const uri = "file:///cp_scope_order.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterLine(code, "Dim blockAlpha As Integer"),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assertBefore(labels, "blockAlpha", "blockZulu");
+      assertBefore(labels, "blockZulu", "pMethodAlpha");
+      assertBefore(labels, "pMethodAlpha", "pMethodZulu");
+      assertBefore(labels, "pMethodZulu", "ClassAlpha");
+      assertBefore(labels, "ClassAlpha", "ClassZulu");
+      assertBefore(labels, "ClassZulu", "BaseAlpha");
+      assertBefore(labels, "BaseAlpha", "BaseZulu");
+      assertBefore(labels, "BaseZulu", "NsBucketAlpha");
+      assertBefore(labels, "NsBucketAlpha", "NsBucketZulu");
+      assertBefore(labels, "NsBucketZulu", "GlobalAlpha");
+      assertBefore(labels, "GlobalAlpha", "GlobalZulu");
+    });
+
+    test("orders member access with class members before inherited members", async () => {
+      const code = `Namespace mod_member_order
+   Class BaseBucket
+      Public BaseZulu As Integer
+      Public BaseAlpha As Integer
+   End Class
+
+   Class ChildBucket
+      Inherits BaseBucket
+      Public ClassZulu As Integer
+      Public ClassAlpha As Integer
+
+      Public Sub Run()
+         Me.
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///cp_member_order.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "Me."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assertBefore(labels, "ClassAlpha", "ClassZulu");
+      assertBefore(labels, "ClassZulu", "BaseAlpha");
+      assertBefore(labels, "BaseAlpha", "BaseZulu");
     });
   });
 });

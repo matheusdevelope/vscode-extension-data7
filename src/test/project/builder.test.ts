@@ -148,6 +148,45 @@ End Namespace
         assert.doesNotMatch(xml, /Class Box&lt;T&gt;/);
       });
     });
+
+    test("imports mod_tlist when enum array sugar materializes TTList_Color", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Enum Color
+   Red
+End Enum
+
+Dim colors[] As Color = [Color.Red]
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `'@Module
+Namespace mod_tlist
+   Class TTList<T>
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Imports mod_tlist/);
+        assert.match(xml, /Dim colors As TTList_Color = New TTList_Color\(\)/);
+        assert.match(xml, /colors\.Push\(Color\.Red\)/);
+      });
+    });
   });
 });
 

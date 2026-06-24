@@ -91,5 +91,22 @@ End Sub`;
       assert.ok(formatted.includes("    If ok Then ' comment"));
       assert.ok(formatted.includes("        Return text"));
     });
+
+    test("keeps block indentation for If headers missing Then", () => {
+      const code = `Sub Run()
+If ready
+value = 1
+End If
+End Sub`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Sub Run()
+    If ready
+        value = 1
+    End If
+End Sub`,
+      );
+    });
   });
 });

@@ -69,6 +69,7 @@ export type Node =
   | MatchStatement
   | ReturnStatement
   | ExitStatement
+  | ContinueStatement
   | ThrowStatement
   | Block
   | WithStatement
@@ -120,7 +121,11 @@ export interface ClassDeclaration extends BaseNode {
   readonly modifiers?: string[];
 }
 
-export type ClassMember = MethodDeclaration | FieldDeclaration | PropertyDeclaration;
+export type ClassMember =
+  | MethodDeclaration
+  | FieldDeclaration
+  | PropertyDeclaration
+  | ClassDeclaration;
 
 export interface MethodDeclaration extends BaseNode {
   readonly kind: "MethodDeclaration";
@@ -271,6 +276,7 @@ export type Statement =
   | MatchStatement
   | ReturnStatement
   | ExitStatement
+  | ContinueStatement
   | ThrowStatement
   | Block
   | WithStatement
@@ -305,8 +311,15 @@ export interface IfStatement extends BaseNode {
   readonly kind: "IfStatement";
   condition: Expression;
   thenBranch: Statement[];
-  elseIfBranches: { condition: Expression; body: Statement[] }[];
+  elseIfBranches: {
+    condition: Expression;
+    body: Statement[];
+    hasThen?: boolean;
+    hasSpace?: boolean;
+    loc?: SourceLocation;
+  }[];
   elseBranch?: Statement[];
+  hasThen?: boolean;
 }
 
 export interface ForStatement extends BaseNode {
@@ -376,6 +389,10 @@ export interface ReturnStatement extends BaseNode {
 export interface ExitStatement extends BaseNode {
   readonly kind: "ExitStatement";
   target: "Sub" | "Function" | "For" | "Do" | "While" | "Property";
+}
+
+export interface ContinueStatement extends BaseNode {
+  readonly kind: "ContinueStatement";
 }
 
 export interface ThrowStatement extends BaseNode {
@@ -610,6 +627,7 @@ export abstract class ASTWalker {
         if (node.expression) this.walk(node.expression);
         return;
       case "ExitStatement":
+      case "ContinueStatement":
         return;
       case "ThrowStatement":
         this.walk(node.expression);

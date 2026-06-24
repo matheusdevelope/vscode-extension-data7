@@ -9,6 +9,7 @@ import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
+import { lookupSystemByName } from "../system-library";
 import { readProjectConfig, writeProjectConfig, PROJECT_CONFIG_FILENAME } from "./project-config";
 import {
   SugarTranspiler,
@@ -204,6 +205,15 @@ export class Builder {
       isTypeDescendantOf: (typeName: string, baseTypeName: string) =>
         TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
       resolveTypeImport: (typeName: string) => this.resolveTypeImport(typeName, indexer),
+      resolveGlobalSymbolType: (name: string, argumentCount: number) =>
+        indexer.findSymbolByName(name)?.type ??
+        lookupSystemByName(name).find(
+          (symbol) =>
+            !symbol.containerName &&
+            (!symbol.parameters || symbol.parameters.length === argumentCount),
+        )?.type,
+      resolveMemberType: (typeName: string, name: string, argumentCount: number) =>
+        TypeResolver.findMember(typeName, name, indexer, argumentCount)?.type,
       externalGenericTemplates,
       requestedGenericInstantiations,
       sugarOptions: options.sugarOptions,
@@ -225,7 +235,11 @@ export class Builder {
 
     const symbol = indexer.findSymbolByName(simpleName);
     if (!symbol) return undefined;
-    if (symbol.isSyntheticGenericInstantiation) return undefined;
+    if (symbol.isSyntheticGenericInstantiation) {
+      if (symbol.containerName) return symbol.containerName;
+      if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
+      return undefined;
+    }
     if (
       symbol.kind !== "class" &&
       symbol.kind !== "structure" &&

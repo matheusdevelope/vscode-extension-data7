@@ -1,6 +1,6 @@
 import type { ClassDeclaration, ClassMember, EnumDeclaration, Statement } from "../../../ast/ast";
 
-/** Expands a declarative enum into the BaseEnum-compatible class representation. */
+/** Expands a declarative enum into the TEnum-compatible class representation. */
 export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
   const enumName = declaration.name;
   const entries = declaration.entries.map((entry) => {
@@ -8,12 +8,14 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
     if (entry.value) {
       if (entry.value.kind === "Literal") {
         const value = entry.value.value;
-        if (typeof value === "string") valueStr = value;
+        if (typeof value === "string") valueStr = `CStr(${value})`;
         else if (value === null) valueStr = "NULL";
         else valueStr = String(value);
       } else if (entry.value.kind === "Identifier") {
         valueStr = entry.value.name;
       }
+    } else {
+      valueStr = `CStr("${entry.name}")`;
     }
     return { name: entry.name, value: valueStr };
   });
@@ -34,7 +36,7 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
   entries.forEach((entry, index) => {
     initBody.push({
       kind: "OpaqueStatement",
-      text: `CoreSugarBaseEnum._AddEnumItem("${enumName}", New ${enumName}(${index}, ${entry.value}))`,
+      text: `TEnum._AddEnumItem("${enumName}", New ${enumName}(${index}, ${entry.value}))`,
       loc: declaration.loc,
     });
   });
@@ -97,7 +99,7 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
         { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: declaration.loc },
         {
           kind: "OpaqueStatement",
-          text: `Load = CType(CoreSugarBaseEnum._GetCache("${enumName}", pValue), ${enumName})`,
+          text: `Load = CType(TEnum._GetCache("${enumName}", pValue), ${enumName})`,
           loc: declaration.loc,
         },
       ],
@@ -119,7 +121,7 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
         { kind: "OpaqueStatement", text: `${enumName}.Initialize()`, loc: declaration.loc },
         {
           kind: "OpaqueStatement",
-          text: `GetOptions = CoreSugarBaseEnum._GetEnumOptions("${enumName}")`,
+          text: `GetOptions = TEnum._GetEnumOptions("${enumName}")`,
           loc: declaration.loc,
         },
       ],
@@ -132,9 +134,9 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
     kind: "ClassDeclaration",
     name: enumName,
     typeParameters: [],
-    baseType: {
+    baseType: declaration.baseType ?? {
       kind: "TypeReference",
-      name: "CoreSugarBaseEnum",
+      name: "TEnum",
       typeArguments: [],
       loc: declaration.loc,
     },

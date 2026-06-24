@@ -24,7 +24,7 @@
  *    when type parameters are instantiated.
  *  - Control-flow statements (`If`, `For`, `While`, `Try`). They land in
  *    the opaque-statement bucket too.
- *  - Constraints (`T As BaseEnum`) are recognised but their right-hand
+ *  - Constraints (`T As TEnum`) are recognised but their right-hand
  *    side is parsed and then dropped by the monomorphizer.
  *
  * Errors are **collected** rather than thrown. Each problem becomes a
@@ -61,6 +61,7 @@ import type {
   VariableDeclaration,
   SelectCaseStatement,
   SelectCaseBranch,
+  ContinueStatement,
 } from "../ast/ast";
 import { tokenize } from "./lexer";
 import { makeError, type ParseError, type ParseErrorCode } from "./parser-errors";
@@ -240,6 +241,32 @@ export class Parser {
     return null;
   }
 
+  public consumeNameToken(): Token | null {
+    const next = this.peek();
+    if (next.kind === "identifier") {
+      return this.advance();
+    }
+    if (next.kind === "keyword") {
+      const val = next.value.toLowerCase();
+      if (["new", "get", "set", "match", "continue"].includes(val)) {
+        return this.advance();
+      }
+    }
+    return null;
+  }
+
+  public expectNameToken(description: string): Token | null {
+    const t = this.consumeNameToken();
+    if (t) return t;
+    const next = this.peek();
+    this.recordError(
+      "expected-token",
+      `Expected '${description}', got '${next.value || next.kind}'.`,
+      next.loc,
+    );
+    return null;
+  }
+
   /**
    * Consumes the current token if it matches `kind` (and, when supplied,
    * the case-insensitive `value`). Otherwise records an
@@ -310,6 +337,7 @@ export class Parser {
       if (v === "sub" || v === "function") return this.parseMethod();
       if (v === "delegate") return this.parseDelegate();
       if (v === "imports") return this.parseImportsDeclaration();
+      if (v === "declare") return this.consumeLineAsOpaque();
 
       if (v === "dim" || v === "const") {
         this.parseModifiers();
@@ -477,6 +505,7 @@ export class Parser {
       const v = head.value.toLowerCase();
       if (v === "sub" || v === "function") return this.parseMethod();
       if (v === "property") return this.parseProperty();
+      if (v === "class" || v === "structure") return this.parseClass();
     }
 
     // Field declaration: `<modifier>* <name> As <Type>`. Anything we
@@ -496,11 +525,7 @@ export class Parser {
     const isFunction = Parser.eq(head, "function");
     // 'New' is a keyword token (not an identifier), but it is a valid
     // method name in Data7 Basic (constructor). Accept either kind.
-    const nameToken =
-      this.consume("identifier") ??
-      this.consume("keyword", "new") ??
-      this.consume("keyword", "get") ??
-      this.consume("keyword", "set");
+    const nameToken = this.consumeNameToken();
     if (!nameToken) {
       this.recordError(
         "expected-token",
@@ -655,6 +680,9 @@ export class Parser {
     }
     if (this.match("keyword", "exit") || this.match("identifier", "exit")) {
       return this.parseExitStatement();
+    }
+    if (this.match("keyword", "continue") || this.match("identifier", "continue")) {
+      return this.parseContinueStatement();
     }
     if (this.match("keyword", "throw") || this.match("identifier", "throw")) {
       return this.parseThrowStatement();
@@ -827,6 +855,17 @@ export class Parser {
     return {
       kind: "ExitStatement",
       target,
+      loc: locOf(startLoc, endLoc),
+    };
+  }
+
+  private parseContinueStatement(): ContinueStatement {
+    const startLoc = this.peek().loc;
+    this.advance(); // consume 'continue'
+    const endLoc = this.peek().loc;
+    this.skipToEndOfLine();
+    return {
+      kind: "ContinueStatement",
       loc: locOf(startLoc, endLoc),
     };
   }
@@ -1004,7 +1043,7 @@ export class Parser {
     const startLoc = this.peek().loc;
     const modifiers = this.parseModifiers();
     this.advance(); // 'Property'
-    const nameToken = this.expect("identifier", "<property-name>");
+    const nameToken = this.expectNameToken("<property-name>");
     const name = nameToken?.value ?? "";
     let params: ParameterDeclaration[] | undefined;
     if (this.match("punct", "(")) {
@@ -1374,6 +1413,39 @@ export class Parser {
     for (;;) {
       const t = this.peek(idx);
       if (t.kind === "eof" || t.kind === "newline") return false;
+      if (t.kind === "number" || t.kind === "string") {
+        return false;
+      }
+      if (t.kind === "punct" && !["<", ">", ".", ",", "(", ")"].includes(t.value)) return false;
+      if (t.kind === "keyword" || t.kind === "identifier") {
+        const lower = t.value.toLowerCase();
+        if (
+          [
+            "or",
+            "and",
+            "xor",
+            "andalso",
+            "orelse",
+            "not",
+            "mod",
+            "is",
+            "then",
+            "else",
+            "if",
+            "for",
+            "while",
+            "do",
+            "loop",
+            "next",
+            "return",
+            "step",
+            "to",
+            "in",
+          ].includes(lower)
+        ) {
+          return false;
+        }
+      }
       if (t.kind === "punct") {
         if (t.value === "<") {
           depth++;

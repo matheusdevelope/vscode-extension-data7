@@ -47,6 +47,17 @@ export class SugarRegistry {
     return Array.from(modules.values());
   }
 
+  public static getRequiredImports(pluginIds: Iterable<string>): string[] {
+    const imports = new Map<string, string>();
+    for (const pluginId of this.resolveDependencies(pluginIds)) {
+      const plugin = this.get(pluginId);
+      for (const target of plugin?.requiredImports?.() ?? []) {
+        imports.set(target.toLowerCase(), target);
+      }
+    }
+    return Array.from(imports.values());
+  }
+
   public static resolveDependencies(usedSugarIds: Iterable<string>): Set<string> {
     this.ensureInitialized();
     const resolved = new Set<string>();

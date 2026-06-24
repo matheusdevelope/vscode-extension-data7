@@ -26,7 +26,10 @@ export interface AstLocalBinding {
   isConst: boolean;
   range: vscode.Range;
   description: string;
+  scope: AstBindingScope;
 }
+
+export type AstBindingScope = "top-level" | "routine" | "block";
 
 export interface AstMemberAccessContext {
   memberName: string;
@@ -134,11 +137,20 @@ export class D7AstContext {
     const methodDecl = activeMethod ? this.findMethodDeclaration(activeMethod) : undefined;
     const propertyDecl = activeProperty ? this.findPropertyDeclaration(activeProperty) : undefined;
 
-    this.collectStatementBindings(collectTopLevelStatements(this.unit.members), locals);
+    this.collectStatementBindings(
+      collectTopLevelStatements(this.unit.members),
+      locals,
+      "top-level",
+    );
 
     if (methodDecl) {
-      addParameters(locals, methodDecl.parameters, `Parametro de \`${methodDecl.name}\``);
-      this.collectStatementBindings(methodDecl.body, locals);
+      addParameters(
+        locals,
+        methodDecl.parameters,
+        `Parametro de \`${methodDecl.name}\``,
+        "routine",
+      );
+      this.collectStatementBindings(methodDecl.body, locals, "routine");
     }
 
     if (propertyDecl) {
@@ -150,20 +162,22 @@ export class D7AstContext {
             isConst: false,
             range: symbolRange(activeProperty),
             description: `Parametro de \`${activeProperty.name}\``,
+            scope: "routine",
           });
         }
       }
 
       if (propertyDecl.getter && isBeforeOrAt(propertyDecl.getter.loc, this.position)) {
-        this.collectStatementBindings(propertyDecl.getter.body, locals);
+        this.collectStatementBindings(propertyDecl.getter.body, locals, "routine");
       }
       if (propertyDecl.setter && isBeforeOrAt(propertyDecl.setter.loc, this.position)) {
         addParameters(
           locals,
           propertyDecl.setter.parameters,
           "Parametro de atribuicao do bloco `Set`",
+          "routine",
         );
-        this.collectStatementBindings(propertyDecl.setter.body, locals);
+        this.collectStatementBindings(propertyDecl.setter.body, locals, "routine");
       }
     }
 
@@ -399,12 +413,19 @@ export class D7AstContext {
     return found;
   }
 
-  private collectStatementBindings(statements: readonly Statement[], out: AstLocalBinding[]): void {
+  private collectStatementBindings(
+    statements: readonly Statement[],
+    out: AstLocalBinding[],
+    rootScope: Exclude<AstBindingScope, "block">,
+    depth = 0,
+  ): void {
     for (const statement of statements) {
       if (!isBeforeOrAt(statement.loc, this.position)) continue;
+      const lexicalScope: AstBindingScope =
+        rootScope === "top-level" ? "top-level" : depth === 0 ? "routine" : "block";
       switch (statement.kind) {
         case "VariableDeclaration":
-          out.push(this.bindingFromVariable(statement));
+          out.push(this.bindingFromVariable(statement, lexicalScope));
           break;
         case "DestructuredVariableDeclaration":
           for (const b of statement.bindings) {
@@ -414,6 +435,7 @@ export class D7AstContext {
               isConst: false,
               range: tokenRangeFromLoc(statement.loc, b.name.length),
               description: "Variavel local (desestruturada)",
+              scope: lexicalScope,
             });
           }
           break;
@@ -424,8 +446,9 @@ export class D7AstContext {
             isConst: false,
             range: tokenRangeFromLoc(statement.elementVar.loc, statement.elementVar.name.length),
             description: "Variavel local do `For Each`",
+            scope: "block",
           });
-          this.collectStatementBindings(statement.body, out);
+          this.collectStatementBindings(statement.body, out, rootScope, depth + 1);
           break;
         case "ForStatement":
           out.push({
@@ -434,21 +457,24 @@ export class D7AstContext {
             isConst: false,
             range: tokenRangeFromLoc(statement.counter.loc, statement.counter.name.length),
             description: "Variavel local do `For`",
+            scope: "block",
           });
-          this.collectStatementBindings(statement.body, out);
+          this.collectStatementBindings(statement.body, out, rootScope, depth + 1);
           break;
         case "IfStatement":
-          this.collectStatementBindings(statement.thenBranch, out);
+          this.collectStatementBindings(statement.thenBranch, out, rootScope, depth + 1);
           for (const branch of statement.elseIfBranches) {
-            this.collectStatementBindings(branch.body, out);
+            this.collectStatementBindings(branch.body, out, rootScope, depth + 1);
           }
-          if (statement.elseBranch) this.collectStatementBindings(statement.elseBranch, out);
+          if (statement.elseBranch) {
+            this.collectStatementBindings(statement.elseBranch, out, rootScope, depth + 1);
+          }
           break;
         case "WhileStatement":
-          this.collectStatementBindings(statement.body, out);
+          this.collectStatementBindings(statement.body, out, rootScope, depth + 1);
           break;
         case "TryCatchStatement":
-          this.collectStatementBindings(statement.tryBody, out);
+          this.collectStatementBindings(statement.tryBody, out, rootScope, depth + 1);
           if (statement.catchVar && isBeforeOrAt(statement.catchVar.loc, this.position)) {
             out.push({
               name: statement.catchVar.name,
@@ -456,10 +482,13 @@ export class D7AstContext {
               isConst: false,
               range: tokenRangeFromLoc(statement.catchVar.loc, statement.catchVar.name.length),
               description: "Parametro do bloco `Catch`",
+              scope: "block",
             });
           }
-          this.collectStatementBindings(statement.catchBody, out);
-          if (statement.finallyBody) this.collectStatementBindings(statement.finallyBody, out);
+          this.collectStatementBindings(statement.catchBody, out, rootScope, depth + 1);
+          if (statement.finallyBody) {
+            this.collectStatementBindings(statement.finallyBody, out, rootScope, depth + 1);
+          }
           break;
         case "UsingStatement":
           out.push({
@@ -468,19 +497,20 @@ export class D7AstContext {
             isConst: false,
             range: tokenRangeFromLoc(statement.resourceVar.loc, statement.resourceVar.name.length),
             description: "Variavel local do `Using`",
+            scope: "block",
           });
-          this.collectStatementBindings(statement.body, out);
+          this.collectStatementBindings(statement.body, out, rootScope, depth + 1);
           break;
         case "WithStatement":
-          this.collectStatementBindings(statement.body, out);
+          this.collectStatementBindings(statement.body, out, rootScope, depth + 1);
           break;
         case "MatchStatement":
           for (const matchCase of statement.cases) {
-            this.collectStatementBindings(matchCase.body, out);
+            this.collectStatementBindings(matchCase.body, out, rootScope, depth + 1);
           }
           break;
         case "Block":
-          this.collectStatementBindings(statement.statements, out);
+          this.collectStatementBindings(statement.statements, out, rootScope, depth + 1);
           break;
         case "Assignment":
         case "ExpressionStatement":
@@ -491,7 +521,7 @@ export class D7AstContext {
     }
   }
 
-  private bindingFromVariable(node: VariableDeclaration): AstLocalBinding {
+  private bindingFromVariable(node: VariableDeclaration, scope: AstBindingScope): AstLocalBinding {
     const explicitType = typeRefToString(node.type);
     const inferredType =
       !explicitType && node.initializer ? this.resolveExpressionType(node.initializer) : undefined;
@@ -501,6 +531,7 @@ export class D7AstContext {
       isConst: node.isConst ?? false,
       range: tokenRangeFromLoc(node.loc, node.name.length),
       description: node.isConst ? "Constante local" : "Variavel local",
+      scope,
     };
   }
 
@@ -508,20 +539,14 @@ export class D7AstContext {
     const statements: Statement[] = [];
     collectStatements(collectTopLevelStatements(this.unit.members), statements);
     walkTopLevel(this.unit.members, (member) => {
-      if (member.kind === "MethodDeclaration") collectStatements(member.body, statements);
-      if (member.kind === "ClassDeclaration") {
-        for (const classMember of member.members) {
-          if (classMember.kind === "MethodDeclaration") {
-            collectStatements(classMember.body, statements);
-          }
-          if (classMember.kind === "PropertyDeclaration") {
-            if (classMember.getter) {
-              collectStatements(classMember.getter.body, statements);
-            }
-            if (classMember.setter) {
-              collectStatements(classMember.setter.body, statements);
-            }
-          }
+      if (member.kind === "MethodDeclaration") {
+        collectStatements(member.body, statements);
+      } else if (member.kind === "PropertyDeclaration") {
+        if (member.getter) {
+          collectStatements(member.getter.body, statements);
+        }
+        if (member.setter) {
+          collectStatements(member.setter.body, statements);
         }
       }
     });
@@ -568,6 +593,7 @@ function addParameters(
   out: AstLocalBinding[],
   params: readonly ParameterDeclaration[],
   description: string,
+  scope: AstBindingScope,
 ): void {
   for (const param of params) {
     out.push({
@@ -576,6 +602,7 @@ function addParameters(
       isConst: false,
       range: tokenRangeFromLoc(param.loc, param.name.length),
       description,
+      scope,
     });
   }
 }
@@ -589,9 +616,19 @@ function walkTopLevel(
     if (member.kind === "NamespaceDeclaration") {
       walkTopLevel(member.members, visit);
     } else if (member.kind === "ClassDeclaration") {
-      for (const classMember of member.members) {
-        visit(classMember);
-      }
+      walkClass(member, visit);
+    }
+  }
+}
+
+function walkClass(
+  klass: ClassDeclaration,
+  visit: (member: TopLevelMember | ClassMember | NamespaceDeclaration | MethodDeclaration) => void,
+): void {
+  for (const classMember of klass.members) {
+    visit(classMember);
+    if (classMember.kind === "ClassDeclaration") {
+      walkClass(classMember, visit);
     }
   }
 }
@@ -650,6 +687,7 @@ function isStatement(member: TopLevelMember): member is Statement {
     case "MatchStatement":
     case "ReturnStatement":
     case "ExitStatement":
+    case "ContinueStatement":
     case "ThrowStatement":
     case "Block":
     case "WithStatement":

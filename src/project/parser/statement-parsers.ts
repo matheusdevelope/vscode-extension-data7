@@ -45,14 +45,19 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
   const startLoc = parser.peek().loc;
   parser.advance();
   const condition = parser.parseExpression();
-  parser.expect("keyword", "then", { literal: true });
+  const hasThen =
+    parser.consume("keyword", "then") !== null || parser.consume("identifier", "then") !== null;
   const nextToken = parser.peek();
+  if (!hasThen && nextToken.kind !== "newline" && nextToken.kind !== "eof") {
+    parser.expect("keyword", "then", { literal: true });
+  }
   const isSingleLine =
     nextToken.loc.line === startLoc.line &&
     nextToken.kind !== "newline" &&
-    nextToken.kind !== "eof";
+    nextToken.kind !== "eof" &&
+    nextToken.kind !== "comment";
   const thenBranch: Statement[] = [];
-  const elseIfBranches: { condition: Expression; body: Statement[] }[] = [];
+  const elseIfBranches: IfStatement["elseIfBranches"] = [];
   let elseBranch: Statement[] | undefined;
 
   if (isSingleLine) {
@@ -97,6 +102,7 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
       elseBranch,
       loc: locOf(startLoc),
       singleLine: true,
+      hasThen,
     };
   }
 
@@ -109,11 +115,16 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
       parser.skipToEndOfLine();
       break;
     }
-    const head = parser.peek();
-    if ((head.kind === "keyword" || head.kind === "identifier") && parser.eq(head, "elseif")) {
-      parser.advance();
+    if (isElseIf(parser)) {
+      const elseIfStart = parser.peek().loc;
+      const wasElseIfSeparated = parser.eq(parser.peek(), "else");
+      consumeElseIf(parser);
       const elseIfCond = parser.parseExpression();
-      parser.expect("keyword", "then", { literal: true });
+      const hasThenElseIf =
+        parser.consume("keyword", "then") !== null || parser.consume("identifier", "then") !== null;
+      if (!hasThenElseIf && parser.peek().kind !== "newline" && parser.peek().kind !== "eof") {
+        parser.expect("keyword", "then", { literal: true });
+      }
       parser.skipToEndOfLine();
       const elseIfBody: Statement[] = [];
       while (!parser.isEOF()) {
@@ -123,9 +134,16 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
         if (statement !== null) elseIfBody.push(statement);
         parser.skipStatementSeparator();
       }
-      elseIfBranches.push({ condition: elseIfCond, body: elseIfBody });
+      elseIfBranches.push({
+        condition: elseIfCond,
+        body: elseIfBody,
+        hasThen: hasThenElseIf,
+        hasSpace: wasElseIfSeparated,
+        loc: locOf(elseIfStart),
+      });
       continue;
     }
+    const head = parser.peek();
     if ((head.kind === "keyword" || head.kind === "identifier") && parser.eq(head, "else")) {
       parser.advance();
       parser.skipToEndOfLine();
@@ -150,6 +168,7 @@ export function parseIfStatement(parser: StatementParserHost): IfStatement {
     elseIfBranches,
     elseBranch,
     loc: locOf(startLoc, endLoc),
+    hasThen,
   };
 }
 
@@ -386,8 +405,26 @@ function isElseIfOrElseOrEndIf(parser: StatementParserHost): boolean {
   if (head.kind !== "keyword" && head.kind !== "identifier") return false;
   const value = head.value.toLowerCase();
   return (
-    value === "elseif" || value === "else" || (value === "end" && parser.eq(parser.peek(1), "if"))
+    isElseIf(parser) || value === "else" || (value === "end" && parser.eq(parser.peek(1), "if"))
   );
+}
+
+function isElseIf(parser: StatementParserHost): boolean {
+  const head = parser.peek();
+  if (head.kind !== "keyword" && head.kind !== "identifier") return false;
+  if (parser.eq(head, "elseif")) return true;
+  const next = parser.peek(1);
+  return (
+    parser.eq(head, "else") &&
+    next.loc.line === head.loc.line &&
+    (next.kind === "keyword" || next.kind === "identifier") &&
+    parser.eq(next, "if")
+  );
+}
+
+function consumeElseIf(parser: StatementParserHost): void {
+  const head = parser.advance();
+  if (parser.eq(head, "else")) parser.advance();
 }
 
 function locOf(loc: TokenLocation, endLoc?: TokenLocation): SourceLocation {

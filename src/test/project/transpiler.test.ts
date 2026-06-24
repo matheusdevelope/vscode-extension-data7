@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import { SugarTranspiler, type TranspileContext } from "../../project/transpiler";
 import { SugarRegistry } from "../../project/sugars";
 import type { EnumerableInfo } from "../../analysis/enumerable-detector";
+import { lookupSystemByName } from "../../system-library";
 
 /**
  * Minimal in-memory enumerable resolver used by the transpiler tests.
@@ -25,6 +26,13 @@ function makeContext(
       return descendants[typeName]?.some(
         (base) => base.toLowerCase() === baseTypeName.toLowerCase(),
       );
+    },
+    resolveGlobalSymbolType(name, argumentCount) {
+      return lookupSystemByName(name).find(
+        (symbol) =>
+          !symbol.containerName &&
+          (!symbol.parameters || symbol.parameters.length === argumentCount),
+      )?.type;
     },
     ...overrides,
   };
@@ -360,6 +368,48 @@ describe("SugarTranspiler.transpile", () => {
     assert.equal(diagnostics.length, 0);
     assert.match(out, /Dim _list As TTList_Integer = New TTList_Integer\(\)/);
     assert.doesNotMatch(out, /TTList<Integer>/);
+  });
+
+  test("auto-injects namespace imports for materialized external generic instantiations", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+        resolveTypeImport: (typeName) => {
+          if (typeName === "TTList") return "mod_tlist";
+          return undefined;
+        },
+      },
+    );
+    const code = ["Dim _list As TTList<Integer> = New TTList<Integer>()"].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Imports mod_tlist\r?\n/m);
+    assert.match(out, /Dim _list As TTList_Integer = New TTList_Integer\(\)/);
+  });
+
+  test("auto-injects namespace imports for materialized flat generic class names", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+        resolveTypeImport: (typeName) => {
+          if (typeName === "TTList_Color") return "mod_tlist";
+          return undefined;
+        },
+      },
+    );
+    const code = ["Dim _list As TTList_Color = New TTList_Color()"].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Imports mod_tlist\r?\n/m);
+    assert.match(out, /Dim _list As TTList_Color = New TTList_Color\(\)/);
   });
 
   test("preserves array access after method calls", () => {
@@ -733,6 +783,43 @@ describe('SugarTranspiler — string interpolation (`$"..."`)', () => {
   });
 });
 
+describe("SugarTranspiler — native string expressions and inline throws", () => {
+  const ctx = makeContext({});
+
+  test("preserves inline throws and avoids redundant CStr conversions", () => {
+    const code = [
+      "Function UCase(pValue As String) As String",
+      "End Function",
+      "Class EnumLike",
+      "   Property AsString As String",
+      "      Get",
+      '         AsString = ""',
+      "      End Get",
+      "   End Property",
+      "   AsInteger As Integer",
+      "   Function BuildOption(pClassName As String, pEnumName As String) As String",
+      '      Dim option As String = """" & me.AsString & "=" & me.AsInteger & """"',
+      '      Dim cacheKey As String = UCase(pClassName) & "-" & UCase(pEnumName)',
+      '      If Not initialized Then Throw New Exception("Enum cache not initialized")',
+      '      If index < 0 Then Throw New Exception("Enum not found")',
+      "End Function",
+      "End Class",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /"""" & me\.AsString & "="/);
+    assert.doesNotMatch(out, /CStr\(me\.AsString\)/);
+    assert.match(out, /UCase\(pClassName\) & "-" & UCase\(pEnumName\)/);
+    assert.doesNotMatch(out, /CStr\(UCase\(/);
+    assert.match(
+      out,
+      /If Not initialized Then Throw New Exception\("Enum cache not initialized"\)/,
+    );
+    assert.match(out, /If index < 0 Then Throw New Exception\("Enum not found"\)/);
+  });
+});
+
 describe("SugarTranspiler — ternary (`cond ? a : b`)", () => {
   const ctx = makeContext({});
 
@@ -1014,21 +1101,46 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
 describe("SugarTranspiler — D1 Enum declarative (multi-line)", () => {
   const ctx = makeContext({});
 
-  test("expands `Enum X / V = ... / End Enum` into a CoreSugarBaseEnum class", () => {
+  test("expands `Enum X / V = ... / End Enum` directly into a TEnum class", () => {
     const code = [
-      "Enum CardAdm As BaseEnum",
+      "Enum CardAdm As TEnum",
       '   Stone = "Stone"',
       '   Cielo = "Cielo"',
       "End Enum",
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Imports core_sugars_enum/);
+    assert.match(out, /Imports mod_tenum/);
+    assert.doesNotMatch(out, /core_sugars_enum|CoreSugarEnum/);
     assert.match(out, /Class CardAdm/);
-    assert.match(out, /Inherits CoreSugarBaseEnum/);
+    assert.match(out, /Inherits TEnum/);
+    assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(0, CStr\("Stone"\)\)\)/);
+    assert.match(out, /TEnum\._GetCache\("CardAdm", pValue\)/);
     assert.match(out, /Shared Function Stone As CardAdm/);
     assert.match(out, /Shared Function Cielo As CardAdm/);
     assert.match(out, /Shared Function GetOptions\(\) As String/);
+  });
+});
+
+describe("SugarTranspiler — Else If", () => {
+  test("normalizes `Else If` without treating it as a nested Else block", () => {
+    const code = [
+      "Sub Printe(pObject As TObject)",
+      "   If first Then",
+      '      Printe("first")',
+      "   Else If second Then",
+      '      Printe("second")',
+      "   Else",
+      '      Printe("other")',
+      "   End If",
+      "End Sub",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, makeContext({}));
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /ElseIf second Then/);
+    assert.doesNotMatch(out, /Else\r?\n\s+Printe\("second"\)\r?\n\s+Else/);
+    assert.match(out, /Else\r?\n\s+Printe\("other"\)/);
   });
 });
 
@@ -1225,6 +1337,35 @@ describe("SugarTranspiler — array-list", () => {
     ]);
   });
 
+  test("injects mod_tlist when array-list materializes TTList_<Enum>", () => {
+    const enumCtx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TTList", typeParams: ["T"] }],
+        resolveTypeImport: (typeName) => {
+          if (typeName === "TTList" || typeName === "TTList_Color") return "mod_tlist";
+          return undefined;
+        },
+      },
+    );
+    const code = [
+      "Enum Color",
+      "   Red",
+      "End Enum",
+      "",
+      "Dim colors[] As Color = [Color.Red]",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, enumCtx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Imports mod_tenum/);
+    assert.match(out, /Imports mod_tlist/);
+    assert.match(out, /Dim colors As TTList_Color = New TTList_Color\(\)/);
+    assert.match(out, /colors\.Push\(Color\.Red\)/);
+  });
+
   test("materializes array literal spreads as TTList Push overloads", () => {
     const code = `Dim x[] As String = ["a", ...other]`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
@@ -1340,5 +1481,29 @@ describe("SugarTranspiler — array-list", () => {
     assert.doesNotMatch(out, /__LambdaClosure/);
     assert.doesNotMatch(out, /__lambda0/);
     assert.doesNotMatch(out, /__closure/);
+  });
+
+  test("preserves Declare DLL statements verbatim during transpile", () => {
+    const code = [
+      "Namespace mod_winapi",
+      '   Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow"  As Long',
+      '   Private Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" (dwFlags As Long, dpX As Long, dpY As Long, cButtons As Long, dwExtraInfo As Long)',
+      "   Class WinAPI",
+      "      Shared Function GetForeground() As Long",
+      "         GetForeground = _GetForegroundWindow()",
+      "      End Function",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" {2}As Long/,
+    );
+    assert.match(
+      out,
+      /Private Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" \(dwFlags As Long, dpX As Long, dpY As Long, cButtons As Long, dwExtraInfo As Long\)/,
+    );
   });
 });

@@ -1,6 +1,5 @@
 import { parseInterpolation } from "../../../../utils/interpolation";
 import { inferLiteralType } from "../../../../utils/literal-type-infer";
-import { DependencyScanner } from "../../../../analysis/dependency-scanner";
 import { SugarRegistry } from "../..";
 import type { SugarEngine } from "../..";
 import { parseExpr } from "../../../parser";
@@ -23,48 +22,161 @@ import type {
   WithStatement,
   IfStatement,
   ThrowStatement,
+  CompilationUnit,
+  ClassDeclaration,
+  MethodDeclaration,
 } from "../../../ast/ast";
 import type { SugarDiagnostic, TranspileContext } from "../../../transpiler-types";
-function buildVarDeclRegex(varName: string): RegExp {
-  return new RegExp(
-    `(?:^|[^A-Za-z0-9_])${varName}(?:\\s*\\[\\])?\\s+As\\s+(?:New\\s+)?([\\w.]+)`,
-    "i",
-  );
+
+interface TypeScope {
+  readonly values: Map<string, string>;
+  readonly methods: Map<string, string>;
 }
 
-function buildNewExprRegex(varName: string): RegExp {
-  return new RegExp(`\\b${varName}\\s*=\\s*New\\s+([\\w.]+)\\s*\\(`, "i");
-}
+class AstTypeCatalog {
+  private readonly globals: TypeScope = { values: new Map(), methods: new Map() };
+  private readonly classes = new Map<string, TypeScope>();
+  private readonly methodLocals = new WeakMap<MethodDeclaration, Map<string, string>>();
 
-function inferOperandType(
-  operand: string,
-  lines: readonly string[],
-  beforeLineIdx: number,
-): string | undefined {
-  if (!/^[A-Za-z_]\w*$/.test(operand)) return undefined;
-  const declRegex = buildVarDeclRegex(operand);
-  const newRegex = buildNewExprRegex(operand);
-  const literalAssignRegex = new RegExp(
-    `(?:^|[^A-Za-z0-9_])(?:dim\\s+)?${operand}\\s*=\\s*(.+)`,
-    "i",
-  );
+  constructor(
+    unit: CompilationUnit,
+    private readonly ctx: TranspileContext,
+  ) {
+    this.collectMembers(unit.members);
+  }
 
-  for (let i = beforeLineIdx; i >= 0; i--) {
-    const lineText = lines[i];
-    if (lineText === undefined) continue;
-    const cleanLine = DependencyScanner.stripComments(lineText);
-    if (!cleanLine.trim()) continue;
-    const declMatch = cleanLine.match(declRegex);
-    if (declMatch?.[1]) return declMatch[1];
-    const newMatch = cleanLine.match(newRegex);
-    if (newMatch?.[1]) return newMatch[1];
-    const assignMatch = cleanLine.match(literalAssignRegex);
-    if (assignMatch?.[1]) {
-      const type = inferLiteralType(assignMatch[1]);
-      if (type) return type;
+  public resolve(
+    expr: Expression,
+    activeClass: ClassDeclaration | undefined,
+    activeMethod: MethodDeclaration | undefined,
+  ): string | undefined {
+    switch (expr.kind) {
+      case "Literal":
+        return expr.value === null ? "Variant" : inferLiteralType(String(expr.value));
+      case "ObjectCreationExpression":
+        return expr.type.name;
+      case "BinaryExpression":
+        return expr.operator === "&" ? "String" : undefined;
+      case "Identifier":
+        return this.resolveIdentifier(expr.name, activeClass, activeMethod);
+      case "MemberAccess": {
+        const targetType = this.resolve(expr.target, activeClass, activeMethod);
+        return targetType ? this.resolveMember(targetType, expr.member, 0) : undefined;
+      }
+      case "MethodInvocation": {
+        if (expr.callee) {
+          const targetType = this.resolve(expr.callee, activeClass, activeMethod);
+          return targetType
+            ? this.resolveMember(targetType, expr.methodName, expr.arguments.length)
+            : undefined;
+        }
+        return (
+          this.classScope(activeClass)?.methods.get(expr.methodName.toLowerCase()) ??
+          this.globals.methods.get(expr.methodName.toLowerCase()) ??
+          this.ctx.resolveGlobalSymbolType?.(expr.methodName, expr.arguments.length)
+        );
+      }
+      default:
+        return undefined;
     }
   }
-  return undefined;
+
+  private collectMembers(members: readonly TopLevelMember[]): void {
+    for (const member of members) {
+      if (member.kind === "NamespaceDeclaration") {
+        this.collectMembers(member.members);
+      } else if (member.kind === "ClassDeclaration") {
+        const scope: TypeScope = { values: new Map(), methods: new Map() };
+        this.classes.set(member.name.toLowerCase(), scope);
+        for (const classMember of member.members) {
+          if (
+            classMember.kind === "FieldDeclaration" ||
+            classMember.kind === "PropertyDeclaration"
+          ) {
+            scope.values.set(classMember.name.toLowerCase(), classMember.type.name);
+          } else if (classMember.kind === "MethodDeclaration" && classMember.returnType) {
+            scope.methods.set(classMember.name.toLowerCase(), classMember.returnType.name);
+          }
+          if (classMember.kind === "MethodDeclaration") {
+            this.collectMethodLocals(classMember);
+          }
+        }
+      } else if (member.kind === "MethodDeclaration") {
+        if (member.returnType) {
+          this.globals.methods.set(member.name.toLowerCase(), member.returnType.name);
+        }
+        this.collectMethodLocals(member);
+      } else if (member.kind === "VariableDeclaration" && member.type) {
+        this.globals.values.set(member.name.toLowerCase(), member.type.name);
+      }
+    }
+  }
+
+  private collectMethodLocals(method: MethodDeclaration): void {
+    const locals = new Map<string, string>();
+    for (const parameter of method.parameters) {
+      locals.set(parameter.name.toLowerCase(), parameter.type.name);
+    }
+    const collectStatements = (statements: readonly Statement[]): void => {
+      for (const statement of statements) {
+        if (statement.kind === "VariableDeclaration" && statement.type) {
+          locals.set(statement.name.toLowerCase(), statement.type.name);
+        } else if (statement.kind === "ForEachStatement" && statement.elementType) {
+          locals.set(statement.elementVar.name.toLowerCase(), statement.elementType.name);
+          collectStatements(statement.body);
+        } else if (statement.kind === "ForStatement") {
+          locals.set(statement.counter.name.toLowerCase(), "Integer");
+          collectStatements(statement.body);
+        } else if (statement.kind === "IfStatement") {
+          collectStatements(statement.thenBranch);
+          for (const branch of statement.elseIfBranches) collectStatements(branch.body);
+          if (statement.elseBranch) collectStatements(statement.elseBranch);
+        } else if (statement.kind === "WhileStatement" || statement.kind === "WithStatement") {
+          collectStatements(statement.body);
+        } else if (statement.kind === "TryCatchStatement") {
+          if (statement.catchVar && statement.catchType) {
+            locals.set(statement.catchVar.name.toLowerCase(), statement.catchType.name);
+          }
+          collectStatements(statement.tryBody);
+          collectStatements(statement.catchBody);
+          if (statement.finallyBody) collectStatements(statement.finallyBody);
+        } else if (statement.kind === "UsingStatement") {
+          locals.set(statement.resourceVar.name.toLowerCase(), statement.resourceType.name);
+          collectStatements(statement.body);
+        } else if (statement.kind === "Block") {
+          collectStatements(statement.statements);
+        }
+      }
+    };
+    collectStatements(method.body);
+    this.methodLocals.set(method, locals);
+  }
+
+  private resolveIdentifier(
+    name: string,
+    activeClass: ClassDeclaration | undefined,
+    activeMethod: MethodDeclaration | undefined,
+  ): string | undefined {
+    const lower = name.toLowerCase();
+    if (lower === "me") return activeClass?.name;
+    if (activeMethod) {
+      const localType = this.methodLocals.get(activeMethod)?.get(lower);
+      if (localType) return localType;
+    }
+    return this.classScope(activeClass)?.values.get(lower) ?? this.globals.values.get(lower);
+  }
+
+  private resolveMember(typeName: string, name: string, argumentCount: number): string | undefined {
+    return (
+      this.classes.get(typeName.toLowerCase())?.values.get(name.toLowerCase()) ??
+      this.classes.get(typeName.toLowerCase())?.methods.get(name.toLowerCase()) ??
+      this.ctx.resolveMemberType?.(typeName, name, argumentCount)
+    );
+  }
+
+  private classScope(activeClass: ClassDeclaration | undefined): TypeScope | undefined {
+    return activeClass ? this.classes.get(activeClass.name.toLowerCase()) : undefined;
+  }
 }
 
 interface InterpolationSegment {
@@ -132,10 +244,12 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
   public readonly usedSugars = new Set<string>();
   private srcCounter = 0;
   private idxCounter = 0;
+  private typeCatalog: AstTypeCatalog | undefined;
+  private activeClass: ClassDeclaration | undefined;
+  private activeMethod: MethodDeclaration | undefined;
 
   constructor(
     private readonly ctx: TranspileContext,
-    private readonly allLines: string[],
     private readonly sugarEngine: SugarEngine,
   ) {
     super();
@@ -155,13 +269,19 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
 
   override walk(node: Node): void {
     if (node.kind === "CompilationUnit") {
+      this.typeCatalog = new AstTypeCatalog(node, this.ctx);
       node.members = this.transformMembers(node.members);
 
-      // Auto-inject imports for all used sugars
-      for (const utility of SugarRegistry.getUtilityModules(this.usedSugars)) {
-        if (utility.namespace) {
+      // Auto-inject imports for utility modules and core module dependencies.
+      const imports = new Set([
+        ...SugarRegistry.getUtilityModules(this.usedSugars).map((utility) => utility.namespace),
+        ...SugarRegistry.getRequiredImports(this.usedSugars),
+      ]);
+      for (const target of imports) {
+        if (target) {
           const hasImport = node.members.some(
-            (m) => m.kind === "ImportsDeclaration" && m.target === utility.namespace,
+            (m) =>
+              m.kind === "ImportsDeclaration" && m.target.toLowerCase() === target.toLowerCase(),
           );
           if (!hasImport) {
             let insertIdx = 0;
@@ -173,7 +293,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
             }
             node.members.splice(insertIdx, 0, {
               kind: "ImportsDeclaration",
-              target: utility.namespace,
+              target,
               loc: node.loc,
             });
           }
@@ -186,17 +306,26 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       return;
     }
     if (node.kind === "ClassDeclaration") {
-      for (const m of node.members) {
-        this.walk(m);
+      const previousClass = this.activeClass;
+      this.activeClass = node;
+      try {
+        for (const m of node.members) {
+          this.walk(m);
+        }
+      } finally {
+        this.activeClass = previousClass;
       }
       return;
     }
     if (node.kind === "MethodDeclaration") {
+      const previousMethod = this.activeMethod;
+      this.activeMethod = node;
       this.listVariableScopes.push(this.createListScope());
       try {
         node.body = this.transformStatements(node.body);
       } finally {
         this.listVariableScopes.pop();
+        this.activeMethod = previousMethod;
       }
       return;
     }
@@ -1441,10 +1570,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       if (expr.value === null) return "Variant";
       return inferLiteralType(String(expr.value));
     }
-    if (expr.kind === "Identifier") {
-      const line = startLine ?? expr.loc?.startLine ?? 1;
-      return inferOperandType(expr.name, this.allLines, line - 1);
-    }
+    const astType = this.typeCatalog?.resolve(expr, this.activeClass, this.activeMethod);
+    if (astType) return astType;
     if (expr.kind === "BinaryExpression") {
       if (expr.operator === "&") return "String";
       if (expr.operator === "+") {
@@ -1453,15 +1580,6 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         if (leftType?.toLowerCase() === "string" || rightType?.toLowerCase() === "string") {
           return "String";
         }
-      }
-    }
-    if (expr.kind === "MethodInvocation") {
-      const methodName = expr.methodName.toLowerCase();
-      if (!expr.callee && (methodName === "cstr" || methodName === "char")) {
-        return "String";
-      }
-      if (methodName === "tostring") {
-        return "String";
       }
     }
     if (expr.kind === "TaggedTemplateExpression" && expr.tag === "") {

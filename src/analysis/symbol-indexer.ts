@@ -350,7 +350,7 @@ class SymbolIndexerWalker extends ASTWalker {
         fileUri: this.fileUri,
         containerName: this.activeNamespace,
         description: node.comment?.trim() ?? undefined,
-        inheritsFrom: "CoreSugarBaseEnum",
+        inheritsFrom: "TEnum",
       };
       this.symbols.push(enumSymbol);
 

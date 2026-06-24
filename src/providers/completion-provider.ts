@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { D7AstContext, type AstBindingScope } from "../analysis/ast-context";
+import { TypeResolver } from "../analysis/type-resolver";
 import {
   SYSTEM_SYMBOLS,
   lookupSystemByContainer,
   lookupSystemNamespaceOrClassByName,
 } from "../system-library";
-import { TypeResolver } from "../analysis/type-resolver";
-import { D7AstContext } from "../analysis/ast-context";
 
 const KEYWORDS = [
   "Imports",
@@ -117,6 +117,63 @@ function getSignatureKey(s: SymbolInfo): string {
   return `${namePart}#${paramsPart}`;
 }
 
+const enum CompletionBucket {
+  Block = 0,
+  Method = 1,
+  Class = 2,
+  Inherited = 3,
+  Namespace = 4,
+  Global = 5,
+  Keyword = 6,
+  Snippet = 7,
+}
+
+interface RankedCompletionItem {
+  readonly key: string;
+  readonly bucket: CompletionBucket;
+  readonly sortLabel: string;
+  readonly item: vscode.CompletionItem;
+}
+
+function completionLabelText(item: vscode.CompletionItem): string {
+  return typeof item.label === "string" ? item.label : item.label.label;
+}
+
+function toSortLabel(value: string): string {
+  return value.toLowerCase();
+}
+
+function isTypeSymbol(s: SymbolInfo): boolean {
+  return s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
+}
+
+function getSymbolCompletionKey(s: SymbolInfo): string {
+  return s.parameters && s.parameters.length > 0 ? getSignatureKey(s) : s.name.toLowerCase();
+}
+
+function getLocalCompletionBucket(
+  scope: AstBindingScope,
+  hasNamespaceScope: boolean,
+): CompletionBucket {
+  if (scope === "block") return CompletionBucket.Block;
+  if (scope === "routine") return CompletionBucket.Method;
+  return hasNamespaceScope ? CompletionBucket.Namespace : CompletionBucket.Global;
+}
+
+function matchesContainer(containerName: string | undefined, typeName: string): boolean {
+  if (!containerName) return false;
+  const containerLower = containerName.toLowerCase();
+  const typeLower = typeName.toLowerCase();
+  const shortLower = typeLower.includes(".")
+    ? (typeLower.split(".").pop() ?? typeLower).toLowerCase()
+    : typeLower;
+  return (
+    containerLower === typeLower ||
+    containerLower === shortLower ||
+    containerLower.endsWith("." + shortLower)
+  );
+}
+
 export class D7BasicCompletionProvider implements vscode.CompletionItemProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
 
@@ -128,12 +185,10 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
   ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
     if (token.isCancellationRequested) return undefined;
 
-    const items: vscode.CompletionItem[] = [];
     const ast = new D7AstContext(document, position, this.indexer);
     const importsCtx = ast.getImportsCompletionContext();
     if (importsCtx !== undefined) {
-      this.addNamespaceCompletions(items);
-      return items;
+      return this.getNamespaceCompletions();
     }
 
     const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
@@ -145,93 +200,185 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       const receiverLower = receiverText.toLowerCase();
 
       if (receiverLower === "me" || receiverLower === "mybase") {
-        if (activeClass) {
-          const list: SymbolInfo[] = [];
-          if (receiverLower === "me") {
-            const ownSymbols =
-              fileSyms?.symbols.filter(
-                (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase(),
-              ) ?? [];
-            list.push(...ownSymbols);
-          }
-          const inherited = TypeResolver.getInheritedMembers(activeClass.name, this.indexer).filter(
-            (s) => !s.isPrivate,
-          );
+        if (!activeClass) return [];
 
-          // Deduplicate based on signature (override/shadowing)
-          inherited.forEach((s) => {
-            const sigKey = getSignatureKey(s);
-            const hasOverride = list.some((existing) => getSignatureKey(existing) === sigKey);
-            if (!hasOverride) {
-              list.push(s);
-            }
+        const entries: RankedCompletionItem[] = [];
+        if (receiverLower === "me") {
+          this.getOwnClassMembers(fileSyms, activeClass).forEach((s) => {
+            entries.push(
+              this.createRankedSymbolItem(
+                s,
+                document,
+                CompletionBucket.Class,
+                getSymbolCompletionKey(s),
+              ),
+            );
+          });
+        }
+
+        TypeResolver.getInheritedMembers(activeClass.name, this.indexer)
+          .filter((s) => !s.isPrivate)
+          .forEach((s) => {
+            entries.push(
+              this.createRankedSymbolItem(
+                s,
+                document,
+                CompletionBucket.Inherited,
+                getSymbolCompletionKey(s),
+              ),
+            );
           });
 
-          list.forEach((s) => items.push(this.createCompletionItem(s, document)));
-        }
-        return items;
+        return this.finalizeCompletions(entries);
       }
 
-      if (this.addStaticContainerCompletions(items, receiverText, activeClass, document)) {
-        return items;
-      }
+      const staticCompletions = this.getStaticContainerCompletions(
+        receiverText,
+        activeClass,
+        document,
+      );
+      if (staticCompletions) return staticCompletions;
 
       if (memberAccess.receiverType) {
-        TypeResolver.getAllMembersForType(memberAccess.receiverType, this.indexer).forEach((s) => {
-          if (isSymbolVisible(s, activeClass, this.indexer)) {
-            items.push(this.createCompletionItem(s, document));
-          }
+        const receiverType = memberAccess.receiverType;
+        const entries: RankedCompletionItem[] = [];
+        TypeResolver.getAllMembersForType(receiverType, this.indexer).forEach((s) => {
+          if (!isSymbolVisible(s, activeClass, this.indexer)) return;
+          const bucket = matchesContainer(s.containerName, receiverType)
+            ? CompletionBucket.Class
+            : CompletionBucket.Inherited;
+          entries.push(this.createRankedSymbolItem(s, document, bucket, getSymbolCompletionKey(s)));
         });
+        return this.finalizeCompletions(entries);
       }
-      return items;
+
+      return [];
     }
 
-    const seenNames = new Set<string>();
+    const entries: RankedCompletionItem[] = [];
+    const namespaceScopeNames = this.getNamespaceScopeNames(fileSyms, position);
+    const hasNamespaceScope = namespaceScopeNames.size > 0;
+
     ast.getVisibleLocals().forEach((local) => {
-      const lower = local.name.toLowerCase();
-      if (seenNames.has(lower)) return;
-      seenNames.add(lower);
       const item = new vscode.CompletionItem(
         local.name,
         local.isConst ? vscode.CompletionItemKind.Constant : vscode.CompletionItemKind.Variable,
       );
       item.detail = `${local.isConst ? "CONSTANT" : local.description.toUpperCase()}: ${local.type}`;
-      items.push(item);
+      entries.push(
+        this.createRankedItem(
+          item,
+          getLocalCompletionBucket(local.scope, hasNamespaceScope),
+          local.name.toLowerCase(),
+        ),
+      );
     });
 
     if (activeClass) {
-      fileSyms?.symbols
-        .filter((s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase())
-        .forEach((s) => {
-          const lowerName = s.name.toLowerCase();
-          const sigKey = getSignatureKey(s);
-          if (!seenNames.has(lowerName) && !seenNames.has(sigKey)) {
-            seenNames.add(sigKey);
-            items.push(this.createCompletionItem(s, document));
-          }
-        });
+      this.getOwnClassMembers(fileSyms, activeClass).forEach((s) => {
+        entries.push(
+          this.createRankedSymbolItem(
+            s,
+            document,
+            CompletionBucket.Class,
+            getSymbolCompletionKey(s),
+          ),
+        );
+      });
 
       TypeResolver.getInheritedMembers(activeClass.name, this.indexer).forEach((s) => {
         if (s.isPrivate) return;
-        const lowerName = s.name.toLowerCase();
-        const sigKey = getSignatureKey(s);
-        if (!seenNames.has(lowerName) && !seenNames.has(sigKey)) {
-          seenNames.add(sigKey);
-          items.push(this.createCompletionItem(s, document));
-        }
+        entries.push(
+          this.createRankedSymbolItem(
+            s,
+            document,
+            CompletionBucket.Inherited,
+            getSymbolCompletionKey(s),
+          ),
+        );
       });
     }
 
-    KEYWORDS.forEach((kw) =>
-      items.push(new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword)),
-    );
-    this.addSnippets(items);
-    this.addGlobalSymbols(items, seenNames, document);
+    this.getNamespaceScopedSymbols(namespaceScopeNames, activeClass).forEach((s) => {
+      entries.push(
+        this.createRankedSymbolItem(
+          s,
+          document,
+          CompletionBucket.Namespace,
+          getSymbolCompletionKey(s),
+        ),
+      );
+    });
 
-    return items;
+    this.getGlobalSymbols(namespaceScopeNames).forEach((s) => {
+      entries.push(
+        this.createRankedSymbolItem(
+          s,
+          document,
+          CompletionBucket.Global,
+          getSymbolCompletionKey(s),
+        ),
+      );
+    });
+
+    KEYWORDS.forEach((kw) => {
+      entries.push(
+        this.createRankedItem(
+          new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword),
+          CompletionBucket.Keyword,
+          kw.toLowerCase(),
+        ),
+      );
+    });
+
+    this.addSnippets(entries);
+    return this.finalizeCompletions(entries);
   }
 
-  private addNamespaceCompletions(items: vscode.CompletionItem[]): void {
+  private finalizeCompletions(entries: readonly RankedCompletionItem[]): vscode.CompletionItem[] {
+    const deduped = new Map<string, RankedCompletionItem>();
+    for (const entry of entries) {
+      if (!deduped.has(entry.key)) {
+        deduped.set(entry.key, entry);
+      }
+    }
+
+    const sorted = Array.from(deduped.values()).sort((left, right) => {
+      if (left.bucket !== right.bucket) return left.bucket - right.bucket;
+      return left.sortLabel.localeCompare(right.sortLabel, "en", { sensitivity: "base" });
+    });
+
+    sorted.forEach((entry, index) => {
+      entry.item.sortText = `${String(entry.bucket).padStart(2, "0")}:${entry.sortLabel}:${String(index).padStart(4, "0")}`;
+    });
+
+    return sorted.map((entry) => entry.item);
+  }
+
+  private createRankedItem(
+    item: vscode.CompletionItem,
+    bucket: CompletionBucket,
+    key: string,
+  ): RankedCompletionItem {
+    return {
+      item,
+      bucket,
+      key,
+      sortLabel: toSortLabel(completionLabelText(item)),
+    };
+  }
+
+  private createRankedSymbolItem(
+    symbol: SymbolInfo,
+    document: vscode.TextDocument,
+    bucket: CompletionBucket,
+    key: string,
+  ): RankedCompletionItem {
+    return this.createRankedItem(this.createCompletionItem(symbol, document), bucket, key);
+  }
+
+  private getNamespaceCompletions(): vscode.CompletionItem[] {
+    const entries: RankedCompletionItem[] = [];
     const seen = new Set<string>();
     const pushNamespace = (name: string, detail: string): void => {
       const lower = name.toLowerCase();
@@ -239,7 +386,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       seen.add(lower);
       const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Module);
       item.detail = detail;
-      items.push(item);
+      entries.push(this.createRankedItem(item, CompletionBucket.Namespace, lower));
     };
 
     SYSTEM_SYMBOLS.forEach((s) => {
@@ -248,15 +395,60 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     this.indexer.getAllSymbols().forEach((s) => {
       if (s.kind === "namespace") pushNamespace(s.name, "Workspace");
     });
+
+    return this.finalizeCompletions(entries);
   }
 
-  private addStaticContainerCompletions(
-    items: vscode.CompletionItem[],
+  private getOwnClassMembers(
+    fileSyms: ReturnType<WorkspaceSymbolIndexer["getFileSymbols"]>,
+    activeClass: SymbolInfo,
+  ): SymbolInfo[] {
+    return (
+      fileSyms?.symbols.filter(
+        (s) => s.containerName?.toLowerCase() === activeClass.name.toLowerCase(),
+      ) ?? []
+    );
+  }
+
+  private getNamespaceScopeNames(
+    fileSyms: ReturnType<WorkspaceSymbolIndexer["getFileSymbols"]>,
+    position: vscode.Position,
+  ): Set<string> {
+    const names = new Set<string>();
+    const activeNamespace = fileSyms?.symbols.find(
+      (s) =>
+        s.kind === "namespace" &&
+        position.line >= s.range.startLine &&
+        position.line <= s.range.endLine,
+    );
+    if (activeNamespace) names.add(activeNamespace.name.toLowerCase());
+    fileSyms?.imports.forEach((imp) => names.add(imp.toLowerCase()));
+    return names;
+  }
+
+  private getNamespaceScopedSymbols(
+    namespaceScopeNames: ReadonlySet<string>,
+    activeClass: SymbolInfo | undefined,
+  ): SymbolInfo[] {
+    if (namespaceScopeNames.size === 0) return [];
+
+    const matchesScope = (s: SymbolInfo): boolean =>
+      s.containerName !== undefined &&
+      namespaceScopeNames.has(s.containerName.toLowerCase()) &&
+      isSymbolVisible(s, activeClass, this.indexer);
+
+    return [
+      ...SYSTEM_SYMBOLS.filter(matchesScope),
+      ...this.indexer.getAllSymbols().filter(matchesScope),
+    ];
+  }
+
+  private getStaticContainerCompletions(
     triggerWord: string,
     activeClass: SymbolInfo | undefined,
     document: vscode.TextDocument,
-  ): boolean {
-    if (!isSimpleIdentifier(triggerWord)) return false;
+  ): vscode.CompletionItem[] | undefined {
+    if (!isSimpleIdentifier(triggerWord)) return undefined;
 
     const triggerLower = triggerWord.toLowerCase();
     const targetClass = TypeResolver.findClassSymbol(triggerWord, this.indexer);
@@ -276,7 +468,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
               s.containerName?.toLowerCase() === triggerLower,
           ));
 
-    if (!isNamespaceOrStaticClass) return false;
+    if (!isNamespaceOrStaticClass) return undefined;
 
     const isNamespace =
       !isClassOrStruct &&
@@ -287,52 +479,41 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
           (s) => s.name.toLowerCase() === triggerLower && s.kind === "namespace",
         ));
 
-    lookupSystemByContainer(triggerWord).forEach((s) => {
-      if (isSymbolVisible(s, activeClass, this.indexer) && (isNamespace || s.isShared)) {
-        items.push(this.createCompletionItem(s, document));
-      }
-    });
+    const entries: RankedCompletionItem[] = [];
+    const pushSymbol = (s: SymbolInfo): void => {
+      if (!isSymbolVisible(s, activeClass, this.indexer)) return;
+      if (!isNamespace && !s.isShared) return;
+      entries.push(
+        this.createRankedSymbolItem(
+          s,
+          document,
+          isNamespace ? CompletionBucket.Namespace : CompletionBucket.Class,
+          getSymbolCompletionKey(s),
+        ),
+      );
+    };
+
+    lookupSystemByContainer(triggerWord).forEach(pushSymbol);
     this.indexer
       .getAllSymbols()
       .filter((s) => s.containerName?.toLowerCase() === triggerLower)
-      .forEach((s) => {
-        if (isSymbolVisible(s, activeClass, this.indexer) && (isNamespace || s.isShared)) {
-          items.push(this.createCompletionItem(s, document));
-        }
-      });
-    return true;
+      .forEach(pushSymbol);
+
+    return this.finalizeCompletions(entries);
   }
 
-  private addGlobalSymbols(
-    items: vscode.CompletionItem[],
-    seenNames: Set<string>,
-    document: vscode.TextDocument,
-  ): void {
-    SYSTEM_SYMBOLS.forEach((s) => {
-      if (
-        !s.containerName ||
-        s.kind === "namespace" ||
-        s.kind === "class" ||
-        s.kind === "declare_function" ||
-        s.kind === "declare_sub"
-      ) {
-        const lowerName = s.name.toLowerCase();
-        if (!seenNames.has(lowerName)) {
-          seenNames.add(lowerName);
-          items.push(this.createCompletionItem(s, document));
-        }
-      }
-    });
+  private getGlobalSymbols(namespaceScopeNames: ReadonlySet<string>): SymbolInfo[] {
+    const includeSymbol = (s: SymbolInfo): boolean => {
+      if (!s.containerName) return true;
+      if (s.kind === "namespace") return true;
+      if (s.kind === "declare_function" || s.kind === "declare_sub") return true;
+      return isTypeSymbol(s) && !namespaceScopeNames.has(s.containerName.toLowerCase());
+    };
 
-    this.indexer.getAllSymbols().forEach((s) => {
-      if (!s.containerName || s.kind === "namespace" || s.kind === "class") {
-        const lowerName = s.name.toLowerCase();
-        if (!seenNames.has(lowerName)) {
-          seenNames.add(lowerName);
-          items.push(this.createCompletionItem(s, document));
-        }
-      }
-    });
+    return [
+      ...SYSTEM_SYMBOLS.filter(includeSymbol),
+      ...this.indexer.getAllSymbols().filter(includeSymbol),
+    ];
   }
 
   private createCompletionItem(
@@ -449,18 +630,28 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     ];
   }
 
-  private addSnippets(items: vscode.CompletionItem[]): void {
+  private addSnippets(entries: RankedCompletionItem[]): void {
+    const pushSnippet = (item: vscode.CompletionItem): void => {
+      entries.push(
+        this.createRankedItem(
+          item,
+          CompletionBucket.Snippet,
+          completionLabelText(item).toLowerCase(),
+        ),
+      );
+    };
+
     const ifSnippet = new vscode.CompletionItem("If...Then", vscode.CompletionItemKind.Snippet);
     ifSnippet.insertText = new vscode.SnippetString("If ${1:condition}\n\t$0\nEnd If");
     ifSnippet.documentation = "Estrutura Condicional If Then";
-    items.push(ifSnippet);
+    pushSnippet(ifSnippet);
 
     const forSnippet = new vscode.CompletionItem("For...Next", vscode.CompletionItemKind.Snippet);
     forSnippet.insertText = new vscode.SnippetString(
       "For ${1:i} = 0 To ${2:count} - 1\n\t$0\nNext",
     );
     forSnippet.documentation = "Loop For Incremental";
-    items.push(forSnippet);
+    pushSnippet(forSnippet);
 
     const forEachSnippet = new vscode.CompletionItem(
       "For Each...Next",
@@ -471,7 +662,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     );
     forEachSnippet.documentation =
       "Loop de enumeracao (acucar, transpilado para For classico no build).";
-    items.push(forEachSnippet);
+    pushSnippet(forEachSnippet);
 
     const forEachRangeSnippet = new vscode.CompletionItem(
       "For Each In range",
@@ -482,7 +673,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     );
     forEachRangeSnippet.documentation =
       "Loop sobre intervalo numerico (acucar, transpilado para `For i = a To b` no build).";
-    items.push(forEachRangeSnippet);
+    pushSnippet(forEachRangeSnippet);
 
     const interpolationSnippet = new vscode.CompletionItem(
       'String Interpolation $"..."',
@@ -491,7 +682,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     interpolationSnippet.insertText = new vscode.SnippetString('$"${1:texto} {${2:expr}}$0"');
     interpolationSnippet.documentation =
       'String interpolada (acucar, transpilada para `"texto " & (expr)` com `&` no build).';
-    items.push(interpolationSnippet);
+    pushSnippet(interpolationSnippet);
 
     const ternarySnippet = new vscode.CompletionItem(
       "Dim ternary x = cond ? a : b",
@@ -502,14 +693,14 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     );
     ternarySnippet.documentation =
       "Atribuicao ternaria (acucar, transpilada para `If/Then/Else/End If` no build).";
-    items.push(ternarySnippet);
+    pushSnippet(ternarySnippet);
 
     const trySnippet = new vscode.CompletionItem("Try...Catch", vscode.CompletionItemKind.Snippet);
     trySnippet.insertText = new vscode.SnippetString(
       "Try\n\t$1\nCatch ${2:ex} As Exception\n\t$0\nEnd Try",
     );
     trySnippet.documentation = "Tratamento de Excecoes Try Catch";
-    items.push(trySnippet);
+    pushSnippet(trySnippet);
 
     const propSnippet = new vscode.CompletionItem(
       "Property Block",
@@ -519,7 +710,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       "Property ${1:PropName} As ${2:DataType}\n\tGet\n\t\t${1:PropName} = me._${3:fieldName}\n\tEnd Get\n\tSet(pValue As ${2:DataType})\n\t\tme._${3:fieldName} = pValue\n\tEnd Set\nEnd Property",
     );
     propSnippet.documentation = "Declaracao de Bloco de Propriedade Completa";
-    items.push(propSnippet);
+    pushSnippet(propSnippet);
 
     const funcSnippet = new vscode.CompletionItem(
       "Function Block",
@@ -529,12 +720,12 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       "Function ${1:FuncName}($2) As ${3:DataType}\n\t$0\n\t${1:FuncName} = $4\nEnd Function",
     );
     funcSnippet.documentation = "Declaracao de Nova Funcao";
-    items.push(funcSnippet);
+    pushSnippet(funcSnippet);
 
     const subSnippet = new vscode.CompletionItem("Sub Block", vscode.CompletionItemKind.Snippet);
     subSnippet.insertText = new vscode.SnippetString("Sub ${1:SubName}($2)\n\t$0\nEnd Sub");
     subSnippet.documentation = "Declaracao de Novo Sub/Procedimento";
-    items.push(subSnippet);
+    pushSnippet(subSnippet);
 
     const ctorSnippet = new vscode.CompletionItem(
       "Constructor (Sub New)",
@@ -544,7 +735,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       "Sub New($1)\n\tMyBase.New($2)\n\t$0\nEnd Sub",
     );
     ctorSnippet.documentation = "Construtor da Classe (Sub New)";
-    items.push(ctorSnippet);
+    pushSnippet(ctorSnippet);
   }
 }
 

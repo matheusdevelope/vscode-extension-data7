@@ -213,7 +213,16 @@ function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
   if (new RegExp(`^${DECLARATION_MODIFIERS}property\\s+`).test(lowerClean)) return "property";
   if (isSubDeclaration(lowerClean)) return "sub";
   if (isFunctionDeclaration(lowerClean)) return "function";
-  if (/^if\s+.*\sthen$/.test(lowerClean)) return "if";
+  if (/^if\s+/i.test(lowerClean)) {
+    const thenIndex = lowerClean.indexOf(" then");
+    if (thenIndex !== -1) {
+      const afterThen = lowerClean.substring(thenIndex + 5).trim();
+      if (afterThen.length > 0 && afterThen !== ":") {
+        return undefined; // Single-line If, don't open block
+      }
+    }
+    return "if";
+  }
   if (lowerClean.startsWith("select case ")) return "select";
   if (lowerClean.startsWith("match ")) return "match";
   if (lowerClean.startsWith("for ")) return "for";
@@ -289,6 +298,8 @@ function getBranchDepth(
     lowerClean === "else" ||
     lowerClean.startsWith("elseif ") ||
     lowerClean.startsWith("elseif\t") ||
+    lowerClean.startsWith("else if ") ||
+    lowerClean.startsWith("else if\t") ||
     lowerClean === "catch" ||
     lowerClean.startsWith("catch ") ||
     lowerClean.startsWith("catch\t") ||

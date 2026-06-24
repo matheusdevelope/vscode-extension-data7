@@ -1,7 +1,14 @@
 import { SugarEngine } from "./sugars";
-import { GenericsMonomorphizer, type MonomorphizationWarning } from "./generics";
+import { flatNameOf, GenericsMonomorphizer, type MonomorphizationWarning } from "./generics";
 import { GenericsParserPlugin, parseBasic, serializeUnitWithMap } from "./parser";
-import type { TopLevelMember } from "./ast/ast";
+import {
+  ASTWalker,
+  type TopLevelMember,
+  type TypeReference,
+  type MethodInvocation,
+  type OpaqueStatement,
+  type CompilationUnit,
+} from "./ast/ast";
 import { ASTSugarTransformer } from "./sugars/plugins/ast/transformer";
 import { LoggerPrintSugarTransformer } from "./sugars/plugins/logger-print/transformer";
 import { normalizeMetaProgrammingSyntax } from "./sugars/plugins/metaprogramming";
@@ -73,24 +80,23 @@ export class SugarTranspiler {
     );
 
     let finalUnit = tempParse.unit;
-    let transformerLines = lines;
     let wrapped = false;
 
     if (!hasStructural) {
       wrapped = true;
       const wrappedCode = `Sub __syntheticMethod()${eol}${processedCode}${eol}End Sub`;
       finalUnit = parseBasic(wrappedCode, { plugins, preserveLine }).unit;
-      transformerLines = [`Sub __syntheticMethod()`, ...lines, `End Sub`];
     }
 
     // 3. Run generics monomorphizer directly on the AST
+    _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
+
     const monomorphizer = new GenericsMonomorphizer({
       isTypeDescendantOf: ctx.isTypeDescendantOf?.bind(ctx),
       externalTemplates: ctx.externalGenericTemplates,
       requestedInstantiations: ctx.requestedGenericInstantiations,
     });
     const genericsResult = monomorphizer.monomorphize(finalUnit);
-    // _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
 
     // 4. Transform AST-to-AST for sugars
     const declaredNamespaces = collectNamespaceNames(finalUnit);
@@ -98,7 +104,7 @@ export class SugarTranspiler {
       ctx.rewritePrintToLogger !== false &&
       sugarEngine.getEnabledSugarIdsInPrecedenceOrder().includes("logger-print") &&
       !declaredNamespaces.has("mod_logger");
-    const transformer = new ASTSugarTransformer(ctx, transformerLines, sugarEngine);
+    const transformer = new ASTSugarTransformer(ctx, sugarEngine);
     transformer.walk(finalUnit);
     const finalSugarTransformers = sugarEngine
       .getEnabledSugarIdsInPrecedenceOrder()
@@ -112,6 +118,7 @@ export class SugarTranspiler {
         }
       }
     }
+    _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
 
     // 5. Serialize AST back to code text, generating the lineMap!
     let serializeResult = serializeUnitWithMap(finalUnit, { eol, omitPublicFieldModifiers: true });
@@ -172,4 +179,141 @@ export class SugarTranspiler {
       usedSugars: transformer.usedSugars,
     };
   }
+}
+
+function _injectImportsForMaterializedGenericInstantiations(
+  finalUnit: CompilationUnit,
+  ctx: TranspileContext,
+): void {
+  const externalTemplateNames = new Set(
+    (ctx.externalGenericTemplates ?? []).map((template) => template.name.toLowerCase()),
+  );
+
+  // 1. Collect all generic template names used in this file.
+  const collector = new (class extends ASTWalker {
+    public readonly templateNames = new Set<string>();
+
+    protected override visitTypeReference(node: TypeReference): void {
+      if (!node.name) return;
+      if (node.typeArguments.length > 0 && externalTemplateNames.has(node.name.toLowerCase())) {
+        this.templateNames.add(node.name);
+        this.templateNames.add(flatNameOf(node));
+        return;
+      }
+      if (isMaterializedExternalGenericName(node.name, externalTemplateNames)) {
+        this.templateNames.add(node.name);
+      }
+    }
+
+    protected override visitMethodInvocation(node: MethodInvocation): void {
+      if (
+        node.typeArguments.length > 0 &&
+        node.methodName &&
+        externalTemplateNames.has(node.methodName.toLowerCase())
+      ) {
+        this.templateNames.add(node.methodName);
+      }
+    }
+
+    protected override visitOpaqueStatement(node: OpaqueStatement): void {
+      for (const candidate of collectMaterializedGenericCandidates(
+        node.text,
+        externalTemplateNames,
+      )) {
+        this.templateNames.add(candidate);
+      }
+    }
+  })();
+
+  collector.walk(finalUnit);
+
+  if (collector.templateNames.size === 0) return;
+
+  // 2. Identify already declared namespaces and existing imports.
+  const declaredNamespaces = new Set<string>();
+  const existingImports = new Set<string>();
+
+  for (const member of finalUnit.members) {
+    if (member.kind === "NamespaceDeclaration") {
+      declaredNamespaces.add(member.name.toLowerCase());
+    } else if (member.kind === "ImportsDeclaration") {
+      existingImports.add(member.target.toLowerCase());
+    }
+  }
+
+  // 3. For each generic template, resolve its namespace and inject if not already present.
+  const namespacesToImport = new Set<string>();
+  for (const templateName of collector.templateNames) {
+    const ns = ctx.resolveTypeImport?.(templateName);
+    if (ns) {
+      const nsLower = ns.toLowerCase();
+      if (!declaredNamespaces.has(nsLower) && !existingImports.has(nsLower)) {
+        namespacesToImport.add(ns);
+      }
+    }
+  }
+
+  // 4. Inject new ImportsDeclaration nodes.
+  for (const ns of namespacesToImport) {
+    let insertIdx = 0;
+    for (let i = 0; i < finalUnit.members.length; i++) {
+      const member = finalUnit.members[i];
+      if (member?.kind === "ImportsDeclaration") {
+        insertIdx = i + 1;
+      }
+    }
+    finalUnit.members.splice(insertIdx, 0, {
+      kind: "ImportsDeclaration",
+      target: ns,
+      loc: finalUnit.loc,
+    });
+    // Track as existing import to avoid duplicates if multiple templates map to same namespace
+    existingImports.add(ns.toLowerCase());
+  }
+}
+
+function collectMaterializedGenericCandidates(
+  text: string,
+  externalTemplateNames: ReadonlySet<string>,
+): Set<string> {
+  const candidates = new Set<string>();
+
+  for (const match of text.matchAll(/\b([a-zA-Z_][a-zA-Z_0-9]*)\s*</g)) {
+    const name = match[1];
+    if (name && externalTemplateNames.has(name.toLowerCase())) {
+      candidates.add(name);
+    }
+  }
+
+  for (const templateName of externalTemplateNames) {
+    const pattern = new RegExp(
+      `\\b(${escapeRegExp(templateName)}_[a-zA-Z_][a-zA-Z_0-9]*)\\b`,
+      "gi",
+    );
+    for (const match of text.matchAll(pattern)) {
+      const name = match[1];
+      if (name) {
+        candidates.add(name);
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function isMaterializedExternalGenericName(
+  typeName: string,
+  externalTemplateNames: ReadonlySet<string>,
+): boolean {
+  const lower = typeName.toLowerCase();
+  for (const templateName of externalTemplateNames) {
+    if (lower.startsWith(`${templateName}_`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

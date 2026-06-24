@@ -91,6 +91,7 @@ const KEYWORDS: ReadonlySet<string> = new Set(
     "Catch",
     "Class",
     "Const",
+    "Continue",
     "Declare",
     "Delegate",
     "Dim",
@@ -316,22 +317,33 @@ function isIdentChar(ch: string): boolean {
 export function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
   const lines = source.split(/\r?\n/);
+  let continuationPending = false;
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const raw = lines[lineIdx] ?? "";
     const lineTokens = tokenizeLine(raw, { includeWhitespace: false });
-    for (const lt of lineTokens) {
+    const hasLineContinuation = hasTrailingLineContinuation(lineTokens, raw);
+    const isCommentOrEmpty: boolean = lineTokens.length === 0 || (lineTokens.length === 1 && lineTokens[0]?.kind === "comment");
+    const continuesThroughComment: boolean = continuationPending && isCommentOrEmpty;
+    const effectiveTokens = hasLineContinuation
+      ? lineTokens.slice(0, -1)
+      : continuesThroughComment
+        ? []
+        : lineTokens;
+    for (const lt of effectiveTokens) {
       const mapped = mapLineToken(lt, lineIdx + 1);
       if (mapped !== null) tokens.push(mapped);
     }
     // Emit a newline marker after every line except the last.
-    if (lineIdx < lines.length - 1) {
+    const continues: boolean = hasLineContinuation || continuesThroughComment;
+    if (lineIdx < lines.length - 1 && !continues) {
       tokens.push({
         kind: "newline",
         value: "\n",
         loc: { line: lineIdx + 1, column: raw.length },
       });
     }
+    continuationPending = continues;
   }
 
   const lastLine = lines.length === 0 ? 1 : lines.length;
@@ -353,4 +365,18 @@ function mapLineToken(t: LineToken, line: number): Token | null {
     loc: { line, column: t.col },
     prefix: t.kind === "string" ? t.prefix : undefined,
   };
+}
+
+function hasTrailingLineContinuation(tokens: readonly LineToken[], rawLine: string): boolean {
+  if (tokens.length === 0) return false;
+  const lastNonCommentIdx = tokens[tokens.length - 1]?.kind === "comment" ? tokens.length - 2 : tokens.length - 1;
+  if (lastNonCommentIdx < 0) return false;
+  const lastNonCommentToken = tokens[lastNonCommentIdx];
+  if (lastNonCommentToken?.kind === "identifier" && lastNonCommentToken.value === "_") {
+    const rawAfterUnderscore = rawLine.slice(lastNonCommentToken.col + 1).trim();
+    if (rawAfterUnderscore === "" || rawAfterUnderscore.startsWith("'")) {
+      return true;
+    }
+  }
+  return false;
 }

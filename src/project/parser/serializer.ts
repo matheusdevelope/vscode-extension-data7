@@ -140,6 +140,7 @@ function serializeMember(
     case "MatchStatement":
     case "ReturnStatement":
     case "ExitStatement":
+    case "ContinueStatement":
     case "ThrowStatement":
     case "Block":
     case "WithStatement":
@@ -210,7 +211,11 @@ function serializeClass(
   options: SerializeOptions,
 ): void {
   out.setLine(klass.loc);
-  const header = `${emitModifiers(klass.modifiers)}Class ${klass.name}${emitTypeParams(klass.typeParameters)}${
+  const isStructure = klass.modifiers?.some((m) => m.toLowerCase() === "structure") ?? false;
+  const filteredModifiers = klass.modifiers?.filter((m) => m.toLowerCase() !== "structure");
+  const keyword = isStructure ? "Structure" : "Class";
+
+  const header = `${emitModifiers(filteredModifiers)}${keyword} ${klass.name}${emitTypeParams(klass.typeParameters)}${
     klass.baseType
       ? "\n" + indent(depth + 1, options) + "Inherits " + emitTypeRef(klass.baseType)
       : ""
@@ -219,12 +224,17 @@ function serializeClass(
     indent(depth, options) + header + (klass.comment && !options.minify ? " " + klass.comment : ""),
   );
   for (const member of klass.members) {
-    if (member.kind === "MethodDeclaration") serializeMethod(member, depth + 1, out, options);
-    else if (member.kind === "PropertyDeclaration") {
+    if (member.kind === "MethodDeclaration") {
+      serializeMethod(member, depth + 1, out, options);
+    } else if (member.kind === "PropertyDeclaration") {
       serializeProperty(member, depth + 1, out, options);
-    } else serializeField(member, depth + 1, out, options);
+    } else if (member.kind === "ClassDeclaration") {
+      serializeClass(member, depth + 1, out, options);
+    } else {
+      serializeField(member, depth + 1, out, options);
+    }
   }
-  out.push(indent(depth, options) + "End Class");
+  out.push(indent(depth, options) + `End ${keyword}`);
 }
 
 function serializeMethod(
@@ -413,6 +423,13 @@ function serializeStatement(
           (s.comment && !options.minify ? " " + s.comment : ""),
       );
       return;
+    case "ContinueStatement":
+      out.push(
+        indent(depth, options) +
+          "Continue" +
+          (s.comment && !options.minify ? " " + s.comment : ""),
+      );
+      return;
     case "ThrowStatement":
       out.push(
         indent(depth, options) +
@@ -590,6 +607,10 @@ function emitStatementInline(s: Statement): string {
       return emitVariableDeclaration(s);
     case "ExitStatement":
       return `Exit ${s.target}`;
+    case "ContinueStatement":
+      return "Continue";
+    case "ThrowStatement":
+      return `Throw ${emitExpression(s.expression)}`;
     default:
       return "";
   }

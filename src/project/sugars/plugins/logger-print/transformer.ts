@@ -45,6 +45,7 @@ export class LoggerPrintSugarTransformer {
       case "MatchStatement":
       case "ReturnStatement":
       case "ExitStatement":
+      case "ContinueStatement":
       case "ThrowStatement":
       case "Block":
       case "WithStatement":
@@ -65,6 +66,9 @@ export class LoggerPrintSugarTransformer {
       case "PropertyDeclaration":
         if (member.getter) this.transformMethod(member.getter);
         if (member.setter) this.transformMethod(member.setter);
+        return member;
+      case "ClassDeclaration":
+        member.members = member.members.map((m) => this.transformClassMember(m));
         return member;
     }
   }
@@ -162,6 +166,7 @@ export class LoggerPrintSugarTransformer {
         return statement;
       case "EnumDeclaration":
       case "ExitStatement":
+      case "ContinueStatement":
       case "OpaqueStatement":
         return statement;
     }

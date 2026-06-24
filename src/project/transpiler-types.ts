@@ -27,6 +27,8 @@ export interface TranspileContext {
   detectEnumerable(typeName: string, preferredElementType?: string): EnumerableInfo | undefined;
   isTypeDescendantOf?(typeName: string, baseTypeName: string): boolean | undefined;
   resolveTypeImport?(typeName: string): string | undefined;
+  resolveGlobalSymbolType?(name: string, argumentCount: number): string | undefined;
+  resolveMemberType?(typeName: string, name: string, argumentCount: number): string | undefined;
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
   sugarOptions?: SugarEngineOptions;

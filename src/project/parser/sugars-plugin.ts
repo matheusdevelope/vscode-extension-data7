@@ -402,12 +402,15 @@ export class SugarsParserPlugin implements ParserPlugin {
         loc: locOf(token.loc),
       };
       const args: Expression[] = [];
-      parser.expect("punct", "(", { literal: true });
-      while (!parser.match("punct", ")") && !parser.isEOF()) {
-        args.push(parser.parseExpression());
-        if (!parser.consume("punct", ",")) break;
+      const hasParentheses = parser.match("punct", "(");
+      if (hasParentheses) {
+        parser.advance();
+        while (!parser.match("punct", ")") && !parser.isEOF()) {
+          args.push(parser.parseExpression());
+          if (!parser.consume("punct", ",")) break;
+        }
+        parser.expect("punct", ")", { literal: true });
       }
-      parser.expect("punct", ")", { literal: true });
 
       const next = parser.peek();
       if (
@@ -443,6 +446,7 @@ export class SugarsParserPlugin implements ParserPlugin {
         kind: "ObjectCreationExpression",
         type: typeRef,
         arguments: args,
+        noParentheses: !hasParentheses,
         loc: locOf(token.loc),
       };
     }
