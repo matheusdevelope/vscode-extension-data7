@@ -37,7 +37,6 @@
   },
   "activationEvents": [
     "onLanguage:data7project",
-    "onLanguage:vba",
     "workspaceContains:**/*.7proj",
     "workspaceContains:**/*.7Proj"
   ],
@@ -199,6 +198,12 @@
         "command": "data7.previewTranspiledCodeActive",
         "title": "Ver Código Transpilado",
         "category": "Data7"
+      },
+      {
+        "command": "data7.fixAllWorkspace",
+        "title": "Corrigir Erros de Sintaxe/Estilo no Projeto Completo",
+        "category": "Data7",
+        "icon": "$(tools)"
       }
     ],
     "menus": {

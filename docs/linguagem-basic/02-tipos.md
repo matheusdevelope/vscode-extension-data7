@@ -148,7 +148,7 @@ Esses nomes aparecem em assinaturas da System Library. São **aliases** — equi
 A única coleção genérica nativa é `Collections.StringList` (lista de strings, opcionalmente com objetos pareados). Para outras necessidades:
 
 - **`Variant` + arrays do Delphi**: aceitos pelo runtime mas raros em código novo.
-- **Classes tipadas derivando de uma `TRecordList` base** (padrão idiomático — vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
+- **Classes tipadas derivando de uma `TTList` base** (padrão idiomático — vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
 - **Futuro `TList<T>` via monomorfização**: vide [07-generics.md](./07-generics.md).
 
 ## Tipos do runtime core do ERP
@@ -159,7 +159,7 @@ Diferente dos namespaces da [System Library](./09-system-library.md), o ERP inje
 |---|---|
 | `ObjectPrinter` | Construtor de logs estruturados (base do padrão `console.Block` — vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)) |
 | `Transport` / `TransportList` | Modelo de transporte de dados entre camadas (DTO + lista) |
-| `BaseList` / `BaseItem` | Bases para coleções tipadas (`CardRecordList` herda de `TRecordList` que herda de `BaseList`) |
+| `BaseList` / `BaseItem` | Bases para coleções tipadas (`CardRecordList` herda de `TTList` que herda de `BaseList`) |
 | `Certificado` / `CertificadoList` | Manipulação de certificados digitais (NF-e, assinatura) |
 | `Logger` / `LogInfo` | Sistema de logging para o output do Executor |
 | `SQL.Command` | Atalho qualificado para `Command` no namespace `SQL` |

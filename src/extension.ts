@@ -13,6 +13,7 @@ import { DiagnosticService } from "./services/diagnostic-service";
 import { MCPService } from "./services/mcp-service";
 import { RepositoryService } from "./services/repository-service";
 import { PreviewService } from "./services/preview-service";
+import { WorkspaceFixService } from "./services/workspace-fix-service";
 
 export function activate(context: vscode.ExtensionContext): void {
   initLogger(context);
@@ -113,26 +114,46 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(renameListener, deleteListener);
 
-  // Offer to open a .7Proj when one is opened in the editor.
+  // Offer to open a .7Proj when one is opened or viewed in the editor.
   const openProjListener = vscode.workspace.onDidOpenTextDocument((doc) => {
     void ActivationService.handleProjectDocumentOpen(doc);
   });
-  context.subscriptions.push(openProjListener);
+  const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (editor) {
+      void ActivationService.handleProjectDocumentOpen(editor.document);
+    }
+  });
+  context.subscriptions.push(openProjListener, activeEditorListener);
+
   vscode.workspace.textDocuments.forEach((doc) => {
     void ActivationService.handleProjectDocumentOpen(doc);
   });
+  if (vscode.window.activeTextEditor) {
+    void ActivationService.handleProjectDocumentOpen(vscode.window.activeTextEditor.document);
+  }
 
-  // Optional: format `.bas` files on save when the user opts in via `data7.autoFormatOnSave`.
+  // Apply syntax/style auto-fixes on save. When the legacy `data7.autoFormatOnSave`
+  // flag is enabled, formatting still runs on saves that do not need fixes.
   const formatOnSaveListener = vscode.workspace.onWillSaveTextDocument((e) => {
     if (e.document.languageId !== LANGUAGE_IDS.d7basic && !e.document.fileName.endsWith(".bas")) {
       return;
     }
     const cfg = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
-    if (!cfg.get<boolean>("autoFormatOnSave")) return;
     e.waitUntil(
-      vscode.commands
-        .executeCommand<vscode.TextEdit[]>("vscode.executeFormatDocumentProvider", e.document.uri)
-        .then((edits: vscode.TextEdit[] | undefined) => edits ?? []),
+      Promise.resolve().then(async () => {
+        const fixEdits = WorkspaceFixService.buildWillSaveTextEdits(e.document);
+        if (fixEdits && fixEdits.length > 0) {
+          return fixEdits;
+        }
+        if (!cfg.get<boolean>("autoFormatOnSave")) {
+          return [];
+        }
+        const formatEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+          "vscode.executeFormatDocumentProvider",
+          e.document.uri,
+        );
+        return formatEdits ?? [];
+      }),
     );
   });
   context.subscriptions.push(formatOnSaveListener);

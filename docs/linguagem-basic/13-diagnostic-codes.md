@@ -28,6 +28,9 @@ export const DiagnosticCodes = {
    UnknownSuppressionCode: "unknown-suppression-code",
    InvalidInterpolation: "invalid-interpolation",
    TernaryContextUnsupported: "ternary-context-unsupported",
+   ElseIfWhitespace: "elseif-whitespace",
+   MissingThen: "missing-then",
+   ReturnUnrecommended: "return-unrecommended",
    // Generics (Fase 1 do plano "Generics Hardening + AST Parser + Linter Integration")
    UnknownTemplate: "unknown-template",
    GenericArityMismatch: "generic-arity-mismatch",
@@ -447,7 +450,7 @@ Declarados em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diag
 | [`using-non-disposable`](../example/diagnostics/using-non-disposable) | `Using x As T` mas `T` não tem `Free`/`Dispose` | Planejado (linter) | B2 |
 | [`auto-new-non-default-ctor`](../example/diagnostics/auto-new-non-default-ctor) | `Dim x As New T` mas `T` exige construtor com args | Planejado (linter) | B3 |
 | [`default-indexer-missing`](../example/diagnostics/default-indexer-missing) | `list(i)` em tipo sem default indexer | Planejado (linter) | C5 |
-| [`generic-constraint-violated`](../example/diagnostics/generic-constraint-violated) | `Class TList<T As BaseEnum>` com `T` incompatível | Planejado (linter) | C7 |
+| [`generic-constraint-violated`](../example/diagnostics/generic-constraint-violated) | `Class TList<T As TEnum>` com `T` incompatível | Planejado (linter) | C7 |
 | [`destructure-unknown-member`](../example/diagnostics/destructure-unknown-member) | `Dim { Foo } = pessoa` mas `pessoa.Foo` não existe | Planejado (linter) | E1 |
 | [`destructure-non-array`](../example/diagnostics/destructure-non-array) | `Dim [a, b] = x` mas `x` não é indexável | Planejado (linter) | E4 |
 | [`destructure-context-unsupported`](../example/diagnostics/destructure-context-unsupported) | destructuring fora de `Dim`/parâmetro | Planejado (linter) | E1 |

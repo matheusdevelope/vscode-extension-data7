@@ -1,104 +1,110 @@
 {
-  "nome": "mod_card_grouper",
+  "nome": "mod_teste",
   "language": "Basic",
-  "version": "2.0",
+  "version": "1.0.0.0",
   "targetPlatform": "Default",
   "opcoes": {
     "autor": "Matheus",
     "versao": "1.0.0.0",
-    "informacoes": "Módulo para separar arquivos de retornos de cartões para faciliar a conciliação de cartões e bancária",
+    "informacoes": "Projeto mod_teste criado no VS Code",
     "codEmpresa": 1,
     "codFilial": 1,
-    "nomeUsuario": "Administrador",
+    "nomeUsuario": "Matheus",
     "preScript": "",
     "identificacaoBancoDados": "6B3204FB-3574-45D3-84F1-57F413F10C4E"
   },
   "virtualFolders": [
     {
-      "nome": "Unidades (56)",
-      "id": "{1F241EF3-1E14-436D-8374-B5C8F126C988}",
+      "nome": "Unidades (58)",
+      "id": "{2595FD36-7023-4330-9250-4A29F9413BC5}",
       "pastaId": "",
       "aberta": "Sim"
     },
     {
       "nome": "data7_modules",
-      "id": "{975F1BBE-964B-457F-AF70-A7BBD8FC0361}",
-      "pastaId": "{1F241EF3-1E14-436D-8374-B5C8F126C988}",
+      "id": "{5C130A7F-60C4-4638-9B25-81EF3566CFBC}",
+      "pastaId": "{2595FD36-7023-4330-9250-4A29F9413BC5}",
       "aberta": "Nao"
     },
     {
       "nome": "mod_card",
-      "id": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
-      "pastaId": "{1F241EF3-1E14-436D-8374-B5C8F126C988}",
-      "aberta": "Sim"
-    },
-    {
-      "nome": "core",
-      "id": "{67077B15-5467-4E04-9BCD-70653E3AE33E}",
-      "pastaId": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
-      "aberta": "Sim"
-    },
-    {
-      "nome": "form",
-      "id": "{4EAB588F-35FD-4A74-A5A0-BD614E080E84}",
-      "pastaId": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
+      "id": "{9A691393-EADE-4C56-982D-8C3F15B84AAB}",
+      "pastaId": "{2595FD36-7023-4330-9250-4A29F9413BC5}",
       "aberta": "Sim"
     },
     {
       "nome": "adapters",
-      "id": "{A573FDF9-B7B4-4DDB-A119-E8EAEB9E4FBA}",
-      "pastaId": "{E51F2243-213A-4D3D-BF0F-CCFF21B3C9C9}",
+      "id": "{BBDF0C85-368F-4D37-816F-324727099EA0}",
+      "pastaId": "{9A691393-EADE-4C56-982D-8C3F15B84AAB}",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "core",
+      "id": "{B737057C-4E6B-4AFE-BD62-86F80ABF4C2A}",
+      "pastaId": "{9A691393-EADE-4C56-982D-8C3F15B84AAB}",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "form",
+      "id": "{E0E47795-0695-4EA6-8CA8-54D5836DF708}",
+      "pastaId": "{9A691393-EADE-4C56-982D-8C3F15B84AAB}",
       "aberta": "Sim"
     }
   ],
   "modulesMetadata": {
     "mod_card_stone": {
       "nome": "mod_card_stone",
-      "aberto": false,
-      "ordemAbertura": -1,
-      "pastaId": "{A573FDF9-B7B4-4DDB-A119-E8EAEB9E4FBA}"
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{BBDF0C85-368F-4D37-816F-324727099EA0}"
     },
     "mod_card_adm": {
       "nome": "mod_card_adm",
-      "aberto": false,
-      "ordemAbertura": -1,
-      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{B737057C-4E6B-4AFE-BD62-86F80ABF4C2A}"
     },
     "mod_card_extractor": {
       "nome": "mod_card_extractor",
-      "aberto": false,
-      "ordemAbertura": -1,
-      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{B737057C-4E6B-4AFE-BD62-86F80ABF4C2A}"
     },
     "mod_card_grouper": {
       "nome": "mod_card_grouper",
-      "aberto": false,
-      "ordemAbertura": -1,
-      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{B737057C-4E6B-4AFE-BD62-86F80ABF4C2A}"
     },
     "mod_card_record": {
       "nome": "mod_card_record",
-      "aberto": false,
-      "ordemAbertura": -1,
-      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{B737057C-4E6B-4AFE-BD62-86F80ABF4C2A}"
     },
     "mod_card_schema": {
       "nome": "mod_card_schema",
-      "aberto": false,
-      "ordemAbertura": -1,
-      "pastaId": "{67077B15-5467-4E04-9BCD-70653E3AE33E}"
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{B737057C-4E6B-4AFE-BD62-86F80ABF4C2A}"
     },
     "mod_card_controller": {
       "nome": "mod_card_controller",
       "aberto": true,
-      "ordemAbertura": 1,
-      "pastaId": "{4EAB588F-35FD-4A74-A5A0-BD614E080E84}"
+      "ordemAbertura": 0,
+      "pastaId": "{E0E47795-0695-4EA6-8CA8-54D5836DF708}"
     },
     "mod_card_form": {
       "nome": "mod_card_form",
       "aberto": true,
-      "ordemAbertura": 2,
-      "pastaId": "{4EAB588F-35FD-4A74-A5A0-BD614E080E84}"
+      "ordemAbertura": 0,
+      "pastaId": "{E0E47795-0695-4EA6-8CA8-54D5836DF708}"
+    },
+    "mod_product": {
+      "nome": "mod_product",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{2595FD36-7023-4330-9250-4A29F9413BC5}"
     }
   },
   "dependencies": {
@@ -110,6 +116,7 @@
     "mod_pipeline_schema": "1.0.0.0",
     "mod_pipeline_extractor": "1.0.0.0",
     "mod_pipeline_grouper": "1.0.0.0",
+    "console": "1.0.0.0",
     "mod_pipeline_controller": "1.0.0.0",
     "mod_pipeline_form": "1.0.0.0",
     "mod_base_list": "1.0.0.0",

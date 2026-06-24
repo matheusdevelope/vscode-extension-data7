@@ -58,6 +58,7 @@ export const COMMAND_IDS = {
   previewMcpClientConfig: "data7.previewMcpClientConfig",
   previewTranspiledCode: "data7.previewTranspiledCode",
   previewTranspiledCodeActive: "data7.previewTranspiledCodeActive",
+  fixAllWorkspace: "data7.fixAllWorkspace",
 } as const;
 
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];

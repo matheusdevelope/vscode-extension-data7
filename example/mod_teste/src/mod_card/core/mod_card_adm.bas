@@ -16,7 +16,7 @@ Namespace mod_card_adm
          _Initialized = True
       End Sub
 
-      Shared Function Stone() As CardAdm
+      Shared Function Stone As CardAdm
          Stone = Load("Stone")
       End Function
 

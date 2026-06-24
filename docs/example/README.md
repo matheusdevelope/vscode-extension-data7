@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (120 arquivos)
+## Índice de exemplos (123 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -144,7 +144,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/destructure-object/01-basic.bas`](./sugar/destructure-object/01-basic.bas) | Dim { Nome, Idade } = pessoa expandido em Dims individuais | `none` | — |
 | [`sugar/destructure-object/02-rename-default.bas`](./sugar/destructure-object/02-rename-default.bas) | destructuring com rename (As n) e default (= "x") | `none` | — |
 | [`sugar/enum-declarative/_expected/01-basic.bas`](./sugar/enum-declarative/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/enum-declarative/01-basic | `none` | — |
-| [`sugar/enum-declarative/01-basic.bas`](./sugar/enum-declarative/01-basic.bas) | Enum X / End Enum expandido para Class X Inherits BaseEnum | `none` | — |
+| [`sugar/enum-declarative/01-basic.bas`](./sugar/enum-declarative/01-basic.bas) | Enum X / End Enum expandido para Class X Inherits TEnum | `none` | — |
 | [`sugar/for-each-range/_expected/01-simple.bas`](./sugar/for-each-range/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/for-each-range/01-simple | `none` | — |
 | [`sugar/for-each-range/_expected/02-variable-end.bas`](./sugar/for-each-range/_expected/02-variable-end.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/for-each-range/02-variable-end | `none` | — |
 | [`sugar/for-each-range/01-simple.bas`](./sugar/for-each-range/01-simple.bas) | For Each i In 0..10 — açúcar para o For clássico com limites numéricos | `none` | — |
@@ -193,7 +193,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (51)
+### diagnostics (54)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -210,12 +210,12 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/duplicate-declaration/trigger.bas`](./diagnostics/duplicate-declaration/trigger.bas) | declaração de duas variáveis locais com o mesmo nome no mesmo método | `duplicate-declaration@7` | — |
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
+| [`diagnostics/elseif-whitespace/trigger.bas`](./diagnostics/elseif-whitespace/trigger.bas) | uso de Else If com espaço, rejeitado pelo compilador em favor de ElseIf | `elseif-whitespace@5` | — |
 | [`diagnostics/event-signature-mismatch/trigger.bas`](./diagnostics/event-signature-mismatch/trigger.bas) | handler atribuído a OnClick (TNotifyEvent espera 1 parâmetro Sender) mas o handler tem 0 | `event-signature-mismatch@11` | — |
-| [`diagnostics/finally-block-unsupported/trigger.bas`](./diagnostics/finally-block-unsupported/trigger.bas) | O uso de Finally no Try-Catch é desencorajado | `finally-block-unsupported@7` | — |
 | [`diagnostics/flat-name-collision/trigger.bas`](./diagnostics/flat-name-collision/trigger.bas) | source type carries `_` so two distinct usages collapse to the same flat name | `flat-name-collision@14` | `emitted by the SugarTranspiler at build-time (Fase 6); the live linter does not yet track flat-name collisions.` |
 | [`diagnostics/function-read-self/trigger.bas`](./diagnostics/function-read-self/trigger.bas) | reading from function name inside its own body | `function-read-self@10` | `linter implementation for function self read detection` |
 | [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |
-| [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As BaseEnum> violada por Integer | `generic-constraint-violated@10` | `classes BaseEnum + CardAdm declaradas no workspace` |
+| [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As TEnum> violada por Integer | `generic-constraint-violated@10` | `classes TEnum + CardAdm declaradas no workspace` |
 | [`diagnostics/instance-member-access-on-type/trigger.bas`](./diagnostics/instance-member-access-on-type/trigger.bas) | access to an instance member statically on the type | `instance-member-access-on-type@20` | `o código diagnóstico existe, mas o linter live atual resolve identificadores de classe como tipos antes de marcar acesso estático; pendente wiring do checker` |
 | [`diagnostics/instantiation-limit-exceeded/trigger.bas`](./diagnostics/instantiation-limit-exceeded/trigger.bas) | a generic template that recursively instantiates itself exceeds MAX_INSTANTIATIONS | `instantiation-limit-exceeded@11` | `emitted by the SugarTranspiler at build-time (Fase 6) when the worklist exceeds 10_000 instantiations; the live linter does not run the drain.` |
 | [`diagnostics/invalid-assignment-target/trigger.bas`](./diagnostics/invalid-assignment-target/trigger.bas) | assigning to another function name | `invalid-assignment-target@13` | `linter implementation for invalid assignment target` |
@@ -227,15 +227,18 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/missing-mybase-free/trigger.bas`](./diagnostics/missing-mybase-free/trigger.bas) | classe sem o método Sub Free() | `missing-mybase-free@3` | — |
 | [`diagnostics/missing-mybase-new/trigger.bas`](./diagnostics/missing-mybase-new/trigger.bas) | construtor Sub New sem chamada a MyBase.New() | `missing-mybase-new@5` | — |
 | [`diagnostics/missing-return-value/trigger.bas`](./diagnostics/missing-return-value/trigger.bas) | function missing return value | `missing-return-value@7` | `linter implementation for control flow analysis` |
+| [`diagnostics/missing-then/trigger.bas`](./diagnostics/missing-then/trigger.bas) | bloco If sem a palavra-chave Then | `missing-then@4` | — |
 | [`diagnostics/module-not-declared/trigger.bas`](./diagnostics/module-not-declared/trigger.bas) | módulo existe no repositório privado mas não foi adicionado a data7.json#dependencies | `module-not-declared@6` | `módulo "mod_shared_utility" no repositório privado E ausência da entrada em data7.json` |
 | [`diagnostics/module-not-found/trigger.bas`](./diagnostics/module-not-found/trigger.bas) | Imports de um módulo que não existe no workspace, repositório privado, nem System Library | `module-not-found@6` | `nenhum módulo "mod_unknown_module" instalado em lugar nenhum` |
 | [`diagnostics/not-enumerable/trigger.bas`](./diagnostics/not-enumerable/trigger.bas) | For Each sobre tipo do workspace sem propriedade Count + indexer inteiro | `not-enumerable@12` | — |
 | [`diagnostics/null-coalesce-context-unsupported/trigger.bas`](./diagnostics/null-coalesce-context-unsupported/trigger.bas) | ?? usado fora de assignment RHS — Print não é assignment | `null-coalesce-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/null-narrowing/01-after-guard.bas`](./diagnostics/null-narrowing/01-after-guard.bas) | TypeResolver propaga NotNull(x) após If x = NULL Then Return | `none` | — |
+| [`diagnostics/object-creation-parentheses-missing/trigger.bas`](./diagnostics/object-creation-parentheses-missing/trigger.bas) | object creation missing empty constructor parentheses | `object-creation-parentheses-missing@8` | — |
 | [`diagnostics/optional-chain-context-unsupported/trigger.bas`](./diagnostics/optional-chain-context-unsupported/trigger.bas) | ?. usado fora de assignment ou call-statement | `optional-chain-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/optional-chain-too-deep/trigger.bas`](./diagnostics/optional-chain-too-deep/trigger.bas) | cadeia ?. com mais de 3 níveis — refator manual exigido | `optional-chain-too-deep@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/private-member-access/trigger.bas`](./diagnostics/private-member-access/trigger.bas) | acesso a membro Private de uma classe a partir de outra classe | `private-member-access@13` | `módulo "mod_vault" exportando a classe Vault com campo Private "secret"` |
 | [`diagnostics/readonly-assignment/trigger.bas`](./diagnostics/readonly-assignment/trigger.bas) | atribuição a campo ReadOnly fora do construtor | `readonly-assignment@11` | `emissão futura do linter quando a checagem ReadOnly for implementada (I3)` |
+| [`diagnostics/return-unrecommended/trigger.bas`](./diagnostics/return-unrecommended/trigger.bas) | uso de Return em função onde a forma preferida é atribuição ao nome da rotina | `return-unrecommended@4` | — |
 | [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |
 | [`diagnostics/sub-used-as-function/trigger.bas`](./diagnostics/sub-used-as-function/trigger.bas) | using a Sub procedure as a function in an expression context | `sub-used-as-function@12` | — |
 | [`diagnostics/ternary-context-unsupported/trigger.bas`](./diagnostics/ternary-context-unsupported/trigger.bas) | ternário em contexto não-assignment (Print) — não é expansível | `ternary-context-unsupported@8` | — |

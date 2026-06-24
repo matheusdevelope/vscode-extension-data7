@@ -11,6 +11,7 @@ import { MCPService } from "./services/mcp-service";
 import { ProjectService } from "./services/project-service";
 import { RepositoryService } from "./services/repository-service";
 import { PreviewService } from "./services/preview-service";
+import { WorkspaceFixService } from "./services/workspace-fix-service";
 
 /**
  * Registers every `data7.*` command contributed by the extension. Each entry
@@ -66,6 +67,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     ],
     [COMMAND_IDS.previewTranspiledCode, () => PreviewService.showPreview(true)],
     [COMMAND_IDS.previewTranspiledCodeActive, () => PreviewService.showPreview(false)],
+    [COMMAND_IDS.fixAllWorkspace, () => WorkspaceFixService.fixAllWorkspace()],
   ];
 
   for (const [id, handler] of commands) {

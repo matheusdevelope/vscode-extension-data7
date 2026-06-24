@@ -26,7 +26,7 @@ O padrão idiomático do Data7 é classe de coleção tipada que expõe operador
 
 ```basic
 Class CardRecordList
-   Inherits TRecordList
+   Inherits TTList
 
    Function Find(handler As CardRecordFindDelegate, extra As Variant) As CardRecord
       Find = CType(MyBase.Find(handler, extra), CardRecord)
@@ -185,5 +185,5 @@ Vide [10-acucares-atuais.md](./10-acucares-atuais.md):
 ## Cross-references
 
 - [05-classes.md](./05-classes.md) — `Shared` (estáticos), sobrecarga.
-- [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — TRecordList tipado, padrão FilterContext.
+- [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — TTList tipado, padrão FilterContext.
 - [`docs/linguagem-basic/mod_card_grouper/src/mod_card/core/mod_card_record.bas`](./mod_card_grouper/src/mod_card/core/mod_card_record.bas) — exemplo real completo com `CardRecordList` + delegates.

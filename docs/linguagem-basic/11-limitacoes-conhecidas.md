@@ -73,19 +73,19 @@ Mesma raiz da limitação #7. A função decora uma coleção como parâmetro, n
 
 ### 9. Sem discriminated unions / sum types
 
-Tipos como `type Result<T, E> = Ok<T> | Err<E>` não têm representação nominal em runtime. Use enum-like (BaseEnum pattern) + campo `Variant` ou herança polimórfica.
+Tipos como `type Result<T, E> = Ok<T> | Err<E>` não têm representação nominal em runtime. Use enum-like (TEnum pattern) + campo `Variant` ou herança polimórfica.
 
 ### 10. Sem coleção genérica nativa
 
 A System Library oferece **apenas** `Collections.StringList` (lista de strings + objetos opcionais). Não há `TList<T>`, `TDictionary<K,V>`, `TQueue<T>`, `TStack<T>` nativos.
 
-**Workaround atual**: classes tipadas derivando de uma `TRecordList` base (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)) ou templates `TList<T>` monomorfizados pelo Builder/preview/MCP (vide [07-generics.md](./07-generics.md)).
+**Workaround atual**: classes tipadas derivando de uma `TTList` base (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)) ou templates `TList<T>` monomorfizados pelo Builder/preview/MCP (vide [07-generics.md](./07-generics.md)).
 
 ### 11. Sem `Enum` nativo
 
-Data7 Basic não tem palavra-chave `Enum`. O equivalente é o padrão **`BaseEnum`** — classe que herda de `BaseEnum` e usa `Shared` factory methods (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
+Data7 Basic não tem palavra-chave `Enum`. O equivalente é o padrão **`TEnum`** — classe que herda de `TEnum` e usa `Shared` factory methods (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
 
-**Workaround atual de tooling**: sugar `Enum X / End Enum` gera a classe `BaseEnum` equivalente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
+**Workaround atual de tooling**: sugar `Enum X / End Enum` gera a classe `TEnum` equivalente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
 
 ### 12. Sem interface natively + `Implements`
 
@@ -124,7 +124,7 @@ xs.Add("3")
 
 ### 16. Sem `Slice`, `Splice`, `Filter`, `Map`, `Reduce` em `StringList`
 
-A `StringList` é uma lista crua sem métodos funcionais. Para coleções tipadas você implementa esses operadores manualmente herdando de uma `TRecordList` base (vide [06-delegates.md](./06-delegates.md)).
+A `StringList` é uma lista crua sem métodos funcionais. Para coleções tipadas você implementa esses operadores manualmente herdando de uma `TTList` base (vide [06-delegates.md](./06-delegates.md)).
 
 ### 17. Sem subscript operator `lista[i]`
 

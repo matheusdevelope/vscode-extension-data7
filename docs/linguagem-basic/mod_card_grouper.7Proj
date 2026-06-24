@@ -64,14 +64,14 @@ Imports mod_enum
 Namespace mod_card_adm
 
    Class CardAdm
-      Inherits BaseEnum
+      Inherits TEnum
 
       Private Shared _Initialized As Boolean
 
       Private Shared Sub Initialize()
          If _Initialized Then Exit Sub
-         BaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-         'BaseEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+         TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+         'TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
          _Initialized = True
       End Sub
 
@@ -89,17 +89,17 @@ Namespace mod_card_adm
 
       Shared Function Load(pValue As Integer) As CardAdm
          CardAdm.Initialize()
-         Load = CardAdm(BaseEnum._GetCache("CardAdm", pValue))
+         Load = CardAdm(TEnum._GetCache("CardAdm", pValue))
       End Function
 
       Shared Function Load(pValue As String) As CardAdm
          CardAdm.Initialize()
-         Load = CardAdm(BaseEnum._GetCache("CardAdm", pValue))
+         Load = CardAdm(TEnum._GetCache("CardAdm", pValue))
       End Function
 
       Shared Function GetOptions() As String
          CardAdm.Initialize()
-         GetOptions = BaseEnum._GetEnumOptions("CardAdm")
+         GetOptions = TEnum._GetEnumOptions("CardAdm")
       End Function
 
    End Class
@@ -340,7 +340,7 @@ Namespace mod_card_record
    Delegate Sub CardRecordForEachDelegate(pValue As CardRecord, i As Integer, extra As Variant)
 
    Class CardRecordList
-      Inherits TRecordList
+      Inherits TTList
 
       Sub New()
          MyBase.New("CardRecordList")
@@ -466,7 +466,7 @@ Namespace mod_card_extractor
       'End Function
 
       Function Execute(pSchema As TSchema, pNavigator As TNavigator) As CardRecordList
-         Dim _baseitens As TRecordList = MyBase.Execute(pSchema, pNavigator)
+         Dim _baseitens As TTList = MyBase.Execute(pSchema, pNavigator)
          Dim _items As New CardRecordList()
          Dim i As Integer, count As Integer = _baseitens.Count - 1
          For i = 0 To count
@@ -542,7 +542,7 @@ Namespace mod_card_stone
    End Class
 
    Class CardGroupersStone
-      Inherits BaseEnum
+      Inherits TEnum
 
       Private Shared _Initialized As Boolean
 
@@ -552,8 +552,8 @@ Namespace mod_card_stone
 
       Private Shared Sub Initialize()
          If _Initialized Then Exit Sub
-         BaseEnum._AddEnumItem("CardGroupersStone", New CardGroupersStone(0, "Por Bandeira e Produto"))
-         BaseEnum._AddEnumItem("CardGroupersStone", New CardGroupersStone(1, "Por Data de Pagamento"))
+         TEnum._AddEnumItem("CardGroupersStone", New CardGroupersStone(0, "Por Bandeira e Produto"))
+         TEnum._AddEnumItem("CardGroupersStone", New CardGroupersStone(1, "Por Data de Pagamento"))
          _Initialized = True
       End Sub
 
@@ -571,17 +571,17 @@ Namespace mod_card_stone
 
       Shared Function Load(pValue As Integer) As CardGroupersStone
          CardGroupersStone.Initialize()
-         Load = CardGroupersStone(BaseEnum._GetCache("CardGroupersStone", pValue))
+         Load = CardGroupersStone(TEnum._GetCache("CardGroupersStone", pValue))
       End Function
 
       Shared Function Load(pValue As String) As CardGroupersStone
          CardGroupersStone.Initialize()
-         Load = CardGroupersStone(BaseEnum._GetCache("CardGroupersStone", pValue))
+         Load = CardGroupersStone(TEnum._GetCache("CardGroupersStone", pValue))
       End Function
 
       Shared Function GetOptions() As String
          CardGroupersStone.Initialize()
-         GetOptions = BaseEnum._GetEnumOptions("CardGroupersStone")
+         GetOptions = TEnum._GetEnumOptions("CardGroupersStone")
       End Function
 
       Shared Function LoadGrouper(pGrouperName As String, pAdm As CardAdm) As CardGrouper

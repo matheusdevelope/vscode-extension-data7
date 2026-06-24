@@ -9,6 +9,13 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 ## Features
 
+- O Quick Fix de `Return` permanece disponivel mesmo quando o VS Code nao preserva os metadados internos do diagnostico.
+
+- O Quick Fix de `Return` atribui diretamente o valor fora de condicionais e adiciona `Exit Function` ou `Exit Property` apenas dentro de ramificacoes. `MyBase.Free()` e inserido no fim do `Sub Free`, depois das liberacoes de recursos da classe.
+
+- O linter reconhece dependencias transitivas entre `Imports`, promocao numerica sem perda e a API global de compatibilidade `dateUtils.toStringFormat(...)`.
+- Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
+
 ### IntelliSense e validação
 
 - **Autocompletar** inteligente sensível ao contexto (classes, namespaces, métodos, propriedades, eventos).
@@ -18,10 +25,12 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - **Outline / Breadcrumbs / Sticky scroll** com símbolos hierárquicos.
 - **Signature Help** com destaque do parâmetro atual.
 - **Folding** semântico de `Namespace`, `Class`, `Sub`, `Function`, `If`, `For`, `While`.
-- **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`, `finally-block-unsupported`).
-- **Quick Fixes e Correções em Massa**: Ações rápidas individuais e em lote ("Aplicar a todas as ocorrências no arquivo") para importar/remover dependências, instalar módulos ausentes, resolver erros de escrita ("Você quis dizer X?") e aplicar contornos automáticos (como envolver o bloco catch do Try/Catch com `If Assigned(ex) Then`).
+- **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`).
+- **Quick Fixes e Correções em Massa**: Ações rápidas individuais e em lote ("Aplicar a todas as ocorrências no arquivo") para importar/remover dependências, instalar módulos ausentes, resolver erros de escrita ("Você quis dizer X?") e adicionar `()` em instanciações `New Tipo`.
 
 ### Sistema de projeto
+
+Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then` e `return-unrecommended`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correÃ§Ã£o em massa do workspace.
 
 - **Decompositor** (`.7Proj` → árvore de `.bas`): abre um `.7Proj` e gera a estrutura física do projeto.
 - **Builder** (`.bas` → `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências.
@@ -33,6 +42,9 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 - Repositório privado de módulos isolado (`globalStoragePath`) que evita poluir o disco.
 - Importação manual ou em lote de `.bas`/`.7Proj` externos.
+- Módulos orientados a objeto usam `TTObject` para permitir armazenamento seguro em `TTList` e descarte determinístico de recursos.
+- O sugar declarativo `Enum` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções.
+- Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
 - Sincronização automática para `data7_modules/` no workspace conforme `data7.json#dependencies`.
 
 ### Documentação da System Library
@@ -114,6 +126,9 @@ Veja [`project_context.md`](./project_context.md) para a descrição arquitetura
 
 Para mudanças no transpiler, parser ou açúcares sintáticos, siga também o contrato de [`docs/sugar-architecture.md`](./docs/sugar-architecture.md): cada sugar é isolado em `src/project/sugars/plugins/<id>/`, e sua configuração não pode causar perda de código.
 
+O parser preserva cadeias condicionais escritas como `ElseIf` ou `Else If`, serializando-as na forma canônica `ElseIf`.
+Também preserva `Throw` inline e usa as declarações de tipo do código para evitar conversões `CStr` redundantes.
+
 ## Desenvolvimento
 
 ```bash
@@ -128,3 +143,5 @@ Para depurar a extensão, abra este repositório no VS Code e pressione `F5` par
 ## Licença
 
 [MIT](./LICENSE)
+
+Nota de IntelliSense: em arquivos `.bas`, a lista de autocomplete abre automaticamente ao digitar `.`. No gatilho manual (`Ctrl+Space`) e nas conclusões por membro, a ordenação prioriza bloco, método, classe, herança, namespace e global, sempre em ordem alfabética dentro de cada escopo.

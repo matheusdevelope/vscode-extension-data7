@@ -2,20 +2,20 @@
 
 > Padrões de uso recorrentes em projetos Data7 reais — as "boas práticas de facto" extraídas de [`mod_card_grouper/`](./mod_card_grouper) e da System Library.
 
-## 1. Padrão `BaseEnum`
+## 1. Padrão `TEnum`
 
-Como não há `Enum` nativo, o padrão idiomático é uma classe que herda de `BaseEnum`:
+Como não há `Enum` nativo, o padrão idiomático é uma classe que herda de `TEnum`:
 
 ```basic
 Class CardAdm
-   Inherits BaseEnum
+   Inherits TEnum
 
    Private Shared _Initialized As Boolean
 
    Private Shared Sub Initialize()
       If _Initialized Then Exit Sub
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
       _Initialized = True
    End Sub
 
@@ -33,17 +33,17 @@ Class CardAdm
 
    Shared Function Load(pValue As Integer) As CardAdm
       CardAdm.Initialize()
-      Load = CardAdm(BaseEnum._GetCache("CardAdm", pValue))
+      Load = CardAdm(TEnum._GetCache("CardAdm", pValue))
    End Function
 
    Shared Function Load(pValue As String) As CardAdm
       CardAdm.Initialize()
-      Load = CardAdm(BaseEnum._GetCache("CardAdm", pValue))
+      Load = CardAdm(TEnum._GetCache("CardAdm", pValue))
    End Function
 
    Shared Function GetOptions() As String
       CardAdm.Initialize()
-      GetOptions = BaseEnum._GetEnumOptions("CardAdm")
+      GetOptions = TEnum._GetEnumOptions("CardAdm")
    End Function
 
 End Class
@@ -75,13 +75,13 @@ Next
 
 **Futuro açúcar**: `Enum X / End Enum` que gera essa classe automaticamente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
 
-## 2. Padrão `TRecordList` tipado
+## 2. Padrão `TTList` tipado
 
-Como `StringList` é o único tipo de coleção nativo e não suporta generics, o padrão é **subclasse tipada** de uma `TRecordList` base genérica (que existe em um módulo do workspace, ex.: `mod_base_list`):
+Como `StringList` é o único tipo de coleção nativo e não suporta generics, o padrão é **subclasse tipada** de uma `TTList` base genérica (que existe em um módulo do workspace, ex.: `mod_base_list`):
 
 ```basic
 Class CardRecordList
-   Inherits TRecordList
+   Inherits TTList
 
    Sub New()
       MyBase.New("CardRecordList")
@@ -201,7 +201,7 @@ Function Take(pIndex As Integer) As CardRecord
 End Function
 ```
 
-Esse padrão "**covariância manual**" é a forma idiomática quando a base retorna tipo abstrato e o filho quer retornar tipo concreto. Vide [Padrão TRecordList tipado](#2-padrão-trecordlist-tipado) acima.
+Esse padrão "**covariância manual**" é a forma idiomática quando a base retorna tipo abstrato e o filho quer retornar tipo concreto. Vide [Padrão TTList tipado](#2-padrão-TTList-tipado) acima.
 
 ## 7. `Try/Finally` para recursos manuais
 

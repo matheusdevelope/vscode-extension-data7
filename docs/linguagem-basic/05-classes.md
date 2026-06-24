@@ -244,13 +244,13 @@ Membros `Shared` pertencem à **classe**, não à instância. Acessados via `Cla
 
 ```basic
 Class CardAdm
-   Inherits BaseEnum
+   Inherits TEnum
 
    Private Shared _Initialized As Boolean
 
    Private Shared Sub Initialize()
       If _Initialized Then Exit Sub
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
       _Initialized = True
    End Sub
 
@@ -384,6 +384,6 @@ Vide [`docs/system-library/System.Classes.md`](../system-library/System.Classes.
 
 - [06-delegates.md](./06-delegates.md) — Delegates (callbacks, eventos).
 - [07-generics.md](./07-generics.md) — `Class T<T>` (em progresso).
-- [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — BaseEnum pattern, TRecordList tipado, `console.Block`.
+- [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — TEnum pattern, TTList tipado, `console.Block`.
 - [`docs/system-library/System.Classes.md`](../system-library/System.Classes.md) — `TObject`, `TPersistent`.
 - [`docs/linguagem-basic/mod_card_grouper/`](./mod_card_grouper) — projeto real com vários exemplos.

@@ -8,7 +8,17 @@ Este documento consolida o contexto de negócio, regras conceituais, objetivos, 
 
 ---
 
+Os Quick Fixes de `return-unrecommended` usam a linha atual do documento: um `Return` fora de condicional vira apenas atribuicao ao alvo do metodo/propriedade, enquanto retornos em condicionais tambem recebem o `Exit` correspondente. O Quick Fix de `missing-mybase-free` insere `MyBase.Free()` imediatamente antes de `End Sub`, preservando todas as liberacoes de recursos anteriores.
+
+Quando o VS Code nao preserva `Diagnostic.data`, o Quick Fix de `return-unrecommended` recupera o alvo e o contexto condicional pela estrutura do documento; ele nao depende de texto localizado da mensagem.
+
 ## 1. Objetivos do Projeto
+
+As correÃ§Ãµes automÃ¡ticas de sintaxe/estilo reutilizam o mesmo contrato de `source.fixAll.data7` no save, no comando `data7.fixAllWorkspace` e no pipeline de build/execuÃ§Ã£o, mantendo `Else If`, `Then`, `Return` e o workaround de `Finally` consistentes entre linter, Code Actions e comandos.
+
+Os diagnostics devem reconhecer imports transitivos de modulos utilizados, promocoes numericas sem perda e APIs globais legadas registradas na System Library, como `dateUtils.toStringFormat(...)`.
+
+Quick Fixes devem normalizar o codigo do diagnostico recebido do VS Code antes do despacho, pois ele pode ser uma string ou um objeto com a propriedade `value`. Adicionalmente, devem prever fallbacks robustos (como extração do nome do namespace via RegExp diretamente da linha no documento) caso o payload `data` seja omitido pelo VS Code.
 
 O objetivo principal desta extensão é fornecer suporte completo de desenvolvimento (Language Server Features) no VS Code para desenvolvedores do ERP Data7, editando arquivos de script `.bas` (Data7 Basic) e manipulando arquivos de projeto `.7proj` (formatados em XML).
 
@@ -17,6 +27,8 @@ A extensão provê recursos avançados de:
 - Indexação e busca de símbolos no Workspace.
 - Autocompetação de código inteligente (IntelliSense) com auto-importação.
 - Validação estática de regras de importação e escopos (Advanced Diagnostics/Linter).
+- A resolução de símbolos do linter deve consultar o `WorkspaceSymbolIndexer` com o `contextFileUri` atual para respeitar `Imports` ativos antes de concluir que um identificador está ausente ou que um `Imports` não foi usado.
+- Instanciações `New Tipo` sem `()` são aceitas pelo parser para compatibilidade, mas o linter as rebaixa para o warning `object-creation-parentheses-missing`, com Quick Fix para inserir os parênteses vazios.
 - Navegação de código (Hover previews, Go to Definition, Signature Help).
 - Formatação de código.
 - Compilação e empacotamento (`Builder`) e descompilação (`Decompiler`) de projetos ERP.
@@ -29,8 +41,10 @@ A árvore de fontes e o arquivo `.7proj` seguem um fluxo manual: use os comandos
 
 ### 2.1. Arquivos `.bas` e `.7proj`
 
-- **`.bas`**: Arquivos de script contendo a codificação em Data7 Basic. Podem declarar namespaces, classes, estruturas, métodos, variáveis locais e atributos globais.
+- **`.bas`**: Arquivos de script contendo a codificação em Data7 Basic. Podem declarar namespaces, classes, estruturas, métodos, variáveis locais, atributos globais e declarações `Declare Sub` / `Declare Function` de DLLs (preservadas verbatim como `OpaqueStatement`).
 - **`.7proj`**: Arquivo XML de projeto estruturado que contém metadados, formulários e todos os scripts `.bas` agregados do projeto do ERP.
+
+Os módulos core são sincronizados para `data7_modules/` junto com o projeto. O logging desse runtime é centralizado em `mod_logger`; `TEnum` deriva de `TTObject` para uso seguro em listas, e a serialização de valores trata `TDateTime`, `TTObject` e objetos nativos pelo seu tipo concreto. O módulo legado `mod_console` não faz parte desse conjunto.
 
 ### 2.7. Açúcares sintáticos transpilados
 
@@ -40,11 +54,13 @@ A arquitetura distingue dois tipos de transformação em `src/project/transpiler
 
 - **`InlineTransform`**: rewriters intra-linha (token-level) que rodam ANTES do registry. Use para açúcares que aparecem em qualquer coluna (ex.: string interpolation).
 - **`SugarRule`**: rules linha-por-linha que produzem expansões multi-linha. Use para açúcares "header" como `For Each ... In ... Next`.
+- O parser estrutural normaliza as duas formas equivalentes de ramificação condicional: `ElseIf <cond> Then` e `Else If <cond> Then`.
+- O serializer preserva statements estruturados em condicionais inline, incluindo `Throw New Exception(...)`; a inferência de concatenação consulta os tipos declarados na AST e no catálogo de símbolos antes de aplicar conversões.
 
 **Açúcares Complexos e Namespaces Utilitários**:
-Todo açúcar complexo que necessita de utilitários comuns a mais de uma materialização deve colocá-los em um namespace específico (ex: `core_sugars_enum` contendo `CoreSugarBaseEnum`, ou `core_sugars_list` contendo `CoreSugarBaseList`).
+Todo açúcar complexo que necessita de utilitários comuns a mais de uma materialização deve colocá-los em um namespace específico (ex: `core_sugars_list` contendo `CoreSugarBaseList`). Quando a implementação concreta já existe em um módulo compartilhado, o sugar a importa diretamente.
 
-- O sugar materializa a lógica final/classe específica no local declarado (ex: a classe `Color` herda de `core_sugars_enum.CoreSugarBaseEnum`).
+- O sugar materializa a lógica final/classe específica no local declarado (ex: a classe `Color` gerada pelo sugar `Enum` herda de `TEnum`, importado de `mod_tenum`).
 - O transpiler injeta automaticamente o respectivo `Imports <namespace>` no topo do arquivo que utiliza o sugar.
 - A base utilitária e as dependências entre sugars (ex: `enum` dependendo de `list`) são registradas no `SugarRegistry` (`src/project/sugar-registry.ts`).
 - Durante o build, as dependências são resolvidas transitivamente e os módulos utilitários virtuais correspondentes são gerados, indexados (para passar no linter estrito) e injetados na compilação final sob o XML do `.7proj`.
@@ -140,10 +156,10 @@ End Class
 - Array: cada binding vira `Dim x = lista.Item(i)` indexado pela posição. Rest binding (`[first, ...rest]`) emite um loop For que coleta a cauda em uma `StringList` nova.
 - Parser puro em `src/utils/destructure-parser.ts`.
 
-#### `Enum X As BaseEnum / V = "..." / End Enum` (multi-line)
+#### `Enum X As TEnum / V = "..." / End Enum` (multi-line)
 
-- Expandido para a classe específica do Enum que herda de `CoreSugarBaseEnum` (do namespace `core_sugars_enum`) com Initialize lazy, Shared Function por valor, Load por String e GetOptions.
-- O linter ignora a verificação do método `Sub Free()` para classes que herdam de `CoreSugarBaseEnum` ou `BaseEnum`.
+- Expandido para a classe específica do Enum que herda de `TEnum` (do namespace `mod_tenum`). A base herda de `TTObject`, preservando identidade, cópia e descarte para uso seguro em `TTList`, e a classe gerada expõe Initialize lazy, Shared Function por valor, Load por String e GetOptions.
+- O linter ignora a verificação do método `Sub Free()` para classes que herdam de `TEnum`.
 
 #### `Match x / Case Is T : body / End Match` (multi-line)
 
@@ -173,6 +189,7 @@ Como o passo de transpilação é destrutivo, `build → decompile → build` co
 
 - Um arquivo `.bas` é agrupado sob uma declaração `Namespace nome_do_namespace`.
 - Módulos compartilhados são marcados com a tag `@Module` nos comentários e são importados no repositório exclusivo. Eles não contêm a tag `@Module-Imported`.
+- Classes de domínio em módulos compartilhados que podem participar de coleções devem herdar de `TTObject` e implementar construtor de cópia, `Assign`, `Clone`, `ToString` e `Dispose`; a lista passa a ser responsável por disparar seu ciclo de descarte.
 
 ### 2.3. Principal.bas
 
@@ -273,12 +290,11 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `declaration-parentheses-mismatch` — declaração de método/procedimento sem parâmetros que omite os parênteses. Emite _Warning_.
 - `missing-mybase-free` — uma classe não possui o método `Sub Free()` ou o método `Sub Free()` não invoca `MyBase.Free()`. Emite _Warning_.
 - `function-read-self` — tentativa de ler o valor de retorno usando o nome da própria função dentro de seu escopo. Emite _Error_.
-- `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função). Emite _Error_.
+- `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função que não seja a função/método ou propriedade ativa no escopo atual). Emite _Error_.
 - `missing-return-value` — a função pode retornar ou sair sem que um valor de retorno tenha sido definido em todas as ramificações de controle. Emite _Warning_.
 - `dead-code` — código inacessível após um `Return` ou `Exit` garantido, ou dentro de blocos condicionais constantes sempre falsos. Emite _Warning_.
-- `finally-block-unsupported` — o uso de `Finally` no bloco Try/Catch não é recomendado devido a um bug conhecido no compilador que sempre executa o bloco `Catch` (mesmo quando nenhuma exceção é lançada). O linter emite _Warning_ e é suprimido se o workaround `If Assigned(ex) Then` (onde `ex` é a variável da exceção) estiver envolvendo todo o corpo do `Catch`.
 
-Cada código com Quick Fix associado no `D7BasicCodeActionProvider` também oferece opções genéricas de **supressão de diagnóstico** via comentário para a linha atual (`' data7:disable-line <code>`) ou para todo o arquivo (`' data7:disable <code>`). Além disso, ações rápidas que alteram código suportam **correções em massa (Bulk Quickfixes)** aplicáveis a todas as ocorrências daquele mesmo erro no arquivo (ex: "Importar todas as dependências ausentes no arquivo", "Aplicar workaround a todos os blocos Finally do arquivo").
+Cada código com Quick Fix associado no `D7BasicCodeActionProvider` também oferece opções genéricas de **supressão de diagnóstico** via comentário para a linha atual (`' data7:disable-line <code>`) ou para todo o arquivo (`' data7:disable <code>`). Além disso, ações rápidas que alteram código suportam **correções em massa (Bulk Quickfixes)** aplicáveis a todas as ocorrências daquele mesmo erro no arquivo (ex: "Importar todas as dependências ausentes no arquivo").
 
 Os Quick Fixes disponíveis são:
 
@@ -286,7 +302,6 @@ Os Quick Fixes disponíveis são:
 - `unused-import` / `duplicate-import` → "Remover Imports X" (e bulk "Remover todos os imports duplicados ou não utilizados")
 - `module-not-declared` / `module-not-found` → "Instalar módulo X…" (dispara `data7.installModule`, e bulk "Instalar módulos ausentes")
 - `unknown-member` → até 3 ações "Você quis dizer Y?" que substituem o nome no lugar (e bulk correspondente).
-- `finally-block-unsupported` → "Aplicar workaround (If Assigned(ex) Then)" para contornar o bug do compilador (e bulk "Aplicar workaround a todos os blocos Finally do arquivo").
 - `unsupported-member` → sem Quick Fix direto para substituição semântica (pois depende do contexto), mas oferece bulk para comentar todas as linhas ou suprimir os avisos no arquivo.
 - `not-enumerable` → sem Quick Fix (a substituição depende da forma de iteração que o usuário pretende — converter para `For i = 0 To ... - 1` ou mudar o tipo do operando). Apenas o warning é exibido.
 - `unknown-suppression-code` → sem Quick Fix. Apenas o warning é exibido.
@@ -363,7 +378,7 @@ Módulos puros (sem registro de provider) consumidos por providers, diagnostics 
 
 ### 5.7. Camada de Serviços (`src/services/`)
 
-- `activation-service.ts` — orquestração de ativação: bootstrap de workspace, status-bar dinâmico (nome do projeto + contagem de deps + erros), detecção de `.7Proj` ao abrir, `resolveProjectFilePath`, `openParentFolder`.
+- `activation-service.ts` — orquestração de ativação: bootstrap de workspace, status-bar dinâmico (nome do projeto + contagem de deps + erros), detecção/notificação de `.7Proj` ao abrir/visualizar (com rastreamento `promptedFiles` para evitar duplicados), `resolveProjectFilePath`, `openParentFolder`.
 - `project-service.ts` — resolução do projeto ativo, abertura/criação de projetos, validação da conexão de banco.
 - `build-service.ts` — comandos de build/run/openInDevStudio. Todo `child_process` usa `spawn` com array de argumentos (sem shell-injection).
 - `dependency-service.ts` — detecção, sync e instalação de dependências do `data7.json`.
@@ -466,7 +481,7 @@ npm run mcp:bundle                              # esbuild → out/mcp/server.bun
 
 A extensão embute um **servidor MCP** stdio que expõe a especificação e o catálogo da linguagem Data7 Basic para agentes de IA externos (Cursor, Claude Desktop, Continue). O binário (`out/mcp/server.bundled.js`, ~2.8 MB após `esbuild`) é copiado de forma idempotente para `context.globalStorageUri/mcp/` na ativação da extensão por `src/services/mcp-service.ts`, de modo que clientes MCP externos podem apontar para um caminho estável que sobrevive a updates da extensão.
 
-A superfície atual: **10 famílias de Resources** (`data7://language/<chapter>`, `data7://system-library/<ns>`, `data7://examples/<path>`, `data7://diagnostics/codes`, `data7://idioms`, `data7://real-project/<file>`, `data7://official/<qualifiedName>`, `data7://guide/<slug>`, `data7://meta/snapshot`), **12 Tools** (7 lookup — incl. `data7_list_controls` — + 3 executable + 1 mixed + 1 cross-file lint) e **4 Prompts** (`data7_module_skeleton`, `data7_baseenum_pattern`, `data7_typed_recordlist`, `data7_form_skeleton`). Os tools executáveis reusam `SugarTranspiler` (puro) e `DiagnosticsLinter` (via `src/mcp/runtime/vscode-shim.ts`, cópia adaptada de `src/test/_setup/vscode-mock.ts` que intercepta `require("vscode")` em runtime). Sob `--workspace=<path>`, o servidor seed a `WorkspaceSymbolIndexer.createDetached()` para que o linter veja símbolos cross-file. Os 167 exemplos oficiais do ERP (extraídos de `docs/Documentação Data7/**/*.html` por `scripts/extract-official-articles.js` e materializados em `out/mcp/data/articles.json`) são consultáveis via `data7_get_official_example` e enriquecem `data7_describe_symbol` com signature + descrição + exemplo canônico em uma única chamada — substituindo a necessidade de injetar 60+ k tokens em `AGENTS.md`.
+A superfície atual: **10 famílias de Resources** (`data7://language/<chapter>`, `data7://system-library/<ns>`, `data7://examples/<path>`, `data7://diagnostics/codes`, `data7://idioms`, `data7://real-project/<file>`, `data7://official/<qualifiedName>`, `data7://guide/<slug>`, `data7://meta/snapshot`), **12 Tools** (7 lookup — incl. `data7_list_controls` — + 3 executable + 1 mixed + 1 cross-file lint) e **4 Prompts** (`data7_module_skeleton`, `data7_TEnum_pattern`, `data7_typed_recordlist`, `data7_form_skeleton`). Os tools executáveis reusam `SugarTranspiler` (puro) e `DiagnosticsLinter` (via `src/mcp/runtime/vscode-shim.ts`, cópia adaptada de `src/test/_setup/vscode-mock.ts` que intercepta `require("vscode")` em runtime). Sob `--workspace=<path>`, o servidor seed a `WorkspaceSymbolIndexer.createDetached()` para que o linter veja símbolos cross-file. Os 167 exemplos oficiais do ERP (extraídos de `docs/Documentação Data7/**/*.html` por `scripts/extract-official-articles.js` e materializados em `out/mcp/data/articles.json`) são consultáveis via `data7_get_official_example` e enriquecem `data7_describe_symbol` com signature + descrição + exemplo canônico em uma única chamada — substituindo a necessidade de injetar 60+ k tokens em `AGENTS.md`.
 
 Para o objetivo de **criar telas**, o servidor expõe: o capítulo `data7://language/construindo-telas` (idioma de composição de `Forms`: layout `Align`, hierarquia de pais, eventos, ciclo `Show`/`Free`, controles ricos Grid/TextBox/PageControl, extraído do framework real `mod_card_grouper`), os 7 exemplos canônicos `docs/example/forms/` + o mini-projeto buildável `docs/example/builder/tela-cadastro/` (consultáveis via `data7_search_examples`/`get_canonical_example`), o prompt `data7_form_skeleton` (gera o esqueleto de uma tela funcional, layouts `simple`/`header-content-footer`/`list`), a tool `data7_list_controls` (descobre os controles instanciáveis de `Forms` sem carregar o namespace inteiro) e o campo `formUsageHint` em `data7_describe_symbol` (instanciação + posicionamento por `Align` + eventos `On*` para controles `Forms`). A correção do falso-positivo `unknown-template` no operador `<>` (em `src/analysis/generics-analyzer.ts`) garante que o idioma de disparo de evento `If me.OnXEvent <> NULL Then ...` — onipresente em código de tela — não gere mais diagnósticos espúrios.
 

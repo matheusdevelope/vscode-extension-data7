@@ -10,7 +10,6 @@ src/**
 .github/**
 
 # Build/dev artefacts
-node_modules/**
 tsconfig.json
 **/tsconfig.json
 **/*.map

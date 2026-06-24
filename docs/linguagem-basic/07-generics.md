@@ -181,7 +181,7 @@ Colisões (dois templates diferentes que produziriam o mesmo flat name) emitem o
 | Sem **higher-kinded types** (`T<U>` como parâmetro) | Aceitar `T` simples; aplicar manualmente o segundo nível |
 | Sem **variance annotations** (`In T`, `Out T`) | Não há cast covariante/contravariante automático; use `CType` manual |
 | Sem **default type parameters** | Sempre exija que o caller forneça o tipo |
-| **Constraints paramétricos** (`T As List<U>`) não são aceitos | Constraints simples (`T As BaseEnum`) são aceitas e descartadas após validação |
+| **Constraints paramétricos** (`T As List<U>`) não são aceitos | Constraints simples (`T As TEnum`) são aceitas e descartadas após validação |
 | **Generic methods dentro de classe** | Detectados e podados com warning `class-generic-method-unsupported` — gere `Map<T>` em namespace livre |
 | **Cap de 10.000 instanciações** | Programas patológicos disparam `instantiation-limit-exceeded` |
 | **Primitivos (`TList<Integer>`)** geram classe plana (`TList_Integer`) | Use quando o runtime aceitar o valor concreto; não há boxing genérico nativo |
@@ -229,4 +229,4 @@ A integração não viola a fence `analysis/` ↛ `project/`: o indexador clona 
 - [13-diagnostic-codes.md](./13-diagnostic-codes.md) — lista completa dos códigos de diagnóstico, incluindo os de generics.
 - [10-acucares-atuais.md](./10-acucares-atuais.md) — sugars e convenções que interagem com generics.
 - [11-limitacoes-conhecidas.md](./11-limitacoes-conhecidas.md) — discussão de generics + primitivos.
-- [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — padrão `TRecordList` tipado (workaround atual).
+- [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md) — padrão `TTList` tipado (workaround atual).

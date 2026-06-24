@@ -10,7 +10,7 @@ Namespace mod_card_form
 
       Private _card_controller As TCardController
 
-      Sub New(pTitle As String = "Processar retorno de cartões 2")
+      Sub New(pTitle As String = "Processar retorno de cartões")
          me._card_controller = New TCardController()
          Mybase.New(me._card_controller, pTitle)
       End Sub

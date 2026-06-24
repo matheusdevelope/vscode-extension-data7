@@ -7,6 +7,40 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Corrigido
+
+- O Quick Fix de `return-unrecommended` continua disponivel quando o VS Code recria o diagnostico sem o payload interno: a extensao recupera a rotina e o contexto condicional pela estrutura do documento, sem depender da mensagem do warning.
+
+- Os Quick Fixes de `return-unrecommended` agora usam a linha real do documento: fora de condicionais geram apenas a atribuicao do valor de retorno; dentro de condicionais tambem inserem o `Exit` correspondente. O Quick Fix de `missing-mybase-free` voltou a aparecer para diagnosticos estruturados e insere `MyBase.Free()` antes de `End Sub`, apos todas as liberacoes de recursos existentes.
+
+- O parser aceita `Continue`, nomes de método contextuais como `Match` e cadeias `+_` que contenham linhas comentadas. O linter respeita variáveis locais, retorno da função ativa e declarações duplicadas de métodos aceitas pelo Developer Studio; também reconhece `TObjectList`, `String.Left` e `Double.RoundTo`.
+- O linter voltou a emitir `finally-block-unsupported` como warning orientativo: `Finally` continua sendo sintaxe aceita pelo Developer Studio, mas a extensão volta a sinalizar o bug conhecido do compilador e oferece Quick Fix para encapsular o `Catch` com `If Assigned(...) Then`.
+- A atribuição de retorno de funções e métodos (ex: `FromJson = _value`) agora é considerada válida e não acusa mais falsos positivos de `invalid-assignment-target` ou `unknown-symbol`, mesmo que existam sobrecargas ou múltiplos métodos homônimos cadastrados no indexador do workspace.
+- O Quick Fix de remoção de imports não utilizados (`unused-import`) agora realiza a extração do nome do namespace diretamente da linha do documento como fallback quando o payload de diagnóstico do VS Code for omitido ou perdido, garantindo que a ação descritiva "Remover Imports 'X'" continue sendo gerada com robustez.
+- O linter preserva imports exigidos transitivamente por modulos usados e aceita promocao numerica sem perda, como `Integer` para `Double`.
+- Adicionado suporte de System Library para `dateUtils.toStringFormat(...)`, removendo falsos `unknown-symbol` em projetos legados.
+- O linter deixou de reportar falsos `unknown-symbol` e `unused-import` para classes, factories e helpers resolvidos por `Imports <namespace>`, passando a consultar a resolução contextual do `WorkspaceSymbolIndexer` antes de acusar símbolo ausente.
+- Instanciações `New Tipo` sem `()` deixaram de aparecer como erro sintático indevido no fluxo do linter e agora geram o warning `object-creation-parentheses-missing`, com Quick Fix para inserir os parênteses.
+
+- Corrigido o empacotamento VSIX removendo a exclusão incorreta de `node_modules/**` no arquivo `.vscodeignore`. Como a extensão principal não é empacotada (bundled), ela dependia de dependências de produção (como `fast-xml-parser` e `zod`) que estavam sendo omitidas do pacote final, causando falha silenciosa de ativação e gerando o erro de comandos não encontrados.
+- Adicionados todos os comandos `data7.*` e o idioma `d7basic` (Data7 Basic) sob os `activationEvents` do manifesto `package.json`. Isso evita o erro de comandos não registrados (como "Abrir Projeto" e "Criar Projeto") ao serem invocados antes da ativação da extensão.
+- Adicionado listener de mudança de editor ativo (`onDidChangeActiveTextEditor`) e tratamento de arquivo ativo inicial no `extension.ts` para garantir que o prompt de abertura/decomposição de arquivos `.7proj` seja exibido ao visualizar arquivos em outras pastas sem projeto decomposto ativo.
+- Implementado controle de arquivos já exibidos (`promptedFiles` Set) no `ActivationService` para evitar loops e notificações duplicadas ao visualizar o mesmo arquivo `.7proj` na mesma sessão do VS Code.
+
+- Completion provider: `.` agora dispara sugestões automaticamente, e a lista passa a ser ordenada por escopo (bloco, método, classe, heranças, namespace e global) com ordem alfabética dentro de cada faixa.
+
+### Corrigido
+
+- O parser agora reconhece declarações `Declare Sub` e `Declare Function` de DLLs (tanto públicas quanto privadas) no nível do namespace, tratando-as como `OpaqueStatement`. Isso impede que a transpilação divida e reformate incorretamente as declarações.
+
+### Alterado
+
+- O parser/serializer agora reconhece `Else If <cond> Then` como ramificação `ElseIf`, preservando a cadeia condicional na transpilação.
+- O serializer preserva `Throw` em condicionais inline, e a inferência de concatenação agora resolve o tipo declarado na AST e no catálogo de símbolos, evitando `CStr` redundante.
+- O sugar declarativo `Enum` deixou de gerar o wrapper virtual `core_sugars_enum.CoreSugarEnum`; as classes materializadas importam `mod_tenum` e usam `TEnum` diretamente.
+- O módulo compartilhado `mod_logger` agora faz todas as classes de domínio herdarem de `TTObject`, com `Assign`, `Clone`, `ToString` e `Dispose` implementados. Isso permite armazená-las diretamente em `TTList` e garante a liberação de recursos de formatos, opções, transportes e loggers.
+- `TEnum` agora herda de `TTObject` e implementa cópia, clonagem e descarte, preservando o cache de enums. O `mod_console` foi removido dos módulos core: o `mod_logger` centraliza a saída e serializa `TDateTime`, `TTObject` e outros `TObject` pelo contrato correto.
+
 ### Adicionado (Try/Catch Warning, Correções em Massa e Workspace Trust — 2026-06-22)
 
 - **Aviso de Bloco Finally Não Recomendado (`finally-block-unsupported`)**: Adicionado diagnóstico (severidade `Warning`) que sinaliza o uso do bloco `Finally` em estruturas Try/Catch, devido a um bug conhecido no compilador que executa o `Catch` mesmo quando nenhuma exceção é lançada.
@@ -57,11 +91,11 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ### Adicionado (Infraestrutura de Açúcares Sintáticos Complexos e Namespaces Utilitários)
 
 - **Arquitetura de Sugars com Namespaces Compartilhados**: Implementada infraestrutura e diretrizes via `SugarRegistry` para apoiar sugars complexos que demandam utilitários compartilhados.
-  - Todo sugar complexo materializa a sua classe final no local de uso (ex: a classe `Color` gerada pelo sugar `Enum`) herdando ou referenciando classes utilitárias em um namespace virtual dedicado (ex: `core_sugars_enum.CoreSugarBaseEnum`, que herda de `BaseEnum`).
+  - Todo sugar complexo materializa a sua classe final no local de uso (ex: a classe `Color` gerada pelo sugar `Enum`) herdando ou referenciando classes utilitárias em um namespace virtual dedicado (ex: `core_sugars_enum.CoreSugarEnum`, que herda de `TEnum`).
   - O transpilador (`transpiler.ts`) rastreia o uso de sugars nos arquivos e injeta automaticamente `Imports <namespace>` no topo dos respectivos arquivos transpilados.
   - O `Builder` resolve recursivamente as dependências transitivas entre sugars (ex: `enum` dependendo de `list`), injeta os módulos utilitários virtuais gerados no `buildIndexer` temporário para validação estrita do linter e empacota-os no XML do `.7Proj` final.
   - O indexador do workspace (`WorkspaceSymbolIndexer`) agora pré-indexa os módulos virtuais de sugars sob URIs `system://sugars/` para que o linter em tempo real e o autocomplete do editor os reconheçam de forma nativa e sem erros.
-  - O linter (`diagnostics.ts`) foi ajustado para ignorar a obrigatoriedade de `Sub Free()` em classes que herdem de `CoreSugarBaseEnum`.
+  - O linter (`diagnostics.ts`) foi ajustado para ignorar a obrigatoriedade de `Sub Free()` em classes que herdem de `CoreSugarEnum`.
 
 ### Adicionado (Pipeline AST Completo: Parser, Transpilador, Serializador e Linter)
 
@@ -85,7 +119,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Servidor MCP (Model Context Protocol)** em `src/mcp/`, compilado por `tsc` e empacotado por `esbuild` em `out/mcp/server.bundled.js`. Copiado de forma idempotente para `context.globalStorageUri/mcp/` na ativação (`src/services/mcp-service.ts`), para que clientes externos (Cursor / Claude Desktop / Continue) o lancem via stdio. Decisão arquitetural em `docs/rfcs/MCP-001-mcp-server.md`; manual do usuário em `docs/mcp/`.
 - **10 famílias de Resources**: `data7://language/<chapter>`, `data7://system-library/<ns>`, `data7://examples/<path>`, `data7://diagnostics/codes`, `data7://idioms`, `data7://real-project/<file>`, `data7://official/<qualifiedName>`, `data7://guide/<slug>`, `data7://meta/snapshot`.
 - **12 Tools**: `data7_search_symbol`, `data7_describe_symbol`, `data7_list_controls`, `data7_search_examples`, `data7_get_canonical_example`, `data7_get_official_example`, `data7_list_diagnostic_codes`, `data7_list_sugar`, `data7_transpile_bas`, `data7_lint_bas`, `data7_lint_project`, `data7_suggest_import`. Os tools executáveis reusam `SugarTranspiler` e `DiagnosticsLinter` (via `src/mcp/runtime/vscode-shim.ts`, que intercepta `require("vscode")` em runtime).
-- **4 Prompts**: `data7_module_skeleton`, `data7_baseenum_pattern`, `data7_typed_recordlist`, `data7_form_skeleton` (este com layouts `simple` / `header-content-footer` / `list`).
+- **4 Prompts**: `data7_module_skeleton`, `data7_TEnum_pattern`, `data7_typed_recordlist`, `data7_form_skeleton` (este com layouts `simple` / `header-content-footer` / `list`).
 - **167 exemplos oficiais do ERP** extraídos de `docs/Documentação Data7/**/*.html` por `scripts/extract-official-articles.js` → `out/mcp/data/articles.json`, consultáveis via `data7_get_official_example` e mesclados em `data7_describe_symbol`.
 - **2 comandos novos**: `data7.installMcpServer` (re-instalação manual) e `data7.previewMcpClientConfig` (gera JSON pronto para Cursor/Claude/Continue). Walkthrough ganhou o passo 6 "Configurar MCP para sua IA".
 - **Dependências runtime**: `@modelcontextprotocol/sdk` + `zod` (peer), restritas a `src/mcp/` pela fence `data7/mcp-deps-isolation`. `esbuild` como devDependency. `project_stack.mdc` atualizado.

@@ -3,15 +3,15 @@
 ' @diagnostics: none
 '
 Imports mod_enum
-Imports core_sugars_enum
+Imports mod_tenum
 Namespace mod_demo
    Class CardAdm
-      Inherits CoreSugarBaseEnum
+      Inherits TEnum
       Private Shared _Initialized As Boolean
       Private Shared Sub Initialize()
          If _Initialized Then Exit Sub
-         CoreSugarBaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-         CoreSugarBaseEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+         TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+         TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
          _Initialized = True
       End Sub
       Shared Function Stone As CardAdm
@@ -22,11 +22,11 @@ Namespace mod_demo
       End Function
       Shared Function Load(pValue As String) As CardAdm
          CardAdm.Initialize()
-         Load = CType(CoreSugarBaseEnum._GetCache("CardAdm", pValue), CardAdm)
+         Load = CType(TEnum._GetCache("CardAdm", pValue), CardAdm)
       End Function
       Shared Function GetOptions() As String
          CardAdm.Initialize()
-         GetOptions = CoreSugarBaseEnum._GetEnumOptions("CardAdm")
+         GetOptions = TEnum._GetEnumOptions("CardAdm")
       End Function
    End Class
 End Namespace

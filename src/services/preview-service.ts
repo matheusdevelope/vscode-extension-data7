@@ -3,6 +3,7 @@ import { SugarTranspiler } from "../project/transpiler";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { detectEnumerable } from "../analysis/enumerable-detector";
+import { lookupSystemByName } from "../system-library";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { readConfiguration } from "../infra/configuration";
 import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "../project/generics";
@@ -104,6 +105,15 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
         ),
       isTypeDescendantOf: (typeName: string, baseTypeName: string) =>
         TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
+      resolveGlobalSymbolType: (name: string, argumentCount: number) =>
+        indexer.findSymbolByName(name)?.type ??
+        lookupSystemByName(name).find(
+          (symbol) =>
+            !symbol.containerName &&
+            (!symbol.parameters || symbol.parameters.length === argumentCount),
+        )?.type,
+      resolveMemberType: (typeName: string, name: string, argumentCount: number) =>
+        TypeResolver.findMember(typeName, name, indexer, argumentCount)?.type,
       externalGenericTemplates,
       requestedGenericInstantiations: collectRequestedGenericInstantiations(
         indexer,

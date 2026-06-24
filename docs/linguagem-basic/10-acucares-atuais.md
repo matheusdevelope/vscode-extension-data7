@@ -212,7 +212,7 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| D1 | `Enum X As BaseEnum / V = "..." / End Enum` (multi-line) | [`enum-declarative/`](../example/sugar/enum-declarative) |
+| D1 | `Enum X As TEnum / V = "..." / End Enum` (multi-line) | [`enum-declarative/`](../example/sugar/enum-declarative) |
 
 ### Fase E — Destructuring
 

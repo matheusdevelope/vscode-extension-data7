@@ -28,6 +28,8 @@ import { DiagnosticCodes } from "../diagnostics/diagnostic-codes";
  * registering commands and language providers (single-responsibility).
  */
 export class ActivationService {
+  private static readonly promptedFiles = new Set<string>();
+
   /**
    * Initialises a workspace that already contains a `data7.json` (decomposed
    * Data7 project). Safe to call when no workspace is open — it returns early.
@@ -70,6 +72,9 @@ export class ActivationService {
   public static async handleProjectDocumentOpen(doc: vscode.TextDocument): Promise<void> {
     if (path.extname(doc.fileName).toLowerCase() !== ".7proj") return;
 
+    const fileNormalized = path.normalize(doc.fileName).toLowerCase();
+    if (this.promptedFiles.has(fileNormalized)) return;
+
     const firstFolder = vscode.workspace.workspaceFolders?.[0];
     if (firstFolder) {
       const workspaceDir = firstFolder.uri.fsPath;
@@ -78,6 +83,8 @@ export class ActivationService {
         if (fs.existsSync(configPath)) return;
       }
     }
+
+    this.promptedFiles.add(fileNormalized);
 
     const choice = await vscode.window.showInformationMessage(
       `Projeto Data7 (${path.basename(doc.fileName)}) detectado. Como deseja prosseguir?`,

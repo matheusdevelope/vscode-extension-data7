@@ -10,6 +10,7 @@ import { readConfiguration, getRawConfiguration } from "../infra/configuration";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { readProjectConfig } from "../project/project-config";
 import { WorkspaceTrustService } from "./workspace-trust-service";
+import { WorkspaceFixService } from "./workspace-fix-service";
 
 interface ExecutorLogSession {
   readonly filePath: string;
@@ -45,22 +46,23 @@ export class BuildService {
         title: "Compilando e empacotando projeto...",
         cancellable: false,
       },
-      () =>
-        Promise.resolve().then(() => {
-          try {
-            const dependencies = this.readDependencies(project.workspaceDir);
-            DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+      async () => {
+        try {
+          await WorkspaceFixService.fixWorkspaceForBuild(project.workspaceDir);
 
-            Builder.buildProject(project.workspaceDir, project.projectFilePath);
-            vscode.window.showInformationMessage(
-              `Projeto compilado com sucesso em: ${project.projectFilePath}`,
-            );
-          } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : String(err);
-            logger.error("Falha ao compilar.", err);
-            vscode.window.showErrorMessage(`Erro ao compilar: ${message}`);
-          }
-        }),
+          const dependencies = this.readDependencies(project.workspaceDir);
+          DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+
+          Builder.buildProject(project.workspaceDir, project.projectFilePath);
+          vscode.window.showInformationMessage(
+            `Projeto compilado com sucesso em: ${project.projectFilePath}`,
+          );
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.error("Falha ao compilar.", err);
+          vscode.window.showErrorMessage(`Erro ao compilar: ${message}`);
+        }
+      },
     );
   }
 
@@ -132,6 +134,7 @@ export class BuildService {
     const vscodeLoggerFilePath = this.prepareVSCodeLoggerFile(project.workspaceDir);
 
     try {
+      await WorkspaceFixService.fixWorkspaceForBuild(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       Builder.buildProject(project.workspaceDir, project.projectFilePath, undefined, {
         vscodeLoggerFilePath,
@@ -261,6 +264,7 @@ export class BuildService {
     }
 
     try {
+      await WorkspaceFixService.fixWorkspaceForBuild(project.workspaceDir);
       const dependencies = this.readDependencies(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       Builder.buildProject(project.workspaceDir, project.projectFilePath);
