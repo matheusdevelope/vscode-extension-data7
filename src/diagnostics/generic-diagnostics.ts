@@ -91,7 +91,7 @@ function formatGenericWarningMessage(warning: GenericsPassWarning): string {
     case "duplicate-template":
       return `Generics: template '${warning.templateName ?? ""}' declarado mais de uma vez; a Ãºltima declaraÃ§Ã£o prevalece.`;
     case "class-generic-method-unsupported":
-      return `Generics: mÃ©todo genÃ©rico '${warning.templateName ?? ""}' dentro de classe nÃ£o Ã© suportado pelo monomorphizer; a declaraÃ§Ã£o serÃ¡ removida do output do Builder.`;
+      return `Generics: método genÃ©rico '${warning.templateName ?? ""}' dentro de classe nÃ£o Ã© suportado pelo monomorphizer; a declaraÃ§Ã£o serÃ¡ removida do output do Builder.`;
     case "flat-name-collision":
       return `Generics: duas instanciaÃ§Ãµes distintas colapsam ao mesmo nome '${warning.flatName ?? ""}'. Renomeie um dos tipos para desambiguar.`;
     case "instantiation-limit-exceeded":

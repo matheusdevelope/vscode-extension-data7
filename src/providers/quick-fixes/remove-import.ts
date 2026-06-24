@@ -17,12 +17,13 @@ export function addRemoveImportFix(
   if (!namespaceToRemove) {
     try {
       const line = diagnostic.range.start.line;
-      const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+      const cachedDoc = LanguageProcessor.getInstance().getOrParse(
+        document.uri.toString(),
+        document.getText(),
+      );
       const imp = cachedDoc.unit.members.find(
         (m): m is ImportsDeclaration =>
-          m.kind === "ImportsDeclaration" &&
-          m.loc !== undefined &&
-          m.loc.startLine - 1 === line
+          m.kind === "ImportsDeclaration" && m.loc !== undefined && m.loc.startLine - 1 === line,
       );
       if (imp) {
         namespaceToRemove = imp.target;
@@ -31,9 +32,7 @@ export function addRemoveImportFix(
       // Ignore and fallback
     }
   }
-  const label = namespaceToRemove
-    ? `Remover Imports "${namespaceToRemove}"`
-    : "Remover esta linha";
+  const label = namespaceToRemove ? `Remover Imports "${namespaceToRemove}"` : "Remover esta linha";
 
   const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];

@@ -1,8 +1,5 @@
 import * as vscode from "vscode";
-import {
-  DiagnosticCodes,
-  type UnsupportedMemberPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes, type UnsupportedMemberPayload } from "../../diagnostics/diagnostic-codes";
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 
 /**
@@ -39,7 +36,11 @@ export function addUnsupportedMemberFixes(
     const indent = indentMatch?.[1] ?? "";
     const rest = lineText.slice(indent.length);
     const edit = new vscode.WorkspaceEdit();
-    edit.replace(document.uri, new vscode.Range(line, 0, line, lineText.length), `${indent}' ${rest}`);
+    edit.replace(
+      document.uri,
+      new vscode.Range(line, 0, line, lineText.length),
+      `${indent}' ${rest}`,
+    );
     commentAction.edit = edit;
   }
   actions.push(commentAction);
@@ -72,7 +73,8 @@ export function addUnsupportedMemberBulkFix(
   if (mismatches.length <= 1) return;
 
   const sorted = [...mismatches].sort(
-    (a, b) => b.range.start.line - a.range.start.line || b.range.start.character - a.range.start.character,
+    (a, b) =>
+      b.range.start.line - a.range.start.line || b.range.start.character - a.range.start.character,
   );
 
   // 1. Bulk comment action.
@@ -89,7 +91,11 @@ export function addUnsupportedMemberBulkFix(
       const indentMatch = /^(\s*)/.exec(lineText);
       const indent = indentMatch?.[1] ?? "";
       const rest = lineText.slice(indent.length);
-      edit.replace(document.uri, new vscode.Range(line, 0, line, lineText.length), `${indent}' ${rest}`);
+      edit.replace(
+        document.uri,
+        new vscode.Range(line, 0, line, lineText.length),
+        `${indent}' ${rest}`,
+      );
     }
     commentAction.edit = edit;
   }

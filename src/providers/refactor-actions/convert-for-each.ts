@@ -134,11 +134,7 @@ export function addConvertClassicForToForEachAction(
     vscode.CodeActionKind.RefactorRewrite,
   );
   const edit = new vscode.WorkspaceEdit();
-  edit.replace(
-    document.uri,
-    new vscode.Range(line, 0, nextLine, nextLineText.length),
-    replacement,
-  );
+  edit.replace(document.uri, new vscode.Range(line, 0, nextLine, nextLineText.length), replacement);
   action.edit = edit;
   actions.push(action);
 }

@@ -119,9 +119,7 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Void",
     isShared: false,
     isPrivate: false,
-    parameters: [
-      { name: "pFileName", type: "String", isByRef: false, isOptional: false }
-    ],
+    parameters: [{ name: "pFileName", type: "String", isByRef: false, isOptional: false }],
     range: {
       startLine: 0,
       startChar: 0,
@@ -133,4 +131,3 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Salva o conteúdo do campo em um arquivo.",
   },
 ];
-

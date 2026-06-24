@@ -33,9 +33,7 @@ export function addMissingMyBaseNewBulkFix(
   diagnostic: vscode.Diagnostic,
 ): void {
   const allDiags = vscode.languages.getDiagnostics(document.uri);
-  const mismatches = allDiags.filter((d) =>
-    hasDiagnosticCode(d, DiagnosticCodes.MissingMyBaseNew),
-  );
+  const mismatches = allDiags.filter((d) => hasDiagnosticCode(d, DiagnosticCodes.MissingMyBaseNew));
   if (mismatches.length <= 1) return;
 
   const action = new vscode.CodeAction(

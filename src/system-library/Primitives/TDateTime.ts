@@ -640,7 +640,7 @@ export const symbols: SystemSymbolInfo[] = [
       { name: "pHour", type: "Integer", isByRef: false, isOptional: false },
       { name: "pMinute", type: "Integer", isByRef: false, isOptional: false },
       { name: "pSecond", type: "Integer", isByRef: false, isOptional: false },
-      { name: "pMilliSecond", type: "Integer", isByRef: false, isOptional: false }
+      { name: "pMilliSecond", type: "Integer", isByRef: false, isOptional: false },
     ],
     range: {
       startLine: 0,
@@ -650,7 +650,7 @@ export const symbols: SystemSymbolInfo[] = [
     },
     fileUri: "system://library",
     containerName: "TDateTime",
-    description: "Codifica valores numéricos de ano, mês, dia, hora, minuto, segundo e milissegundo em TDateTime.",
+    description:
+      "Codifica valores numéricos de ano, mês, dia, hora, minuto, segundo e milissegundo em TDateTime.",
   },
 ];
-

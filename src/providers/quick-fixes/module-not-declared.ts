@@ -1,8 +1,5 @@
 import * as vscode from "vscode";
-import {
-  DiagnosticCodes,
-  type ModuleNotDeclaredPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes, type ModuleNotDeclaredPayload } from "../../diagnostics/diagnostic-codes";
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 
 export function addDeclareDependencyFix(

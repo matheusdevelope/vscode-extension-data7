@@ -28,11 +28,7 @@ export function addMissingImportFix(
 
   const edit = new vscode.WorkspaceEdit();
   const insertLine = findImportInsertLine(document);
-  edit.insert(
-    document.uri,
-    new vscode.Position(insertLine, 0),
-    `Imports ${namespaceToImport}\r\n`,
-  );
+  edit.insert(document.uri, new vscode.Position(insertLine, 0), `Imports ${namespaceToImport}\r\n`);
   action.edit = edit;
   actions.push(action);
 }

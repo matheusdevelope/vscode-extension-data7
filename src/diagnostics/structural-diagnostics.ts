@@ -234,9 +234,7 @@ export function validateDuplicateDeclarations(
           for (const existing of existingList) {
             const bothMethods = m.kind === "method" && existing.kind === "method";
             if (bothMethods) {
-              if (
-                isSameSignature(m.parameters, existing.parameters)
-              ) {
+              if (isSameSignature(m.parameters, existing.parameters)) {
                 createConflictDiag(
                   new vscode.Range(
                     m.range.startLine,
@@ -382,7 +380,6 @@ function isSameSignature(
   }
   return true;
 }
-
 
 export function validateMyBaseNewCalls(
   unit: CompilationUnit,

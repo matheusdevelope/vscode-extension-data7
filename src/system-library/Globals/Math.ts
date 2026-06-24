@@ -45,6 +45,7 @@ export const symbols: SystemSymbolInfo[] = [
     },
     fileUri: "system://library",
     containerName: "Math",
-    description: "Trunca um valor de ponto flutuante para a quantidade de casas decimais especificada.",
+    description:
+      "Trunca um valor de ponto flutuante para a quantidade de casas decimais especificada.",
   },
 ];

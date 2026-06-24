@@ -159,8 +159,7 @@ export class WorkspaceFixService {
         const column = Math.max(0, error.loc.column);
         const range = new vscode.Range(line, column, line, column + 1);
         const severity =
-          error.code === "expected-token" &&
-          error.message.toLowerCase().includes("expected 'then'")
+          error.code === "expected-token" && error.message.toLowerCase().includes("expected 'then'")
             ? vscode.DiagnosticSeverity.Warning
             : vscode.DiagnosticSeverity.Error;
         const diagnostic = new vscode.Diagnostic(range, error.message, severity);
@@ -205,7 +204,10 @@ export class WorkspaceFixService {
   private static isInsideWorkspaceDir(filePath: string, workspaceDir: string): boolean {
     const normalizedFile = path.resolve(filePath).toLowerCase();
     const normalizedWorkspace = path.resolve(workspaceDir).toLowerCase();
-    return normalizedFile === normalizedWorkspace || normalizedFile.startsWith(`${normalizedWorkspace}${path.sep}`);
+    return (
+      normalizedFile === normalizedWorkspace ||
+      normalizedFile.startsWith(`${normalizedWorkspace}${path.sep}`)
+    );
   }
 
   private static appendWorkspaceEdit(
@@ -241,14 +243,10 @@ export class WorkspaceFixService {
       if (entry.type === "insert") {
         target.insert(entry.uri, entry.position, entry.text);
         count++;
-        continue;
-      }
-      if (entry.type === "replace") {
+      } else if (entry.type === "replace") {
         target.replace(entry.uri, entry.range, entry.text);
         count++;
-        continue;
-      }
-      if (entry.type === "delete") {
+      } else {
         target.delete(entry.uri, entry.range);
         count++;
       }
@@ -282,13 +280,9 @@ export class WorkspaceFixService {
       if (entry.uri.toString() !== uri.toString()) continue;
       if (entry.type === "insert") {
         textEdits.push(vscode.TextEdit.insert(entry.position, entry.text));
-        continue;
-      }
-      if (entry.type === "replace") {
+      } else if (entry.type === "replace") {
         textEdits.push(vscode.TextEdit.replace(entry.range, entry.text));
-        continue;
-      }
-      if (entry.type === "delete") {
+      } else {
         textEdits.push(vscode.TextEdit.replace(entry.range, ""));
       }
     }

@@ -2,7 +2,12 @@ import * as vscode from "vscode";
 import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
 import { dedupeDiagnostics, hasDiagnosticCode } from "../code-action-helpers";
 import { LanguageProcessor } from "../../analysis/language-processor";
-import { ASTWalker, type Node, type ClassDeclaration, type MethodDeclaration } from "../../project/ast/ast";
+import {
+  ASTWalker,
+  type Node,
+  type ClassDeclaration,
+  type MethodDeclaration,
+} from "../../project/ast/ast";
 import { logger } from "../../infra/logger";
 
 export function addMissingMyBaseFreeFix(
@@ -57,9 +62,7 @@ function createMissingMyBaseFreeAction(
   if (!insertion) return undefined;
 
   const action = new vscode.CodeAction(
-    insertion.kind === "method"
-      ? "Gerar método 'Sub Free()'"
-      : "Adicionar chamada 'MyBase.Free()'",
+    insertion.kind === "method" ? "Gerar método 'Sub Free()'" : "Adicionar chamada 'MyBase.Free()'",
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
@@ -82,10 +85,12 @@ function resolveMissingMyBaseFreeInsertion(
   let targetMethod: MethodDeclaration | undefined;
 
   try {
-    const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
+    const cachedDoc = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
     const finder = new (class extends ASTWalker {
       public override walk(node: Node): void {
-        if (!node) return;
         if (node.loc) {
           const startL = node.loc.startLine - 1;
           const endL = node.loc.endLine - 1;
@@ -129,7 +134,10 @@ function resolveMissingMyBaseFreeInsertion(
       if (stmt.loc) {
         const stmtLine = stmt.loc.startLine - 1;
         const stmtLineText = document.lineAt(stmtLine).text;
-        bodyIndent = stmtLineText.substring(0, stmtLineText.length - stmtLineText.trimStart().length);
+        bodyIndent = stmtLineText.substring(
+          0,
+          stmtLineText.length - stmtLineText.trimStart().length,
+        );
         break;
       }
     }

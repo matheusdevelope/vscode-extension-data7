@@ -46,11 +46,7 @@ export function addObjectCreationParenthesesMissingBulkFix(
 
   const edit = new vscode.WorkspaceEdit();
   for (const match of mismatches) {
-    edit.insert(
-      document.uri,
-      findObjectCreationParenthesesInsertPosition(document, match),
-      "()",
-    );
+    edit.insert(document.uri, findObjectCreationParenthesesInsertPosition(document, match), "()");
   }
   action.edit = edit;
   actions.push(action);

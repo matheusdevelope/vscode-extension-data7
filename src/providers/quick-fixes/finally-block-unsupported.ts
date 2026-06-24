@@ -27,7 +27,16 @@ export function addFinallyBlockUnsupportedFix(
   action.isPreferred = true;
 
   const edit = new vscode.WorkspaceEdit();
-  applyFinallyBlockFix(edit, document, catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName, isEmptyCatch, varName);
+  applyFinallyBlockFix(
+    edit,
+    document,
+    catchLine,
+    catchBodyStartLine,
+    catchBodyEndLine,
+    catchVarName,
+    isEmptyCatch,
+    varName,
+  );
   action.edit = edit;
   actions.push(action);
 }
@@ -62,7 +71,16 @@ export function addFinallyBlockUnsupportedBulkFix(
 
     const { catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName, isEmptyCatch } = payload;
     const varName = catchVarName ?? "_ex";
-    applyFinallyBlockFix(edit, document, catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName, isEmptyCatch, varName);
+    applyFinallyBlockFix(
+      edit,
+      document,
+      catchLine,
+      catchBodyStartLine,
+      catchBodyEndLine,
+      catchVarName,
+      isEmptyCatch,
+      varName,
+    );
   }
 
   action.edit = edit;
@@ -116,9 +134,7 @@ function applyFinallyBlockFix(
 
     for (let i = catchBodyStartLine; i <= catchBodyEndLine; i++) {
       const lineText = document.lineAt(i).text;
-      wrappedLines.push(
-        lineText.trim() === "" ? "" : `${bodyIndent}  ${lineText.trimStart()}`,
-      );
+      wrappedLines.push(lineText.trim() === "" ? "" : `${bodyIndent}  ${lineText.trimStart()}`);
     }
     wrappedLines.push(`${bodyIndent}End If`);
 

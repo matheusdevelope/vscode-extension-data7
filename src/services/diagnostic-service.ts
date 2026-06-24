@@ -399,7 +399,9 @@ export class DiagnosticService {
     const uris = await this.findWorkspaceBasFiles();
     if (uris.length === 0) {
       if (showNotification) {
-        vscode.window.showInformationMessage("Nenhum arquivo Data7 Basic (.bas, .d7b) encontrado para analisar.");
+        vscode.window.showInformationMessage(
+          "Nenhum arquivo Data7 Basic (.bas, .d7b) encontrado para analisar.",
+        );
       }
       return;
     }
@@ -430,7 +432,7 @@ export class DiagnosticService {
             logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
           }
         }
-      }
+      },
     );
 
     if (showNotification) {
@@ -442,7 +444,10 @@ export class DiagnosticService {
         msg = `Linter concluído: ${errorCount} erro(s), ${warningCount} aviso(s) e ${infoCount} informação(ões) no projeto.`;
       }
 
-      const actions = totalIssues > 0 ? ["Corrigir Tudo (Ajuste em Massa)", "Reiniciar Linter"] : ["Reiniciar Linter"];
+      const actions =
+        totalIssues > 0
+          ? ["Corrigir Tudo (Ajuste em Massa)", "Reiniciar Linter"]
+          : ["Reiniciar Linter"];
       vscode.window.showInformationMessage(msg, ...actions).then(async (selection) => {
         if (selection === "Corrigir Tudo (Ajuste em Massa)") {
           await vscode.commands.executeCommand("data7.fixAllWorkspace");

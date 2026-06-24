@@ -7,10 +7,7 @@ export function addElseIfWhitespaceFix(
   document: vscode.TextDocument,
   diagnostic: vscode.Diagnostic,
 ): void {
-  const action = new vscode.CodeAction(
-    "Substituir por 'ElseIf'",
-    vscode.CodeActionKind.QuickFix,
-  );
+  const action = new vscode.CodeAction("Substituir por 'ElseIf'", vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
   action.isPreferred = true;
 
@@ -40,8 +37,7 @@ export function addElseIfWhitespaceBulkFix(
 
   const sorted = [...elseifWhitespaces].sort(
     (a, b) =>
-      b.range.start.line - a.range.start.line ||
-      b.range.start.character - a.range.start.character,
+      b.range.start.line - a.range.start.line || b.range.start.character - a.range.start.character,
   );
   const edit = new vscode.WorkspaceEdit();
   for (const match of sorted) {

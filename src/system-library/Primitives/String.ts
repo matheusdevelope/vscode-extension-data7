@@ -37,7 +37,7 @@ export const symbols: SystemSymbolInfo[] = [
     isPrivate: false,
     parameters: [
       { name: "pStr", type: "String", isByRef: false, isOptional: false },
-      { name: "pIndex", type: "Integer", isByRef: false, isOptional: false }
+      { name: "pIndex", type: "Integer", isByRef: false, isOptional: false },
     ],
     range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
     fileUri: "system://library",

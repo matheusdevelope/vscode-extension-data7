@@ -10,10 +10,7 @@ export function addDeclarationParenthesesMismatchFix(
   document: vscode.TextDocument,
   diagnostic: vscode.Diagnostic,
 ): void {
-  const action = new vscode.CodeAction(
-    "Adicionar parênteses '()'",
-    vscode.CodeActionKind.QuickFix,
-  );
+  const action = new vscode.CodeAction("Adicionar parênteses '()'", vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
   action.isPreferred = true;
 
