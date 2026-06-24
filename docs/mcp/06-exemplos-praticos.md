@@ -8,17 +8,17 @@
 
 **Sequência de tools**:
 
-1. `data7://idioms` — IA carrega convenções idiomáticas + limitações para entender que `Status` não deve ser `Integer` mas sim BaseEnum.
+1. `data7://idioms` — IA carrega convenções idiomáticas + limitações para entender que `Status` não deve ser `Integer` mas sim TEnum.
 2. `data7_module_skeleton` com `{ moduleName: "mod_payments", namespaceName: "mod_payments", className: "TPayment", baseClass: "TRecord" }` — gera o esqueleto do arquivo principal.
-3. `data7_baseenum_pattern` com `{ enumName: "PaymentStatus", values: "Pendente,Pago,Cancelado" }` — gera a classe enum.
+3. `data7_TEnum_pattern` com `{ enumName: "PaymentStatus", values: "Pendente,Pago,Cancelado" }` — gera a classe enum.
 4. `data7_typed_recordlist` com `{ elementTypeName: "TPayment" }` — gera `TPaymentList` + 3 delegates.
 5. `data7_lint_project` com os 3 arquivos (`mod_payments.bas` montado, `mod_payment_status.bas`, `mod_payment_list.bas`) — verifica que tudo está limpo antes de devolver para o humano.
 
 **Resultado**: o humano recebe 3 arquivos `.bas` prontos, todos passando no linter. Tempo: ~10 segundos. Tokens consumidos: ~3 k (vs ~60 k+ que seriam carregados se a IA usasse `AGENTS.md`).
 
-## Cenário B — IA refatora classe legada para usar BaseEnum
+## Cenário B — IA refatora classe legada para usar TEnum
 
-**Prompt humano**: "Esse `CardAdm` está usando `Integer` cru. Refatore para o padrão BaseEnum."
+**Prompt humano**: "Esse `CardAdm` está usando `Integer` cru. Refatore para o padrão TEnum."
 
 ```basic
 ' arquivo enviado pelo usuário
@@ -32,10 +32,10 @@ End Class
 **Sequência de tools**:
 
 1. `data7_lint_bas` com o código original — IA confirma que o código atual compila mas não segue o padrão (não emite diagnóstico específico, só usa para entender o contexto).
-2. `data7://language/convencoes-idiomaticas` — IA carrega a convenção BaseEnum para fundamentar a refatoração.
-3. `data7_baseenum_pattern` com `{ enumName: "CardAdm", values: "Stone,Cielo,Rede" }` — gera o substituto.
-4. `data7_lint_bas` no resultado — confirma que a versão nova passa (sem `missing-import` exceto pelo próprio BaseEnum vir de um módulo do workspace).
-5. `data7_suggest_import` com `{ typeName: "BaseEnum" }` — confirma qual módulo importar.
+2. `data7://language/convencoes-idiomaticas` — IA carrega a convenção TEnum para fundamentar a refatoração.
+3. `data7_TEnum_pattern` com `{ enumName: "CardAdm", values: "Stone,Cielo,Rede" }` — gera o substituto.
+4. `data7_lint_bas` no resultado — confirma que a versão nova passa (sem `missing-import` exceto pelo próprio TEnum vir de um módulo do workspace).
+5. `data7_suggest_import` com `{ typeName: "TEnum" }` — confirma qual módulo importar.
 
 **Resultado**:
 
@@ -43,15 +43,15 @@ End Class
 Imports mod_base_enum
 
 Class CardAdm
-   Inherits BaseEnum
+   Inherits TEnum
 
    Private Shared _Initialized As Boolean
 
    Private Shared Sub Initialize()
       If _Initialized Then Exit Sub
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(2, "Rede"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(2, "Rede"))
       _Initialized = True
    End Sub
 

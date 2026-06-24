@@ -55,7 +55,7 @@ Documento consolidado contendo `11-limitacoes-conhecidas.md` + `12-convencoes-id
 
 ### `data7://real-project/{path}`
 
-`mod_card_grouper/` é o projeto Data7 de referência: 47 módulos compartilhados em `data7_modules/` + 8 módulos próprios em `src/mod_card/`. Use para mostrar à IA padrões idiomáticos reais (BaseEnum em produção, TRecordList tipado, console.Block, padrão adapter).
+`mod_card_grouper/` é o projeto Data7 de referência: 47 módulos compartilhados em `data7_modules/` + 8 módulos próprios em `src/mod_card/`. Use para mostrar à IA padrões idiomáticos reais (TEnum em produção, TTList tipado, console.Block, padrão adapter).
 
 Exemplos:
 

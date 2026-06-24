@@ -1,8 +1,8 @@
 /**
- * Prompt `data7_baseenum_pattern` — generates the canonical
- * BaseEnum-pattern class for a list of values. Data7 Basic has no
+ * Prompt `data7_TEnum_pattern` — generates the canonical
+ * TEnum-pattern class for a list of values. Data7 Basic has no
  * `Enum` keyword; the conventional substitute is a class that inherits
- * from `BaseEnum` with lazy initialization, three overloaded `Load`
+ * from `TEnum` with lazy initialization, three overloaded `Load`
  * functions and one Shared Function per value.
  *
  * See `docs/linguagem-basic/12-convencoes-idiomaticas.md` for the
@@ -17,7 +17,7 @@ function buildPattern(
 ): string {
   const lines: string[] = [];
   lines.push(`Class ${enumName}`);
-  lines.push(`   Inherits BaseEnum`);
+  lines.push(`   Inherits TEnum`);
   lines.push("");
   lines.push(`   Private Shared _Initialized As Boolean`);
   lines.push("");
@@ -25,7 +25,9 @@ function buildPattern(
   lines.push("      If _Initialized Then Exit Sub");
   for (const v of values) {
     const id = typeof v.id === "number" ? String(v.id) : `"${v.id}"`;
-    lines.push(`      BaseEnum._AddEnumItem("${enumName}", New ${enumName}(${id}, "${v.label}"))`);
+    lines.push(
+      `      TEnum._AddEnumItem("${enumName}", New ${enumName}(${id}, CStr("${v.label}")))`,
+    );
   }
   lines.push("      _Initialized = True");
   lines.push("   End Sub");
@@ -42,30 +44,30 @@ function buildPattern(
   lines.push("");
   lines.push(`   Shared Function Load(pValue As Integer) As ${enumName}`);
   lines.push(`      ${enumName}.Initialize()`);
-  lines.push(`      Load = ${enumName}(BaseEnum._GetCache("${enumName}", pValue))`);
+  lines.push(`      Load = ${enumName}(TEnum._GetCache("${enumName}", pValue))`);
   lines.push("   End Function");
   lines.push("");
   lines.push(`   Shared Function Load(pValue As String) As ${enumName}`);
   lines.push(`      ${enumName}.Initialize()`);
-  lines.push(`      Load = ${enumName}(BaseEnum._GetCache("${enumName}", pValue))`);
+  lines.push(`      Load = ${enumName}(TEnum._GetCache("${enumName}", pValue))`);
   lines.push("   End Function");
   lines.push("");
   lines.push("   Shared Function GetOptions() As String");
   lines.push(`      ${enumName}.Initialize()`);
-  lines.push(`      GetOptions = BaseEnum._GetEnumOptions("${enumName}")`);
+  lines.push(`      GetOptions = TEnum._GetEnumOptions("${enumName}")`);
   lines.push("   End Function");
   lines.push("");
   lines.push("End Class");
   return lines.join("\n");
 }
 
-export function registerBaseEnumPattern(server: McpServer): void {
+export function registerTEnumPattern(server: McpServer): void {
   server.registerPrompt(
-    "data7_baseenum_pattern",
+    "data7_TEnum_pattern",
     {
-      title: "Padrão BaseEnum para enumerações Data7 Basic",
+      title: "Padrão TEnum para enumerações Data7 Basic",
       description:
-        "Gera a classe canônica que herda de BaseEnum com Initialize lazy, Shared Function por valor, três overloads de Load e GetOptions(). Use quando a linguagem-alvo não tiver o sugar Enum X / End Enum disponível.",
+        "Gera a classe canônica que herda de TEnum com Initialize lazy, Shared Function por valor, três overloads de Load e GetOptions(). Use quando a linguagem-alvo não tiver o sugar Enum X / End Enum disponível.",
       argsSchema: {
         enumName: z.string().min(1).describe('Nome da classe enum. Exemplo: "CardAdm".'),
         values: z
@@ -110,14 +112,14 @@ export function registerBaseEnumPattern(server: McpServer): void {
 
       const code = buildPattern(args.enumName, parsed);
       return {
-        description: `Padrão BaseEnum gerado para ${args.enumName}.`,
+        description: `Padrão TEnum gerado para ${args.enumName}.`,
         messages: [
           {
             role: "user",
             content: {
               type: "text",
               text:
-                `Crie o arquivo do enum ${args.enumName} usando o padrão BaseEnum abaixo. ` +
+                `Crie o arquivo do enum ${args.enumName} usando o padrão TEnum abaixo. ` +
                 "Esse padrão é a forma idiomática enquanto a linguagem não tiver o sugar `Enum X / End Enum`.\n\n" +
                 "```basic\n" +
                 code +

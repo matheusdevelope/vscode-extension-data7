@@ -211,8 +211,8 @@ O binário aceita uma flag de modo:
 | Prompt | Input | Saída |
 |---|---|---|
 | `data7_module_skeleton` | `{ moduleName, namespaceName, baseClass? }` | Esqueleto `'@Module` + `Imports` blocks + `Namespace` + `Class` |
-| `data7_baseenum_pattern` | `{ enumName, values: [{ id, label }] }` | Classe BaseEnum completa com `Initialize`, `Load`, `GetOptions`, Shared Functions por valor |
-| `data7_typed_recordlist` | `{ elementTypeName }` | Subclasse `TRecordList` com Find/Filter/Map/ForEach + delegates correspondentes |
+| `data7_TEnum_pattern` | `{ enumName, values: [{ id, label }] }` | Classe TEnum completa com `Initialize`, `Load`, `GetOptions`, Shared Functions por valor |
+| `data7_typed_recordlist` | `{ elementTypeName }` | Subclasse `TTList` com Find/Filter/Map/ForEach + delegates correspondentes |
 
 ### 4.4 Fluxo end-to-end (exemplo)
 
@@ -266,7 +266,7 @@ Cada decisão abaixo foi tomada explicitamente (referência em [Anexo B](#anexo-
 | **M1.5** | `scripts/extract-official-articles.js` (varre 178 HTMLs API-reference, emite `out/mcp/data/articles.json`) + 1 teste de cobertura (`src/test/mcp/articles-coverage.test.ts`) + populate dos Resources `data7://official/*` e `data7://guide/*` | `articles.json` (~400 KB) com 140+ entries | 5 |
 | **M2** | 7 lookup tools (`search_symbol`, `describe_symbol` [merge com `articles.json`], `search_examples`, `get_canonical_example`, `get_official_example`, `list_diagnostic_codes`, `list_sugar`) | Cursor chama `search_symbol("Grid")` e recebe `Forms.Grid` | 13 |
 | **M3** | `src/mcp/runtime/vscode-shim.ts` (cópia adaptada do mock) + `workspace-loader.ts` + `transpile_bas` + `lint_bas` + `lint_project` | Cursor pede `lint_bas("Dim x As StringList")` e recebe `missing-import` | 16 |
-| **M4** | `suggest_import` + 3 prompts (`module_skeleton`, `baseenum_pattern`, `typed_recordlist`) | Cursor gera um esqueleto BaseEnum válido | 6 |
+| **M4** | `suggest_import` + 3 prompts (`module_skeleton`, `TEnum_pattern`, `typed_recordlist`) | Cursor gera um esqueleto TEnum válido | 6 |
 | **M5** | Testes end-to-end (1 por tool + 1 smoke por resource family) + walkthrough step 6 ("Instalar MCP") + `src/mcp/README.md` com configs para os 3 clientes MCP | `npm run test` cobre o MCP; usuário tem documentação clara | 12 |
 | **Total** | | | **68,5 h (~8,5 dias-pessoa)** |
 

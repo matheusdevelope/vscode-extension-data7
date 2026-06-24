@@ -52,7 +52,7 @@ import { registerLintBas } from "./tools/lint-bas";
 import { registerLintProject } from "./tools/lint-project";
 import { registerSuggestImport } from "./tools/suggest-import";
 import { registerModuleSkeleton } from "./prompts/module-skeleton";
-import { registerBaseEnumPattern } from "./prompts/baseenum-pattern";
+import { registerTEnumPattern } from "./prompts/tenum-pattern";
 import { registerTypedRecordList } from "./prompts/typed-recordlist";
 import { registerFormSkeleton } from "./prompts/form-skeleton";
 import { createEmptyIndexer, loadWorkspaceIntoIndexer } from "./runtime/workspace-loader";
@@ -145,7 +145,7 @@ export function buildServer(options: BuildServerOptions = {}): {
 
   // Prompts (4 templates).
   registerModuleSkeleton(server);
-  registerBaseEnumPattern(server);
+  registerTEnumPattern(server);
   registerTypedRecordList(server);
   registerFormSkeleton(server);
 

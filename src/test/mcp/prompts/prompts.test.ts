@@ -1,5 +1,5 @@
 /**
- * Tests for the 3 MCP prompts (module_skeleton, baseenum_pattern,
+ * Tests for the 3 MCP prompts (module_skeleton, TEnum_pattern,
  * typed_recordlist). We exercise the generated code by feeding it
  * through the linter to confirm the output is at least syntactically
  * coherent and produces no `missing-import` (when no external types
@@ -19,12 +19,12 @@ import { createMockDoc } from "../../_helpers/mock-doc";
 // against the documented contract: the prompts must produce parseable
 // Data7 Basic that passes the canonical linter.
 
-describe("data7_baseenum_pattern — output passes basic parsing", () => {
-  test("the canonical BaseEnum from the convention chapter has no missing-import", () => {
+describe("data7_TEnum_pattern — output passes basic parsing", () => {
+  test("the canonical TEnum from the convention chapter has no missing-import", () => {
     const code = [
       "Namespace mod_card_adm",
       "  Class CardAdm",
-      "    Inherits BaseEnum",
+      "    Inherits TEnum",
       "",
       "    Private Shared _Initialized As Boolean",
       "",
@@ -40,7 +40,7 @@ describe("data7_baseenum_pattern — output passes basic parsing", () => {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     indexer.updateFileContent("file:///tmp/mod_card_adm.bas", code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
-    // BaseEnum is an external type the linter only knows about when
+    // TEnum is an external type the linter only knows about when
     // a producer module is in the workspace. We allow that specific
     // missing-import in this test — it would disappear once a real
     // mod_base_enum is loaded.

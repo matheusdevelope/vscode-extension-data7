@@ -30,22 +30,22 @@
 
 O `officialExample` vem da Base de Conhecimento do ERP (Se7e Sistemas). É a forma canônica de chamar o método.
 
-## 2. "Crie um BaseEnum para status com Active e Inactive."
+## 2. "Crie um TEnum para status com Active e Inactive."
 
-**Prompt template acionado**: `data7_baseenum_pattern` com `{ enumName: "Status", values: "Active,Inactive" }`.
+**Prompt template acionado**: `data7_TEnum_pattern` com `{ enumName: "Status", values: "Active,Inactive" }`.
 
 **O que esperar**: o agente recebe a classe `Status` completa com:
 
 ```basic
 Class Status
-   Inherits BaseEnum
+   Inherits TEnum
 
    Private Shared _Initialized As Boolean
 
    Private Shared Sub Initialize()
       If _Initialized Then Exit Sub
-      BaseEnum._AddEnumItem("Status", New Status(0, "Active"))
-      BaseEnum._AddEnumItem("Status", New Status(1, "Inactive"))
+      TEnum._AddEnumItem("Status", New Status(0, "Active"))
+      TEnum._AddEnumItem("Status", New Status(1, "Inactive"))
       _Initialized = True
    End Sub
 

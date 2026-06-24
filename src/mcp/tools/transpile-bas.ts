@@ -12,9 +12,10 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { SugarTranspiler, type TranspileContext } from "../../project/transpiler";
+import { TypeResolver } from "../../analysis/type-resolver";
 import { detectEnumerable } from "../../analysis/enumerable-detector";
 import type { SymbolInfo, WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
-import { lookupSystemByContainer } from "../../system-library";
+import { lookupSystemByContainer, lookupSystemByName } from "../../system-library";
 
 export interface TranspileToolDeps {
   /** Indexer to consult for enumerable resolution. May be empty in --standalone. */
@@ -55,6 +56,15 @@ export function registerTranspileBas(server: McpServer, deps: TranspileToolDeps)
       const ctx: TranspileContext = {
         detectEnumerable: (typeName, preferredElementType) =>
           detectEnumerable(typeName, lookupMembers, preferredElementType),
+        resolveGlobalSymbolType: (name, argumentCount) =>
+          deps.getIndexer().findSymbolByName(name)?.type ??
+          lookupSystemByName(name).find(
+            (symbol) =>
+              !symbol.containerName &&
+              (!symbol.parameters || symbol.parameters.length === argumentCount),
+          )?.type,
+        resolveMemberType: (typeName, name, argumentCount) =>
+          TypeResolver.findMember(typeName, name, deps.getIndexer(), argumentCount)?.type,
       };
       const result = SugarTranspiler.transpile(args.code, ctx);
       const text = JSON.stringify(

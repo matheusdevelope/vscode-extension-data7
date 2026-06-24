@@ -49,7 +49,7 @@ export function registerSearchExamples(server: McpServer): void {
           .string()
           .min(1)
           .describe(
-            'Palavra-chave a procurar. Exemplos: "for-each", "BaseEnum", "missing-import", "ternário".',
+            'Palavra-chave a procurar. Exemplos: "for-each", "TEnum", "missing-import", "ternário".',
           ),
         category: z
           .enum(["sugar", "diagnostics", "builder"])

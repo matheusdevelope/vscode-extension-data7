@@ -3,7 +3,7 @@
  * conventions and its known limitations. Helps AI agents understand
  * what NOT to write (no closures with capture, no operator overloading,
  * etc.) and what the canonical workarounds look like (`extra As Variant`,
- * `BaseEnum`, `TRecordList<T>` typed subclasses).
+ * `TEnum`, `TTList<T>` typed subclasses).
  *
  * Built by concatenating the two source markdowns; both chapters live in
  * `docs/linguagem-basic/` so they remain editable as standalone references
@@ -65,7 +65,7 @@ export function registerIdioms(server: McpServer): void {
     {
       title: "Idiomas e limitações de Data7 Basic",
       description:
-        "Conjunto consolidado de limitações intrínsecas + convenções idiomáticas (BaseEnum, TRecordList, extra As Variant).",
+        "Conjunto consolidado de limitações intrínsecas + convenções idiomáticas (TEnum, TTList, extra As Variant).",
     },
     (uri) => ({
       contents: [{ uri: uri.href, mimeType: "text/markdown", text: buildMarkdown() }],

@@ -7,8 +7,8 @@
 | Prompt                       | Para gerar                                                                                  |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `data7_module_skeleton`      | Esqueleto canônico de um módulo (`'@Module` header + Imports + Namespace + Class).          |
-| `data7_baseenum_pattern`     | Classe BaseEnum completa (Initialize lazy + 3 overloads de Load + Shared Function por valor). |
-| `data7_typed_recordlist`     | Subclasse tipada de TRecordList (Find/Filter/Map/ForEach + delegates dedicados).            |
+| `data7_TEnum_pattern`     | Classe TEnum completa (Initialize lazy + 3 overloads de Load + Shared Function por valor). |
+| `data7_typed_recordlist`     | Subclasse tipada de TTList (Find/Filter/Map/ForEach + delegates dedicados).            |
 | `data7_form_skeleton`        | Esqueleto de uma tela (Form privado + `_build` com layout `Align` + eventos + `Show`/`Free`). |
 
 ## Detalhe por prompt
@@ -62,7 +62,7 @@ End Namespace
 
 Quando `baseClass` é omitido, o `Inherits` é suprimido e o `Sub Free()` apenas comenta `' nada a liberar`.
 
-### `data7_baseenum_pattern`
+### `data7_TEnum_pattern`
 
 **Args**:
 
@@ -75,18 +75,18 @@ Quando `baseClass` é omitido, o `Inherits` é suprimido e o `Sub Free()` apenas
 
 Aceita também forma CSV simplificada: `"values": "Stone,Cielo"` (ids 0, 1 atribuídos automaticamente).
 
-**O que gera**: a classe BaseEnum completa documentada em [`docs/linguagem-basic/12-convencoes-idiomaticas.md § 1`](../linguagem-basic/12-convencoes-idiomaticas.md), com Initialize lazy, três overloads de Load (por `enum`, `Integer`, `String`), uma Shared Function por valor, e GetOptions().
+**O que gera**: a classe TEnum completa documentada em [`docs/linguagem-basic/12-convencoes-idiomaticas.md § 1`](../linguagem-basic/12-convencoes-idiomaticas.md), com Initialize lazy, três overloads de Load (por `enum`, `Integer`, `String`), uma Shared Function por valor, e GetOptions().
 
 ```basic
 Class CardAdm
-   Inherits BaseEnum
+   Inherits TEnum
 
    Private Shared _Initialized As Boolean
 
    Private Shared Sub Initialize()
       If _Initialized Then Exit Sub
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-      BaseEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
+      TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
       _Initialized = True
    End Sub
 
@@ -110,7 +110,7 @@ Idiomático. Substitui a falta de `Enum X / End Enum` na linguagem nativa.
 }
 ```
 
-**O que gera**: a subclasse tipada de `TRecordList` + 3 delegates dedicados (`CardRecordFindDelegate`, `CardRecordMapDelegate`, `CardRecordForEachDelegate`), seguindo o padrão de [`docs/linguagem-basic/12-convencoes-idiomaticas.md § 2`](../linguagem-basic/12-convencoes-idiomaticas.md):
+**O que gera**: a subclasse tipada de `TTList` + 3 delegates dedicados (`CardRecordFindDelegate`, `CardRecordMapDelegate`, `CardRecordForEachDelegate`), seguindo o padrão de [`docs/linguagem-basic/12-convencoes-idiomaticas.md § 2`](../linguagem-basic/12-convencoes-idiomaticas.md):
 
 ```basic
 Delegate Function CardRecordFindDelegate(pValue As CardRecord, i As Integer, extra As Variant) As Boolean
@@ -118,7 +118,7 @@ Delegate Function CardRecordMapDelegate(pValue As CardRecord, i As Integer, extr
 Delegate Sub CardRecordForEachDelegate(pValue As CardRecord, i As Integer, extra As Variant)
 
 Class CardRecordList
-   Inherits TRecordList
+   Inherits TTList
 
    Sub New()
       MyBase.New("CardRecordList")
@@ -210,7 +210,7 @@ Cada cliente expõe os prompts no menu apropriado:
 
 - **Cursor**: prompts MCP aparecem no menu `/` do chat.
 - **Claude Desktop**: na barra de comandos `/`.
-- **Continue**: comando `/data7-baseenum-pattern` (slug-ificado).
+- **Continue**: comando `/data7-TEnum-pattern` (slug-ificado).
 
 Todos validam os argumentos via Zod antes de chamar — argumentos inválidos viram erros descritivos na resposta.
 
@@ -219,7 +219,7 @@ Todos validam os argumentos via Zod antes de chamar — argumentos inválidos vi
 | Cenário                                                              | Use isto                       |
 | -------------------------------------------------------------------- | ------------------------------ |
 | "Crie um arquivo novo `mod_xxx` para fazer Y."                       | `data7_module_skeleton`        |
-| "Eu preciso de um enum com esses 3 valores."                         | `data7_baseenum_pattern`       |
+| "Eu preciso de um enum com esses 3 valores."                         | `data7_TEnum_pattern`       |
 | "Preciso de uma coleção tipada de `TFoo` com Find/Map/Filter."       | `data7_typed_recordlist`       |
 | "Crie uma tela/formulário para X."                                   | `data7_form_skeleton`          |
 | "Como ler `TJSONObject`?"                                            | (use o Tool `data7_describe_symbol`, não prompt) |

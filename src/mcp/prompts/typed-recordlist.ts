@@ -1,6 +1,6 @@
 /**
  * Prompt `data7_typed_recordlist` — generates the canonical typed
- * subclass of `TRecordList` for a given element type. The pattern
+ * subclass of `TTList` for a given element type. The pattern
  * comes from `12-convencoes-idiomaticas.md` § 2: since `StringList`
  * is the only native collection and generics are still being rolled
  * out by the AST monomorphizer, the idiomatic way to expose a typed
@@ -28,7 +28,7 @@ function buildPattern(elementTypeName: string): string {
   );
   lines.push("");
   lines.push(`Class ${listName}`);
-  lines.push(`   Inherits TRecordList`);
+  lines.push(`   Inherits TTList`);
   lines.push("");
   lines.push(`   Sub New()`);
   lines.push(`      MyBase.New("${listName}")`);
@@ -82,9 +82,9 @@ export function registerTypedRecordList(server: McpServer): void {
   server.registerPrompt(
     "data7_typed_recordlist",
     {
-      title: "Subclasse tipada de TRecordList",
+      title: "Subclasse tipada de TTList",
       description:
-        "Gera a subclasse canônica TRecordList<T> com delegates Find/Map/ForEach e métodos re-tipados via CType. Use quando o monomorfizador de generics ainda não cobre o caso.",
+        "Gera a subclasse canônica TTList<T> com delegates Find/Map/ForEach e métodos re-tipados via CType. Use quando o monomorfizador de generics ainda não cobre o caso.",
       argsSchema: {
         elementTypeName: z
           .string()
@@ -95,14 +95,14 @@ export function registerTypedRecordList(server: McpServer): void {
     (args) => {
       const code = buildPattern(args.elementTypeName);
       return {
-        description: `TRecordList tipado para ${args.elementTypeName}.`,
+        description: `TTList tipado para ${args.elementTypeName}.`,
         messages: [
           {
             role: "user",
             content: {
               type: "text",
               text:
-                `Crie a subclasse tipada \`${args.elementTypeName}List\` usando o padrão TRecordList. ` +
+                `Crie a subclasse tipada \`${args.elementTypeName}List\` usando o padrão TTList. ` +
                 "Adicione os três delegates (Find / Map / ForEach) e re-tipe os métodos herdados via CType. " +
                 "Este padrão é a forma idiomática enquanto o monomorfizador AST não estiver liberado para todos os casos.\n\n" +
                 "```basic\n" +

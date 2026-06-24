@@ -98,7 +98,7 @@ export function registerRealProject(server: McpServer): void {
     {
       title: "Projeto Data7 real (mod_card_grouper)",
       description:
-        "Projeto completo de referência (~10.8k linhas de .bas) com padrões idiomáticos: BaseEnum, TRecordList, console.Block, adapters, pipelines.",
+        "Projeto completo de referência (~10.8k linhas de .bas) com padrões idiomáticos: TEnum, TTList, console.Block, adapters, pipelines.",
     },
     (uri, variables) => {
       const raw = variables.path;

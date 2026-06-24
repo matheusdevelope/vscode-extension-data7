@@ -165,13 +165,13 @@ function main() {
         prompts.prompts.map((p) => p.name),
       );
 
-      const baseEnumPrompt = await request("prompts/get", {
-        name: "data7_baseenum_pattern",
+      const TEnumPrompt = await request("prompts/get", {
+        name: "data7_TEnum_pattern",
         arguments: { enumName: "Status", values: "Active,Inactive" },
       });
       console.log(
-        "baseenum_pattern generated Initialize():",
-        baseEnumPrompt.messages[0].content.text.includes("Initialize"),
+        "TEnum_pattern generated Initialize():",
+        TEnumPrompt.messages[0].content.text.includes("Initialize"),
       );
 
       child.kill();
