@@ -56,7 +56,7 @@ export class DiagnosticService {
     );
 
     const handleDocument = (doc: vscode.TextDocument): void => {
-      if (doc.uri.scheme === "data7-preview") {
+      if (doc.uri.scheme !== "file") {
         this._collection?.delete(doc.uri);
         return;
       }
@@ -130,7 +130,9 @@ export class DiagnosticService {
 
   public static refreshAllActive(): void {
     vscode.window.visibleTextEditors.forEach((editor) => {
-      this.refreshDebounced(editor.document);
+      if (editor.document.uri.scheme === "file") {
+        this.refreshDebounced(editor.document);
+      }
     });
   }
 
@@ -143,7 +145,7 @@ export class DiagnosticService {
   }
 
   private static refreshDiagnosticsNow(document: vscode.TextDocument): void {
-    if (document.uri.scheme === "data7-preview") {
+    if (document.uri.scheme !== "file") {
       this._collection?.delete(document.uri);
       return;
     }
@@ -369,6 +371,85 @@ export class DiagnosticService {
       if (filePath.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
         this.workspaceCache.delete(workspaceDir);
       }
+    }
+  }
+
+  public static async findWorkspaceBasFiles(): Promise<vscode.Uri[]> {
+    if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+      return [];
+    }
+    const uris = await vscode.workspace.findFiles("**/*.{bas,d7b}");
+    return uris.filter((uri) => {
+      const fsPath = uri.fsPath;
+      return uri.scheme === "file" && !isExcluded(fsPath) && !isReadOnlyModuleFile(fsPath);
+    });
+  }
+
+  public static async lintFile(uri: vscode.Uri): Promise<vscode.Diagnostic[]> {
+    if (uri.scheme !== "file") {
+      this._collection?.delete(uri);
+      return [];
+    }
+    const document = await vscode.workspace.openTextDocument(uri);
+    this.refreshDiagnosticsNow(document);
+    return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+  }
+
+  public static async lintWorkspace(showNotification = false): Promise<void> {
+    const uris = await this.findWorkspaceBasFiles();
+    if (uris.length === 0) {
+      if (showNotification) {
+        vscode.window.showInformationMessage("Nenhum arquivo Data7 Basic (.bas, .d7b) encontrado para analisar.");
+      }
+      return;
+    }
+
+    let errorCount = 0;
+    let warningCount = 0;
+    let infoCount = 0;
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "Analisando projeto com o linter...",
+      },
+      async () => {
+        for (const uri of uris) {
+          try {
+            const diags = await this.lintFile(uri);
+            for (const diag of diags) {
+              if (diag.severity === vscode.DiagnosticSeverity.Error) {
+                errorCount++;
+              } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+                warningCount++;
+              } else {
+                infoCount++;
+              }
+            }
+          } catch (err) {
+            logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
+          }
+        }
+      }
+    );
+
+    if (showNotification) {
+      const totalIssues = errorCount + warningCount + infoCount;
+      let msg = "";
+      if (totalIssues === 0) {
+        msg = "Linter concluído: Nenhum problema encontrado no projeto.";
+      } else {
+        msg = `Linter concluído: ${errorCount} erro(s), ${warningCount} aviso(s) e ${infoCount} informação(ões) no projeto.`;
+      }
+
+      const actions = totalIssues > 0 ? ["Corrigir Tudo (Ajuste em Massa)", "Reiniciar Linter"] : ["Reiniciar Linter"];
+      vscode.window.showInformationMessage(msg, ...actions).then(async (selection) => {
+        if (selection === "Corrigir Tudo (Ajuste em Massa)") {
+          await vscode.commands.executeCommand("data7.fixAllWorkspace");
+        } else if (selection === "Reiniciar Linter") {
+          await vscode.commands.executeCommand("data7.runLinter");
+        }
+      });
     }
   }
 

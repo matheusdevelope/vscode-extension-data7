@@ -204,6 +204,12 @@
         "title": "Corrigir Erros de Sintaxe/Estilo no Projeto Completo",
         "category": "Data7",
         "icon": "$(tools)"
+      },
+      {
+        "command": "data7.runLinter",
+        "title": "Reiniciar/Rodar Linter no Projeto",
+        "category": "Data7",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {

@@ -1916,7 +1916,7 @@ class DiagnosticsASTWalker extends ASTWalker {
         insertLine++;
       }
       const targetLineText = this.lines[insertLine] ?? "";
-      let commentIdx = targetLineText.indexOf("'");
+      const commentIdx = targetLineText.indexOf("'");
       let insertCol = targetLineText.length;
       if (commentIdx !== -1) {
         insertCol = commentIdx;
@@ -1968,7 +1968,7 @@ class DiagnosticsASTWalker extends ASTWalker {
           insertLine++;
         }
         const targetLineText = this.lines[insertLine] ?? "";
-        let commentIdx = targetLineText.indexOf("'");
+        const commentIdx = targetLineText.indexOf("'");
         let insertCol = targetLineText.length;
         if (commentIdx !== -1) {
           insertCol = commentIdx;
@@ -2015,7 +2015,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     diag.code = DiagnosticCodes.ReturnUnrecommended;
 
     let expressionText: string | undefined;
-    if (node.expression && node.expression.loc) {
+    if (node.expression?.loc) {
       const startL = node.expression.loc.startLine - 1;
       const startC = node.expression.loc.startChar;
       const endL = node.expression.loc.endLine - 1;

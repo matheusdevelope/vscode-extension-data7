@@ -14,7 +14,9 @@ Quando o VS Code nao preserva `Diagnostic.data`, o Quick Fix de `return-unrecomm
 
 ## 1. Objetivos do Projeto
 
-As correÃ§Ãµes automÃ¡ticas de sintaxe/estilo reutilizam o mesmo contrato de `source.fixAll.data7` no save, no comando `data7.fixAllWorkspace` e no pipeline de build/execuÃ§Ã£o, mantendo `Else If`, `Then`, `Return` e o workaround de `Finally` consistentes entre linter, Code Actions e comandos.
+As correções automáticas de sintaxe/estilo reutilizam o mesmo contrato de `source.fixAll.data7` no save, no comando `data7.fixAllWorkspace` e no pipeline de build/execução, mantendo `Else If`, `Then`, `Return` e o workaround de `Finally` consistentes entre linter, Code Actions e comandos. O comando `data7.fixAllWorkspace` resolve dinamicamente a primeira correção rápida (Quick Fix) aplicável a cada diagnóstico do projeto (ignorando ações de supressão).
+
+O linter inicializa avaliando todo o projeto (arquivos físicos locais com esquema `file`) logo após a conclusão da indexação do workspace. Ao concluir, exibe uma notificação informativa com o resumo dos diagnósticos e botões para executar correções em massa ou reiniciar a análise via o comando `data7.runLinter`.
 
 Os diagnostics devem reconhecer imports transitivos de modulos utilizados, promocoes numericas sem perda e APIs globais legadas registradas na System Library, como `dateUtils.toStringFormat(...)`.
 

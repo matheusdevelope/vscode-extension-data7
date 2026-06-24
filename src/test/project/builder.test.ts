@@ -261,11 +261,11 @@ End Namespace</Codigo>
         );
 
         assert.ok(
-          meta.dependencies?.["mod_logger"] !== undefined,
+          meta.dependencies?.mod_logger !== undefined,
           "mod_logger must be detected as a dependency",
         );
         assert.ok(
-          meta.dependencies?.["mod_strings_helper"] === undefined,
+          meta.dependencies?.mod_strings_helper === undefined,
           "mod_strings_helper must NOT be detected as a dependency",
         );
       });

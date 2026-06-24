@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { DiagnosticCodes, type UnusedImportPayload } from "../../diagnostics/diagnostic-codes";
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 import { LanguageProcessor } from "../../analysis/language-processor";
-import { type ImportsDeclaration } from "../../project/ast/ast";
+import type { ImportsDeclaration } from "../../project/ast/ast";
 
 export function addRemoveImportFix(
   actions: vscode.CodeAction[],

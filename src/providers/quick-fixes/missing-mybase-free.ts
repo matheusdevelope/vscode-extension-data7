@@ -111,7 +111,7 @@ function resolveMissingMyBaseFreeInsertion(
   const lineText = document.lineAt(startLine).text;
   const eol = getDocumentEol(document);
 
-  if (targetClass && targetClass.loc) {
+  if (targetClass?.loc) {
     const classIndent = lineText.substring(0, lineText.length - lineText.trimStart().length);
     const endClassLine = targetClass.loc.endLine - 1;
     return {
@@ -121,7 +121,7 @@ function resolveMissingMyBaseFreeInsertion(
     };
   }
 
-  if (targetMethod && targetMethod.loc) {
+  if (targetMethod?.loc) {
     const endSubLine = targetMethod.loc.endLine - 1;
     // Determine method body indentation from AST or fallback
     let bodyIndent: string | undefined;

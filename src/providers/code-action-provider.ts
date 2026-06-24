@@ -52,7 +52,6 @@ import {
 
 // Source actions
 import { addOrganizeImportsAction } from "./source-actions/organize-imports";
-import { addFixAllAction, buildFixAllWorkspaceEdit } from "./source-actions/fix-all";
 
 // Refactor rewrites
 import {
@@ -90,6 +89,92 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     vscode.CodeActionKind.SourceFixAll.append("data7"),
   ];
 
+  public getQuickFixesForDiagnostic(
+    document: vscode.TextDocument,
+    diagnostic: vscode.Diagnostic,
+  ): vscode.CodeAction[] {
+    const actions: vscode.CodeAction[] = [];
+    const codeStr = getDiagnosticCode(diagnostic);
+
+    if (codeStr) {
+      addLineSuppressionFix(actions, document, diagnostic, codeStr);
+      addFileSuppressionFix(actions, document, diagnostic, codeStr);
+    }
+
+    switch (codeStr) {
+      case DiagnosticCodes.MissingImport:
+        addMissingImportFix(actions, document, diagnostic);
+        addMissingImportBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.UnusedImport:
+      case DiagnosticCodes.DuplicateImport:
+        addRemoveImportFix(actions, document, diagnostic);
+        addRemoveImportBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.ModuleNotDeclared:
+        addDeclareDependencyFix(actions, document, diagnostic);
+        addDeclareDependencyBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.ModuleNotFound:
+        addInstallModuleFix(actions, diagnostic);
+        addInstallModuleBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.UnknownMember:
+        addDidYouMeanFixes(actions, document, diagnostic);
+        addDidYouMeanBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.UnknownType:
+        addUnknownTypeDidYouMeanFixes(actions, document, diagnostic);
+        addUnknownTypeDidYouMeanBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.UnsupportedMember:
+        addUnsupportedMemberFixes(actions, document, diagnostic);
+        addUnsupportedMemberBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.DeclarationParenthesesMismatch:
+        addDeclarationParenthesesMismatchFix(actions, document, diagnostic);
+        addDeclarationParenthesesMismatchBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.ObjectCreationParenthesesMissing:
+        addObjectCreationParenthesesMissingFix(actions, document, diagnostic);
+        addObjectCreationParenthesesMissingBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.MissingMyBaseNew:
+        addMissingMyBaseNewFix(actions, document, diagnostic);
+        addMissingMyBaseNewBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.MissingMyBaseFree:
+        addMissingMyBaseFreeFix(actions, document, diagnostic);
+        addMissingMyBaseFreeBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.MissingThen:
+        addMissingThenFix(actions, document, diagnostic);
+        addMissingThenBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.ElseIfWhitespace:
+        addElseIfWhitespaceFix(actions, document, diagnostic);
+        addElseIfWhitespaceBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.ReturnUnrecommended:
+        addReturnUnrecommendedFix(actions, document, diagnostic);
+        addReturnUnrecommendedBulkFix(actions, document, diagnostic);
+        break;
+      case "expected-token":
+        if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
+          addMissingThenFix(actions, document, diagnostic);
+          addMissingThenBulkFix(actions, document, diagnostic);
+        }
+        break;
+      case LegacyDiagnosticCodes.FinallyBlockUnsupported:
+        addFinallyBlockUnsupportedFix(actions, document, diagnostic);
+        addFinallyBlockUnsupportedBulkFix(actions, document, diagnostic);
+        break;
+      default:
+        break;
+    }
+    return actions;
+  }
+
   public provideCodeActions(
     document: vscode.TextDocument,
     range: vscode.Range | vscode.Selection,
@@ -100,87 +185,9 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     const actions: vscode.CodeAction[] = [];
     try {
-
       // Per-diagnostic QuickFixes.
       for (const diagnostic of context.diagnostics) {
-        const codeStr = getDiagnosticCode(diagnostic);
-
-        if (codeStr) {
-          addLineSuppressionFix(actions, document, diagnostic, codeStr);
-          addFileSuppressionFix(actions, document, diagnostic, codeStr);
-        }
-
-        switch (codeStr) {
-          case DiagnosticCodes.MissingImport:
-            addMissingImportFix(actions, document, diagnostic);
-            addMissingImportBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.UnusedImport:
-          case DiagnosticCodes.DuplicateImport:
-            addRemoveImportFix(actions, document, diagnostic);
-            addRemoveImportBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.ModuleNotDeclared:
-            addDeclareDependencyFix(actions, document, diagnostic);
-            addDeclareDependencyBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.ModuleNotFound:
-            addInstallModuleFix(actions, diagnostic);
-            addInstallModuleBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.UnknownMember:
-            addDidYouMeanFixes(actions, document, diagnostic);
-            addDidYouMeanBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.UnknownType:
-            addUnknownTypeDidYouMeanFixes(actions, document, diagnostic);
-            addUnknownTypeDidYouMeanBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.UnsupportedMember:
-            addUnsupportedMemberFixes(actions, document, diagnostic);
-            addUnsupportedMemberBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.DeclarationParenthesesMismatch:
-            addDeclarationParenthesesMismatchFix(actions, document, diagnostic);
-            addDeclarationParenthesesMismatchBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.ObjectCreationParenthesesMissing:
-            addObjectCreationParenthesesMissingFix(actions, document, diagnostic);
-            addObjectCreationParenthesesMissingBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.MissingMyBaseNew:
-            addMissingMyBaseNewFix(actions, document, diagnostic);
-            addMissingMyBaseNewBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.MissingMyBaseFree:
-            addMissingMyBaseFreeFix(actions, document, diagnostic);
-            addMissingMyBaseFreeBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.MissingThen:
-            addMissingThenFix(actions, document, diagnostic);
-            addMissingThenBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.ElseIfWhitespace:
-            addElseIfWhitespaceFix(actions, document, diagnostic);
-            addElseIfWhitespaceBulkFix(actions, document, diagnostic);
-            break;
-          case DiagnosticCodes.ReturnUnrecommended:
-            addReturnUnrecommendedFix(actions, document, diagnostic);
-            addReturnUnrecommendedBulkFix(actions, document, diagnostic);
-            break;
-          case "expected-token":
-            if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
-              addMissingThenFix(actions, document, diagnostic);
-              addMissingThenBulkFix(actions, document, diagnostic);
-            }
-            break;
-          case LegacyDiagnosticCodes.FinallyBlockUnsupported:
-            addFinallyBlockUnsupportedFix(actions, document, diagnostic);
-            addFinallyBlockUnsupportedBulkFix(actions, document, diagnostic);
-            break;
-          default:
-            break;
-        }
+        actions.push(...this.getQuickFixesForDiagnostic(document, diagnostic));
       }
 
       // Cursor-driven refactor rewrites for the `For Each` sugar.
@@ -189,11 +196,11 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
       // Source actions (always available; VS Code filters by `only` when relevant).
       addOrganizeImportsAction(actions, document);
-      addFixAllAction(actions, document, context.diagnostics);
+      addFixAllAction(actions, document, context.diagnostics, this);
 
       return actions;
     } catch (e) {
-      logger.error('Error in provideCodeActions', e);
+      logger.error("Error in provideCodeActions", e);
       return [];
     }
   }
@@ -202,6 +209,90 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     diagnostics: readonly vscode.Diagnostic[],
   ): { edit: vscode.WorkspaceEdit; count: number } | undefined {
-    return buildFixAllWorkspaceEdit(document, diagnostics);
+    const collected: vscode.CodeAction[] = [];
+
+    for (const diagnostic of diagnostics) {
+      const actions = this.getQuickFixesForDiagnostic(document, diagnostic);
+      const firstFix = actions.find(
+        (action) =>
+          action instanceof vscode.CodeAction &&
+          !!action.kind?.value.startsWith(vscode.CodeActionKind.QuickFix.value) &&
+          !!action.edit &&
+          !action.title.startsWith("Desabilitar "),
+      );
+      if (firstFix) {
+        collected.push(firstFix);
+      }
+    }
+
+    return mergeActionEdits(collected);
   }
+}
+
+export function mergeActionEdits(
+  actions: readonly vscode.CodeAction[],
+): { edit: vscode.WorkspaceEdit; count: number } | undefined {
+  const merged = new vscode.WorkspaceEdit();
+  let count = 0;
+
+  for (const action of actions) {
+    if (!action.edit) continue;
+    if (typeof action.edit.entries === "function") {
+      for (const [uri, edits] of action.edit.entries()) {
+        for (const edit of edits) {
+          if (edit.newText === "") {
+            merged.delete(uri, edit.range);
+          } else if (edit.range.isEmpty) {
+            merged.insert(uri, edit.range.start, edit.newText);
+          } else {
+            merged.replace(uri, edit.range, edit.newText);
+          }
+          count++;
+        }
+      }
+      continue;
+    }
+
+    const mockEdits = (action.edit as { edits?: unknown[] }).edits;
+    if (!Array.isArray(mockEdits)) continue;
+    for (const mockEdit of mockEdits) {
+      const entry = mockEdit as
+        | { type: "insert"; uri: vscode.Uri; position: vscode.Position; text: string }
+        | { type: "replace"; uri: vscode.Uri; range: vscode.Range; text: string }
+        | { type: "delete"; uri: vscode.Uri; range: vscode.Range };
+      if (entry.type === "insert") {
+        merged.insert(entry.uri, entry.position, entry.text);
+        count++;
+        continue;
+      }
+      if (entry.type === "replace") {
+        merged.replace(entry.uri, entry.range, entry.text);
+        count++;
+        continue;
+      }
+      merged.delete(entry.uri, entry.range);
+      count++;
+    }
+  }
+
+  return count > 0 ? { edit: merged, count } : undefined;
+}
+
+function addFixAllAction(
+  actions: vscode.CodeAction[],
+  document: vscode.TextDocument,
+  diagnostics: readonly vscode.Diagnostic[],
+  provider: D7BasicCodeActionProvider,
+): void {
+  if (diagnostics.length === 0) return;
+  const merged = provider.buildFixAllWorkspaceEdit(document, diagnostics);
+  if (!merged) return;
+  const { edit, count } = merged;
+
+  const action = new vscode.CodeAction(
+    `Source: Corrigir todos (${count} edição${count === 1 ? "" : "ões"})`,
+    vscode.CodeActionKind.SourceFixAll.append("data7"),
+  );
+  action.edit = edit;
+  actions.push(action);
 }

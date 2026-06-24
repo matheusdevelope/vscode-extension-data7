@@ -59,6 +59,7 @@ export const COMMAND_IDS = {
   previewTranspiledCode: "data7.previewTranspiledCode",
   previewTranspiledCodeActive: "data7.previewTranspiledCodeActive",
   fixAllWorkspace: "data7.fixAllWorkspace",
+  runLinter: "data7.runLinter",
 } as const;
 
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];

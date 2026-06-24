@@ -56,9 +56,10 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   indexer
     .indexWorkspace(vscode.workspace.workspaceFolders)
     .then(() => {
-      // Quando o cache "esquentar", forçamos o linter a reavaliar os arquivos
-      // que já estavam abertos na tela, revelando os erros que passaram batidos.
-      DiagnosticService.refreshAllActive();
+      // Quando o cache "esquentar", iniciamos o linter no projeto inteiro.
+      void DiagnosticService.lintWorkspace(true).catch((err) => {
+        logger.error("Erro ao rodar linter no workspace inicial.", err);
+      });
     })
     .catch((err) => {
       logger.error("Erro ao indexar workspace.", err);
@@ -148,7 +149,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
         if (!cfg.get<boolean>("autoFormatOnSave")) {
           return [];
         }
-        const formatEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+        const formatEdits = await vscode.commands.executeCommand<vscode.TextEdit[] | undefined>(
           "vscode.executeFormatDocumentProvider",
           e.document.uri,
         );

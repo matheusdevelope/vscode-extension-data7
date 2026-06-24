@@ -1316,4 +1316,25 @@ describe("D7BasicCodeActionProvider", () => {
       }
     });
   });
+
+  describe("buildFixAllWorkspaceEdit (dynamic bulk correction)", () => {
+    test("picks the first available quick-fix edit and excludes suppression fixes", () => {
+      const doc = mockDoc("If x <> 1\n");
+      const range = new vscode.Range(0, 9, 0, 10);
+      const diag = new vscode.Diagnostic(
+        range,
+        "Expected 'then', got '\\n'.",
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = "expected-token";
+
+      const provider = new D7BasicCodeActionProvider();
+      const result = provider.buildFixAllWorkspaceEdit(doc, [diag]);
+      assert.ok(result);
+      expectEdit(result.edit as any, { type: "insert", line: 0, textIncludes: "Then" });
+
+      const editsStr = JSON.stringify(result.edit);
+      assert.ok(!editsStr.includes("disable-line"));
+    });
+  });
 });

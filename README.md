@@ -73,6 +73,7 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 | `Data7: Gerar Documentação da System Library`  | —              | Gera `.md` por namespace em `docs/system-library/`        |
 | `Data7: Sincronizar Documentação no AGENTS.md` | —              | Injeta bloco gerado no `AGENTS.md` do workspace           |
 | `Data7: Mostrar Saída`                         | —              | Abre o canal "Data7" no painel Output                     |
+| `Data7: Reiniciar/Rodar Linter no Projeto`     | —              | Reavalia todo o projeto e exibe resumo de diagnósticos    |
 
 ## Configurações
 

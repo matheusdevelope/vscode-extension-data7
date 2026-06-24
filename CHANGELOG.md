@@ -7,8 +7,16 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado
+
+- Inicialização automática do linter para todo o projeto (arquivos físicos locais com esquema `file`) ao abrir o workspace.
+- Novo comando `data7.runLinter` ("Reiniciar/Rodar Linter no Projeto") para reavaliar todo o projeto sob demanda.
+- Exibição de notificação informativa com resumo dos problemas (Erros/Avisos/Informações) após execução do linter de projeto, com botões para "Corrigir Tudo" e "Reiniciar Linter".
+
 ### Corrigido
 
+- O linter agora ignora documentos virtuais sem esquema `file` (como views de diff do Git) para evitar falsos positivos de arquivos modificados/antigos no editor.
+- O comando de ajuste em massa (`data7.fixAllWorkspace`) foi aprimorado para resolver de forma inteiramente dinâmica as correções, aplicando o primeiro Quick Fix corretivo real disponível de cada diagnóstico no projeto e ignorando ações de supressão/desativação.
 - O Quick Fix de `return-unrecommended` continua disponivel quando o VS Code recria o diagnostico sem o payload interno: a extensao recupera a rotina e o contexto condicional pela estrutura do documento, sem depender da mensagem do warning.
 
 - Os Quick Fixes de `return-unrecommended` agora usam a linha real do documento: fora de condicionais geram apenas a atribuicao do valor de retorno; dentro de condicionais tambem inserem o `Exit` correspondente. O Quick Fix de `missing-mybase-free` voltou a aparecer para diagnosticos estruturados e insere `MyBase.Free()` antes de `End Sub`, apos todas as liberacoes de recursos existentes.
