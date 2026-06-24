@@ -1,5 +1,21 @@
 import * as vscode from "vscode";
 
+/** Normalizes the diagnostic code shape exposed by VS Code. */
+export function getDiagnosticCode(diagnostic: vscode.Diagnostic): string | undefined {
+  const rawCode = diagnostic.code;
+  if (typeof rawCode === "string") return rawCode;
+  if (typeof rawCode === "number") return String(rawCode);
+  if (rawCode && typeof rawCode === "object" && "value" in rawCode) {
+    return String(rawCode.value);
+  }
+  return undefined;
+}
+
+/** Matches diagnostics regardless of VS Code's code representation. */
+export function hasDiagnosticCode(diagnostic: vscode.Diagnostic, expectedCode: string): boolean {
+  return getDiagnosticCode(diagnostic) === expectedCode;
+}
+
 /** Reads a typed diagnostic payload only when it belongs to the expected code. */
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export function readDiagnosticPayload<T extends { code: string }>(
@@ -39,6 +55,39 @@ export function findDeclarationParenthesesInsertPosition(
   return diagnostic.range.end;
 }
 
+export function findObjectCreationParenthesesInsertPosition(
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic,
+): vscode.Position {
+  const line = diagnostic.range.start.line;
+  const lineText = document.lineAt(line).text;
+  let cursor = diagnostic.range.start.character;
+
+  // TypeReference locations currently identify the first character only.
+  // Scan the source type to append the constructor call after its full name.
+  const typeName = /^(?:[A-Za-z_]\w*)(?:\s*\.\s*[A-Za-z_]\w*)*/.exec(lineText.slice(cursor));
+  if (!typeName) return diagnostic.range.end;
+  cursor += typeName[0].length;
+
+  let genericStart = cursor;
+  while (lineText[genericStart] === " " || lineText[genericStart] === "\t") genericStart++;
+  if (lineText[genericStart] !== "<") return new vscode.Position(line, cursor);
+  cursor = genericStart;
+
+  let depth = 0;
+  while (cursor < lineText.length) {
+    const char = lineText[cursor];
+    if (char === "<") depth++;
+    if (char === ">" && --depth === 0) {
+      cursor++;
+      break;
+    }
+    cursor++;
+  }
+  if (depth !== 0) return diagnostic.range.end;
+  return new vscode.Position(line, cursor);
+}
+
 export function findMissingThenInsertPosition(
   document: vscode.TextDocument,
   diagnostic: vscode.Diagnostic,
@@ -52,7 +101,7 @@ export function findMissingThenInsertPosition(
 
 export function isMissingThenDiagnostic(diagnostic: vscode.Diagnostic): boolean {
   return (
-    diagnostic.code === "expected-token" &&
+    hasDiagnosticCode(diagnostic, "expected-token") &&
     diagnostic.message.toLowerCase().includes("expected 'then'")
   );
 }
@@ -60,13 +109,7 @@ export function isMissingThenDiagnostic(diagnostic: vscode.Diagnostic): boolean 
 export function dedupeDiagnostics(diagnostics: readonly vscode.Diagnostic[]): vscode.Diagnostic[] {
   const seen = new Set<string>();
   return diagnostics.filter((diagnostic) => {
-    const code = diagnostic.code as unknown;
-    const value =
-      code && typeof code === "object" && "value" in code
-        ? String((code as { value: string | number }).value)
-        : typeof code === "string" || typeof code === "number"
-          ? String(code)
-          : "";
+    const value = getDiagnosticCode(diagnostic) ?? "";
     const range = diagnostic.range;
     const key = `${value}:${range.start.line}:${range.start.character}:${range.end.line}:${range.end.character}`;
     if (seen.has(key)) return false;

@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import { D7BasicCodeActionProvider } from "../../providers/code-action-provider";
 import {
   DiagnosticCodes,
+  LegacyDiagnosticCodes,
   type MissingImportPayload,
   type ModuleNotDeclaredPayload,
   type ModuleNotFoundPayload,
@@ -12,6 +13,9 @@ import {
   type UnsupportedMemberPayload,
   type UnusedImportPayload,
   type FinallyBlockUnsupportedPayload,
+  type ElseIfWhitespacePayload,
+  type MissingThenPayload,
+  type ReturnUnrecommendedPayload,
   setDiagnosticPayload,
 } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, noopToken } from "../_helpers/mock-doc";
@@ -31,6 +35,47 @@ function diagWith(
   d.code = code;
   setDiagnosticPayload(d, payload as never);
   return d;
+}
+
+function offsetAt(text: string, line: number, character: number): number {
+  const lines = text.split("\n");
+  let offset = 0;
+  for (let index = 0; index < line; index++) {
+    offset += (lines[index]?.length ?? 0) + 1;
+  }
+  return offset + character;
+}
+
+function applyReplaceEdit(
+  text: string,
+  edit: {
+    type: string;
+    range?: {
+      start: { line: number; character: number };
+      end: { line: number; character: number };
+    };
+    text?: string;
+  },
+): string {
+  assert.equal(edit.type, "replace");
+  assert.ok(edit.range);
+  const start = offsetAt(text, edit.range.start.line, edit.range.start.character);
+  const end = offsetAt(text, edit.range.end.line, edit.range.end.character);
+  return `${text.slice(0, start)}${edit.text ?? ""}${text.slice(end)}`;
+}
+
+function applyInsertEdit(
+  text: string,
+  edit: {
+    type: string;
+    position?: { line: number; character: number };
+    text?: string;
+  },
+): string {
+  assert.equal(edit.type, "insert");
+  assert.ok(edit.position);
+  const offset = offsetAt(text, edit.position.line, edit.position.character);
+  return `${text.slice(0, offset)}${edit.text ?? ""}${text.slice(offset)}`;
 }
 
 /**
@@ -107,6 +152,50 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(unusedFix);
       assert.ok(unusedFix.title.includes("Forms"));
       expectEdit(unusedFix.edit, { type: "delete" });
+    });
+
+    test("unused-import emits a delete action when VS Code provides a structured code", async () => {
+      const doc = mockDoc("Imports tryParser\n");
+      const range = new vscode.Range(0, 8, 0, 17);
+      const diagnostic = diagWith(DiagnosticCodes.UnusedImport, undefined, range);
+      diagnostic.code = {
+        value: DiagnosticCodes.UnusedImport,
+        target: vscode.Uri.parse("https://data7.dev/diagnostics/unused-import"),
+      };
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        edit: { edits: { type: string }[] };
+      }[];
+      const actions = onlyQuickFixes(all);
+
+      assert.equal(actions.length, 1);
+      const [unusedFix] = actions;
+      assert.ok(unusedFix);
+      assert.equal(unusedFix.title, 'Remover Imports "tryParser"');
+      expectEdit(unusedFix.edit, { type: "delete" });
+    });
+
+    test("unused-import falls back to Remover esta linha if the line is not parseable", async () => {
+      const doc = mockDoc("Some invalid line text\n");
+      const range = new vscode.Range(0, 0, 0, 10);
+      const diagnostic = diagWith(DiagnosticCodes.UnusedImport, undefined, range);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        edit: { edits: { type: string }[] };
+      }[];
+      const actions = onlyQuickFixes(all);
+      assert.equal(actions.length, 1);
+      const [unusedFix] = actions;
+      assert.ok(unusedFix);
+      assert.equal(unusedFix.title, "Remover esta linha");
     });
 
     test("duplicate-import also emits a delete action", async () => {
@@ -326,6 +415,43 @@ describe("D7BasicCodeActionProvider", () => {
     });
   });
 
+  describe("object-creation-parentheses-missing", () => {
+    test("emits an edit to insert parentheses () after the instantiated type", async () => {
+      const doc = mockDoc("Dim file As StringList = New StringList\n");
+      // TypeReference locations currently point to the type's first character.
+      const range = new vscode.Range(0, 29, 0, 29);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [
+              diagWith(DiagnosticCodes.ObjectCreationParenthesesMissing, undefined, range),
+            ],
+          } as any,
+          noopToken,
+        ),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        isPreferred?: boolean;
+        edit: { edits: { type: string; text?: string; position: vscode.Position }[] };
+      }[];
+      const actions = onlyQuickFixes(all);
+      const fix = actions.find((a) => a.title.includes("instanci"));
+      assert.ok(fix);
+      assert.equal(fix.isPreferred, true);
+      expectEdit(fix.edit, { type: "insert", textIncludes: "()" });
+      const insertion = fix.edit.edits[0];
+      assert.ok(insertion);
+      assert.equal(insertion.position.character, 39);
+      const source = doc.getText();
+      const fixedSource = `${source.slice(0, insertion.position.character)}()${source.slice(insertion.position.character)}`;
+      assert.equal(fixedSource, "Dim file As StringList = New StringList()\n");
+    });
+  });
+
   describe("unknown-type spelling suggestions", () => {
     test("emits did-you-mean suggestions for unknown type names", async () => {
       const doc = mockDoc("Class Foo\nEnd Class\n");
@@ -436,6 +562,103 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(fix);
       expectEdit(fix.edit, { type: "insert", textIncludes: "MyBase.Free()" });
     });
+
+    test("adds MyBase.Free() after existing cleanup statements and accepts structured codes", async () => {
+      const source = [
+        "Class Foo",
+        "   Sub Free()",
+        "      me._connection.Free()",
+        "      me._cache.Free()",
+        "   End Sub",
+        "End Class",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const range = new vscode.Range(1, 3, 1, 13);
+      const diagnostic = diagWith(DiagnosticCodes.MissingMyBaseFree, undefined, range);
+      diagnostic.code = { value: DiagnosticCodes.MissingMyBaseFree } as any;
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("MyBase.Free"));
+      assert.ok(fix, "The local MyBase.Free() quick fix should be offered");
+
+      const insertEdit = expectEdit(fix.edit, { type: "insert", line: 4, textIncludes: "MyBase.Free()" });
+      const insertPosition = insertEdit.position as { line: number; character: number };
+      assert.equal(insertPosition.character, 0);
+      const applied = applyInsertEdit(source, insertEdit as any);
+      assert.match(
+        applied,
+        /me\._cache\.Free\(\)\n\s+MyBase\.Free\(\)\n\s+End Sub/,
+      );
+    });
+
+    test("bulk fix inserts MyBase.Free() before each matching End Sub", async () => {
+      const source = [
+        "Class Foo",
+        "   Sub Free()",
+        "      me._resource.Free()",
+        "   End Sub",
+        "End Class",
+        "Class Bar",
+        "   Sub Free()",
+        "      me._anotherResource.Free()",
+        "   End Sub",
+        "End Class",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const first = diagWith(
+        DiagnosticCodes.MissingMyBaseFree,
+        undefined,
+        new vscode.Range(1, 3, 1, 13),
+      );
+      const second = diagWith(
+        DiagnosticCodes.MissingMyBaseFree,
+        undefined,
+        new vscode.Range(6, 3, 6, 13),
+      );
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [first, second];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(
+            doc,
+            first.range,
+            { diagnostics: [first] } as any,
+            noopToken,
+          ),
+        )) as any[];
+        const bulk = onlyQuickFixes(all).find((action) => action.title.includes("todas as classes"));
+        assert.ok(bulk);
+        assert.equal(bulk.edit.edits.length, 2);
+        assert.deepEqual(
+          bulk.edit.edits.map((edit: { position: { line: number } }) => edit.position.line).sort(),
+          [3, 8],
+        );
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+
+    test("source fix-all applies structured missing-mybase-free diagnostics", () => {
+      const doc = mockDoc("Class Foo\n   Sub Free()\n      me._resource.Free()\n   End Sub\nEnd Class\n");
+      const diagnostic = diagWith(
+        DiagnosticCodes.MissingMyBaseFree,
+        undefined,
+        new vscode.Range(1, 3, 1, 13),
+      );
+      diagnostic.code = { value: DiagnosticCodes.MissingMyBaseFree } as any;
+
+      const provider = new D7BasicCodeActionProvider();
+      const result = provider.buildFixAllWorkspaceEdit(doc, [diagnostic]);
+      assert.ok(result);
+      expectEdit(result.edit as any, { type: "insert", line: 3, textIncludes: "MyBase.Free()" });
+    });
   });
 
   describe("expected-token", () => {
@@ -491,6 +714,237 @@ describe("D7BasicCodeActionProvider", () => {
       } finally {
         (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
       }
+    });
+  });
+
+  describe("syntax-style quickfixes", () => {
+    test("elseif-whitespace replaces 'Else If' with 'ElseIf'", async () => {
+      const doc = mockDoc("Else If ready Then\n");
+      const payload: ElseIfWhitespacePayload = {
+        code: DiagnosticCodes.ElseIfWhitespace,
+        line: 0,
+        column: 0,
+      };
+      const range = new vscode.Range(0, 0, 0, 7);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ElseIfWhitespace, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("ElseIf"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "replace", textIncludes: "ElseIf" });
+    });
+
+    test("missing-then inserts Then before trailing comments", async () => {
+      const doc = mockDoc("If ready ' comment\n");
+      const payload: MissingThenPayload = {
+        code: DiagnosticCodes.MissingThen,
+        line: 0,
+        insertColumn: 8,
+      };
+      const range = new vscode.Range(0, 0, 0, 18);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.MissingThen, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Then"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "insert", textIncludes: " Then" });
+      assert.equal(fix.edit.edits[0]?.position.character, 8);
+    });
+
+    test("return-unrecommended rewrites Return to assignment plus Exit inside conditionals", async () => {
+      const doc = mockDoc("         Return a + 1\n");
+      const payload: ReturnUnrecommendedPayload = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 0,
+        startChar: 9,
+        endChar: 21,
+        expressionText: "a + 1",
+        exitType: "Function",
+        targetName: "Calc",
+        isConditional: true,
+      };
+      const range = new vscode.Range(0, 9, 0, 21);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Calc"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "replace", textIncludes: "Calc = a + 1" });
+      expectEdit(fix.edit, { type: "replace", textIncludes: "Exit Function" });
+    });
+
+    test("return-unrecommended outside conditional block rewrites to direct assignment only", async () => {
+      const source = [
+        "      Property Path As String",
+        "         Get",
+        "            Return me._path_qrcode",
+        "         End Get",
+        "      End Property",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const payload: ReturnUnrecommendedPayload = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 2,
+        startChar: 12,
+        endChar: 12,
+        expressionText: undefined,
+        exitType: "Property",
+        targetName: "Path",
+        isConditional: false,
+      };
+      const range = new vscode.Range(2, 12, 2, 12);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Path"));
+      assert.ok(fix);
+      const replaceEdit = expectEdit(fix.edit, { type: "replace", line: 2, textIncludes: "Path = me._path_qrcode" });
+      assert.ok(!replaceEdit.text?.includes("Exit Property"));
+      const applied = applyReplaceEdit(source, replaceEdit as any);
+      assert.match(applied, /^\s+Path = me\._path_qrcode$/m);
+      assert.ok(!applied.includes("Exit SubReturn"));
+    });
+
+    test("return-unrecommended remains available when VS Code omits Diagnostic.data", async () => {
+      const source = [
+        "Function Calculate As Integer",
+        "   If ready Then",
+        "      Return total",
+        "   End If",
+        "End Function",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const range = new vscode.Range(2, 6, 2, 18);
+      const diagnostic = diagWith(DiagnosticCodes.ReturnUnrecommended, undefined, range);
+      diagnostic.code = { value: DiagnosticCodes.ReturnUnrecommended } as any;
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Calculate"));
+      assert.ok(fix, "The Return quick fix should not depend on Diagnostic.data");
+      expectEdit(fix.edit, { type: "replace", line: 2, textIncludes: "Calculate = total" });
+      expectEdit(fix.edit, { type: "replace", textIncludes: "Exit Function" });
+    });
+
+    test("return-unrecommended inside Property Get remains available when VS Code omits Diagnostic.data", async () => {
+      // Reproduces the exact scenario from PixQrCode.bas where a Return inside a
+      // Property…Get block didn't surface a quick-fix because the fallback path
+      // (resolveReturnPayloadFromDocument) was untested for the Property context.
+      const source = [
+        "Class C",
+        "      Property Path As String",
+        "         Get",
+        "            Return me._path_qrcode",
+        "         End Get",
+        "      End Property",
+        "End Class",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      // Zero-width range at col 12 — exactly as VS Code reports it.
+      const range = new vscode.Range(3, 12, 3, 12);
+      const diagnostic = diagWith(DiagnosticCodes.ReturnUnrecommended, undefined, range);
+      // Simulate VS Code recreating the diagnostic without the data field.
+      diagnostic.code = { value: DiagnosticCodes.ReturnUnrecommended } as any;
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Path"));
+      assert.ok(fix, "The Property quick fix should not depend on Diagnostic.data");
+      const replaceEdit = expectEdit(fix.edit, {
+        type: "replace",
+        line: 3,
+        textIncludes: "Path = me._path_qrcode",
+      });
+      assert.ok(!replaceEdit.text?.includes("Exit Property"), "Non-conditional path must not add Exit Property");
+    });
+
+    test("return-unrecommended with empty Return replaces with Exit Property / Exit Function", async () => {
+      const source = [
+        "Class C",
+        "      Property Path As String",
+        "         Get",
+        "            Path = me._path_qrcode",
+        "            Return",
+        "         End Get",
+        "      End Property",
+        "End Class",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const range = new vscode.Range(4, 12, 4, 18);
+      const diagnostic = diagWith(DiagnosticCodes.ReturnUnrecommended, undefined, range);
+      diagnostic.code = { value: DiagnosticCodes.ReturnUnrecommended } as any;
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Exit Property"));
+      assert.ok(fix, "Should offer a quick fix to replace with Exit Property");
+      const replaceEdit = expectEdit(fix.edit, {
+        type: "replace",
+        line: 4,
+        textIncludes: "Exit Property",
+      });
+      assert.ok(!replaceEdit.text?.includes("="), "Must not include assignment when Return has no expression");
+    });
+
+    test("return-unrecommended fallback with complex modifiers (Friend Override Function)", async () => {
+      const source = [
+        "   Friend Override Function Calc() As Integer",
+        "      If cond Then",
+        "         Return 100",
+        "      End If",
+        "   End Function",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const range = new vscode.Range(2, 9, 2, 19);
+      const diagnostic = diagWith(DiagnosticCodes.ReturnUnrecommended, undefined, range);
+      diagnostic.code = { value: DiagnosticCodes.ReturnUnrecommended } as any;
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Calc"));
+      assert.ok(fix, "Should resolve routine name with complex modifiers via AST");
+      expectEdit(fix.edit, {
+        type: "replace",
+        line: 2,
+        textIncludes: "Calc = 100",
+      });
     });
   });
 
@@ -583,7 +1037,7 @@ describe("D7BasicCodeActionProvider", () => {
 
       const doc = mockDoc(codeText);
       const payload: FinallyBlockUnsupportedPayload = {
-        code: DiagnosticCodes.FinallyBlockUnsupported,
+        code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
         catchLine: 4,
         catchBodyStartLine: 5,
         catchBodyEndLine: 5,
@@ -595,7 +1049,7 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           new vscode.Range(2, 4, 8, 11),
-          { diagnostics: [diagWith(DiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
+          { diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
           noopToken,
         ),
       )) as any[];
@@ -633,7 +1087,7 @@ describe("D7BasicCodeActionProvider", () => {
 
       const doc = mockDoc(codeText);
       const payload: FinallyBlockUnsupportedPayload = {
-        code: DiagnosticCodes.FinallyBlockUnsupported,
+        code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
         catchLine: 4,
         catchBodyStartLine: 5,
         catchBodyEndLine: 5,
@@ -644,7 +1098,7 @@ describe("D7BasicCodeActionProvider", () => {
         provider.provideCodeActions(
           doc,
           new vscode.Range(2, 4, 8, 11),
-          { diagnostics: [diagWith(DiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
+          { diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)] } as any,
           noopToken,
         ),
       )) as any[];
@@ -693,14 +1147,14 @@ describe("D7BasicCodeActionProvider", () => {
 
       const doc = mockDoc(codeText);
       const firstPayload: FinallyBlockUnsupportedPayload = {
-        code: DiagnosticCodes.FinallyBlockUnsupported,
+        code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
         catchLine: 4,
         catchBodyStartLine: 5,
         catchBodyEndLine: 5,
         catchVarName: "ex",
       };
       const secondPayload: FinallyBlockUnsupportedPayload = {
-        code: DiagnosticCodes.FinallyBlockUnsupported,
+        code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
         catchLine: 12,
         catchBodyStartLine: 13,
         catchBodyEndLine: 13,
@@ -708,12 +1162,12 @@ describe("D7BasicCodeActionProvider", () => {
 
       const originalGetDiagnostics = vscode.languages.getDiagnostics;
       const diag1 = diagWith(
-        DiagnosticCodes.FinallyBlockUnsupported,
+        LegacyDiagnosticCodes.FinallyBlockUnsupported,
         firstPayload,
         new vscode.Range(2, 4, 8, 11),
       );
       const diag2 = diagWith(
-        DiagnosticCodes.FinallyBlockUnsupported,
+        LegacyDiagnosticCodes.FinallyBlockUnsupported,
         secondPayload,
         new vscode.Range(10, 4, 16, 11),
       );
