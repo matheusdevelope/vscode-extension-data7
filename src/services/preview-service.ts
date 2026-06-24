@@ -94,8 +94,12 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
     const indexer = WorkspaceSymbolIndexer.getInstance();
     indexer.updateFileContent(sourceUriStr, rawCode);
     refreshIndexerFromOpenDocuments(indexer);
-    const externalGenericTemplates = collectExternalGenericTemplates(indexer);
-    const sugarConfig = readConfiguration().sugars;
+    const configuration = readConfiguration();
+    const genericsEnabled = configuration.features.language.generics;
+    const externalGenericTemplates = genericsEnabled
+      ? collectExternalGenericTemplates(indexer)
+      : [];
+    const sugarConfig = configuration.sugars;
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -115,12 +119,12 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
       resolveMemberType: (typeName: string, name: string, argumentCount: number) =>
         TypeResolver.findMember(typeName, name, indexer, argumentCount)?.type,
       externalGenericTemplates,
-      requestedGenericInstantiations: collectRequestedGenericInstantiations(
-        indexer,
-        externalGenericTemplates,
-      ),
+      requestedGenericInstantiations: genericsEnabled
+        ? collectRequestedGenericInstantiations(indexer, externalGenericTemplates)
+        : [],
+      genericsEnabled,
       sugarOptions: {
-        enabled: sugarConfig.enabled,
+        enabled: configuration.features.language.sugars && sugarConfig.enabled,
         enabledSugarIds: sugarConfig.enabledIds,
         disabledSugarIds: sugarConfig.disabledIds,
       },
@@ -407,6 +411,13 @@ export class PreviewService {
   }
 
   public static async showPreview(beside: boolean): Promise<void> {
+    if (!readConfiguration().features.preview.enabled) {
+      void vscode.window.showWarningMessage(
+        "A prévia de código transpilado está desativada em data7.features.preview.enabled.",
+      );
+      return;
+    }
+
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
       vscode.window.showWarningMessage(

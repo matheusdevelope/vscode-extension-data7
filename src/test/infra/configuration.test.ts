@@ -7,11 +7,26 @@ import {
   findLegacyDataModulesExcludePattern,
   isExcluded,
   isReadOnlyModuleFile,
+  readConfiguration,
   resolveDiagnosticSeverity,
 } from "../../infra/configuration";
 
 beforeEach(() => {
   __resetGlobCacheForTests();
+});
+
+describe("readConfiguration features", () => {
+  test("uses backward-compatible defaults for optional capabilities", () => {
+    const features = readConfiguration().features;
+    assert.equal(features.language.generics, true);
+    assert.equal(features.language.sugars, true);
+    assert.equal(features.diagnostics.enabled, true);
+    assert.equal(features.diagnostics.lintWorkspaceOnStartup, true);
+    assert.equal(features.save.autoFixOnSave, true);
+    assert.equal(features.save.autoFormatOnSave, false);
+    assert.equal(features.build.autoFixBeforeBuild, false);
+    assert.equal(features.preview.enabled, true);
+  });
 });
 
 describe("resolveDiagnosticSeverity", () => {

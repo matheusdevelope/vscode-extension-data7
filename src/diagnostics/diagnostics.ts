@@ -502,11 +502,14 @@ export class DiagnosticsLinter {
     // Validate destructor resource cleanup (Sub Free calls MyBase.Free) using AST structure
     validateMyBaseFreeCalls(unit, indexer.getFileSymbols(document.uri.toString()), diagnostics);
 
-    // Textual generic pre-pass remains backward-compatible via AST analyzer warnings
-    const genericWarnings = analyzeGenericsPass(text, {
-      externalTemplates: collectWorkspaceGenericTemplates(indexer, document.uri.toString()),
-    });
-    diagnostics.push(...collectGenericDiagnostics(genericWarnings, lines));
+    if (readConfiguration().features.language.generics) {
+      // The generic pre-pass is an optional language extension. Keeping this
+      // gate here also prevents generic-only diagnostics in native projects.
+      const genericWarnings = analyzeGenericsPass(text, {
+        externalTemplates: collectWorkspaceGenericTemplates(indexer, document.uri.toString()),
+      });
+      diagnostics.push(...collectGenericDiagnostics(genericWarnings, lines));
+    }
 
     // Directives list is comments-based so it must remain textual scan
     const directives = listSuppressionDirectives(text);

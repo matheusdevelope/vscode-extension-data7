@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { logger } from "../infra/logger";
 // Removed dependency-scanner import since we no longer use IMPORTS_REGEX_ANCHORED here
-import { isExcluded } from "../infra/configuration";
+import { isExcluded, readConfiguration } from "../infra/configuration";
 import {
   collectGenericsContext,
   type GenericTemplateInfo,
@@ -444,7 +444,9 @@ export class WorkspaceSymbolIndexer {
   // Singleton — the private constructor prevents instantiation outside `getInstance`.
   private constructor() {
     /* intentional: enforces singleton */
-    this.indexVirtualSugarModules();
+    if (readConfiguration().features.language.sugars) {
+      this.indexVirtualSugarModules();
+    }
   }
 
   private indexVirtualSugarModules(): void {
@@ -635,7 +637,9 @@ export class WorkspaceSymbolIndexer {
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, "utf-8");
         const parsed = SymbolParser.parseBasFile(fileUri, content);
-        appendGenericInstantiations(parsed, fileUri, content, this);
+        if (readConfiguration().features.language.generics) {
+          appendGenericInstantiations(parsed, fileUri, content, this);
+        }
         this.cache.set(key, parsed);
       } else {
         this.cache.delete(key);
@@ -661,7 +665,9 @@ export class WorkspaceSymbolIndexer {
   public updateFileContent(fileUri: string, content: string): void {
     try {
       const parsed = SymbolParser.parseBasFile(fileUri, content);
-      appendGenericInstantiations(parsed, fileUri, content, this);
+      if (readConfiguration().features.language.generics) {
+        appendGenericInstantiations(parsed, fileUri, content, this);
+      }
       this.cache.set(this.getCacheKey(fileUri), parsed);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);

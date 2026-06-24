@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
@@ -19,7 +20,18 @@ interface WorkspaceFixOptions {
   readonly workspaceDir?: string;
 }
 
+export interface BuildWorkspaceFixOptions {
+  /**
+   * `changed` skips files whose on-disk fingerprint matches the latest
+   * pre-build pass for this workspace. `all` is reserved for an
+   * explicit full correction request.
+   */
+  readonly mode?: "all" | "changed";
+}
+
 export class WorkspaceFixService {
+  private static readonly buildFixFingerprints = new Map<string, Map<string, string>>();
+
   public static async fixAllWorkspace(): Promise<void> {
     const candidateUris = await this.findCandidateUris();
     if (candidateUris.length === 0) {
@@ -57,9 +69,26 @@ export class WorkspaceFixService {
     vscode.window.showInformationMessage(message);
   }
 
-  public static async fixWorkspaceForBuild(workspaceDir: string): Promise<WorkspaceFixResult> {
+  public static async fixWorkspaceForBuild(
+    workspaceDir: string,
+    options: BuildWorkspaceFixOptions = {},
+  ): Promise<WorkspaceFixResult> {
     const uris = await this.findCandidateUris(workspaceDir);
-    return this.applyFixesToUris(uris, { save: true, workspaceDir });
+    const mode = options.mode ?? "changed";
+    const buildFixCache = this.getBuildFixCache(workspaceDir);
+    const candidates =
+      mode === "all" ? uris : uris.filter((uri) => this.hasBuildFileChanged(uri, buildFixCache));
+    const result = await this.applyFixesToUris(candidates, { save: true, workspaceDir });
+
+    if (mode === "changed") {
+      this.updateBuildFixCache(uris, buildFixCache);
+    }
+    return result;
+  }
+
+  /** Clears incremental build-fix state for isolated tests. */
+  public static __resetBuildFixCacheForTests(): void {
+    this.buildFixFingerprints.clear();
   }
 
   public static buildWillSaveTextEdits(
@@ -199,6 +228,52 @@ export class WorkspaceFixService {
       }
       return !isExcluded(fsPath) && !isReadOnlyModuleFile(fsPath);
     });
+  }
+
+  private static getBuildFixCache(workspaceDir: string): Map<string, string> {
+    const workspaceKey = path.resolve(workspaceDir).toLowerCase();
+    let cache = this.buildFixFingerprints.get(workspaceKey);
+    if (!cache) {
+      cache = new Map<string, string>();
+      this.buildFixFingerprints.set(workspaceKey, cache);
+    }
+    return cache;
+  }
+
+  private static hasBuildFileChanged(uri: vscode.Uri, cache: ReadonlyMap<string, string>): boolean {
+    const fingerprint = this.getFileFingerprint(uri.fsPath);
+    if (!fingerprint) return true;
+    return cache.get(uri.fsPath.toLowerCase()) !== fingerprint;
+  }
+
+  private static updateBuildFixCache(
+    uris: readonly vscode.Uri[],
+    cache: Map<string, string>,
+  ): void {
+    const currentPaths = new Set<string>();
+    for (const uri of uris) {
+      const fileKey = uri.fsPath.toLowerCase();
+      currentPaths.add(fileKey);
+      const fingerprint = this.getFileFingerprint(uri.fsPath);
+      if (fingerprint) {
+        cache.set(fileKey, fingerprint);
+      } else {
+        cache.delete(fileKey);
+      }
+    }
+
+    for (const cachedPath of cache.keys()) {
+      if (!currentPaths.has(cachedPath)) cache.delete(cachedPath);
+    }
+  }
+
+  private static getFileFingerprint(filePath: string): string | undefined {
+    try {
+      const stat = fs.statSync(filePath);
+      return `${stat.mtimeMs.toString()}:${stat.size.toString()}`;
+    } catch {
+      return undefined;
+    }
   }
 
   private static isInsideWorkspaceDir(filePath: string, workspaceDir: string): boolean {

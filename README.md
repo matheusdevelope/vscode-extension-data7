@@ -88,6 +88,27 @@ Veja `Settings` → busca por `data7.`:
 | `data7.exclude`                                 | string[] | `["**/node_modules/**", "**/.git/**", "**/out/**"]` | Globs ignorados pelo indexador e pelo linter. `data7_modules/**` é tratado separadamente: indexado para resolução de tipos, mas o linter não emite diagnósticos sobre eles |
 | `data7.diagnosticSeverity`                      | object   | `{}`                                                | Sobrescreve a severidade por código (`{"unused-import": "info"}`)                                                                                                          |
 | `data7.autoFormatOnSave`                        | bool     | `false`                                             | Formata arquivos `.bas` automaticamente ao salvar                                                                                                                          |
+| `data7.features`                                | object   | veja abaixo                                         | Habilita recursos opcionais por categoria: linguagem, automações de workspace/save/build e prévia                                                                          |
+
+`data7.features` mantém os recursos existentes ativos por padrão, exceto o auto-fix antes do build, que fica desligado para evitar uma varredura completa a cada execução. Exemplo para usar somente o núcleo, sem extensões de linguagem nem automações de workspace:
+
+```json
+{
+  "data7.features": {
+    "language": { "generics": false, "sugars": false },
+    "diagnostics": { "enabled": true, "lintWorkspaceOnStartup": false },
+    "workspace": {
+      "detectProjectFiles": false,
+      "installMcpServerOnStartup": false
+    },
+    "save": { "autoFixOnSave": false, "autoFormatOnSave": false },
+    "build": { "autoFixBeforeBuild": false },
+    "preview": { "enabled": false }
+  }
+}
+```
+
+`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. `features.diagnostics.lintWorkspaceOnStartup` apenas evita a varredura automática inicial; com `features.diagnostics.enabled: true`, o linter dos arquivos abertos e o comando **Data7: Reiniciar/Rodar Linter no Projeto** continuam disponíveis. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Para uma correção completa e explícita, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
 
 ## Suprimir diagnósticos com comentários
 

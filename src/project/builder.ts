@@ -73,6 +73,7 @@ const BUILDER_PRIMITIVE_TYPE_NAMES = new Set([
 export interface BuildProjectOptions {
   readonly vscodeLoggerFilePath?: string;
   readonly sugarOptions?: SugarEngineOptions;
+  readonly genericsEnabled?: boolean;
   readonly isExcluded?: (filePath: string) => boolean;
   readonly onWarning?: (message: string) => void;
   readonly validateTranspiled?: (
@@ -190,11 +191,13 @@ export class Builder {
     if (fs.existsSync(data7ModulesDir)) {
       this.preIndexDirectory(indexer, data7ModulesDir, isExcluded, onWarning);
     }
-    const externalGenericTemplates = this.collectExternalGenericTemplates(indexer);
-    const requestedGenericInstantiations = this.collectRequestedGenericInstantiations(
-      indexer,
-      externalGenericTemplates,
-    );
+    const genericsEnabled = options.genericsEnabled !== false;
+    const externalGenericTemplates = genericsEnabled
+      ? this.collectExternalGenericTemplates(indexer)
+      : [];
+    const requestedGenericInstantiations = genericsEnabled
+      ? this.collectRequestedGenericInstantiations(indexer, externalGenericTemplates)
+      : [];
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -216,6 +219,7 @@ export class Builder {
         TypeResolver.findMember(typeName, name, indexer, argumentCount)?.type,
       externalGenericTemplates,
       requestedGenericInstantiations,
+      genericsEnabled,
       sugarOptions: options.sugarOptions,
     };
     return { transpileCtx, indexer };

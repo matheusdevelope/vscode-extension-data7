@@ -17,14 +17,16 @@ export class ProjectBuildService {
     sharedModulesDir?: string,
     options: BuildProjectOptions = {},
   ): string {
-    const sugars = readConfiguration().sugars;
+    const configuration = readConfiguration();
+    const sugars = configuration.sugars;
     return Builder.buildProject(workspaceDir, outputFilePath, sharedModulesDir, {
       ...options,
       sugarOptions: {
-        enabled: sugars.enabled,
+        enabled: configuration.features.language.sugars && sugars.enabled,
         enabledSugarIds: sugars.enabledIds,
         disabledSugarIds: sugars.disabledIds,
       },
+      genericsEnabled: configuration.features.language.generics,
       isExcluded,
       onWarning: (message) => {
         logger.warn(message);

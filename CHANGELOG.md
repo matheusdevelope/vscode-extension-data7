@@ -7,8 +7,13 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Alterado
+
+- Build, execução e abertura no Developer Studio não executam mais a varredura completa de auto-fix por padrão. A nova flag `data7.features.build.autoFixBeforeBuild` reativa esse comportamento de forma incremental: apenas arquivos `.bas` alterados desde o último build da sessão são reavaliados. O comando explícito `data7.fixAllWorkspace` continua corrigindo todo o projeto.
+
 ### Adicionado
 
+- `data7.features`: flags por categoria para ativar ou desativar generics, sugars, diagnósticos, varredura inicial do linter, detecção de `.7proj`, auto-instalação do MCP, auto-fix/auto-format ao salvar, auto-fix pré-build e prévia transpilada. A varredura inicial é independente do linter e dos comandos manuais. Os valores padrão preservam a compatibilidade atual, exceto o auto-fix pré-build, que é desativado para evitar atraso em projetos grandes.
 - Novo sugar plugin `inline-if` para converter automaticamente declarações `If` inline em bloco `If ... Then ... End If` durante a transpilação.
 - Novo diagnóstico `inline-if-then` (Warning) para sugerir a substituição de `If` inline por bloco estruturado, com opções de Quick Fix correspondentes.
 - Inicialização automática do linter para todo o projeto (arquivos físicos locais com esquema `file`) ao abrir o workspace.

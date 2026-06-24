@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { WorkspaceSymbolIndexer } from "./analysis/symbol-indexer";
 import { LanguageProcessor } from "./analysis/language-processor";
 import { CONFIG_NAMESPACE, LANGUAGE_IDS } from "./infra/constants";
+import { readConfiguration } from "./infra/configuration";
 import { initLogger, logger } from "./infra/logger";
 import { registerCommands } from "./commands";
 import { registerLanguageProviders } from "./providers/registration";
@@ -26,21 +27,28 @@ export function activate(context: vscode.ExtensionContext): void {
 
   DiagnosticService.initialize(context);
   ActivationService.initializeWorkspace(context);
-  PreviewService.initialize(context);
+  const features = readConfiguration().features;
+  if (features.preview.enabled) {
+    PreviewService.initialize(context);
+  }
 
   // Auto-install (idempotente) o binário MCP em globalStorage para que
   // clientes externos (Cursor / Claude Desktop / Continue) possam
   // apontar para um caminho estável. A operação compara hashes e
   // ignora se já está em dia, então o custo em ativações subsequentes
   // é apenas uma leitura de arquivo.
-  void MCPService.installMcpServer(context).catch((err: unknown) => {
-    logger.error("MCP: falha na auto-instalação durante activate.", err);
-  });
+  if (features.workspace.installMcpServerOnStartup) {
+    void MCPService.installMcpServer(context).catch((err: unknown) => {
+      logger.error("MCP: falha na auto-instalação durante activate.", err);
+    });
+  }
 
   // Auto-detect .7Proj files in the workspace and offer to open one.
-  setTimeout(() => {
-    void ActivationService.detectAndPromptProjFiles();
-  }, 1500);
+  if (features.workspace.detectProjectFiles) {
+    setTimeout(() => {
+      void ActivationService.detectAndPromptProjFiles();
+    }, 1500);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -56,6 +64,8 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   indexer
     .indexWorkspace(vscode.workspace.workspaceFolders)
     .then(() => {
+      const diagnostics = readConfiguration().features.diagnostics;
+      if (!diagnostics.enabled || !diagnostics.lintWorkspaceOnStartup) return;
       // Quando o cache "esquentar", iniciamos o linter no projeto inteiro.
       void DiagnosticService.lintWorkspace(true).catch((err) => {
         logger.error("Erro ao rodar linter no workspace inicial.", err);
@@ -115,38 +125,45 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(renameListener, deleteListener);
 
-  // Offer to open a .7Proj when one is opened or viewed in the editor.
-  const openProjListener = vscode.workspace.onDidOpenTextDocument((doc) => {
-    void ActivationService.handleProjectDocumentOpen(doc);
-  });
-  const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
-    if (editor) {
-      void ActivationService.handleProjectDocumentOpen(editor.document);
-    }
-  });
-  context.subscriptions.push(openProjListener, activeEditorListener);
+  if (readConfiguration().features.workspace.detectProjectFiles) {
+    // Offer to open a .7Proj when one is opened or viewed in the editor.
+    const openProjListener = vscode.workspace.onDidOpenTextDocument((doc) => {
+      void ActivationService.handleProjectDocumentOpen(doc);
+    });
+    const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (editor) {
+        void ActivationService.handleProjectDocumentOpen(editor.document);
+      }
+    });
+    context.subscriptions.push(openProjListener, activeEditorListener);
 
-  vscode.workspace.textDocuments.forEach((doc) => {
-    void ActivationService.handleProjectDocumentOpen(doc);
-  });
-  if (vscode.window.activeTextEditor) {
-    void ActivationService.handleProjectDocumentOpen(vscode.window.activeTextEditor.document);
+    vscode.workspace.textDocuments.forEach((doc) => {
+      void ActivationService.handleProjectDocumentOpen(doc);
+    });
+    if (vscode.window.activeTextEditor) {
+      void ActivationService.handleProjectDocumentOpen(vscode.window.activeTextEditor.document);
+    }
   }
 
-  // Apply syntax/style auto-fixes on save. When the legacy `data7.autoFormatOnSave`
-  // flag is enabled, formatting still runs on saves that do not need fixes.
+  // Apply optional syntax/style automation on save. The legacy format flag is
+  // retained as a compatibility fallback for existing workspaces.
   const formatOnSaveListener = vscode.workspace.onWillSaveTextDocument((e) => {
     if (e.document.languageId !== LANGUAGE_IDS.d7basic && !e.document.fileName.endsWith(".bas")) {
       return;
     }
     const cfg = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
+    const saveFeatures = readConfiguration().features.save;
+    const formatOnSave = saveFeatures.autoFormatOnSave || cfg.get<boolean>("autoFormatOnSave");
+    if (!saveFeatures.autoFixOnSave && !formatOnSave) return;
     e.waitUntil(
       Promise.resolve().then(async () => {
-        const fixEdits = WorkspaceFixService.buildWillSaveTextEdits(e.document);
-        if (fixEdits && fixEdits.length > 0) {
-          return fixEdits;
+        if (saveFeatures.autoFixOnSave) {
+          const fixEdits = WorkspaceFixService.buildWillSaveTextEdits(e.document);
+          if (fixEdits && fixEdits.length > 0) {
+            return fixEdits;
+          }
         }
-        if (!cfg.get<boolean>("autoFormatOnSave")) {
+        if (!formatOnSave) {
           return [];
         }
         const formatEdits = await vscode.commands.executeCommand<vscode.TextEdit[] | undefined>(

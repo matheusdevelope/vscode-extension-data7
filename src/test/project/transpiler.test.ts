@@ -1306,6 +1306,28 @@ describe("SugarTranspiler — disabled sugar syntax", () => {
   });
 });
 
+describe("SugarTranspiler — optional generics", () => {
+  test("preserves generic source without monomorphizing when generics are disabled", () => {
+    const code = [
+      "Class Box<T>",
+      "   Value As T",
+      "End Class",
+      "",
+      "Dim item As Box<Integer>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(
+      code,
+      makeContext({}, {}, { genericsEnabled: false }),
+    );
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class Box<T>/);
+    assert.match(out, /Dim item As Box<Integer>/);
+    assert.doesNotMatch(out, /Box_Integer/);
+  });
+});
+
 describe("SugarTranspiler — array-list", () => {
   const ctx = makeContext(
     {},

@@ -10,7 +10,7 @@ import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostics/diagnostic-codes";
 import { debounceKeyed } from "../utils/debounce";
-import { isExcluded, isReadOnlyModuleFile } from "../infra/configuration";
+import { isExcluded, isReadOnlyModuleFile, readConfiguration } from "../infra/configuration";
 import { logger } from "../infra/logger";
 import { DIAGNOSTIC_SOURCE, LANGUAGE_IDS, PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { getCoreModulesPath } from "../infra/extension-paths";
@@ -61,6 +61,10 @@ export class DiagnosticService {
         return;
       }
       if (doc.languageId !== LANGUAGE_IDS.d7basic && !doc.fileName.endsWith(".bas")) return;
+      if (!this.isEnabled()) {
+        this._collection?.delete(doc.uri);
+        return;
+      }
       // Only feed the workspace indexer with documents that actually belong
       // to the open workspace. Files opened from outside (e.g. inspecting a
       // module in the private repository via "Explore Repository") would
@@ -93,6 +97,7 @@ export class DiagnosticService {
     const cfgWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(DIAGNOSTIC_SOURCE)) {
         this.workspaceCache.clear();
+        this.refreshAllActive();
         // `data7.exclude` directly drives what the symbol indexer skips; a
         // change to it (adding/removing globs) leaves the in-memory cache
         // inconsistent with what would now be visible. Trigger a workspace
@@ -150,6 +155,10 @@ export class DiagnosticService {
       return;
     }
     if (document.languageId !== LANGUAGE_IDS.d7basic && !document.fileName.endsWith(".bas")) {
+      return;
+    }
+    if (!this.isEnabled()) {
+      this._collection?.delete(document.uri);
       return;
     }
 
@@ -396,6 +405,15 @@ export class DiagnosticService {
   }
 
   public static async lintWorkspace(showNotification = false): Promise<void> {
+    if (!this.isEnabled()) {
+      if (showNotification) {
+        vscode.window.showWarningMessage(
+          "O linter Data7 está desativado em data7.features.diagnostics.enabled.",
+        );
+      }
+      return;
+    }
+
     const uris = await this.findWorkspaceBasFiles();
     if (uris.length === 0) {
       if (showNotification) {
@@ -461,6 +479,10 @@ export class DiagnosticService {
   /** Test-only hook: clears all cached state. */
   public static __resetForTests(): void {
     this.workspaceCache.clear();
+  }
+
+  private static isEnabled(): boolean {
+    return readConfiguration().features.diagnostics.enabled;
   }
 }
 

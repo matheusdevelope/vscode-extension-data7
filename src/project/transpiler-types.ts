@@ -31,6 +31,9 @@ export interface TranspileContext {
   resolveMemberType?(typeName: string, name: string, argumentCount: number): string | undefined;
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
+  /** Enables generic monomorphization. Parsing remains enabled when false so
+   * generic source is serialized losslessly instead of being partially read. */
+  genericsEnabled?: boolean;
   sugarOptions?: SugarEngineOptions;
   rewritePrintToLogger?: boolean;
 }

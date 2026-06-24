@@ -514,6 +514,116 @@
           "deprecationMessage": "Deprecado em favor de `editor.formatOnSave` (suporte nativo do VS Code). Defina `\"editor.formatOnSave\": true` em `[d7basic]` para o mesmo efeito.",
           "markdownDescription": "**Deprecado.** Use `#editor.formatOnSave#` no escopo `[d7basic]`. Quando habilitado, formata automaticamente o arquivo `.bas` ao salvar."
         },
+        "data7.features": {
+          "type": "object",
+          "default": {
+            "language": {
+              "generics": true,
+              "sugars": true
+            },
+            "diagnostics": {
+              "enabled": true,
+              "lintWorkspaceOnStartup": true
+            },
+            "workspace": {
+              "detectProjectFiles": true,
+              "installMcpServerOnStartup": true
+            },
+            "save": {
+              "autoFixOnSave": true,
+              "autoFormatOnSave": false
+            },
+            "build": {
+              "autoFixBeforeBuild": false
+            },
+            "preview": {
+              "enabled": true
+            }
+          },
+          "properties": {
+            "language": {
+              "type": "object",
+              "properties": {
+                "generics": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Ativa a análise, o IntelliSense e a monomorfização de generics."
+                },
+                "sugars": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Ativa o pipeline de açúcares sintáticos; use data7.sugars para selecionar IDs específicos."
+                }
+              }
+            },
+            "diagnostics": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Ativa os diagnósticos do linter para arquivos Data7 Basic e os comandos manuais de lint."
+                },
+                "lintWorkspaceOnStartup": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Executa uma varredura de todos os arquivos do workspace após a indexação inicial. Não afeta diagnósticos de arquivos abertos nem o comando Data7: Reiniciar/Rodar Linter no Projeto."
+                }
+              }
+            },
+            "workspace": {
+              "type": "object",
+              "properties": {
+                "detectProjectFiles": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Oferece abrir arquivos .7proj detectados ao iniciar ou abrir documentos."
+                },
+                "installMcpServerOnStartup": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Instala ou atualiza automaticamente o binário MCP no armazenamento global da extensão."
+                }
+              }
+            },
+            "save": {
+              "type": "object",
+              "properties": {
+                "autoFixOnSave": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Aplica correções automáticas de sintaxe e estilo ao salvar arquivos .bas."
+                },
+                "autoFormatOnSave": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Executa o formatador Data7 ao salvar quando não houver correções automáticas."
+                }
+              }
+            },
+            "build": {
+              "type": "object",
+              "properties": {
+                "autoFixBeforeBuild": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Aplica Quick Fixes nos arquivos alterados antes de compilar, executar ou abrir no Developer Studio. Desligado por padrão para não atrasar projetos grandes."
+                }
+              }
+            },
+            "preview": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Ativa a prévia ao vivo do código transpilado e seus listeners."
+                }
+              }
+            }
+          },
+          "description": "Recursos opcionais da extensão, organizados por categoria. Alterações de ativação requerem recarregar a janela."
+        },
         "data7.sugars": {
           "type": "object",
           "default": {

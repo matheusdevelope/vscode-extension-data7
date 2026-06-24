@@ -56,6 +56,7 @@ function collectNamespaceNames(unit: { members: TopLevelMember[] }): Set<string>
 export class SugarTranspiler {
   public static transpile(code: string, ctx: TranspileContext): TranspileResult {
     const sugarEngine = new SugarEngine(ctx.sugarOptions);
+    const genericsEnabled = ctx.genericsEnabled !== false;
     const eol = code.includes("\r\n") ? "\r\n" : "\n";
     let lines = code.split(/\r?\n/);
 
@@ -88,15 +89,19 @@ export class SugarTranspiler {
       finalUnit = parseBasic(wrappedCode, { plugins, preserveLine }).unit;
     }
 
-    // 3. Run generics monomorphizer directly on the AST
-    _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
-
-    const monomorphizer = new GenericsMonomorphizer({
-      isTypeDescendantOf: ctx.isTypeDescendantOf?.bind(ctx),
-      externalTemplates: ctx.externalGenericTemplates,
-      requestedInstantiations: ctx.requestedGenericInstantiations,
-    });
-    const genericsResult = monomorphizer.monomorphize(finalUnit);
+    // 3. Run generic monomorphization only when the optional language feature
+    // is enabled. The parser plugin stays active so disabled generics retain
+    // their original AST representation and serialize without partial loss.
+    let genericsWarnings: readonly MonomorphizationWarning[] = [];
+    if (genericsEnabled) {
+      _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
+      const monomorphizer = new GenericsMonomorphizer({
+        isTypeDescendantOf: ctx.isTypeDescendantOf?.bind(ctx),
+        externalTemplates: ctx.externalGenericTemplates,
+        requestedInstantiations: ctx.requestedGenericInstantiations,
+      });
+      genericsWarnings = monomorphizer.monomorphize(finalUnit).warnings;
+    }
 
     // 4. Transform AST-to-AST for sugars
     const declaredNamespaces = collectNamespaceNames(finalUnit);
@@ -118,7 +123,9 @@ export class SugarTranspiler {
         }
       }
     }
-    _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
+    if (genericsEnabled) {
+      _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
+    }
 
     // 5. Serialize AST back to code text, generating the lineMap!
     let serializeResult = serializeUnitWithMap(finalUnit, { eol, omitPublicFieldModifiers: true });
@@ -167,7 +174,7 @@ export class SugarTranspiler {
 
     // 6. Merge diagnostics
     const diagnostics: SugarDiagnostic[] = [];
-    for (const warning of genericsResult.warnings) {
+    for (const warning of genericsWarnings) {
       diagnostics.push(mapGenericsWarning(warning));
     }
     diagnostics.push(...transformer.diagnostics);

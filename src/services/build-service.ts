@@ -48,7 +48,7 @@ export class BuildService {
       },
       async () => {
         try {
-          await WorkspaceFixService.fixWorkspaceForBuild(project.workspaceDir);
+          await this.applyAutoFixBeforeBuild(project.workspaceDir);
 
           const dependencies = this.readDependencies(project.workspaceDir);
           DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
@@ -134,7 +134,7 @@ export class BuildService {
     const vscodeLoggerFilePath = this.prepareVSCodeLoggerFile(project.workspaceDir);
 
     try {
-      await WorkspaceFixService.fixWorkspaceForBuild(project.workspaceDir);
+      await this.applyAutoFixBeforeBuild(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       Builder.buildProject(project.workspaceDir, project.projectFilePath, undefined, {
         vscodeLoggerFilePath,
@@ -264,7 +264,7 @@ export class BuildService {
     }
 
     try {
-      await WorkspaceFixService.fixWorkspaceForBuild(project.workspaceDir);
+      await this.applyAutoFixBeforeBuild(project.workspaceDir);
       const dependencies = this.readDependencies(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       Builder.buildProject(project.workspaceDir, project.projectFilePath);
@@ -335,6 +335,11 @@ export class BuildService {
       );
       return {};
     }
+  }
+
+  private static async applyAutoFixBeforeBuild(workspaceDir: string): Promise<void> {
+    if (!readConfiguration().features.build.autoFixBeforeBuild) return;
+    await WorkspaceFixService.fixWorkspaceForBuild(workspaceDir, { mode: "changed" });
   }
 
   private static prepareVSCodeLoggerFile(workspaceDir: string): string {

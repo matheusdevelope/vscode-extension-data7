@@ -15,6 +15,39 @@ export interface Data7Configuration {
   readonly exclude: readonly string[];
   readonly diagnosticSeverity: Readonly<Record<string, DiagnosticSeverityOverride>>;
   readonly autoFormatOnSave: boolean;
+  /**
+   * Optional extension capabilities. Core language editing remains active;
+   * these flags only control higher-level language extensions and automation.
+   */
+  readonly features: {
+    readonly language: {
+      readonly generics: boolean;
+      readonly sugars: boolean;
+    };
+    readonly diagnostics: {
+      readonly enabled: boolean;
+      readonly lintWorkspaceOnStartup: boolean;
+    };
+    readonly workspace: {
+      readonly detectProjectFiles: boolean;
+      readonly installMcpServerOnStartup: boolean;
+    };
+    readonly save: {
+      readonly autoFixOnSave: boolean;
+      readonly autoFormatOnSave: boolean;
+    };
+    readonly build: {
+      /**
+       * Applies source Quick Fixes immediately before build, run, or opening
+       * the project in Developer Studio. Disabled by default because a full
+       * workspace lint pass can be expensive on large projects.
+       */
+      readonly autoFixBeforeBuild: boolean;
+    };
+    readonly preview: {
+      readonly enabled: boolean;
+    };
+  };
   readonly sugars: {
     readonly enabled: boolean;
     readonly enabledIds: readonly string[];
@@ -32,6 +65,18 @@ export interface Data7Configuration {
  * not see lint warnings on generated content.
  */
 const DEFAULT_EXCLUDE: readonly string[] = ["**/node_modules/**", "**/.git/**", "**/out/**"];
+
+const DEFAULT_FEATURES: Data7Configuration["features"] = {
+  language: { generics: true, sugars: true },
+  diagnostics: { enabled: true, lintWorkspaceOnStartup: false },
+  workspace: {
+    detectProjectFiles: true,
+    installMcpServerOnStartup: true,
+  },
+  save: { autoFixOnSave: true, autoFormatOnSave: true },
+  build: { autoFixBeforeBuild: false },
+  preview: { enabled: true },
+};
 
 /**
  * Reads the `data7.*` configuration with sane defaults that mirror
@@ -51,11 +96,29 @@ export function readConfiguration(): Data7Configuration {
     diagnosticSeverity:
       cfg.get<Record<string, DiagnosticSeverityOverride>>("diagnosticSeverity") ?? {},
     autoFormatOnSave: cfg.get<boolean>("autoFormatOnSave") ?? false,
+    features: mergeFeatures(cfg.get<Partial<Data7Configuration["features"]>>("features")),
     sugars: cfg.get<Data7Configuration["sugars"]>("sugars") ?? {
       enabled: true,
       enabledIds: [],
       disabledIds: [],
     },
+  };
+}
+
+/**
+ * Applies defaults per nested category so a workspace can configure only the
+ * capability it needs without accidentally disabling its siblings.
+ */
+function mergeFeatures(
+  configured: Partial<Data7Configuration["features"]> | undefined,
+): Data7Configuration["features"] {
+  return {
+    language: { ...DEFAULT_FEATURES.language, ...configured?.language },
+    diagnostics: { ...DEFAULT_FEATURES.diagnostics, ...configured?.diagnostics },
+    workspace: { ...DEFAULT_FEATURES.workspace, ...configured?.workspace },
+    save: { ...DEFAULT_FEATURES.save, ...configured?.save },
+    build: { ...DEFAULT_FEATURES.build, ...configured?.build },
+    preview: { ...DEFAULT_FEATURES.preview, ...configured?.preview },
   };
 }
 

@@ -120,13 +120,17 @@ export class LanguageProcessor {
   private parseAndCache(uri: string, content: string, version: number): CachedDocument {
     const key = this.normalizeUri(uri);
     try {
-      const sugarConfig = readConfiguration().sugars;
+      const configuration = readConfiguration();
+      const sugarConfig = configuration.sugars;
       const sugarEngine = new SugarEngine({
-        enabled: sugarConfig.enabled,
+        enabled: configuration.features.language.sugars && sugarConfig.enabled,
         enabledSugarIds: sugarConfig.enabledIds,
         disabledSugarIds: sugarConfig.disabledIds,
       });
-      const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
+      const plugins = [
+        ...sugarEngine.createParserPlugins(),
+        ...(configuration.features.language.generics ? [new GenericsParserPlugin()] : []),
+      ];
       const { unit, errors } = parseBasic(content, {
         plugins,
         preserveLine: sugarEngine.createDisabledSyntaxLinePreserver(),
