@@ -116,9 +116,10 @@ export class Decompiler {
       const ordemAbertura = parseIntSafe(xmlRawText(mod, "OrdemAbertura"), 0);
 
       const lowerModName = modName.toLowerCase();
+      const lowerModCode = modCode.toLowerCase();
       const isDependency =
-        modCode.toLowerCase().includes("@module-imported") ||
-        (knownSharedModules?.has(lowerModName) ?? false);
+        lowerModCode.includes("@module-imported") ||
+        (lowerModCode.includes("@module") && (knownSharedModules?.has(lowerModName) ?? false));
 
       if (isDependency) {
         detectedDeps[modName] = "1.0.0.0";

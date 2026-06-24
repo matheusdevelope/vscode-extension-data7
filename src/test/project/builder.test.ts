@@ -211,6 +211,65 @@ describe("Decompiler", () => {
         );
       });
     });
+
+    test("preserves knownSharedModules in src/ if they don't have @Module marker", async () => {
+      await withTempDir(async (tmp) => {
+        const xml = `<?xml version="1.0" encoding="utf-8"?>
+<Projeto_Data7 _Language="Basic" _Version="1.0">
+  <Opcoes>
+    <Versao>1.0.0.0</Versao>
+  </Opcoes>
+  <Codigo>' Principal code</Codigo>
+  <Pastas/>
+  <Modulos>
+    <mod_strings_helper>
+      <Codigo>Namespace mod_strings_helper
+    ' some custom logic
+End Namespace</Codigo>
+      <PastaID></PastaID>
+      <Aberto>True</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+    </mod_strings_helper>
+    <mod_logger>
+      <Codigo>'@Module
+Namespace mod_logger
+    ' some logger logic
+End Namespace</Codigo>
+      <PastaID></PastaID>
+      <Aberto>True</Aberto>
+      <OrdemAbertura>1</OrdemAbertura>
+    </mod_logger>
+  </Modulos>
+</Projeto_Data7>`;
+
+        const projPath = path.join(tmp, "TestProj.7Proj");
+        fs.writeFileSync(projPath, xml, "utf-8");
+
+        const dest = path.join(tmp, "decompiled");
+        fs.mkdirSync(dest);
+
+        const knownShared = new Set(["mod_strings_helper", "mod_logger"]);
+        const meta = Decompiler.decompileProject(projPath, dest, knownShared);
+
+        assert.ok(
+          fs.existsSync(path.join(dest, "src", "mod_strings_helper.bas")),
+          "mod_strings_helper must be decompiled to src/ because it has no @Module marker",
+        );
+        assert.ok(
+          !fs.existsSync(path.join(dest, "src", "mod_logger.bas")),
+          "mod_logger must NOT be decompiled to src/ because it has @Module marker",
+        );
+
+        assert.ok(
+          meta.dependencies?.["mod_logger"] !== undefined,
+          "mod_logger must be detected as a dependency",
+        );
+        assert.ok(
+          meta.dependencies?.["mod_strings_helper"] === undefined,
+          "mod_strings_helper must NOT be detected as a dependency",
+        );
+      });
+    });
   });
 });
 
