@@ -504,11 +504,6 @@ export class D7AstContext {
         case "WithStatement":
           this.collectStatementBindings(statement.body, out, rootScope, depth + 1);
           break;
-        case "MatchStatement":
-          for (const matchCase of statement.cases) {
-            this.collectStatementBindings(matchCase.body, out, rootScope, depth + 1);
-          }
-          break;
         case "Block":
           this.collectStatementBindings(statement.statements, out, rootScope, depth + 1);
           break;
@@ -684,7 +679,6 @@ function isStatement(member: TopLevelMember): member is Statement {
     case "WhileStatement":
     case "TryCatchStatement":
     case "UsingStatement":
-    case "MatchStatement":
     case "ReturnStatement":
     case "ExitStatement":
     case "ContinueStatement":
@@ -720,9 +714,6 @@ function collectStatements(statements: readonly Statement[], out: Statement[]): 
         break;
       case "UsingStatement":
         collectStatements(statement.body, out);
-        break;
-      case "MatchStatement":
-        for (const matchCase of statement.cases) collectStatements(matchCase.body, out);
         break;
       case "Block":
         collectStatements(statement.statements, out);
@@ -780,7 +771,6 @@ function walkStatementExpressions(statement: Statement, visit: (expr: Expression
       walkExpression(statement.expression, visit);
       break;
     case "TryCatchStatement":
-    case "MatchStatement":
     case "Block":
     case "OpaqueStatement":
       break;

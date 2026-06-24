@@ -99,7 +99,6 @@ function traverseForFolding(node: Node | undefined, ranges: vscode.FoldingRange[
           "WhileStatement",
           "TryCatchStatement",
           "UsingStatement",
-          "MatchStatement",
           "WithStatement",
           "SelectCaseStatement",
         ].includes(node.kind);
@@ -157,13 +156,6 @@ function traverseForFolding(node: Node | undefined, ranges: vscode.FoldingRange[
     case "WithStatement":
       for (const s of node.body) {
         traverseForFolding(s, ranges);
-      }
-      break;
-    case "MatchStatement":
-      for (const c of node.cases) {
-        for (const s of c.body) {
-          traverseForFolding(s, ranges);
-        }
       }
       break;
     case "SelectCaseStatement":

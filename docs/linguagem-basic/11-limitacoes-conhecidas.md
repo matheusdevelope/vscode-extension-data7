@@ -198,7 +198,6 @@ Estas a extensão **pode** evoluir — vide [10-acucares-atuais.md](./10-acucare
 | Inferência de literais (`Dim x = 42` → `Integer`) | parcial; cobre literais e casos usados por transpiler/resolver, não todos os fluxos arbitrários |
 | Inferência por cadeia (`a.b().c().d`) | só 1 nível |
 | `For Each (k, v) In dict` | não implementado |
-| `Match` / pattern matching | implementado como sugar `Match/Case Is` para `If/ElseIf` |
 | Optional chaining `?.` | implementado nos contextos suportados pelo transpilador |
 | Null-coalescing `??` | implementado em RHS de assignment suportado |
 | Pipe `\|>` | implementado como sugar de chamada encadeada |

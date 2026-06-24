@@ -75,7 +75,6 @@ const PARSER_SUGAR_IDS = [
   "array-list",
   "enum",
   "interpolation",
-  "match",
   "null-coalesce",
   "object-initializer",
   "optional-chain",

@@ -23,8 +23,8 @@ Causas comuns:
 ## "O `transpile_bas` ignora meu açúcar"
 
 - **Verifique se o açúcar está em `data7_list_sugar`**. Se não estiver, ele não está implementado.
-- **A sintaxe está correta?** O transpiler é estrito sobre alguns padrões. Por exemplo: `Match` precisa `Case Is TFoo : body` exatamente; ternário só funciona no RHS de assignment.
-- **Snippet incompleto?** Alguns açúcares são multi-line (`Using`, `Match`, `Enum`). Inclua o `End <Block>` correspondente.
+- **A sintaxe está correta?** O transpiler é estrito sobre alguns padrões. Por exemplo: ternário só funciona no RHS de assignment.
+- **Snippet incompleto?** Alguns açúcares são multi-line (`Using`, `Enum`). Inclua o `End <Block>` correspondente.
 
 ## "O `data7://official/<X>` devolve 'Símbolo não encontrado'"
 

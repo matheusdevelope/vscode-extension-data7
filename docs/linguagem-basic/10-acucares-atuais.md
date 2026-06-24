@@ -231,14 +231,13 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 | F3 | spread em object initializer (convenção: `.Assign()`) | [`spread-object/`](../example/sugar/spread-object) |
 | F4 | rest param `Sub Log(args...)` | **não trazer** (sem varargs runtime) |
 
-### Fase G — Pattern matching e flow
+### Fase G — Flow
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
 | G1 | null narrowing (semântica do TypeResolver via F3) | [`diagnostics/null-narrowing/`](../example/diagnostics/null-narrowing) |
-| G2 | `Match x / Case Is T : body / End Match` (multi-line) | [`match/`](../example/sugar/match) |
-| G3 | `Return If cond Then a Else b` | [`return-if/`](../example/sugar/return-if) |
-| G4 | ternário em `Print`/`Return` — convenção: ainda escrito como `If` quando precisar de statement | (incluído nos exemplos de ternary) |
+| G2 | `Return If cond Then a Else b` | [`return-if/`](../example/sugar/return-if) |
+| G3 | ternário em `Print`/`Return` — convenção: ainda escrito como `If` quando precisar de statement | (incluído nos exemplos de ternary) |
 
 ### Fase H — Funcional
 

@@ -74,7 +74,6 @@ class LocalObfuscator {
         case "WhileStatement":
           this.collectLocalVariables(statement.body);
           break;
-        case "MatchStatement":
         case "SelectCaseStatement":
           for (const branch of statement.cases) this.collectLocalVariables(branch.body);
           break;

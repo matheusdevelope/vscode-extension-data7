@@ -35,7 +35,6 @@ const keywordCasingMap = new Map<string, string>([
   ["let", "Let"],
   ["lib", "Lib"],
   ["loop", "Loop"],
-  ["match", "Match"],
   ["me", "me"],
   ["mod", "Mod"],
   ["mybase", "MyBase"],
@@ -91,7 +90,6 @@ type IndentFrame =
   | "function"
   | "if"
   | "select"
-  | "match"
   | "case"
   | "for"
   | "do"
@@ -224,7 +222,6 @@ function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
     return "if";
   }
   if (lowerClean.startsWith("select case ")) return "select";
-  if (lowerClean.startsWith("match ")) return "match";
   if (lowerClean.startsWith("for ")) return "for";
   if (lowerClean === "do" || lowerClean.startsWith("do ")) return "do";
   if (lowerClean.startsWith("while ")) return "while";
@@ -279,8 +276,6 @@ function getClosingFrame(lowerClean: string): IndentFrame[] | undefined {
       return ["try"];
     case "end select":
       return ["select"];
-    case "end match":
-      return ["match"];
     case "end using":
       return ["using"];
     case "end with":
@@ -317,7 +312,7 @@ function isCaseLine(lowerClean: string): boolean {
 
 function closeFrame(indentStack: IndentFrame[], frames: readonly IndentFrame[]): void {
   for (const frame of frames) {
-    if (frame === "select" || frame === "match") {
+    if (frame === "select") {
       popIfTop(indentStack, ["case"]);
     }
     popFrame(indentStack, frame);

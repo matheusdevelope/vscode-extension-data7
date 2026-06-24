@@ -76,7 +76,6 @@ export class ASTFlowAnalyzer {
       "WhileStatement",
       "TryCatchStatement",
       "UsingStatement",
-      "MatchStatement",
       "ReturnStatement",
       "ExitStatement",
       "ContinueStatement",
@@ -100,7 +99,7 @@ export class ASTFlowAnalyzer {
     );
     const diagnostic = new vscode.Diagnostic(
       range,
-      "CÃ³digo inalcanÃ§Ã¡vel detectado (dead-code).",
+      "Código inalcançável detectado (dead-code).",
       vscode.DiagnosticSeverity.Warning,
     );
     diagnostic.code = DiagnosticCodes.DeadCode;
@@ -120,7 +119,7 @@ export class ASTFlowAnalyzer {
     );
     const diagnostic = new vscode.Diagnostic(
       range,
-      `O mÃ©todo Function "${this.methodNode.name}" pode retornar sem definir um valor de retorno explÃ­cito em todas as ramificaÃ§Ãµes de fluxo de controle.`,
+      `O método Function "${this.methodNode.name}" pode retornar sem definir um valor de retorno expl­icito em todas as ramificaÃ§Ãµes de fluxo de controle.`,
       vscode.DiagnosticSeverity.Warning,
     );
     diagnostic.code = DiagnosticCodes.MissingReturnValue;

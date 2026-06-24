@@ -1,11 +1,13 @@
 import type { SugarPlugin } from "../types";
 import { enumSugarPlugin } from "./enum";
+import { inlineIfSugarPlugin } from "./inline-if";
 
 function metadata(plugin: SugarPlugin): SugarPlugin {
   return plugin;
 }
 
 export const builtInSugarPlugins: readonly SugarPlugin[] = [
+  inlineIfSugarPlugin,
   metadata({
     id: "array-list",
     displayName: "Array List",
@@ -103,13 +105,6 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     diagnosticCodes: ["using-non-disposable"],
   }),
   enumSugarPlugin,
-  metadata({
-    id: "match",
-    displayName: "Match",
-    description: "Expands Match/Case Is blocks into If/ElseIf chains.",
-    enabledByDefault: true,
-    syntaxKinds: ["MatchStatement"],
-  }),
   metadata({
     id: "return-if",
     displayName: "Return If",

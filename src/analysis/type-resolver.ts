@@ -505,19 +505,7 @@ export class TypeResolver {
     }
 
     if (
-      [
-        "=",
-        "<>",
-        "<",
-        ">",
-        "<=",
-        ">=",
-        "is",
-        "isnot",
-        "like",
-        "andalso",
-        "orelse",
-      ].includes(op)
+      ["=", "<>", "<", ">", "<=", ">=", "is", "isnot", "like", "andalso", "orelse"].includes(op)
     ) {
       return "Boolean";
     }
@@ -1464,14 +1452,6 @@ function collectLocalDeclarations(
       }
       if (node.finallyBody) {
         for (const s of node.finallyBody) {
-          collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
-        }
-      }
-      break;
-
-    case "MatchStatement":
-      for (const c of node.cases) {
-        for (const s of c.body) {
           collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
         }
       }

@@ -876,7 +876,6 @@ function recursivelyFilterBlocks(
       break;
 
     case "SelectCaseStatement":
-    case "MatchStatement":
       for (const branch of statement.cases) {
         branch.body = filterMetaStatements(branch.body, substitution, ctx);
       }

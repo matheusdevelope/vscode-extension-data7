@@ -42,7 +42,6 @@ export class LoggerPrintSugarTransformer {
       case "WhileStatement":
       case "TryCatchStatement":
       case "UsingStatement":
-      case "MatchStatement":
       case "ReturnStatement":
       case "ExitStatement":
       case "ContinueStatement":
@@ -135,12 +134,6 @@ export class LoggerPrintSugarTransformer {
       case "UsingStatement":
         statement.resourceArgs = statement.resourceArgs.map((arg) => this.transformExpression(arg));
         statement.body = this.transformStatements(statement.body);
-        return statement;
-      case "MatchStatement":
-        statement.subject = this.transformExpression(statement.subject);
-        for (const matchCase of statement.cases) {
-          matchCase.body = this.transformStatements(matchCase.body);
-        }
         return statement;
       case "ReturnStatement":
         if (statement.expression) {

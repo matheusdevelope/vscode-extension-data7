@@ -194,6 +194,23 @@ describe("parser/parser", () => {
     }
   });
 
+  test("keeps a trailing comment as the line terminator when If is missing Then", () => {
+    const src = [
+      "Sub TestIf()",
+      "   If ready    ' Edit",
+      "      Run()",
+      "   End If",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    const method = r.unit.members[0] as MethodDeclaration;
+    const statement = method.body[0];
+
+    assert.equal(statement?.kind, "IfStatement");
+    assert.equal(statement?.hasThen, false);
+    assert.ok(!r.errors.some((error) => error.code === "expected-token"));
+  });
+
   test("parses For and For Each loops structurally", () => {
     const src = [
       "Sub TestLoops()",
@@ -257,32 +274,6 @@ describe("parser/parser", () => {
       assert.equal(usingStmt.resourceType.name, "Connection");
       assert.equal(usingStmt.resourceArgs.length, 1);
       assert.equal(usingStmt.body.length, 1);
-    }
-  });
-
-  test("parses Match statements structurally", () => {
-    const src = [
-      "Sub TestMatch()",
-      "   Match obj",
-      "      Case Is TButton:",
-      "         Click()",
-      "      Case Else:",
-      "         Noop()",
-      "   End Match",
-      "End Sub",
-    ].join("\n");
-    const r = parse(src);
-    assert.deepEqual([...r.errors], []);
-    const m = r.unit.members[0] as MethodDeclaration;
-    const matchStmt = m.body[0];
-    assert.equal(matchStmt?.kind, "MatchStatement");
-    if (matchStmt?.kind === "MatchStatement") {
-      assert.equal(matchStmt.subject.kind, "Identifier");
-      assert.equal(matchStmt.cases.length, 2);
-      assert.equal(matchStmt.cases[0]?.typeName, "TButton");
-      assert.equal(matchStmt.cases[0]?.body.length, 1);
-      assert.equal(matchStmt.cases[1]?.isElse, true);
-      assert.equal(matchStmt.cases[1]?.body.length, 1);
     }
   });
 
@@ -685,10 +676,11 @@ describe("parser/parser", () => {
     assert.equal(method.body[0]?.kind, "VariableDeclaration");
   });
 
-  test("accepts Match as a method name and preserves Continue losslessly", () => {
+  test("accepts Match as a method name and parses its assignment", () => {
     const src = [
       "Class Regex",
       "   Function Match(pValue As String) As Boolean",
+      "      Match = True",
       "      Continue",
       "   End Function",
       "End Class",
@@ -698,6 +690,8 @@ describe("parser/parser", () => {
     const klass = r.unit.members[0] as ClassDeclaration;
     const method = klass.members[0] as MethodDeclaration;
     assert.equal(method.name, "Match");
-    assert.equal(method.body[0]?.kind, "ContinueStatement");
+    assert.equal(method.body[0]?.kind, "Assignment");
+    assert.equal((method.body[0] as any).target.name, "Match");
+    assert.equal(method.body[1]?.kind, "ContinueStatement");
   });
 });

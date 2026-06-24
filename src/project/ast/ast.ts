@@ -66,7 +66,6 @@ export type Node =
   | WhileStatement
   | TryCatchStatement
   | UsingStatement
-  | MatchStatement
   | ReturnStatement
   | ExitStatement
   | ContinueStatement
@@ -273,7 +272,6 @@ export type Statement =
   | WhileStatement
   | TryCatchStatement
   | UsingStatement
-  | MatchStatement
   | ReturnStatement
   | ExitStatement
   | ContinueStatement
@@ -360,12 +358,6 @@ export interface UsingStatement extends BaseNode {
   resourceType: TypeReference;
   resourceArgs: Expression[];
   body: Statement[];
-}
-
-export interface MatchStatement extends BaseNode {
-  readonly kind: "MatchStatement";
-  subject: Expression;
-  cases: { typeName?: string; isElse: boolean; body: Statement[] }[];
 }
 
 export interface SelectCaseStatement extends BaseNode {
@@ -608,12 +600,6 @@ export abstract class ASTWalker {
         this.walk(node.resourceType);
         for (const a of node.resourceArgs) this.walk(a);
         for (const s of node.body) this.walk(s);
-        return;
-      case "MatchStatement":
-        this.walk(node.subject);
-        for (const c of node.cases) {
-          for (const s of c.body) this.walk(s);
-        }
         return;
       case "SelectCaseStatement":
         this.walk(node.expression);

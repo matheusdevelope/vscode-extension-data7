@@ -458,12 +458,6 @@ function collectModuleReferences(node: Node | undefined, callback: (name: string
       collectModuleReferences(node.expression, callback);
       for (const s of node.body) collectModuleReferences(s, callback);
       break;
-    case "MatchStatement":
-      collectModuleReferences(node.subject, callback);
-      for (const c of node.cases) {
-        for (const s of c.body) collectModuleReferences(s, callback);
-      }
-      break;
     case "ReturnStatement":
       collectModuleReferences(node.expression, callback);
       break;

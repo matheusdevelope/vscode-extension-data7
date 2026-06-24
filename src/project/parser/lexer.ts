@@ -114,7 +114,6 @@ const KEYWORDS: ReadonlySet<string> = new Set(
     "Is",
     "Let",
     "Loop",
-    "Match",
     "Me",
     "Mod",
     "MyBase",
@@ -323,7 +322,8 @@ export function tokenize(source: string): Token[] {
     const raw = lines[lineIdx] ?? "";
     const lineTokens = tokenizeLine(raw, { includeWhitespace: false });
     const hasLineContinuation = hasTrailingLineContinuation(lineTokens, raw);
-    const isCommentOrEmpty: boolean = lineTokens.length === 0 || (lineTokens.length === 1 && lineTokens[0]?.kind === "comment");
+    const isCommentOrEmpty: boolean =
+      lineTokens.length === 0 || (lineTokens.length === 1 && lineTokens[0]?.kind === "comment");
     const continuesThroughComment: boolean = continuationPending && isCommentOrEmpty;
     const effectiveTokens = hasLineContinuation
       ? lineTokens.slice(0, -1)
@@ -369,7 +369,8 @@ function mapLineToken(t: LineToken, line: number): Token | null {
 
 function hasTrailingLineContinuation(tokens: readonly LineToken[], rawLine: string): boolean {
   if (tokens.length === 0) return false;
-  const lastNonCommentIdx = tokens[tokens.length - 1]?.kind === "comment" ? tokens.length - 2 : tokens.length - 1;
+  const lastNonCommentIdx =
+    tokens[tokens.length - 1]?.kind === "comment" ? tokens.length - 2 : tokens.length - 1;
   if (lastNonCommentIdx < 0) return false;
   const lastNonCommentToken = tokens[lastNonCommentIdx];
   if (lastNonCommentToken?.kind === "identifier" && lastNonCommentToken.value === "_") {

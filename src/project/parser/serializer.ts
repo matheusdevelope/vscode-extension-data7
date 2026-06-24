@@ -17,7 +17,6 @@ import type {
   WhileStatement,
   TryCatchStatement,
   UsingStatement,
-  MatchStatement,
   OpaqueStatement,
   ImportsDeclaration,
   WithStatement,
@@ -137,7 +136,6 @@ function serializeMember(
     case "WhileStatement":
     case "TryCatchStatement":
     case "UsingStatement":
-    case "MatchStatement":
     case "ReturnStatement":
     case "ExitStatement":
     case "ContinueStatement":
@@ -400,9 +398,6 @@ function serializeStatement(
     case "UsingStatement":
       serializeUsingStatement(s, depth, out, options);
       return;
-    case "MatchStatement":
-      serializeMatchStatement(s, depth, out, options);
-      return;
     case "SelectCaseStatement":
       serializeSelectCase(s, depth, out, options);
       return;
@@ -425,9 +420,7 @@ function serializeStatement(
       return;
     case "ContinueStatement":
       out.push(
-        indent(depth, options) +
-          "Continue" +
-          (s.comment && !options.minify ? " " + s.comment : ""),
+        indent(depth, options) + "Continue" + (s.comment && !options.minify ? " " + s.comment : ""),
       );
       return;
     case "ThrowStatement":
@@ -753,30 +746,6 @@ function serializeUsingStatement(
     serializeStatement(stmt, depth + 1, out, options);
   }
   out.push(indent(depth, options) + "End Using");
-}
-
-function serializeMatchStatement(
-  s: MatchStatement,
-  depth: number,
-  out: OutputBuffer,
-  options: SerializeOptions,
-): void {
-  out.push(
-    indent(depth, options) +
-      `Match ${emitExpression(s.subject)}` +
-      (s.comment && !options.minify ? " " + s.comment : ""),
-  );
-  for (const c of s.cases) {
-    if (c.isElse) {
-      out.push(indent(depth + 1, options) + "Case Else:");
-    } else {
-      out.push(indent(depth + 1, options) + `Case Is ${c.typeName ?? ""}:`);
-    }
-    for (const stmt of c.body) {
-      serializeStatement(stmt, depth + 2, out, options);
-    }
-  }
-  out.push(indent(depth, options) + "End Match");
 }
 
 function serializeWithStatement(

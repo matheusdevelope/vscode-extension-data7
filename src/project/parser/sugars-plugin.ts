@@ -4,7 +4,6 @@ import type {
   TypeReference,
   EnumDeclaration,
   UsingStatement,
-  MatchStatement,
   SpreadExpression,
   SourceLocation,
   ParameterDeclaration,
@@ -49,7 +48,6 @@ export function isDisabledSugarSyntaxLine(
   }
   if (has("enum") && /^\s*enum\b/i.test(code)) return true;
   if (has("using") && /^\s*using\b/i.test(code)) return true;
-  if (has("match") && /^\s*match\b/i.test(code)) return true;
   if (has("object-initializer") && /\bnew\b[\s\S]*\bwith\s*\{/i.test(code)) return true;
   if (has("optional-chain") && code.includes("?.")) return true;
   if (has("null-coalesce") && /\?\?=?/.test(code)) return true;
@@ -118,9 +116,6 @@ export class SugarsParserPlugin implements ParserPlugin {
     }
     if (v === "using" && this.isEnabled("using")) {
       return this.parseUsing(parser);
-    }
-    if (v === "match" && this.isEnabled("match")) {
-      return this.parseMatch(parser);
     }
     if (v === "return" && this.isEnabled("return-if")) {
       const next = parser.peek(1);
@@ -652,72 +647,6 @@ export class SugarsParserPlugin implements ParserPlugin {
       resourceType,
       resourceArgs,
       body,
-      loc: locOf(startLoc, endLoc),
-    };
-  }
-
-  private parseMatch(parser: Parser): MatchStatement {
-    const startLoc = parser.peek().loc;
-    parser.advance(); // consume 'Match'
-    const subject = parser.parseExpression();
-    parser.skipToEndOfLine();
-
-    const cases: { typeName?: string; isElse: boolean; body: Statement[] }[] = [];
-    let endLoc: TokenLocation | undefined;
-    while (!parser.isEOF()) {
-      parser.skipNewlines();
-      if (parser.matchEnd("match")) {
-        endLoc = parser.consumeEnd("match");
-        parser.skipToEndOfLine();
-        break;
-      }
-
-      const head = parser.peek();
-      if ((head.kind === "keyword" || head.kind === "identifier") && parser.eq(head, "case")) {
-        parser.advance(); // consume 'Case'
-        const next = parser.peek();
-        let typeName: string | undefined;
-        let isElse = false;
-
-        if ((next.kind === "keyword" || next.kind === "identifier") && parser.eq(next, "is")) {
-          parser.advance(); // consume 'Is'
-          const typeRef = parser.parseTypeReference();
-          typeName = typeRef ? typeRef.name : undefined;
-        } else if (
-          (next.kind === "keyword" || next.kind === "identifier") &&
-          parser.eq(next, "else")
-        ) {
-          parser.advance(); // consume 'Else'
-          isElse = true;
-        }
-
-        parser.expect("punct", ":", { literal: true });
-
-        const caseBody: Statement[] = [];
-        while (!parser.isEOF()) {
-          parser.skipNewlines();
-          const nextHead = parser.peek();
-          if (
-            (nextHead.kind === "keyword" || nextHead.kind === "identifier") &&
-            (parser.eq(nextHead, "case") ||
-              (parser.eq(nextHead, "end") && parser.eq(parser.peek(1), "match")))
-          ) {
-            break;
-          }
-          const s = parser.parseStatement();
-          if (s !== null) caseBody.push(s);
-          parser.skipStatementSeparator();
-        }
-        cases.push({ typeName, isElse, body: caseBody });
-        continue;
-      }
-      parser.advance();
-    }
-
-    return {
-      kind: "MatchStatement",
-      subject,
-      cases,
       loc: locOf(startLoc, endLoc),
     };
   }

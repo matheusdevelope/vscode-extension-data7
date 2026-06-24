@@ -248,7 +248,7 @@ export class Parser {
     }
     if (next.kind === "keyword") {
       const val = next.value.toLowerCase();
-      if (["new", "get", "set", "match", "continue"].includes(val)) {
+      if (["new", "get", "set", "continue"].includes(val)) {
         return this.advance();
       }
     }

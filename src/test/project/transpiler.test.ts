@@ -249,6 +249,10 @@ describe("SugarTranspiler.transpile", () => {
     assert.deepEqual(ordered.slice(-1), ["logger-print"]);
   });
 
+  test("does not register the removed Match sugar", () => {
+    assert.equal(SugarRegistry.get("match"), undefined);
+  });
+
   test("preserves CRLF line endings when the input uses them", () => {
     const ctx = makeContext({ StringList: stringListEnumerable });
     const code = [
@@ -814,9 +818,12 @@ describe("SugarTranspiler — native string expressions and inline throws", () =
     assert.doesNotMatch(out, /CStr\(UCase\(/);
     assert.match(
       out,
-      /If Not initialized Then Throw New Exception\("Enum cache not initialized"\)/,
+      /If Not initialized Then\r?\n\s*Throw New Exception\("Enum cache not initialized"\)\r?\n\s*End If/,
     );
-    assert.match(out, /If index < 0 Then Throw New Exception\("Enum not found"\)/);
+    assert.match(
+      out,
+      /If index < 0 Then\r?\n\s*Throw New Exception\("Enum not found"\)\r?\n\s*End If/,
+    );
   });
 });
 
@@ -1144,25 +1151,7 @@ describe("SugarTranspiler — Else If", () => {
   });
 });
 
-describe("SugarTranspiler — G2 Match (multi-line)", () => {
-  const ctx = makeContext({});
-
-  test("expands `Match x / Case Is T : body / End Match` into If/ElseIf/Else/End If", () => {
-    const code = [
-      "Match pValue",
-      '   Case Is CardRecord : Print "registro"',
-      '   Case Else : Print "outro"',
-      "End Match",
-    ].join("\n");
-    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
-    assert.equal(diagnostics.length, 0);
-    assert.match(out, /If pValue\.InheritsFrom\(CardRecord\) Then/);
-    assert.match(out, /Else/);
-    assert.match(out, /End If/);
-  });
-});
-
-describe("SugarTranspiler — G3 Return-If", () => {
+describe("SugarTranspiler — G2 Return-If", () => {
   const ctx = makeContext({});
 
   test("expands `Return If cond Then a Else b` into a two-line form", () => {
@@ -1505,5 +1494,31 @@ describe("SugarTranspiler — array-list", () => {
       out,
       /Private Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" \(dwFlags As Long, dpX As Long, dpY As Long, cButtons As Long, dwExtraInfo As Long\)/,
     );
+  });
+
+  describe("SugarTranspiler — inline-if sugar", () => {
+    test("expands single-line If Then into block If Then End If", () => {
+      const code = "If a > 10 Then Return True";
+      const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+      assert.equal(diagnostics.length, 0);
+      assert.deepEqual(out.replace(/\r\n/g, "\n").split("\n"), [
+        "If a > 10 Then",
+        "   Return True",
+        "End If",
+      ]);
+    });
+
+    test("expands single-line If Then Else into block If Then Else End If", () => {
+      const code = "If a > 10 Then Return True Else Return False";
+      const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+      assert.equal(diagnostics.length, 0);
+      assert.deepEqual(out.replace(/\r\n/g, "\n").split("\n"), [
+        "If a > 10 Then",
+        "   Return True",
+        "Else",
+        "   Return False",
+        "End If",
+      ]);
+    });
   });
 });

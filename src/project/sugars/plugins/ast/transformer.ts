@@ -6,6 +6,7 @@ import { parseExpr } from "../../../parser";
 import { ArrayListSugarTransformer } from "../array-list/transformer";
 import { expandDestructuredVariableDeclaration } from "../destructure/transformer";
 import { expandEnumDeclaration } from "../enum/transformer";
+import { expandInlineIf } from "../inline-if/transformer";
 import type {
   Statement,
   Expression,
@@ -871,6 +872,10 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       }
 
       case "IfStatement": {
+        if (this.isSugarEnabled("inline-if") && s.singleLine) {
+          this.usedSugars.add("inline-if");
+          s = expandInlineIf(s);
+        }
         s.condition = this.transformExpression(s.condition, false, s.loc?.startLine);
         s.thenBranch = this.transformStatements(s.thenBranch);
         for (const branch of s.elseIfBranches) {
@@ -1119,50 +1124,6 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
             loc: s.loc,
           },
         ];
-      }
-
-      case "MatchStatement": {
-        if (!this.isSugarEnabled("match")) return s;
-        s.subject = this.transformExpression(s.subject, false, s.loc?.startLine);
-        let condition: Expression | undefined;
-        const thenBranch: Statement[] = [];
-        const elseIfBranches: { condition: Expression; body: Statement[] }[] = [];
-        let elseBranch: Statement[] | undefined;
-        let first = true;
-        for (const c of s.cases) {
-          c.body = this.transformStatements(c.body);
-          if (c.isElse) {
-            elseBranch = c.body;
-          } else {
-            const typeName = c.typeName ?? "";
-            const isCheck: MethodInvocation = {
-              kind: "MethodInvocation",
-              callee: s.subject,
-              methodName: "InheritsFrom",
-              typeArguments: [],
-              arguments: [{ kind: "Identifier", name: typeName, loc: s.loc }],
-              loc: s.loc,
-            };
-            if (first) {
-              condition = isCheck;
-              thenBranch.push(...c.body);
-              first = false;
-            } else {
-              elseIfBranches.push({ condition: isCheck, body: c.body });
-            }
-          }
-        }
-        if (!condition) {
-          return { kind: "Block", statements: elseBranch ?? [], loc: s.loc };
-        }
-        return {
-          kind: "IfStatement",
-          condition,
-          thenBranch,
-          elseIfBranches,
-          elseBranch,
-          loc: s.loc,
-        };
       }
 
       case "ReturnStatement": {
