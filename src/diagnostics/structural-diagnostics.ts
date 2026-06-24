@@ -87,8 +87,9 @@ export function validateDuplicateDeclarations(
     message: string,
     payload: DuplicateDeclarationPayload,
     related?: { uri?: string; range: vscode.Range; message: string },
+    severity: vscode.DiagnosticSeverity = vscode.DiagnosticSeverity.Error,
   ): void => {
-    const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+    const diag = new vscode.Diagnostic(range, message, severity);
     diag.code = DiagnosticCodes.DuplicateDeclaration;
     if (related) {
       diag.relatedInformation = [
@@ -123,7 +124,7 @@ export function validateDuplicateDeclarations(
     const existing = fileTopLevel.get(nameLower);
     if (existing) {
       const bothMethods = s.kind === "method" && existing.kind === "method";
-      if (bothMethods && !isSameSignature(s.parameters, existing.parameters)) {
+      if (bothMethods) {
         return;
       }
       createConflictDiag(
@@ -193,7 +194,11 @@ export function validateDuplicateDeclarations(
   const classes = fileSyms.symbols.filter((s) => s.kind === "class" || s.kind === "structure");
   classes.forEach((C) => {
     const members = fileSyms.symbols.filter(
-      (s) => s.containerName?.toLowerCase() === C.name.toLowerCase(),
+      (s) =>
+        s.kind !== "class" &&
+        s.kind !== "structure" &&
+        s.kind !== "namespace" &&
+        s.containerName?.toLowerCase() === C.name.toLowerCase(),
     );
 
     const sharedMembers = members.filter((m) => m.isShared);
@@ -229,7 +234,9 @@ export function validateDuplicateDeclarations(
           for (const existing of existingList) {
             const bothMethods = m.kind === "method" && existing.kind === "method";
             if (bothMethods) {
-              if (isSameSignature(m.parameters, existing.parameters)) {
+              if (
+                isSameSignature(m.parameters, existing.parameters)
+              ) {
                 createConflictDiag(
                   new vscode.Range(
                     m.range.startLine,
@@ -249,6 +256,7 @@ export function validateDuplicateDeclarations(
                     range: symbolRange(existing),
                     message: `Membro anterior '${existing.name}'.`,
                   },
+                  vscode.DiagnosticSeverity.Warning,
                 );
                 return;
               }
@@ -333,34 +341,6 @@ export function validateDuplicateDeclarations(
           declaredInMethod.set(nameLower, v.loc);
 
           if (C) {
-            const members = fileSyms.symbols.filter(
-              (s) => s.containerName?.toLowerCase() === C.name.toLowerCase(),
-            );
-            const isShared = node.modifiers?.includes("shared") ?? false;
-            const visibleMembers = isShared ? members.filter((m) => m.isShared) : members;
-
-            const conflictingMember = visibleMembers.find(
-              (m) => m.name.toLowerCase() === nameLower,
-            );
-            if (conflictingMember) {
-              createConflictDiag(
-                range,
-                `O identificador '${v.name}' conflita com o membro '${conflictingMember.name}' da classe '${C.name}'.`,
-                {
-                  code: DiagnosticCodes.DuplicateDeclaration,
-                  name: v.name,
-                  scope: "class",
-                  conflictingWithName: conflictingMember.name,
-                },
-                {
-                  uri: conflictingMember.fileUri,
-                  range: symbolRange(conflictingMember),
-                  message: `Membro declarado aqui: '${conflictingMember.name}'.`,
-                },
-              );
-              return;
-            }
-
             if (nameLower === C.name.toLowerCase()) {
               createConflictDiag(
                 range,
@@ -402,6 +382,7 @@ function isSameSignature(
   }
   return true;
 }
+
 
 export function validateMyBaseNewCalls(
   unit: CompilationUnit,
@@ -476,7 +457,7 @@ export function validateMyBaseFreeCalls(
     public override walk(node: Node): void {
       if (node.kind === "ClassDeclaration") {
         const baseNameLower = node.baseType?.name.toLowerCase();
-        if (baseNameLower === "baseenum" || baseNameLower === "coresugarbaseenum") {
+        if (baseNameLower === "TEnum") {
           return;
         }
 

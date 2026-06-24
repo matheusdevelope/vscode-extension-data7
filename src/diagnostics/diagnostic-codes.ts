@@ -120,7 +120,7 @@ export const DiagnosticCodes = {
    */
   LambdaCaptureUnsupported: "lambda-capture-unsupported",
   /**
-   * A generic constraint (`Class TList<T As BaseEnum>`) was violated by
+   * A generic constraint (`Class TList<T As TEnum>`) was violated by
    * the concrete type argument at the usage site.
    */
   GenericConstraintViolated: "generic-constraint-violated",
@@ -203,6 +203,8 @@ export const DiagnosticCodes = {
   LooseTypeStatement: "loose-type-statement",
   /** A method call violating the parentheses requirements. */
   CallParenthesesMismatch: "call-parentheses-mismatch",
+  /** An object creation (`New T`) omitted the empty `()` constructor call. */
+  ObjectCreationParenthesesMissing: "object-creation-parentheses-missing",
   /** A method/delegate declaration missing parentheses. */
   DeclarationParenthesesMismatch: "declaration-parentheses-mismatch",
   /** Reading from the function name inside its own body is not allowed. */
@@ -215,11 +217,23 @@ export const DiagnosticCodes = {
   DeadCode: "dead-code",
   /** Incompatible types assigned to a variable or function return value. */
   TypeMismatch: "type-mismatch",
-  /** Finally block inside Try-Catch is not supported due to compiler issues. */
-  FinallyBlockUnsupported: "finally-block-unsupported",
+  /** Else If used with a space instead of ElseIf. */
+  ElseIfWhitespace: "elseif-whitespace",
+  /** An If statement is missing the 'Then' keyword. */
+  MissingThen: "missing-then",
+  /** A Return statement was used when method/property assignment + Exit is preferred. */
+  ReturnUnrecommended: "return-unrecommended",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
+
+/**
+ * Codes retained solely to interpret diagnostics emitted by older extension
+ * versions. They are not produced by the current linter.
+ */
+export const LegacyDiagnosticCodes = {
+  FinallyBlockUnsupported: "finally-block-unsupported",
+} as const;
 
 /**
  * Structured payload attached to `vscode.Diagnostic.data` so that code actions
@@ -443,11 +457,35 @@ export interface MissingMyBaseFreePayload {
  * Payload for `FinallyBlockUnsupported`: identifies Catch line, catch body lines, and variable name.
  */
 export interface FinallyBlockUnsupportedPayload {
-  code: typeof DiagnosticCodes.FinallyBlockUnsupported;
+  code: typeof LegacyDiagnosticCodes.FinallyBlockUnsupported;
   catchLine: number;
   catchBodyStartLine: number;
   catchBodyEndLine: number;
   catchVarName?: string;
+  isEmptyCatch?: boolean;
+}
+
+export interface ElseIfWhitespacePayload {
+  code: typeof DiagnosticCodes.ElseIfWhitespace;
+  line: number;
+  column: number;
+}
+
+export interface MissingThenPayload {
+  code: typeof DiagnosticCodes.MissingThen;
+  line: number;
+  insertColumn: number;
+}
+
+export interface ReturnUnrecommendedPayload {
+  code: typeof DiagnosticCodes.ReturnUnrecommended;
+  line: number;
+  startChar: number;
+  endChar: number;
+  expressionText?: string;
+  exitType: "Sub" | "Function" | "Property";
+  targetName?: string;
+  isConditional: boolean;
 }
 
 export type DiagnosticPayload =
@@ -474,7 +512,10 @@ export type DiagnosticPayload =
   | DuplicateDeclarationPayload
   | MissingMyBaseNewPayload
   | MissingMyBaseFreePayload
-  | FinallyBlockUnsupportedPayload;
+  | FinallyBlockUnsupportedPayload
+  | ElseIfWhitespacePayload
+  | MissingThenPayload
+  | ReturnUnrecommendedPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

@@ -19,8 +19,11 @@ import type {
   UnknownSuppressionCodePayload,
   UnsupportedMemberPayload,
   FinallyBlockUnsupportedPayload,
+  MissingThenPayload,
+  ElseIfWhitespacePayload,
+  ReturnUnrecommendedPayload,
 } from "./diagnostic-codes";
-import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
+import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configuration";
 import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
@@ -28,6 +31,7 @@ import { parseInterpolation } from "../utils/interpolation";
 import { LanguageProcessor } from "../analysis/language-processor";
 import { ASTFlowAnalyzer } from "./ast-flow-analyzer";
 import { ASTWordCollector } from "./ast-collectors";
+import { collectTransitivelyRequiredImports } from "./import-usage";
 import {
   validateDuplicateDeclarations,
   validateMyBaseFreeCalls,
@@ -55,6 +59,7 @@ import {
   type Node,
   type MemberAccess,
   type MethodInvocation,
+  type ObjectCreationExpression,
   type TypeReference,
   type ForEachStatement,
   type TaggedTemplateExpression,
@@ -63,6 +68,8 @@ import {
   type ExpressionStatement,
   type SourceLocation,
   type TryCatchStatement,
+  type IfStatement,
+  type ReturnStatement,
 } from "../project/ast/ast";
 
 export class DiagnosticsLinter {
@@ -308,18 +315,44 @@ export class DiagnosticsLinter {
     const lhsIsTObjectRoot = lhsLower === "tobject" || lhsLower.endsWith(".tobject");
 
     if (lhsLower === rhsLower) return true;
+
+    const isNumeric = (type: string): boolean =>
+      [
+        "integer",
+        "byte",
+        "long",
+        "short",
+        "single",
+        "double",
+        "decimal",
+        "extended",
+        "longint",
+        "word",
+        "currency",
+      ].includes(type);
+
+    if (lhsLower === "boolean" && isNumeric(rhsLower)) return true;
+    if (rhsLower === "boolean" && isNumeric(lhsLower)) return true;
+    if ((lhsLower === "tdatetime" || lhsLower === "date") && isNumeric(rhsLower)) return true;
+    if ((rhsLower === "tdatetime" || rhsLower === "date") && isNumeric(lhsLower)) return true;
+
+    if (lhsLower === "tcolor" && (rhsLower === "tcolor" || isNumeric(rhsLower))) return true;
+    if (rhsLower === "tcolor" && (lhsLower === "tcolor" || isNumeric(lhsLower))) return true;
+
     if (areResolvedTypeNamesEquivalent(rhsType, lhsType, indexer)) return true;
     if (isLikelyGenericTypeParameter(lhsType) || isLikelyGenericTypeParameter(rhsType)) return true;
     if (areSameGenericTemplateCompatible(rhsType, lhsType, indexer)) return true;
+
+    if (isNumeric(lhsLower) && isNumeric(rhsLower)) return true;
+    if (lhsLower === "variant" || rhsLower === "variant") return true;
+
+    if (DiagnosticsLinter.isWideningNumericConversion(rhsLower, lhsLower)) return true;
 
     const lhsIsPrimitive = PRIMITIVE_TYPES.has(lhsLower);
     const rhsIsPrimitive = PRIMITIVE_TYPES.has(rhsLower);
 
     if (rhsLower === "null") return !lhsIsPrimitive || lhsIsTObjectRoot;
     if (rhsLower === "unassigned") return lhsIsPrimitive && !lhsIsTObjectRoot;
-
-    if (lhsLower === "variant") return rhsIsPrimitive;
-    if (rhsLower === "variant") return lhsIsPrimitive;
 
     // Every Data7 workspace class implicitly descends from TObject. TObject is
     // listed in PRIMITIVE_TYPES because it is globally available, but assignment
@@ -339,6 +372,24 @@ export class DiagnosticsLinter {
     if (lhsIsPrimitive || rhsIsPrimitive) return false;
 
     return TypeResolver.isSubclassOf(rhsType, lhsType, indexer);
+  }
+
+  private static isWideningNumericConversion(rhsType: string, lhsType: string): boolean {
+    const numericRanks: Readonly<Record<string, number>> = {
+      byte: 0,
+      short: 1,
+      integer: 2,
+      long: 3,
+      longint: 3,
+      single: 4,
+      double: 5,
+      extended: 6,
+      currency: 7,
+      decimal: 8,
+    };
+    const rhsRank = numericRanks[rhsType];
+    const lhsRank = numericRanks[lhsType];
+    return rhsRank !== undefined && lhsRank !== undefined && rhsRank <= lhsRank;
   }
 
   private static readonly DEFAULT_SEVERITY: Readonly<Record<string, vscode.DiagnosticSeverity>> = {
@@ -369,6 +420,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.UnknownSymbol]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.LooseTypeStatement]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.CallParenthesesMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.ObjectCreationParenthesesMissing]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.DeclarationParenthesesMismatch]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.FunctionReadSelf]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InvalidAssignmentTarget]: vscode.DiagnosticSeverity.Error,
@@ -376,12 +428,16 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.DeadCode]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.MissingMyBaseFree]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.TypeMismatch]: vscode.DiagnosticSeverity.Error,
-    [DiagnosticCodes.FinallyBlockUnsupported]: vscode.DiagnosticSeverity.Warning,
+    [LegacyDiagnosticCodes.FinallyBlockUnsupported]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.ElseIfWhitespace]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.MissingThen]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.ReturnUnrecommended]: vscode.DiagnosticSeverity.Warning,
   };
 
-  private static readonly VALID_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set(
-    Object.values(DiagnosticCodes),
-  );
+  private static readonly VALID_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set([
+    ...Object.values(DiagnosticCodes),
+    ...Object.values(LegacyDiagnosticCodes),
+  ]);
 
   private readonly isStrict: boolean;
 
@@ -505,7 +561,9 @@ export class DiagnosticsLinter {
       const target = suppressions.get(lineIdx);
       if (target === "*" || (target && codeStr && target.has(codeStr))) continue;
 
-      const defaultSeverity = this.DEFAULT_SEVERITY[codeStr] ?? diag.severity;
+      const defaultSeverity = diag.severity !== vscode.DiagnosticSeverity.Error
+        ? diag.severity
+        : (this.DEFAULT_SEVERITY[codeStr] ?? diag.severity);
       const resolved = resolveDiagnosticSeverity(codeStr, defaultSeverity, overrides);
       if (resolved === undefined) continue;
       diag.severity = resolved;
@@ -517,9 +575,13 @@ export class DiagnosticsLinter {
 }
 
 class DiagnosticsASTWalker extends ASTWalker {
+  // Developer Studio accepts Finally blocks; retain the legacy diagnostic implementation only
+  // for backwards-compatible code-action payload handling from older extension versions.
+  private static readonly LEGACY_FINALLY_WARNING_ENABLED: boolean = true;
   private activeClass: ClassDeclaration | undefined;
   private activeMethod: MethodDeclaration | undefined;
   private activeProperty: PropertyDeclaration | undefined;
+  private conditionalBlockDepth = 0;
 
   private readonly parentStack: Node[] = [];
   private readonly scopes: Set<string>[] = [new Set()];
@@ -550,8 +612,19 @@ class DiagnosticsASTWalker extends ASTWalker {
     const wordCollector = new ASTWordCollector();
     wordCollector.walk(unit);
 
-    // Phase 2: Walk AST for structure diagnostics
+    // Phase 2: Walk AST for structure diagnostics and import declarations.
     this.walk(unit);
+
+    const directlyReferencedImports = new Set<string>();
+    for (const imp of this.imports) {
+      if (this.isImportDirectlyReferenced(imp.name, wordCollector)) {
+        directlyReferencedImports.add(imp.name.toLowerCase());
+      }
+    }
+    const transitivelyRequiredImports = collectTransitivelyRequiredImports(
+      this.indexer,
+      directlyReferencedImports,
+    );
 
     // Phase 3: Unused and duplicate imports check
     const seenImports = new Map<string, SourceLocation>();
@@ -581,27 +654,8 @@ class DiagnosticsASTWalker extends ASTWalker {
       }
       seenImports.set(key, imp.loc);
 
-      // Check if reference exists
-      let isReferenced = false;
-      if (wordCollector.qualifiedTypes.has(key)) {
-        isReferenced = true;
-      } else {
-        const parts = key.split(".");
-        const lastPart = parts[parts.length - 1];
-        if (lastPart && wordCollector.usedWords.has(lastPart)) {
-          isReferenced = true;
-        }
-      }
-
-      if (!isReferenced) {
-        const symbolsInNamespace = [
-          ...this.indexer.getAllSymbols().filter((s) => s.containerName?.toLowerCase() === key),
-          ...lookupSystemByContainer(imp.name),
-        ];
-        isReferenced = symbolsInNamespace.some((s) =>
-          wordCollector.usedWords.has(s.name.toLowerCase()),
-        );
-      }
+      const isReferenced =
+        directlyReferencedImports.has(key) || transitivelyRequiredImports.has(key);
 
       if (!isReferenced) {
         const diag = new vscode.Diagnostic(
@@ -617,6 +671,23 @@ class DiagnosticsASTWalker extends ASTWalker {
         this.diagnostics.push(diag);
       }
     });
+  }
+
+  private isImportDirectlyReferenced(name: string, wordCollector: ASTWordCollector): boolean {
+    const key = name.toLowerCase();
+    if (wordCollector.qualifiedTypes.has(key)) return true;
+
+    const parts = key.split(".");
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && wordCollector.usedWords.has(lastPart)) return true;
+
+    const symbolsInNamespace = [
+      ...this.indexer.getAllSymbols().filter((s) => s.containerName?.toLowerCase() === key),
+      ...lookupSystemByContainer(name),
+    ];
+    return symbolsInNamespace.some((symbol) =>
+      wordCollector.usedWords.has(symbol.name.toLowerCase()),
+    );
   }
 
   private pushScope(): void {
@@ -638,6 +709,11 @@ class DiagnosticsASTWalker extends ASTWalker {
   public override walk(node: Node): void {
     const parent = this.parentStack[this.parentStack.length - 1];
 
+    const isConditional = node.kind === "IfStatement" || node.kind === "SelectCaseStatement";
+    if (isConditional) {
+      this.conditionalBlockDepth++;
+    }
+
     if (node.kind === "VariableDeclaration" && node.initializer?.kind === "TernaryExpression") {
       this.allowedTernaries.add(node.initializer);
     }
@@ -647,6 +723,9 @@ class DiagnosticsASTWalker extends ASTWalker {
 
     if (node.kind === "VariableDeclaration" && node.name) {
       this.addLocal(node.name);
+    }
+    if (node.kind === "ObjectCreationExpression") {
+      this.checkObjectCreationExpression(node);
     }
 
     const prevClass = this.activeClass;
@@ -774,6 +853,12 @@ class DiagnosticsASTWalker extends ASTWalker {
       case "TryCatchStatement":
         this.checkTryCatchStatement(node);
         break;
+      case "IfStatement":
+        this.checkIfStatement(node);
+        break;
+      case "ReturnStatement":
+        this.checkReturnStatement(node);
+        break;
     }
 
     // Bare Identifier Unknown Symbol check
@@ -840,14 +925,19 @@ class DiagnosticsASTWalker extends ASTWalker {
 
       if (!shouldSkip) {
         const isDeclared =
-          ((this.isLocalDeclared(name) ||
-            this.isGenericTypeParameter(name) ||
-            (this.activeClass &&
-              (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
-                TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
-                  (m) => m.name.toLowerCase() === nameLower,
-                )))) ??
-            this.indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower)) ||
+          nameLower === this.activeMethod?.name.toLowerCase() ||
+          nameLower === this.activeProperty?.name.toLowerCase() ||
+          this.isLocalDeclared(name) ||
+          this.isGenericTypeParameter(name) ||
+          !!(
+            this.activeClass &&
+            (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
+              TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
+                (m) => m.name.toLowerCase() === nameLower,
+              ))
+          ) ||
+          this.indexer.findSymbolByName(name, this.document.uri.toString()) !== undefined ||
+          this.indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower) ||
           SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
 
         if (!isDeclared) {
@@ -871,6 +961,10 @@ class DiagnosticsASTWalker extends ASTWalker {
     this.parentStack.push(node);
     super.walk(node);
     this.parentStack.pop();
+
+    if (isConditional) {
+      this.conditionalBlockDepth--;
+    }
 
     if (pushedScope) {
       this.popScope();
@@ -906,6 +1000,23 @@ class DiagnosticsASTWalker extends ASTWalker {
       this.indexer,
       this.diagnostics,
     );
+  }
+
+  private checkObjectCreationExpression(node: ObjectCreationExpression): void {
+    if (!node.noParentheses || !node.type.loc) return;
+    const range = new vscode.Range(
+      node.type.loc.startLine - 1,
+      node.type.loc.startChar,
+      node.type.loc.endLine - 1,
+      node.type.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `A instanciação de "${node.type.name}" omitiu os parênteses do construtor. Recomenda-se usar "${node.type.name}()".`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.ObjectCreationParenthesesMissing;
+    this.diagnostics.push(diag);
   }
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
@@ -1397,9 +1508,20 @@ class DiagnosticsASTWalker extends ASTWalker {
       this.indexer,
     );
 
+    const isLocalAssignmentTarget =
+      node.target.kind === "Identifier" && this.isLocalDeclared(node.target.name);
     let resolvedLhs: SymbolInfo | undefined;
-    if (node.target.kind === "Identifier") {
-      resolvedLhs = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
+    if (node.target.kind === "Identifier" && !isLocalAssignmentTarget) {
+      if (this.activeClass) {
+        resolvedLhs = TypeResolver.findMember(
+          this.activeClass.name,
+          node.target.name,
+          this.indexer,
+        );
+      }
+      if (!resolvedLhs) {
+        resolvedLhs = this.indexer.findSymbolByName(node.target.name, this.document.uri.toString());
+      }
     } else if (node.target.kind === "MemberAccess") {
       const type = TypeResolver.resolveExpressionType(
         node.target.target,
@@ -1450,12 +1572,19 @@ class DiagnosticsASTWalker extends ASTWalker {
         resolvedLhs.kind === "declare_function" ||
         resolvedLhs.kind === "declare_sub";
       if (isMethod) {
-        const isCurrentFunction =
-          resolvedLhs.name.toLowerCase() === this.activeMethod?.name.toLowerCase() ||
-          resolvedLhs.name.toLowerCase() === this.activeProperty?.name.toLowerCase();
-        const isSub = resolvedLhs.type.toLowerCase() === "void";
+        const activeMethod = this.activeMethod;
+        const activeProperty = this.activeProperty;
+        const isCurrentMethodReturnTarget =
+          node.target.kind === "Identifier" &&
+          activeMethod?.returnType !== undefined &&
+          node.target.name.toLowerCase() === activeMethod.name.toLowerCase();
+        const isCurrentPropertyReturnTarget =
+          node.target.kind === "Identifier" &&
+          node.target.name.toLowerCase() === activeProperty?.name.toLowerCase();
+        const isCurrentFunctionReturnTarget =
+          isCurrentMethodReturnTarget || isCurrentPropertyReturnTarget;
 
-        if (!isCurrentFunction || isSub) {
+        if (!isCurrentFunctionReturnTarget) {
           const range = new vscode.Range(
             lineIdx,
             node.target.loc?.startChar ?? 0,
@@ -1721,7 +1850,7 @@ class DiagnosticsASTWalker extends ASTWalker {
   }
 
   private checkTryCatchStatement(node: TryCatchStatement): void {
-    if (node.finallyBody && node.loc) {
+    if (DiagnosticsASTWalker.LEGACY_FINALLY_WARNING_ENABLED && node.finallyBody && node.loc) {
       if (this.isCatchBodyWrappedWithAssignedCheck(node)) {
         return;
       }
@@ -1733,53 +1862,182 @@ class DiagnosticsASTWalker extends ASTWalker {
         `O uso de 'Finally' no bloco Try/Catch não é recomendado devido a um bug conhecido no compilador que sempre executa o bloco 'Catch'.`,
         vscode.DiagnosticSeverity.Warning,
       );
-      diag.code = DiagnosticCodes.FinallyBlockUnsupported;
+      diag.code = LegacyDiagnosticCodes.FinallyBlockUnsupported;
 
-      if (node.catchBody.length > 0) {
-        const tryBody = node.tryBody;
-        const catchBody = node.catchBody;
-        const nodeLoc = node.loc;
+      const tryBody = node.tryBody;
+      const catchBody = node.catchBody;
+      const nodeLoc = node.loc;
 
-        const firstStmt = catchBody[0];
-        const lastStmt = catchBody[catchBody.length - 1];
-
-        if (firstStmt && lastStmt) {
-          let catchLine = -1;
-          let startSearchLine = nodeLoc.startLine;
-          if (tryBody.length > 0) {
-            const lastTryStmt = tryBody[tryBody.length - 1];
-            if (lastTryStmt?.loc) {
-              startSearchLine = lastTryStmt.loc.endLine;
-            }
-          }
-
-          const endSearchLine = firstStmt.loc?.startLine ?? nodeLoc.endLine;
-
-          for (let i = startSearchLine - 1; i < endSearchLine; i++) {
-            const lineText = this.lines[i] ?? "";
-            if (/^\s*Catch\b/i.test(lineText)) {
-              catchLine = i;
-              break;
-            }
-          }
-
-          const firstStmtLoc = firstStmt.loc;
-          const lastStmtLoc = lastStmt.loc;
-
-          if (catchLine !== -1 && firstStmtLoc && lastStmtLoc) {
-            const payload: FinallyBlockUnsupportedPayload = {
-              code: DiagnosticCodes.FinallyBlockUnsupported,
-              catchLine,
-              catchBodyStartLine: firstStmtLoc.startLine - 1,
-              catchBodyEndLine: lastStmtLoc.endLine - 1,
-              catchVarName: node.catchVar?.name,
-            };
-            setDiagnosticPayload(diag, payload);
-          }
+      let catchLine = -1;
+      let startSearchLine = nodeLoc.startLine;
+      if (tryBody.length > 0) {
+        const lastTryStmt = tryBody[tryBody.length - 1];
+        if (lastTryStmt?.loc) {
+          startSearchLine = lastTryStmt.loc.endLine;
         }
+      }
+
+      const firstStmt = catchBody[0];
+      const lastStmt = catchBody[catchBody.length - 1];
+      const endSearchLine = firstStmt?.loc?.startLine ?? nodeLoc.endLine;
+
+      for (let i = startSearchLine - 1; i < endSearchLine; i++) {
+        const lineText = this.lines[i] ?? "";
+        if (/^\s*Catch\b/i.test(lineText)) {
+          catchLine = i;
+          break;
+        }
+      }
+
+      if (catchLine !== -1) {
+        const payload: FinallyBlockUnsupportedPayload = {
+          code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
+          catchLine,
+          catchBodyStartLine: firstStmt?.loc ? firstStmt.loc.startLine - 1 : -1,
+          catchBodyEndLine: lastStmt?.loc ? lastStmt.loc.endLine - 1 : -1,
+          catchVarName: node.catchVar?.name,
+          isEmptyCatch: catchBody.length === 0,
+        };
+        setDiagnosticPayload(diag, payload);
       }
 
       this.diagnostics.push(diag);
     }
+  }
+
+  private checkIfStatement(node: IfStatement): void {
+    if (node.hasThen === false && node.loc) {
+      let insertLine = node.loc.startLine - 1;
+      while (insertLine < this.lines.length) {
+        const lineText = this.lines[insertLine] ?? "";
+        if (!lineText.trim().endsWith("_")) {
+          break;
+        }
+        insertLine++;
+      }
+      const targetLineText = this.lines[insertLine] ?? "";
+      let commentIdx = targetLineText.indexOf("'");
+      let insertCol = targetLineText.length;
+      if (commentIdx !== -1) {
+        insertCol = commentIdx;
+      }
+
+      const range = new vscode.Range(insertLine, 0, insertLine, targetLineText.length);
+      const diag = new vscode.Diagnostic(
+        range,
+        `Instrução 'If' sem a palavra-chave 'Then'.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.MissingThen;
+      const payload: MissingThenPayload = {
+        code: DiagnosticCodes.MissingThen,
+        line: insertLine,
+        insertColumn: insertCol,
+      };
+      setDiagnosticPayload(diag, payload);
+      this.diagnostics.push(diag);
+    }
+
+    for (const branch of node.elseIfBranches) {
+      if (branch.hasSpace && branch.loc) {
+        const lineIdx = branch.loc.startLine - 1;
+        const lineText = this.lines[lineIdx] ?? "";
+        const range = new vscode.Range(lineIdx, branch.loc.startChar, lineIdx, branch.loc.startChar + 7);
+        const diag = new vscode.Diagnostic(
+          range,
+          `A sintaxe 'Else If' com espaço não é aceita pelo compilador. Use 'ElseIf'.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.ElseIfWhitespace;
+        const payload: ElseIfWhitespacePayload = {
+          code: DiagnosticCodes.ElseIfWhitespace,
+          line: lineIdx,
+          column: branch.loc.startChar,
+        };
+        setDiagnosticPayload(diag, payload);
+        this.diagnostics.push(diag);
+      }
+
+      if (branch.hasThen === false && branch.loc) {
+        let insertLine = branch.loc.startLine - 1;
+        while (insertLine < this.lines.length) {
+          const lineText = this.lines[insertLine] ?? "";
+          if (!lineText.trim().endsWith("_")) {
+            break;
+          }
+          insertLine++;
+        }
+        const targetLineText = this.lines[insertLine] ?? "";
+        let commentIdx = targetLineText.indexOf("'");
+        let insertCol = targetLineText.length;
+        if (commentIdx !== -1) {
+          insertCol = commentIdx;
+        }
+
+        const range = new vscode.Range(insertLine, 0, insertLine, targetLineText.length);
+        const diag = new vscode.Diagnostic(
+          range,
+          `Instrução 'ElseIf' sem a palavra-chave 'Then'.`,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diag.code = DiagnosticCodes.MissingThen;
+        const payload: MissingThenPayload = {
+          code: DiagnosticCodes.MissingThen,
+          line: insertLine,
+          insertColumn: insertCol,
+        };
+        setDiagnosticPayload(diag, payload);
+        this.diagnostics.push(diag);
+      }
+    }
+  }
+
+  private checkReturnStatement(node: ReturnStatement): void {
+    if (!node.loc) return;
+
+    const inProperty = !!this.activeProperty;
+    const inSub = !!this.activeMethod && !this.activeMethod.returnType;
+    const inFunction = !!this.activeMethod && !!this.activeMethod.returnType;
+
+    const targetName = inProperty ? this.activeProperty?.name : (inFunction ? this.activeMethod?.name : undefined);
+    const exitType = inProperty ? "Property" : (inFunction ? "Function" : "Sub");
+
+    let msg = "O uso de 'Return' não é recomendado devido a lentidão gerada no compilador.";
+    if (inSub) {
+      msg = "O uso de 'Return' não é recomendado. Prefira usar 'Exit Sub'.";
+    } else if (targetName) {
+      msg = `O uso de 'Return' não é recomendado. Prefira atribuir o valor a "${targetName}" e usar 'Exit ${exitType}'.`;
+    }
+
+    const lineIdx = node.loc.startLine - 1;
+    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+    const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+    diag.code = DiagnosticCodes.ReturnUnrecommended;
+
+    let expressionText: string | undefined;
+    if (node.expression && node.expression.loc) {
+      const startL = node.expression.loc.startLine - 1;
+      const startC = node.expression.loc.startChar;
+      const endL = node.expression.loc.endLine - 1;
+      const endC = node.expression.loc.endChar;
+      if (startL === endL) {
+        expressionText = (this.lines[startL] ?? "").substring(startC, endC);
+      } else {
+        expressionText = exprToString(node.expression);
+      }
+    }
+
+    const payload: ReturnUnrecommendedPayload = {
+      code: DiagnosticCodes.ReturnUnrecommended,
+      line: lineIdx,
+      startChar: node.loc.startChar,
+      endChar: node.loc.endChar,
+      expressionText,
+      exitType,
+      targetName,
+      isConditional: this.conditionalBlockDepth > 0,
+    };
+    setDiagnosticPayload(diag, payload);
+    this.diagnostics.push(diag);
   }
 }

@@ -1,7 +1,7 @@
 ' @example: diagnostics/generic-constraint-violated/trigger
-' @demonstrates: constraint Class TList<T As BaseEnum> violada por Integer
+' @demonstrates: constraint Class TList<T As TEnum> violada por Integer
 ' @diagnostics: generic-constraint-violated@10
-' @requires: classes BaseEnum + CardAdm declaradas no workspace
+' @requires: classes TEnum + CardAdm declaradas no workspace
 '
 Namespace mod_demo
    Class TDemo

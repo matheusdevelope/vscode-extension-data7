@@ -79,6 +79,7 @@ export class ASTFlowAnalyzer {
       "MatchStatement",
       "ReturnStatement",
       "ExitStatement",
+      "ContinueStatement",
       "ThrowStatement",
       "Block",
       "WithStatement",
@@ -141,6 +142,8 @@ export class ASTFlowAnalyzer {
       case "ReturnStatement":
       case "ThrowStatement":
         return { ...state, reachable: false, retValSet: true };
+      case "ContinueStatement":
+        return { ...state, reachable: false };
       case "ExitStatement":
         if (
           statement.target === "Sub" ||

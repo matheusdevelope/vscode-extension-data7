@@ -1,12 +1,10 @@
 import "../_setup/global-hooks";
+import * as vscode from "vscode";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
 import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
-import {
-  DiagnosticCodes,
-  type FinallyBlockUnsupportedPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes, LegacyDiagnosticCodes } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, registerOpenDocument } from "../_helpers/mock-doc";
 import { expectDiagnostic, expectNoDiagnostic } from "../_helpers/assertions";
 import { loadExample, parseExampleHeader } from "../_helpers/fixtures";
@@ -579,7 +577,7 @@ End Namespace`;
       );
     });
 
-    test("emits error for local variable with same name as class member in the same context", () => {
+    test("does NOT emit error for local variable with same name as class member in the same context (shadowing is allowed)", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
    Class C
@@ -592,13 +590,7 @@ End Namespace`;
       const uri = "file:///dup_member.bas";
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-      const diag = expectDiagnostic(
-        diags,
-        DiagnosticCodes.DuplicateDeclaration,
-        "conflita com o membro 'value'",
-      );
-      assert.equal(diag.relatedInformation?.length, 1);
-      assert.equal(diag.relatedInformation?.[0]?.location.range.start.line, 2);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
     test("does NOT emit error for local variable matching class member of different context (Shared vs Instance)", () => {
@@ -617,7 +609,7 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
-    test("emits error for duplicate class members with same signature/kind", () => {
+    test("emits error for duplicate class fields", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
    Class C
@@ -633,6 +625,61 @@ End Namespace`;
         DiagnosticCodes.DuplicateDeclaration,
         "Membro duplicado: o nome 'field'",
       );
+    });
+
+    test("allows duplicate class methods with the same signature but emits a warning", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Function Normalize(pValue As String) As String
+         Normalize = pValue
+      End Function
+      Public Function Normalize(pValue As String) As String
+         Normalize = pValue
+      End Function
+   End Class
+End Namespace`;
+      const uri = "file:///dup_method_signature.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      const diag = expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Membro duplicado: a classe 'C' já declara um método 'Normalize' com a mesma assinatura",
+      );
+      assert.equal(diag.severity, vscode.DiagnosticSeverity.Warning);
+    });
+
+    test("allows a class whose name equals its namespace ignoring case", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace regex
+   Class Regex
+      Public Function Match() As Boolean
+         Match = True
+      End Function
+   End Class
+End Namespace`;
+      const uri = "file:///namespace_class_name.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("namespace and class share name and namespace contains top level members", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace regex
+   Public Function TopLevelFunc() As String
+      TopLevelFunc = "ok"
+   End Function
+   Class Regex
+      Public Sub Run()
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///namespace_class_name_top.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
     test("does NOT emit error for method overloads (same name but different parameter count/types)", () => {
@@ -913,7 +960,7 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
     });
 
-    test("does not emit warning for BaseEnum classes", () => {
+    test("does not emit warning for TEnum classes", () => {
       const diags = runLinter(`Namespace mod_free
    Enum MyEnum
       Value1
@@ -1025,6 +1072,29 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
+
+    test("emits warning instead of parser error when object creation omits empty parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Public Sub Build()
+         Dim cmd As PowerCommand = New PowerCommand
+      End Sub
+   End Class
+
+   Class PowerCommand
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      const diag = expectDiagnostic(
+        diags,
+        DiagnosticCodes.ObjectCreationParenthesesMissing,
+        "PowerCommand",
+      );
+      assert.equal(diag.severity, 1);
+      assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+    });
   });
 
   describe("scope and type compatibility regressions", () => {
@@ -1054,6 +1124,185 @@ Namespace mod_scope
 End Namespace`,
       );
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    });
+
+    test("resolves imported workspace classes and marks the import as used", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const serviceUri = "file:///servicos_usuarios.bas";
+      const serviceCode = `Namespace servicos_usuarios
+   Class ServicosUsuarios
+      Public Shared Function logado() As String
+         logado = ""
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(serviceUri, serviceCode);
+      createMockDoc(serviceUri, serviceCode);
+
+      const consumerUri = "file:///consumer_imports.bas";
+      const consumerCode = `Imports servicos_usuarios
+Namespace mod_consumer
+   Class C
+      Public Sub Build()
+         Dim usuario As String
+         usuario = ServicosUsuarios.logado()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(consumerUri, consumerCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(consumerUri, consumerCode),
+        indexer,
+      );
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnusedImport);
+    });
+
+    test("resolves imported namespace symbols used as factories and static helpers", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+
+      const helpersUri = "file:///stringHelpers.bas";
+      const helpersCode = `Namespace stringHelpers
+   Class StringHelper
+      Public Shared Function integerToStringMasc(row As Integer, mask As String, size As Integer) As String
+         integerToStringMasc = ""
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(helpersUri, helpersCode);
+      createMockDoc(helpersUri, helpersCode);
+
+      const configUri = "file:///PixConfig.bas";
+      const configCode = `Namespace mod_pix
+   Class PixConfig
+      Public Shared Function FromContaFinanceira(conta As Integer) As PixConfig
+         FromContaFinanceira = New PixConfig()
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(configUri, configCode);
+      createMockDoc(configUri, configCode);
+
+      const serviceUri = "file:///PixService.bas";
+      const serviceCode = `Namespace mod_pix
+   Class PixService
+      Public Shared Function Load(cfg As PixConfig) As PixService
+         Load = New PixService()
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(serviceUri, serviceCode);
+      createMockDoc(serviceUri, serviceCode);
+
+      const consumerUri = "file:///consumer_helpers.bas";
+      const consumerCode = `Imports stringHelpers
+Imports mod_pix
+Namespace mod_consumer
+   Class C
+      Public Sub Build()
+         Dim texto As String
+         texto = stringHelper.integerToStringMasc(1, "0", 5)
+         Dim cfg As PixConfig = PixConfig.FromContaFinanceira(1)
+         Dim svc As PixService = PixService.Load(cfg)
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(consumerUri, consumerCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(consumerUri, consumerCode),
+        indexer,
+      );
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnusedImport);
+    });
+
+    test("keeps imports required by a directly used module dependency graph", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(
+        "file:///helpers.bas",
+        `Namespace helpers
+   Class Helper
+   End Class
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        "file:///rules.bas",
+        `Imports Forms
+Imports mod_whatsapp
+Imports helpers
+Namespace mod_rules
+   Class Rules
+   End Class
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        "file:///screen.bas",
+        `Imports mod_rules
+Namespace mod_screen
+   Class Screen
+   End Class
+End Namespace`,
+      );
+
+      const consumerUri = "file:///consumer_transitive_imports.bas";
+      const consumerCode = `Imports mod_screen
+Imports Forms
+Imports mod_whatsapp
+Imports helpers
+Namespace mod_consumer
+   Class C
+      Public Sub Build()
+         Dim screen As Screen
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(consumerUri, consumerCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(consumerUri, consumerCode),
+        indexer,
+      );
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnusedImport);
+    });
+
+    test("allows widening numeric assignments from Integer to Double", () => {
+      const diags = runLinter(
+        "file:///numeric_widening.bas",
+        `Namespace mod_numeric
+   Class C
+      Public Sub Build()
+         Dim amount As Double = 0.00
+         amount = 1
+      End Sub
+   End Class
+End Namespace`,
+      );
+
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("recognizes the global dateUtils formatter", () => {
+      const diags = runLinter(
+        "file:///date_utils.bas",
+        `Namespace mod_dates
+   Class C
+      Public Sub Build()
+         Dim formatted As String = dateUtils.toStringFormat("yyyymmdd", DateTime().Now())
+      End Sub
+   End Class
+End Namespace`,
+      );
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
 
     test("allows assigning a workspace class to TObject through implicit inheritance", () => {
@@ -1559,7 +1808,7 @@ Dim _pair As TPair<Integer>`;
     });
   });
 
-  test("finally-block-unsupported registers payload with Catch location details", () => {
+  test("warns on Finally blocks due to compiler catch/finally bug", () => {
     const indexer = WorkspaceSymbolIndexer.getInstance();
     const uri = "file:///try_catch_finally_payload.bas";
     const code = `Namespace mod_try
@@ -1582,18 +1831,12 @@ End Namespace`;
     const doc = createMockDoc(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
 
-    const diag = diags.find((d: any) => d.code === DiagnosticCodes.FinallyBlockUnsupported);
-    assert.ok(diag, "Should emit FinallyBlockUnsupported warning");
-    const payload = (diag as any).data as FinallyBlockUnsupportedPayload;
-    assert.ok(payload, "Payload should be attached");
-    assert.equal(payload.code, DiagnosticCodes.FinallyBlockUnsupported);
-    assert.equal(payload.catchVarName, "ex");
-    assert.equal(payload.catchLine, 5);
-    assert.equal(payload.catchBodyStartLine, 6);
-    assert.equal(payload.catchBodyEndLine, 6);
+    const diag = expectDiagnostic(diags, LegacyDiagnosticCodes.FinallyBlockUnsupported);
+    const payload = (diag as { data?: { isEmptyCatch?: boolean } }).data;
+    assert.equal(payload?.isEmptyCatch, false);
   });
 
-  test("finally-block-unsupported is bypassed when catch body is wrapped with If Assigned", () => {
+  test("accepts Finally blocks with an Assigned guard in Catch", () => {
     const indexer = WorkspaceSymbolIndexer.getInstance();
     const uri = "file:///try_catch_finally_wrapped.bas";
     const code = `Namespace mod_try
@@ -1618,7 +1861,7 @@ End Namespace`;
     const doc = createMockDoc(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
 
-    const diag = diags.find((d: any) => d.code === DiagnosticCodes.FinallyBlockUnsupported);
+    const diag = diags.find((d: any) => d.code === LegacyDiagnosticCodes.FinallyBlockUnsupported);
     assert.ok(
       !diag,
       "Should NOT emit FinallyBlockUnsupported warning when catch body is wrapped with If Assigned",
@@ -1638,5 +1881,411 @@ End Namespace`;
     const doc = createMockDoc(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
     assert.equal(diags.length, 0);
+  });
+
+  test("accepts forms assignments with Font.Color, CharCase, line continuation and block If without Then", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///forms_compat.bas";
+    const code = `Imports Forms
+Namespace mod_forms
+   Class C
+      Public Sub Build()
+         Dim txt As Forms.TextBox
+         txt = New Forms.TextBox
+         txt.CharCase = ccUpper
+         txt.Color = 0
+         txt.Font.Color = 0
+
+         Dim lbl As Forms.StaticText
+         lbl = New Forms.StaticText(txt)
+         lbl.Text = ""
+         lbl.Font.Color = 0
+
+         If lbl.Text <> ""
+            txt.Text = "" +_
+               "A"
+         End If
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+  });
+
+  test("accepts TDateTime MilliSecondOf invoked with parentheses", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///datetime_compat.bas";
+    const code = `Namespace mod_time
+   Class C
+      Public Function Stamp() As String
+         Return DateTime().MilliSecondOf().ToString()
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+  });
+
+  test("accepts comments after Then keyword in If statements (multi-line)", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///if_comment.bas";
+    const code = `Namespace mod_if
+   Class C
+      Public Sub Run()
+         If True Then ' comment
+            Dim x As Integer = 1
+         End If
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+  });
+
+  test("accepts TColor numeric assignments and compatibility", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///color_compat.bas";
+    const code = `Namespace mod_color
+   Class C
+      Public Sub Run()
+         Dim c As TColor
+         c = 0
+         Dim i As Integer = 0
+         c = i
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+  });
+
+  test("resolves delegate function return types on invocations", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///delegate_call.bas";
+    const code = `Namespace mod_del
+   Delegate Function Pred() As String
+   Class C
+      Public myDel As Pred = NULL
+      Public Sub Run()
+         Dim s As String
+         s = me.myDel()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+  });
+
+  test("allows return assignment to method/function name without emitting diagnostics", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///return_assignment.bas";
+    const code = `Namespace mod_ret
+   Class C
+      Shared Function FromJson(pJson As TJSONObject) As C
+         Dim _value As New C()
+         FromJson = _value
+      End Function
+   End Class
+   Class CList
+      Shared Function FromJson(pJson As TJSONArray) As CList
+         Dim _value As New CList()
+         FromJson = _value
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.InvalidAssignmentTarget);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+  });
+
+  test("accepts function return assignment despite a same-named system member", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///delete_return.bas";
+    const code = `Namespace mod_http
+   Class Client
+      Public Function Delete() As String
+         Delete = "ok"
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.InvalidAssignmentTarget);
+  });
+
+  test("prefers a local variable over a same-named system member", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///local_count.bas";
+    const code = `Namespace mod_local
+   Class C
+      Public Sub Run()
+         Dim count As Integer = 0
+         count = count + 1
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.InvalidAssignmentTarget);
+  });
+
+  test("prefers class field or property over same-named global method", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const mockUri = "file:///mock_global.bas";
+    indexer.updateFileContent(mockUri, `Namespace ns
+   Class GlobalMethods
+      Public Sub Delete()
+      End Sub
+   End Class
+End Namespace`);
+    const uri = "file:///class_member_override.bas";
+    const code = `Namespace mod_local
+   Class Client
+      Public Delete As String
+      Public Sub Run()
+         Delete = "yes"
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.InvalidAssignmentTarget);
+  });
+
+  test("recognizes Developer Studio compatibility members and native Continue", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///compat_members.bas";
+    const code = `Imports Collections
+Namespace mod_compat
+   Class C
+      Public Function Run(pValue As String) As Double
+         Dim objects As TObjectList = New TObjectList()
+         Continue
+         Run = CDbl(pValue.Left(2)).RoundTo(-4)
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+  });
+
+  test("supports Whatsapp types, currency, TDateTime, TField members and bitwise/implicit type conversions", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///whatsapp_conversions.bas";
+    const code = `Namespace mod_whatsapp_test
+   Class Test
+      Public CreatedAt As TDateTime
+      Public ExpiresAt As TDateTime
+      
+      Public Sub Run(pPath As String, pQuery As SQL.Command)
+         ' Implicit conversion of numeric to TDateTime
+         CreatedAt = 0
+         ExpiresAt = 0
+
+         ' ToInt32 on TDateTime
+         If CreatedAt.ToInt32() <> 18991230 Then
+            ' SaveToFile on TField
+            pQuery.Field("ArquivoFisico").SaveToFile(pPath)
+         End If
+
+         ' Whatsapp Send & Message
+         Dim _send As WhatsappSend = New WhatsappSend()
+         Dim _message As WhatsappMessage = New WhatsappMessage()
+         _message.Recipient = "5511999999999"
+         _message.Subject = "Subject"
+         _message.Content = "Content"
+         _message.Signature = "Signature"
+         _message.Attachments.Add(pPath)
+         
+         Dim success As Boolean = _send.SendMessage(_message)
+
+         ' Currency type usage
+         Dim price As Currency = 10.5
+
+         ' Boolean to Long conversion + bitwise operators
+         Dim style As Long = 100
+         Dim showBorder As Boolean = True
+         Dim WS_BORDER As Long = 2048
+         If showBorder Then
+            style = style Or WS_BORDER
+         Else
+            style = style And Not WS_BORDER
+         End If
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    assert.deepEqual(diags, []);
+  });
+
+  test("supports Clipboard, Math, String.Insert, Variant arrays, scoping and hex parsing", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///clipboard_math_test.bas";
+    const code = `Namespace mod_test_clipboard
+   Function FormatValueToDouble(pValor As String) As Double
+      FormatValueToDouble = CDbl(pValor.Replace(".", ","))
+   End Function
+
+   Function ValidateValue(pValor As Double) As String
+      Dim s As String = Math.Truncate(pValor, 2).toString()
+      ValidateValue = s
+   End Function
+
+   Class Test
+      Public Sub Run(pPath As String)
+         ' Clipboard
+         Dim _clip As New Clipboard()
+         _clip.SetText("Test Text")
+         Dim val As String = _clip.GetText()
+         _clip.Free()
+
+         ' String.Insert
+         Dim text As String = "Hello"
+         text = text.Insert(" World", 5).LastChar()
+
+         ' Imagem LoadFromFile
+         Dim img As New Forms.Imagem(NULL)
+         img.LoadFromFile(pPath)
+         img.Free()
+
+         ' Variant array assignment
+         Dim pesos1 As Variant
+         pesos1 = [5, 4, 3, 2]
+
+         ' Narrowing conversion
+         Dim myLong As Long = 1000
+         Dim myInt As Integer = myLong
+
+         ' &H hex literal
+         Dim mask As Long = &HFFFF
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    assert.deepEqual(diags, []);
+  });
+
+  test("warns on empty catch blocks in Try/Catch with Finally", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///empty_catch_finally_test.bas";
+    const code = `Namespace mod_test_finally
+   Class Test
+      Public Sub Run()
+         Try
+            Dim a As Integer = 1
+         Catch ex As Exception
+            
+         Finally
+            Dim b As Integer = 2
+         End Try
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    const diag = diags.find((d: any) => d.code === LegacyDiagnosticCodes.FinallyBlockUnsupported);
+    assert.ok(diag, "Should emit finally-block-unsupported warning");
+    const payload = (diag as any).data;
+    assert.equal(payload.isEmptyCatch, true);
+  });
+
+  test("supports line continuation followed by comment", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///line_continuation_comment_test.bas";
+    const code = `Namespace mod_test_continuation
+   Class Test
+      Public Sub Run()
+         Dim x As Integer = 10 _ ' Some comment here
+         + 20
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+  });
+
+  test("warns on Else If with space and missing Then in If/ElseIf", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///if_elseif_test.bas";
+    const code = `Namespace mod_test_if
+   Class Test
+      Public Sub Run(a As Integer)
+         If a > 10
+            a = a + 1
+         Else If a > 5
+            a = a + 2
+         End If
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    
+    const missingThenDiags = diags.filter((d: any) => d.code === DiagnosticCodes.MissingThen);
+    assert.equal(missingThenDiags.length, 2, "Should emit two missing-then warnings (one for If, one for ElseIf)");
+    
+    const elseIfSpaceDiag = diags.find((d: any) => d.code === DiagnosticCodes.ElseIfWhitespace);
+    assert.ok(elseIfSpaceDiag, "Should emit elseif-whitespace error");
+    assert.equal(elseIfSpaceDiag.severity, vscode.DiagnosticSeverity.Error);
+  });
+
+  test("warns on Return and distinguishes conditional vs non-conditional blocks", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///return_test.bas";
+    const code = `Namespace mod_test_return
+   Class Test
+      Public Function Calc(a As Integer) As Integer
+         If a > 10 Then
+            Return a * 2
+         End If
+         Return a + 5
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    
+    const returnDiags = diags.filter((d: any) => d.code === DiagnosticCodes.ReturnUnrecommended);
+    assert.equal(returnDiags.length, 2, "Should emit return-unrecommended warning twice");
+    
+    // First Return (inside If - conditional)
+    const firstReturn = returnDiags[0]!;
+    assert.equal((firstReturn as any).data.isConditional, true);
+    assert.equal((firstReturn as any).data.targetName, "Calc");
+    assert.equal((firstReturn as any).data.exitType, "Function");
+    
+    // Second Return (at root - non-conditional)
+    const secondReturn = returnDiags[1]!;
+    assert.equal((secondReturn as any).data.isConditional, false);
+    assert.equal((secondReturn as any).data.targetName, "Calc");
+    assert.equal((secondReturn as any).data.exitType, "Function");
   });
 });
