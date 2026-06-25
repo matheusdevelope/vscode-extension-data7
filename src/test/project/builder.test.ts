@@ -1,5 +1,5 @@
 import "../_setup/global-hooks";
-import { describe, test } from "node:test";
+import { afterEach, describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as fs from "fs";
 import * as path from "path";
@@ -49,6 +49,10 @@ End Namespace
 }
 
 describe("Builder", () => {
+  afterEach(() => {
+    Builder.__resetBuildCacheForTests();
+  });
+
   describe("buildProject", () => {
     test("packages data7.json + src/Principal.bas into a .7Proj XML", async () => {
       await withTempDir(async (tmp) => {
@@ -185,6 +189,55 @@ End Namespace
         assert.match(xml, /Imports mod_tlist/);
         assert.match(xml, /Dim colors As TTList_Color = New TTList_Color\(\)/);
         assert.match(xml, /colors\.Push\(Color\.Red\)/);
+      });
+    });
+
+    test("reuses cached transpilation for unchanged files", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "helper.bas"),
+          `Namespace mod_helper
+   Class THelper
+      Public Sub Touch()
+         Print("one")
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const { SugarTranspiler } = await import("../../project/transpiler");
+        const originalTranspile = SugarTranspiler.transpile;
+        let transpileCalls = 0;
+        SugarTranspiler.transpile = (...args: Parameters<typeof originalTranspile>) => {
+          transpileCalls++;
+          return originalTranspile(...args);
+        };
+        try {
+          fs.writeFileSync(
+            path.join(tmp, "src", "helper.bas"),
+            `Namespace mod_helper
+   Class THelper
+      Public Sub Touch()
+         Print("two")
+      End Sub
+   End Class
+End Namespace
+`,
+            "utf-8",
+          );
+
+          Builder.buildProject(tmp, destXml);
+
+          assert.equal(transpileCalls, 1);
+        } finally {
+          SugarTranspiler.transpile = originalTranspile;
+        }
       });
     });
   });

@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { Builder } from "../project/builder";
+import { BuildCache, type EnsureProjectBuiltResult } from "../project/build-cache";
+import type { BuildProjectOptions } from "../project/builder";
 import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
 import { logger } from "../infra/logger";
@@ -21,6 +22,18 @@ let executorLogSession: ExecutorLogSession | undefined;
 
 export class BuildService {
   public static _spawn = spawn;
+  public static _getFreshProjectBuild = (
+    workspaceDir: string,
+    outputFilePath: string,
+    options?: BuildProjectOptions,
+  ): EnsureProjectBuiltResult | undefined =>
+    BuildCache.getFreshProjectBuild(workspaceDir, outputFilePath, options);
+  public static _ensureProjectBuilt = (
+    workspaceDir: string,
+    outputFilePath: string,
+    options?: BuildProjectOptions,
+  ): EnsureProjectBuiltResult =>
+    BuildCache.ensureProjectBuilt(workspaceDir, outputFilePath, options);
 
   /** Builds the active project's `.7Proj`. */
   public static async build(): Promise<void> {
@@ -53,9 +66,11 @@ export class BuildService {
           const dependencies = this.readDependencies(project.workspaceDir);
           DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
 
-          Builder.buildProject(project.workspaceDir, project.projectFilePath);
+          const result = this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath);
           vscode.window.showInformationMessage(
-            `Projeto compilado com sucesso em: ${project.projectFilePath}`,
+            result.skipped
+              ? `Projeto já está atualizado: ${project.projectFilePath}`
+              : `Projeto compilado com sucesso em: ${project.projectFilePath}`,
           );
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
@@ -132,11 +147,15 @@ export class BuildService {
     }
 
     const vscodeLoggerFilePath = this.prepareVSCodeLoggerFile(project.workspaceDir);
+    const runProjectFilePath = this.getRunProjectFilePath(
+      project.workspaceDir,
+      project.projectFilePath,
+    );
 
     try {
       await this.applyAutoFixBeforeBuild(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
-      Builder.buildProject(project.workspaceDir, project.projectFilePath, undefined, {
+      this._ensureProjectBuilt(project.workspaceDir, runProjectFilePath, {
         vscodeLoggerFilePath,
       });
     } catch (err: unknown) {
@@ -147,7 +166,7 @@ export class BuildService {
     }
 
     this.startVSCodeLoggerMirror(vscodeLoggerFilePath);
-    await this.runProjectFileDirectly(project.projectFilePath);
+    await this.runProjectFileDirectly(runProjectFilePath);
   }
 
   /** Runs the Executor against a specific `.7Proj` file path. */
@@ -263,11 +282,16 @@ export class BuildService {
       return;
     }
 
+    if (this._getFreshProjectBuild(project.workspaceDir, project.projectFilePath)) {
+      await this.openInDevStudioDirectly(project.projectFilePath);
+      return;
+    }
+
     try {
       await this.applyAutoFixBeforeBuild(project.workspaceDir);
       const dependencies = this.readDependencies(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
-      Builder.buildProject(project.workspaceDir, project.projectFilePath);
+      this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Falha ao compilar antes de abrir no Developer Studio.", err);
@@ -311,6 +335,7 @@ export class BuildService {
     );
 
     // spawn with explicit argument array; detached + unref so the child outlives us.
+
     const child = this._spawn(devStudioPath, [projectFilePath], {
       detached: true,
       stdio: "ignore",
@@ -350,6 +375,11 @@ export class BuildService {
     const logFilePath = path.join(logsDir, "vscode-executor.log");
     fs.writeFileSync(logFilePath, "", "utf-8");
     return logFilePath;
+  }
+
+  private static getRunProjectFilePath(workspaceDir: string, projectFilePath: string): string {
+    const projectName = path.basename(projectFilePath, path.extname(projectFilePath));
+    return path.join(workspaceDir, ".data7", "run", `${projectName}.run.7Proj`);
   }
 
   private static startVSCodeLoggerMirror(logFilePath: string): void {

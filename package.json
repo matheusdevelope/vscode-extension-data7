@@ -523,7 +523,7 @@
             },
             "diagnostics": {
               "enabled": true,
-              "lintWorkspaceOnStartup": true
+              "lintWorkspaceOnStartup": false
             },
             "workspace": {
               "detectProjectFiles": true,
@@ -566,7 +566,7 @@
                 },
                 "lintWorkspaceOnStartup": {
                   "type": "boolean",
-                  "default": true,
+                  "default": false,
                   "description": "Executa uma varredura de todos os arquivos do workspace após a indexação inicial. Não afeta diagnósticos de arquivos abertos nem o comando Data7: Reiniciar/Rodar Linter no Projeto."
                 }
               }

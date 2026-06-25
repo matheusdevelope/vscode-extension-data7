@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-metadata";
@@ -87,6 +88,45 @@ export interface TranspiledBuildSource {
   readonly code: string;
 }
 
+interface CachedTranspileEntry {
+  readonly sourceHash: string;
+  readonly contextHash: string;
+  readonly result: TranspileResult;
+}
+
+const transpileCache = new Map<string, CachedTranspileEntry>();
+
+function sha1(text: string): string {
+  return crypto.createHash("sha1").update(text).digest("hex");
+}
+
+function stableJson(value: unknown): string {
+  if (value === undefined) return '"__undefined__"';
+  if (typeof value === "function" || typeof value === "symbol") {
+    return JSON.stringify(String(value));
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function cloneTranspileResult(result: TranspileResult): TranspileResult {
+  return {
+    code: result.code,
+    diagnostics: [...result.diagnostics],
+    ...(result.lineMap ? { lineMap: [...result.lineMap] } : {}),
+    ...(result.usedSugars ? { usedSugars: new Set(result.usedSugars) } : {}),
+  };
+}
+
 /**
  * Packages a workspace tree (`src/Principal.bas`, modules under `src/**`, optional
  * `data7_modules/`) into a single `.7Proj` XML container.
@@ -97,6 +137,10 @@ export interface TranspiledBuildSource {
  * — never re-implement it locally.
  */
 export class Builder {
+  public static __resetBuildCacheForTests(): void {
+    transpileCache.clear();
+  }
+
   private static optimizeCode(
     code: string,
     minifyEnabled: boolean,
@@ -316,6 +360,76 @@ export class Builder {
     return requests;
   }
 
+  private static buildTranspileCacheContextHash(
+    ctx: TranspileContext,
+    indexer: WorkspaceSymbolIndexer,
+  ): string {
+    const publicSymbols = indexer
+      .getAllSymbols()
+      .filter((symbol) => !symbol.isPrivate)
+      .map((symbol) => ({
+        name: symbol.name,
+        kind: symbol.kind,
+        type: symbol.type,
+        isShared: symbol.isShared,
+        isProtected: symbol.isProtected,
+        isConst: symbol.isConst,
+        isReadOnly: symbol.isReadOnly,
+        parameters: symbol.parameters,
+        overloads: symbol.overloads,
+        genericTypeParameters: symbol.genericTypeParameters,
+        isSyntheticGenericInstantiation: symbol.isSyntheticGenericInstantiation,
+        containerName: symbol.containerName,
+        inheritsFrom: symbol.inheritsFrom,
+        constraintName: symbol.constraintName,
+        fileUri: symbol.fileUri,
+      }))
+      .sort((a, b) =>
+        `${a.fileUri}:${a.containerName ?? ""}:${a.kind}:${a.name}`.localeCompare(
+          `${b.fileUri}:${b.containerName ?? ""}:${b.kind}:${b.name}`,
+        ),
+      );
+
+    return sha1(
+      stableJson({
+        genericsEnabled: ctx.genericsEnabled !== false,
+        sugarOptions: ctx.sugarOptions,
+        externalGenericTemplates: [...(ctx.externalGenericTemplates ?? [])].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        ),
+        requestedGenericInstantiations: [...(ctx.requestedGenericInstantiations ?? [])].sort(
+          (a, b) =>
+            `${a.templateName}<${a.typeArgs.join(",")}>`.localeCompare(
+              `${b.templateName}<${b.typeArgs.join(",")}>`,
+            ),
+        ),
+        publicSymbols,
+      }),
+    );
+  }
+
+  private static transpileWithCache(
+    fileUri: string,
+    code: string,
+    ctx: TranspileContext,
+    contextHash: string,
+  ): TranspileResult {
+    const sourceHash = sha1(code);
+    const cacheKey = `${fileUri}\0${sourceHash}\0${contextHash}`;
+    const cached = transpileCache.get(cacheKey);
+    if (cached?.sourceHash === sourceHash && cached.contextHash === contextHash) {
+      return cloneTranspileResult(cached.result);
+    }
+
+    const result = SugarTranspiler.transpile(code, ctx);
+    transpileCache.set(cacheKey, {
+      sourceHash,
+      contextHash,
+      result: cloneTranspileResult(result),
+    });
+    return result;
+  }
+
   private static preIndexDirectory(
     indexer: WorkspaceSymbolIndexer,
     dir: string,
@@ -405,6 +519,10 @@ export class Builder {
       srcDir,
       data7ModulesDir,
       options,
+    );
+    const transpileCacheContextHash = this.buildTranspileCacheContextHash(
+      transpileCtx,
+      buildIndexer,
     );
 
     const globalUsedSugars = new Set<string>();
@@ -523,7 +641,13 @@ export class Builder {
 
     // 1. Transpile all code to collect used sugars
     const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
-    const mainTranspiledRaw = SugarTranspiler.transpile(mainCodeRaw, transpileCtx);
+    const mainUri = pathToFileURL(mainCodePath).toString();
+    const mainTranspiledRaw = this.transpileWithCache(
+      mainUri,
+      mainCodeRaw,
+      transpileCtx,
+      transpileCacheContextHash,
+    );
     const mainTranspiled: TranspileResult = {
       ...mainTranspiledRaw,
       code: this.injectRuntimeLoggerConfig(mainTranspiledRaw.code, options.vscodeLoggerFilePath),
@@ -550,12 +674,21 @@ export class Builder {
       const relFileDir = path.relative(srcDir, path.dirname(filePath));
       const folderId = relFileDir ? (foldersByPath.get(relFileDir) ?? rootFolderId) : rootFolderId;
       const rawCode = fs.readFileSync(filePath, "utf-8");
-      const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
+      const fileUri = pathToFileURL(filePath).toString();
+      const transpiled = this.transpileWithCache(
+        fileUri,
+        rawCode,
+        transpileCtx,
+        transpileCacheContextHash,
+      );
       if (transpiled.usedSugars) {
         for (const s of transpiled.usedSugars) globalUsedSugars.add(s);
       }
 
-      const meta = metadata.modulesMetadata[filename] ?? {
+      const modulesMetadata = metadata.modulesMetadata as
+        | Record<string, ModuleMetadata>
+        | undefined;
+      const meta = modulesMetadata?.[filename] ?? {
         nome: filename,
         aberto: true,
         ordemAbertura: 0,
@@ -564,7 +697,7 @@ export class Builder {
 
       transpiledSrcModules.push({
         name: filename,
-        fileUri: pathToFileURL(filePath).toString(),
+        fileUri,
         code: transpiled.code,
         diagnostics: transpiled.diagnostics,
         folderId,
@@ -601,7 +734,8 @@ export class Builder {
 
         dependencyFiles.forEach((file) => {
           const filename = path.basename(file, ".bas");
-          let rawCode = fs.readFileSync(path.join(data7ModulesDir, file), "utf-8");
+          const filePath = path.join(data7ModulesDir, file);
+          let rawCode = fs.readFileSync(filePath, "utf-8");
 
           if (!rawCode.toLowerCase().includes("@module-imported")) {
             if (rawCode.toLowerCase().includes("@module")) {
@@ -611,13 +745,19 @@ export class Builder {
             }
           }
 
-          const transpiled = SugarTranspiler.transpile(rawCode, transpileCtx);
+          const fileUri = pathToFileURL(filePath).toString();
+          const transpiled = this.transpileWithCache(
+            fileUri,
+            rawCode,
+            transpileCtx,
+            transpileCacheContextHash,
+          );
           if (transpiled.usedSugars) {
             for (const s of transpiled.usedSugars) globalUsedSugars.add(s);
           }
           transpiledDepModules.push({
             name: filename,
-            fileUri: pathToFileURL(path.join(data7ModulesDir, file)).toString(),
+            fileUri,
             code: transpiled.code,
             diagnostics: transpiled.diagnostics,
             folderId: data7ModulesFolderId!,
@@ -655,7 +795,6 @@ export class Builder {
       });
     }
 
-    const mainUri = pathToFileURL(mainCodePath).toString();
     buildIndexer.updateFileContent(mainUri, mainTranspiled.code);
     transpiledSrcModules.forEach((m) => {
       buildIndexer.updateFileContent(m.fileUri, m.code);

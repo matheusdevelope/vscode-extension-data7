@@ -7,6 +7,14 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Performance - Developer Studio
+
+- A execuÃ§Ã£o via F5 agora gera a variante com logger em `.data7/run/*.run.7Proj`, evitando sobrescrever o `.7Proj` standard e invalidar o cache usado pelo Developer Studio.
+
+### Performance
+
+- Build, execuÃ§Ã£o e abertura no Developer Studio agora usam snapshot persistente em `.data7/build-cache.json` para pular o empacotamento quando o `.7Proj` jÃ¡ estÃ¡ atualizado; quando hÃ¡ rebuild, o `Builder` reutiliza o transpile cacheado dos arquivos inalterados.
+
 ### Alterado
 
 - Build, execução e abertura no Developer Studio não executam mais a varredura completa de auto-fix por padrão. A nova flag `data7.features.build.autoFixBeforeBuild` reativa esse comportamento de forma incremental: apenas arquivos `.bas` alterados desde o último build da sessão são reavaliados. O comando explícito `data7.fixAllWorkspace` continua corrigindo todo o projeto.

@@ -549,6 +549,7 @@ const mockVsCode = {
     createOutputChannel: () => ({
       appendLine: (_: string): void => undefined,
       append: (_: string): void => undefined,
+      clear: (): void => undefined,
       show: (): void => undefined,
       dispose: (): void => undefined,
     }),

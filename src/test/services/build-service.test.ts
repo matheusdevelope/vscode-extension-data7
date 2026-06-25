@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 import { BuildService } from "../../services/build-service";
 import { DependencyService } from "../../services/dependency-service";
 import { ProjectService } from "../../services/project-service";
-import { Builder } from "../../project/builder";
+import type { EnsureProjectBuiltResult } from "../../project/build-cache";
 import { WorkspaceFixService } from "../../services/workspace-fix-service";
 import { WorkspaceTrustService } from "../../services/workspace-trust-service";
 import { withTempDir } from "../_helpers/temp-dir";
@@ -85,7 +85,7 @@ describe("BuildService pre-build auto-fix", () => {
   const originalGetActiveProject = ProjectService.getActiveProject;
   const originalEnsureTrusted = WorkspaceTrustService.ensureTrusted;
   const originalSyncDependencies = DependencyService.syncProjectData7Modules;
-  const originalBuildProject = Builder.buildProject;
+  const originalEnsureProjectBuilt = BuildService._ensureProjectBuilt;
   const originalFixWorkspaceForBuild = WorkspaceFixService.fixWorkspaceForBuild;
   const originalGetConfiguration = vscode.workspace.getConfiguration;
 
@@ -93,7 +93,7 @@ describe("BuildService pre-build auto-fix", () => {
     ProjectService.getActiveProject = originalGetActiveProject;
     WorkspaceTrustService.ensureTrusted = originalEnsureTrusted;
     DependencyService.syncProjectData7Modules = originalSyncDependencies;
-    Builder.buildProject = originalBuildProject;
+    BuildService._ensureProjectBuilt = originalEnsureProjectBuilt;
     WorkspaceFixService.fixWorkspaceForBuild = originalFixWorkspaceForBuild;
     vscode.workspace.getConfiguration = originalGetConfiguration;
   });
@@ -102,7 +102,11 @@ describe("BuildService pre-build auto-fix", () => {
     ProjectService.getActiveProject = () => ({ workspaceDir, projectFilePath });
     WorkspaceTrustService.ensureTrusted = () => true;
     DependencyService.syncProjectData7Modules = () => [];
-    Builder.buildProject = () => projectFilePath;
+    BuildService._ensureProjectBuilt = (): EnsureProjectBuiltResult => ({
+      outputFilePath: projectFilePath,
+      skipped: false,
+      snapshotHash: "test",
+    });
   }
 
   test("skips workspace auto-fix before build by default", async () => {
@@ -133,5 +137,72 @@ describe("BuildService pre-build auto-fix", () => {
     await BuildService.build();
 
     assert.deepEqual(receivedOptions, { mode: "changed" });
+  });
+});
+
+describe("BuildService.run build output", () => {
+  const originalGetActiveProject = ProjectService.getActiveProject;
+  const originalEnsureExecutorPath = ProjectService.ensureExecutorPath;
+  const originalEnsureTrusted = WorkspaceTrustService.ensureTrusted;
+  const originalSyncDependencies = DependencyService.syncProjectData7Modules;
+  const originalEnsureProjectBuilt = BuildService._ensureProjectBuilt;
+  const originalRunProjectFileDirectly = BuildService.runProjectFileDirectly;
+  const originalGetConfiguration = vscode.workspace.getConfiguration;
+
+  afterEach(() => {
+    ProjectService.getActiveProject = originalGetActiveProject;
+    ProjectService.ensureExecutorPath = originalEnsureExecutorPath;
+    WorkspaceTrustService.ensureTrusted = originalEnsureTrusted;
+    DependencyService.syncProjectData7Modules = originalSyncDependencies;
+    BuildService._ensureProjectBuilt = originalEnsureProjectBuilt;
+    BuildService.runProjectFileDirectly = originalRunProjectFileDirectly;
+    vscode.workspace.getConfiguration = originalGetConfiguration;
+  });
+
+  test("builds and executes a dedicated run .7Proj without replacing the standard project", async () => {
+    await withTempDir(async (tmp) => {
+      const projectFilePath = path.join(tmp, "Project.7Proj");
+      fs.writeFileSync(
+        path.join(tmp, "data7.json"),
+        JSON.stringify({ databaseConnectionId: "project-db", dependencies: {} }),
+        "utf-8",
+      );
+      ProjectService.getActiveProject = () => ({ workspaceDir: tmp, projectFilePath });
+      ProjectService.ensureExecutorPath = async () => path.join(tmp, "Executor.exe");
+      WorkspaceTrustService.ensureTrusted = () => true;
+      DependencyService.syncProjectData7Modules = () => [];
+      vscode.workspace.getConfiguration = (() => ({
+        get: (key: string): unknown => {
+          if (key === "databaseConnectionId") return "config-db";
+          if (key === "companyCode" || key === "branchCode") return 1;
+          if (key === "userName") return "Administrador";
+          return undefined;
+        },
+        update: async (): Promise<void> => undefined,
+      })) as unknown as typeof vscode.workspace.getConfiguration;
+
+      let builtOutput = "";
+      let executedOutput = "";
+      BuildService._ensureProjectBuilt = (
+        _workspaceDir,
+        output,
+        options,
+      ): EnsureProjectBuiltResult => {
+        builtOutput = output;
+        assert.ok(options?.vscodeLoggerFilePath);
+        return { outputFilePath: output, skipped: false, snapshotHash: "run" };
+      };
+      BuildService.runProjectFileDirectly = async (output) => {
+        executedOutput = output;
+      };
+
+      await BuildService.run();
+      fs.unwatchFile(path.join(tmp, ".data7", "logs", "vscode-executor.log"));
+
+      const expected = path.join(tmp, ".data7", "run", "Project.run.7Proj");
+      assert.equal(builtOutput, expected);
+      assert.equal(executedOutput, expected);
+      assert.notEqual(builtOutput, projectFilePath);
+    });
   });
 });
