@@ -14,6 +14,8 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - O Quick Fix de `Return` atribui diretamente o valor fora de condicionais e adiciona `Exit Function` ou `Exit Property` apenas dentro de ramificacoes. Dentro de `Catch`, Function/Property preservam `Return` e o diagnostico `return-assignment-in-catch` troca retorno por atribuicao para `Return`. `MyBase.Free()` e inserido no fim do `Sub Free`, depois das liberacoes de recursos da classe.
 
 - O linter reconhece dependencias transitivas entre `Imports`, promocao numerica sem perda e a API global de compatibilidade `dateUtils.toStringFormat(...)`.
+- A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio.
+- A System Library inclui aliases iniciais para `System.IOUtils.TFile`, `System.IOUtils.TPath` e `IO.File.ZipFile`; chamadas estaticas dessas classes nao sao tratadas como modulos externos.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
 
 ### IntelliSense e validação
@@ -110,6 +112,8 @@ Veja `Settings` → busca por `data7.`:
 ```
 
 `data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. `features.diagnostics.lintWorkspaceOnStartup` é legado: com `features.diagnostics.enabled: true`, o linter live acompanha apenas arquivos `.bas` físicos abertos e a varredura completa fica no comando **Data7: Reiniciar/Rodar Linter no Projeto**. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção completa e explícita, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
+
+O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `minify.removeUnused`, `uglify.enabled` e `sourceMap`. As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
 
 ## Suprimir diagnósticos com comentários
 

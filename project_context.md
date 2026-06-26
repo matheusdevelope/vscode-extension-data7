@@ -16,6 +16,10 @@ O parser estrutural preserva arrays nativos de tamanho fixo do PaxCompiler/Data7
 
 O pipeline de build mantÃ©m snapshots persistentes em `.data7/build-cache/` e pula o empacotamento quando as entradas (`src/`, `data7_modules/`, `data7.json`, opÃ§Ãµes de transpile/logger) e o `.7Proj` de saÃ­da continuam idÃªnticos. Em rebuilds incrementais, o `Builder` reutiliza resultados de transpile por arquivo quando o conteÃºdo e a assinatura pÃºblica global nÃ£o mudaram. A execuÃ§Ã£o via F5 usa uma saÃ­da dedicada em `.data7/run/*.run.7Proj` para que a variante com logger nÃ£o sobrescreva o `.7Proj` standard aberto pelo Developer Studio.
 
+O contrato novo de otimizacao vive em `data7.json#build.optimization`: `minify.enabled`, `minify.stripComments`, `minify.removeUnused`, `uglify.enabled` e `sourceMap`. `removeUnused` e subopcao de minify; `uglify` e um passe agressivo de renomeacao global preparado para transformar declaracoes de usuario, preservando APIs nativas/System Library e futuras diretivas explicitas de keep. `opcoes.minify` e `opcoes.stripComments` permanecem como compatibilidade legada. As opcoes de otimizacao fazem parte da chave do snapshot de build para evitar reuso de saidas geradas em outro modo.
+
+O passe inicial de `minify.removeUnused` vive em `src/project/optimizer/minify/remove-unused.ts`. Ele roda somente quando `build.optimization.minify.removeUnused` esta ativo, analisa o lote global de modulos transpilados via AST, usa `Principal.bas`/`Main` e referencias de codigo como raiz, preserva containers necessarios e abandona a poda quando qualquer modulo nao puder ser parseado com seguranca.
+
 Quando o VS Code nao preserva `Diagnostic.data`, o Quick Fix de `return-unrecommended` recupera o alvo e o contexto condicional pela estrutura do documento; ele nao depende de texto localizado da mensagem.
 
 ## 1. Objetivos do Projeto
@@ -27,6 +31,10 @@ O linter live acompanha apenas arquivos físicos locais com esquema `file` que e
 O `DependencyService` mantém `data7.json#dependencies` e `data7_modules/` sincronizados com o grafo atual do projeto. Saves, criação, deleção e rename de arquivos `.bas` agendam uma reavaliação debounced: se um namespace antes suprido por `src/` desaparece ou muda, a dependência global equivalente passa a ser declarada e copiada; se uma dependência deixa de ser referenciada, ela é removida da lista e da pasta gerada. Esse refresh reindexa apenas `data7_modules/` e atualiza diagnósticos abertos, sem rebuild completo.
 
 A deteccao de dependencias deve consumir a AST do parser para `Imports`, tipos qualificados e acessos `Namespace.Membro`; strings, comentarios, `OpaqueStatement` e nomes declarados no proprio arquivo nao podem promover modulos em `data7.json`. Modulo nao segue convencao `mod_*`: o identificador e o namespace exato, e um namespace so vira modulo de repositorio quando estiver marcado com o comentario `'@Module` imediatamente antes do `Namespace`.
+
+Na mesma coleta AST, acessos abreviados de `With` representados como `.Membro` nao produzem referencia de modulo: o alvo vazio gerado pelo parser e descartado antes de alimentar `module-not-found`.
+
+Classes e namespaces da System Library tambem devem encerrar a validacao de modulo implicito: `TFile.Exists(...)`, `TPath.GetTempPath(...)` e `File.ExtractName(...)` sao chamadas estaticas nativas, nao dependencias de repositorio. `System.IOUtils.TFile`, `System.IOUtils.TPath` e o alias qualificado `IO.File.ZipFile` estao modelados como simbolos de sistema para manter hover, autocomplete e linter no mesmo caminho de resolucao.
 
 Os diagnostics devem reconhecer imports transitivos de modulos utilizados, promocoes numericas sem perda e APIs globais legadas registradas na System Library, como `dateUtils.toStringFormat(...)`.
 

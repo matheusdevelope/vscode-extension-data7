@@ -19,5 +19,18 @@
   },
   "virtualFolders": [],
   "modulesMetadata": {},
+  "build": {
+    "optimization": {
+      "sourceMap": true,
+      "minify": {
+        "enabled": false,
+        "stripComments": true,
+        "removeUnused": false
+      },
+      "uglify": {
+        "enabled": false
+      }
+    }
+  },
   "dependencies": {}
 }
