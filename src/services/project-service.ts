@@ -137,7 +137,7 @@ export class ProjectService {
       if (!fs.existsSync(gitignorePath)) {
         fs.writeFileSync(
           gitignorePath,
-          `# Módulos de dependências do Data7\ndata7_modules/\n`,
+          `# Módulos de dependências do Data7\ndata7_modules/\n.data7/\n`,
           "utf-8",
         );
         return;
@@ -558,7 +558,7 @@ export class ProjectService {
 
           vscode.window.showInformationMessage(
             `Projeto '${projectName}' aberto com sucesso. ` +
-              (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
+            (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
           );
 
           await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(workspaceDir), {
