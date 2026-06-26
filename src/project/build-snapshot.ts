@@ -2,6 +2,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { PROJECT_CONFIG_FILENAME } from "./project-config";
+import type { BuildOptimizationOptions, BuildOptimizationOverride } from "./optimizer";
 import type { SugarEngineOptions } from "./sugar-registry";
 
 export const BUILD_SNAPSHOT_SCHEMA_VERSION = 1;
@@ -11,6 +12,8 @@ export interface BuildSnapshotOptions {
   readonly sugarOptions?: SugarEngineOptions;
   readonly genericsEnabled?: boolean;
   readonly validateTranspiled?: boolean;
+  readonly optimizationOptions?: BuildOptimizationOptions;
+  readonly optimizationOverride?: BuildOptimizationOverride;
 }
 
 export interface BuildSnapshotEntry {
@@ -51,6 +54,8 @@ export function computeBuildSnapshot(
   const optionsKey = stableStringify({
     genericsEnabled: options.genericsEnabled ?? true,
     sugarOptions: options.sugarOptions ?? null,
+    optimizationOptions: options.optimizationOptions ?? null,
+    optimizationOverride: options.optimizationOverride ?? null,
     validateTranspiled: options.validateTranspiled === true,
     vscodeLoggerFilePath: normalizeOptionalPath(options.vscodeLoggerFilePath),
   });

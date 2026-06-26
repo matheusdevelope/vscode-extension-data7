@@ -5,7 +5,6 @@ import { pathToFileURL } from "node:url";
 import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-metadata";
 import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
-import { DependencyScanner } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
@@ -20,6 +19,13 @@ import {
 } from "./transpiler";
 import { SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
 import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./generics";
+import {
+  resolveBuildOptimizationOptions,
+  minifyData7Text,
+  removeUnusedDeclarations,
+  type BuildOptimizationOptions,
+  type BuildOptimizationOverride,
+} from "./optimizer";
 
 function collectOpenTypeParams(templates: readonly ExternalGenericTemplate[]): ReadonlySet<string> {
   const result = new Set<string>();
@@ -75,6 +81,8 @@ export interface BuildProjectOptions {
   readonly vscodeLoggerFilePath?: string;
   readonly sugarOptions?: SugarEngineOptions;
   readonly genericsEnabled?: boolean;
+  readonly optimizationOptions?: BuildOptimizationOptions;
+  readonly optimizationOverride?: BuildOptimizationOverride;
   readonly isExcluded?: (filePath: string) => boolean;
   readonly onWarning?: (message: string) => void;
   readonly validateTranspiled?: (
@@ -146,58 +154,10 @@ export class Builder {
     minifyEnabled: boolean,
     stripCommentsEnabled: boolean,
   ): string {
-    if (!minifyEnabled && !stripCommentsEnabled) {
-      return code;
-    }
-
-    const lines = code.split(/\r?\n/);
-    const resultLines: string[] = [];
-
-    for (const lineText of lines) {
-      let cleanLine = lineText;
-
-      if (stripCommentsEnabled) {
-        // Reuse the shared comment-stripper (data7_domain.mdc).
-        cleanLine = DependencyScanner.stripComments(lineText);
-      }
-
-      if (minifyEnabled) {
-        const trimmed = cleanLine.trim();
-        if (!trimmed) continue;
-
-        let compressed = "";
-        let inString = false;
-        let i = 0;
-        while (i < trimmed.length) {
-          // `i < trimmed.length` guarantees `trimmed[i]` is defined; the
-          // explicit fallback satisfies `noUncheckedIndexedAccess`.
-          const char = trimmed[i] ?? "";
-          if (char === '"') {
-            inString = !inString;
-            compressed += char;
-            i++;
-          } else if (inString) {
-            compressed += char;
-            i++;
-          } else if (/\s/.test(char)) {
-            compressed += " ";
-            while (i < trimmed.length && /\s/.test(trimmed[i] ?? "")) {
-              i++;
-            }
-          } else {
-            compressed += char;
-            i++;
-          }
-        }
-        resultLines.push(compressed);
-      } else {
-        const trimmed = cleanLine.trim();
-        if (!trimmed && cleanLine.length > 0) continue;
-        resultLines.push(cleanLine);
-      }
-    }
-
-    return resultLines.join("\r\n");
+    return minifyData7Text(code, {
+      enabled: minifyEnabled,
+      stripComments: stripCommentsEnabled,
+    });
   }
 
   private static getDirsRecursive(dir: string): string[] {
@@ -513,8 +473,11 @@ export class Builder {
       throw new Error("Código principal src/Principal.bas não encontrado.");
     }
 
-    const minify = !!metadata.opcoes.minify;
-    const stripComments = !!metadata.opcoes.stripComments;
+    const optimizationOptions =
+      options.optimizationOptions ??
+      resolveBuildOptimizationOptions(metadata, options.optimizationOverride);
+    const minify = optimizationOptions.minify.enabled;
+    const stripComments = optimizationOptions.minify.stripComments;
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
       srcDir,
       data7ModulesDir,
@@ -770,7 +733,7 @@ export class Builder {
     const resolvedSugars = SugarRegistry.resolveDependencies(globalUsedSugars);
     const resolvedSugarUtilities = SugarRegistry.getUtilityModules(resolvedSugars);
 
-    // 3. Register virtual sugar modules in build indexer and add to compile list
+    // 3. Prepare virtual sugar modules and the build compile list.
     interface ModuleData {
       name: string;
       code: string;
@@ -778,48 +741,102 @@ export class Builder {
       aberto: boolean;
       ordemAbertura: number;
     }
+    interface VirtualSugarModule {
+      name: string;
+      fileUri: string;
+      code: string;
+      folderId: string;
+    }
     const modulesToCompile: ModuleData[] = [];
     const newModulesMetadata: Record<string, ModuleMetadata> = {};
+    const virtualSugarModules: VirtualSugarModule[] = [];
 
     for (const utility of resolvedSugarUtilities) {
       const virtualSugarCode = utility.generateCode();
       const virtualSugarUri = `file:///synthetic/${utility.namespace}.bas`;
-      buildIndexer.updateFileContent(virtualSugarUri, virtualSugarCode);
-
-      modulesToCompile.push({
+      virtualSugarModules.push({
         name: utility.namespace,
-        code: this.optimizeCode(virtualSugarCode, minify, stripComments),
+        fileUri: virtualSugarUri,
+        code: virtualSugarCode,
         folderId: rootFolderId,
-        aberto: false,
-        ordemAbertura: 0,
       });
     }
 
-    buildIndexer.updateFileContent(mainUri, mainTranspiled.code);
+    const codeByModuleName = new Map<string, string>();
+    codeByModuleName.set("Principal", mainTranspiled.code);
+    for (const m of virtualSugarModules) codeByModuleName.set(m.name, m.code);
+    for (const m of transpiledSrcModules) codeByModuleName.set(m.name, m.code);
+    for (const m of transpiledDepModules) codeByModuleName.set(m.name, m.code);
+
+    if (optimizationOptions.minify.removeUnused) {
+      const pruned = removeUnusedDeclarations([
+        { moduleName: "Principal", fileUri: mainUri, code: mainTranspiled.code },
+        ...virtualSugarModules.map((m) => ({
+          moduleName: m.name,
+          fileUri: m.fileUri,
+          code: m.code,
+        })),
+        ...transpiledSrcModules.map((m) => ({
+          moduleName: m.name,
+          fileUri: m.fileUri,
+          code: m.code,
+        })),
+        ...transpiledDepModules.map((m) => ({
+          moduleName: m.name,
+          fileUri: m.fileUri,
+          code: m.code,
+        })),
+      ]);
+      for (const [moduleName, code] of pruned.modules) {
+        codeByModuleName.set(moduleName, code);
+      }
+    }
+
+    const moduleCode = (moduleName: string, fallback: string): string =>
+      codeByModuleName.get(moduleName) ?? fallback;
+
+    virtualSugarModules.forEach((m) => {
+      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code));
+    });
+    buildIndexer.updateFileContent(mainUri, moduleCode("Principal", mainTranspiled.code));
     transpiledSrcModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, m.code);
+      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code));
     });
     transpiledDepModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, m.code);
+      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code));
     });
 
     const onWarning = options.onWarning ?? (() => undefined);
     options.validateTranspiled?.(
       [
-        { fileUri: mainUri, code: mainTranspiled.code },
-        ...transpiledSrcModules,
-        ...transpiledDepModules,
+        { fileUri: mainUri, code: moduleCode("Principal", mainTranspiled.code) },
+        ...transpiledSrcModules.map((m) => ({ ...m, code: moduleCode(m.name, m.code) })),
+        ...transpiledDepModules.map((m) => ({ ...m, code: moduleCode(m.name, m.code) })),
       ],
       buildIndexer,
     );
 
     // 4. Report transpilation diagnostics and optimize/add to compile list
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
-    const mainCode = this.optimizeCode(mainTranspiled.code, minify, stripComments);
+    const mainCode = this.optimizeCode(
+      moduleCode("Principal", mainTranspiled.code),
+      minify,
+      stripComments,
+    );
+
+    virtualSugarModules.forEach((m) => {
+      modulesToCompile.push({
+        name: m.name,
+        code: this.optimizeCode(moduleCode(m.name, m.code), minify, stripComments),
+        folderId: m.folderId,
+        aberto: false,
+        ordemAbertura: 0,
+      });
+    });
 
     transpiledSrcModules.forEach((m) => {
       this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
-      const code = this.optimizeCode(m.code, minify, stripComments);
+      const code = this.optimizeCode(moduleCode(m.name, m.code), minify, stripComments);
 
       newModulesMetadata[m.name] = {
         nome: m.name,
@@ -839,7 +856,7 @@ export class Builder {
 
     transpiledDepModules.forEach((m) => {
       this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics, onWarning);
-      const code = this.optimizeCode(m.code, minify, stripComments);
+      const code = this.optimizeCode(moduleCode(m.name, m.code), minify, stripComments);
 
       modulesToCompile.push({
         name: m.name,

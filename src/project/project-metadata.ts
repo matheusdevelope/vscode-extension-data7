@@ -32,6 +32,26 @@ export interface ProjectOptions {
   stripComments?: boolean;
 }
 
+export interface ProjectBuildOptimizationMinify {
+  enabled?: boolean;
+  stripComments?: boolean;
+  removeUnused?: boolean;
+}
+
+export interface ProjectBuildOptimizationUglify {
+  enabled?: boolean;
+}
+
+export interface ProjectBuildOptimization {
+  sourceMap?: boolean;
+  minify?: ProjectBuildOptimizationMinify;
+  uglify?: ProjectBuildOptimizationUglify;
+}
+
+export interface ProjectBuildOptions {
+  optimization?: ProjectBuildOptimization;
+}
+
 export interface ProjectMetadata {
   nome: string;
   language: string;
@@ -41,4 +61,5 @@ export interface ProjectMetadata {
   virtualFolders: VirtualFolder[];
   modulesMetadata: Record<string, ModuleMetadata>;
   dependencies?: Record<string, string>;
+  build?: ProjectBuildOptions;
 }

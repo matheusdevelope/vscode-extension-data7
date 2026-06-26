@@ -17,6 +17,8 @@ export class BuildCache {
       vscodeLoggerFilePath: options.vscodeLoggerFilePath,
       sugarOptions: options.sugarOptions,
       genericsEnabled: options.genericsEnabled,
+      optimizationOptions: options.optimizationOptions,
+      optimizationOverride: options.optimizationOverride,
       validateTranspiled: typeof options.validateTranspiled === "function",
     });
 
@@ -45,6 +47,8 @@ export class BuildCache {
       vscodeLoggerFilePath: options.vscodeLoggerFilePath,
       sugarOptions: options.sugarOptions,
       genericsEnabled: options.genericsEnabled,
+      optimizationOptions: options.optimizationOptions,
+      optimizationOverride: options.optimizationOverride,
       validateTranspiled: typeof options.validateTranspiled === "function",
     });
     recordBuildSnapshot(rebuiltSnapshot);
