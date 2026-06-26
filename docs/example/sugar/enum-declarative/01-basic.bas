@@ -1,5 +1,5 @@
 ' @example: sugar/enum-declarative/01-basic
-' @demonstrates: Enum X / End Enum expandido para Class X Inherits TEnum
+' @demonstrates: Enun X / End Enun expandido para Class X Inherits TEnum
 ' @diagnostics: none
 ' @transpiled-to: sugar/enum-declarative/_expected/01-basic.bas
 '
@@ -7,9 +7,9 @@ Imports mod_enum
 
 Namespace mod_demo
 
-   Enum CardAdm As TEnum
+   Enun CardAdm
       Stone = "Stone"
       Cielo = "Cielo"
-   End Enum
+   End Enun
 
 End Namespace

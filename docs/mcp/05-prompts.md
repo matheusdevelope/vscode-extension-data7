@@ -98,7 +98,7 @@ Class CardAdm
 End Class
 ```
 
-Idiomático. Substitui a falta de `Enum X / End Enum` na linguagem nativa.
+Idiomático para enums ricos baseados em `TEnum`. Use quando a enum nativa `Enum X / End Enum` simples não for suficiente.
 
 ### `data7_typed_recordlist`
 

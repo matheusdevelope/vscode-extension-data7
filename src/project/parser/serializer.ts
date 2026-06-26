@@ -126,6 +126,9 @@ function serializeMember(
     case "DelegateDeclaration":
       serializeDelegate(member, depth, out, options);
       return;
+    case "FieldDeclaration":
+      serializeField(member, depth, out, options);
+      return;
     case "VariableDeclaration":
     case "ExpressionStatement":
     case "Assignment":
@@ -339,9 +342,10 @@ function serializeField(
 ): void {
   out.setLine(f.loc);
   const initStr = f.initializer ? ` = ${emitExpression(f.initializer)}` : "";
+  const dimensionsStr = emitNativeArrayDimensions(f.nativeArrayDimensions);
   out.push(
     indent(depth, options) +
-      `${emitFieldModifiers(f.modifiers, options)}${f.name} As ${emitTypeRef(f.type)}${initStr}` +
+      `${emitFieldModifiers(f.modifiers, options)}${f.name}${dimensionsStr} As ${emitTypeRef(f.type)}${initStr}` +
       (f.comment && !options.minify ? " " + f.comment : ""),
   );
 }
@@ -454,14 +458,21 @@ function serializeStatement(
 }
 
 function emitBodyStatement(s: OpaqueStatement, depth: number, options: SerializeOptions): string {
+  if (depth === 0 && !options.minify) return s.text;
   const trimmed = s.text.replace(/^\s+/, "");
   return indent(depth, options) + trimmed;
 }
 
 function emitVariableDeclaration(v: VariableDeclaration): string {
+  const dimensionsStr = emitNativeArrayDimensions(v.nativeArrayDimensions);
   const typeStr = v.type !== undefined ? " As " + emitTypeRef(v.type) : "";
   const initStr = v.initializer !== undefined ? " = " + emitExpression(v.initializer) : "";
-  return `${v.isConst ? "Const " : "Dim "}${v.name}${typeStr}${initStr}`;
+  return `${v.isConst ? "Const " : "Dim "}${v.name}${dimensionsStr}${typeStr}${initStr}`;
+}
+
+function emitNativeArrayDimensions(dimensions: readonly Expression[] | undefined): string {
+  if (dimensions === undefined || dimensions.length === 0) return "";
+  return `(${dimensions.map(emitExpression).join(", ")})`;
 }
 
 function emitAssignment(s: Assignment): string {
@@ -818,17 +829,18 @@ function serializeEnum(
   options: SerializeOptions,
 ): void {
   out.setLine(e.loc);
-  const baseStr = e.baseType ? ` As ${emitTypeRef(e.baseType)}` : "";
+  const keyword = e.isSugar ? "Enun" : "Enum";
+  const baseStr = !e.isSugar && e.baseType ? ` As ${emitTypeRef(e.baseType)}` : "";
   out.push(
     indent(depth, options) +
-      `${emitModifiers(e.modifiers)}Enum ${e.name}${baseStr}` +
+      `${emitModifiers(e.modifiers)}${keyword} ${e.name}${baseStr}` +
       (e.comment && !options.minify ? " " + e.comment : ""),
   );
   for (const entry of e.entries) {
     const valStr = entry.value ? " = " + emitExpression(entry.value) : "";
     out.push(indent(depth + 1, options) + `${entry.name}${valStr}`);
   }
-  out.push(indent(depth, options) + "End Enum");
+  out.push(indent(depth, options) + `End ${keyword}`);
 }
 
 function emitDestructuredVariableDeclaration(d: DestructuredVariableDeclaration): string {

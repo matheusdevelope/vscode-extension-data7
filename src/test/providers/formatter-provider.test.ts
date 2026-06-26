@@ -9,6 +9,7 @@ describe("CodeFormatter", () => {
       assert.equal(CodeFormatter.formatKeywordsInLine("namespace my_app"), "Namespace my_app");
       assert.equal(CodeFormatter.formatKeywordsInLine("public sub run()"), "Public Sub run()");
       assert.equal(CodeFormatter.formatKeywordsInLine("dim a as string"), "Dim a As string");
+      assert.equal(CodeFormatter.formatKeywordsInLine("enun color"), "Enun color");
     });
   });
 
@@ -106,6 +107,19 @@ End Sub`;
         value = 1
     End If
 End Sub`,
+      );
+    });
+
+    test("indents Enun sugar blocks", () => {
+      const code = `enun Color
+verde
+End enun`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Enun Color
+    verde
+End Enun`,
       );
     });
   });

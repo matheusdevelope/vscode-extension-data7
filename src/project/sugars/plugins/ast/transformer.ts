@@ -340,7 +340,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         m.kind === "NamespaceDeclaration" ||
         m.kind === "ClassDeclaration" ||
         m.kind === "MethodDeclaration" ||
-        m.kind === "DelegateDeclaration"
+        m.kind === "DelegateDeclaration" ||
+        m.kind === "FieldDeclaration"
       ) {
         this.walk(m);
         result.push(m);
@@ -823,7 +824,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       }
 
       case "EnumDeclaration": {
-        if (!this.isSugarEnabled("enum")) return s;
+        if (!s.isSugar || !this.isSugarEnabled("enum")) return s;
         this.usedSugars.add("enum");
         return expandEnumDeclaration(s);
       }

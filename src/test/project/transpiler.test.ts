@@ -51,6 +51,23 @@ const objectListEnumerable: EnumerableInfo = {
 };
 
 describe("SugarTranspiler.transpile", () => {
+  test("preserves native fixed-size array declarations", () => {
+    const ctx = makeContext({});
+    const code = [
+      "Private _containers(10) As Container",
+      "Sub Run()",
+      "   Dim _matrix(10, 5) As Integer",
+      "End Sub",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Private _containers\(10\) As Container$/m);
+    assert.match(out, /^\s{3}Dim _matrix\(10, 5\) As Integer$/m);
+    assert.doesNotMatch(out, /Private _containers As\s*$/m);
+  });
+
   test("expands `For Each` with an explicit type over a Dim'd variable", () => {
     const ctx = makeContext({ StringList: stringListEnumerable });
     const code = [
@@ -1105,16 +1122,13 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
   });
 });
 
-describe("SugarTranspiler — D1 Enum declarative (multi-line)", () => {
+describe("SugarTranspiler — D1 Enun declarative (multi-line)", () => {
   const ctx = makeContext({});
 
-  test("expands `Enum X / V = ... / End Enum` directly into a TEnum class", () => {
-    const code = [
-      "Enum CardAdm As TEnum",
-      '   Stone = "Stone"',
-      '   Cielo = "Cielo"',
-      "End Enum",
-    ].join("\n");
+  test("expands `Enun X / V = ... / End Enun` directly into a TEnum class", () => {
+    const code = ["Enun CardAdm", '   Stone = "Stone"', '   Cielo = "Cielo"', "End Enun"].join(
+      "\n",
+    );
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.match(out, /Imports mod_tenum/);
@@ -1126,6 +1140,24 @@ describe("SugarTranspiler — D1 Enum declarative (multi-line)", () => {
     assert.match(out, /Shared Function Stone As CardAdm/);
     assert.match(out, /Shared Function Cielo As CardAdm/);
     assert.match(out, /Shared Function GetOptions\(\) As String/);
+  });
+
+  test("preserves native Public Enum declarations", () => {
+    const code = [
+      "Public Enum Options",
+      "   SqlServer = 0",
+      "   Sybase = 1",
+      "   PostgreSQL = 2",
+      "   SqLite = 3",
+      "End Enum",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Public Enum Options$/m);
+    assert.match(out, /^\s{3}SqlServer = 0$/m);
+    assert.doesNotMatch(out, /Imports mod_tenum/);
+    assert.doesNotMatch(out, /Class Options/);
+    assert.doesNotMatch(out, /^Public Enum\r?\nOptions$/m);
   });
 });
 
@@ -1304,6 +1336,17 @@ describe("SugarTranspiler — disabled sugar syntax", () => {
     assert.equal(diagnostics.length, 0);
     assert.equal(out, code);
   });
+
+  test("preserves Enun when the enum sugar is disabled", () => {
+    const code = ["Enun Color", "   Verde", "End Enun"].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(
+      code,
+      makeContext({}, {}, { sugarOptions: { disabledSugarIds: ["enum"] } }),
+    );
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, code);
+  });
 });
 
 describe("SugarTranspiler — optional generics", () => {
@@ -1361,9 +1404,9 @@ describe("SugarTranspiler — array-list", () => {
       },
     );
     const code = [
-      "Enum Color",
+      "Enun Color",
       "   Red",
-      "End Enum",
+      "End Enun",
       "",
       "Dim colors[] As Color = [Color.Red]",
     ].join("\n");

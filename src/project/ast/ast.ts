@@ -99,6 +99,7 @@ export type TopLevelMember =
   | ClassDeclaration
   | MethodDeclaration
   | DelegateDeclaration
+  | FieldDeclaration
   | VariableDeclaration
   | Statement
   | EnumDeclaration
@@ -154,6 +155,7 @@ export interface FieldDeclaration extends BaseNode {
   name: string;
   type: TypeReference;
   initializer?: Expression;
+  nativeArrayDimensions?: Expression[];
   isArraySugar?: boolean;
   readonly modifiers?: string[];
 }
@@ -200,6 +202,7 @@ export interface VariableDeclaration extends BaseNode {
   name: string;
   type?: TypeReference;
   initializer?: Expression;
+  nativeArrayDimensions?: Expression[];
   isConst?: boolean;
   isArraySugar?: boolean;
 }
@@ -496,6 +499,7 @@ export abstract class ASTWalker {
         if (node.returnType) this.walk(node.returnType);
         return;
       case "FieldDeclaration":
+        for (const dimension of node.nativeArrayDimensions ?? []) this.walk(dimension);
         this.walk(node.type);
         if (node.initializer) this.walk(node.initializer);
         return;
@@ -523,6 +527,7 @@ export abstract class ASTWalker {
         this.visitTypeReferenceExpression(node);
         return;
       case "VariableDeclaration":
+        for (const dimension of node.nativeArrayDimensions ?? []) this.walk(dimension);
         if (node.type) this.walk(node.type);
         if (node.initializer) this.walk(node.initializer);
         return;
@@ -712,6 +717,7 @@ export interface EnumDeclaration extends BaseNode {
   name: string;
   baseType?: TypeReference;
   entries: { name: string; value?: Expression; loc?: SourceLocation }[];
+  isSugar?: boolean;
   readonly modifiers?: string[];
 }
 

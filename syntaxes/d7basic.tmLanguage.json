@@ -89,7 +89,7 @@
       "patterns": [
         {
           "name": "keyword.control.d7basic",
-          "match": "(?i)\\b(Imports|Namespace|Class|Sub|Function|Property|Get|Set|Shared|Inherits|Overridable|Overrides|As|Public|Private|Dim|Const|New|If|Then|Else|ElseIf|End|Return|Select|Case|Try|Catch|Finally|Throw|For|Each|In|To|Step|Next|While|Until|Loop|Do|Exit|With|Using|Match|Enum|MyBase|Me)\\b"
+          "match": "(?i)\\b(Imports|Namespace|Class|Sub|Function|Property|Get|Set|Shared|Inherits|Overridable|Overrides|As|Public|Private|Dim|Const|New|If|Then|Else|ElseIf|End|Return|Select|Case|Try|Catch|Finally|Throw|For|Each|In|To|Step|Next|While|Until|Loop|Do|Exit|With|Using|Match|Enum|Enun|MyBase|Me)\\b"
         },
         {
           "name": "keyword.operator.logical.d7basic",

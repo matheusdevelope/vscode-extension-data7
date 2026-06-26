@@ -4,7 +4,7 @@
 
 ## 1. Padrão `TEnum`
 
-Como não há `Enum` nativo, o padrão idiomático é uma classe que herda de `TEnum`:
+Para enums ricos além do `Enum` nativo simples, o padrão idiomático é uma classe que herda de `TEnum`:
 
 ```basic
 Class CardAdm
@@ -73,7 +73,7 @@ Next
 - `GetOptions` retorna lista delimitada para popular ComboBoxes do ERP.
 - Cada valor declarado tem **um Shared Function** com o nome do valor (`Stone`, `Cielo`), retornando a instância.
 
-**Futuro açúcar**: `Enum X / End Enum` que gera essa classe automaticamente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
+**Açúcar disponível**: `Enun X / End Enun` gera essa classe automaticamente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)). `Enum X / End Enum` é reservado para o enum nativo do compilador.
 
 ## 2. Padrão `TTList` tipado
 

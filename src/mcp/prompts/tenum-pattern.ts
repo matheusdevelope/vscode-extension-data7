@@ -67,7 +67,7 @@ export function registerTEnumPattern(server: McpServer): void {
     {
       title: "Padrão TEnum para enumerações Data7 Basic",
       description:
-        "Gera a classe canônica que herda de TEnum com Initialize lazy, Shared Function por valor, três overloads de Load e GetOptions(). Use quando a linguagem-alvo não tiver o sugar Enum X / End Enum disponível.",
+        "Gera a classe canônica que herda de TEnum com Initialize lazy, Shared Function por valor, três overloads de Load e GetOptions(). Use quando a linguagem-alvo não tiver o sugar Enun X / End Enun disponível.",
       argsSchema: {
         enumName: z.string().min(1).describe('Nome da classe enum. Exemplo: "CardAdm".'),
         values: z
@@ -120,7 +120,7 @@ export function registerTEnumPattern(server: McpServer): void {
               type: "text",
               text:
                 `Crie o arquivo do enum ${args.enumName} usando o padrão TEnum abaixo. ` +
-                "Esse padrão é a forma idiomática enquanto a linguagem não tiver o sugar `Enum X / End Enum`.\n\n" +
+                "Esse padrão é a forma idiomática enquanto a linguagem não tiver o sugar `Enun X / End Enun`.\n\n" +
                 "```basic\n" +
                 code +
                 "\n```",

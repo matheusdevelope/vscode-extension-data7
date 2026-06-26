@@ -190,6 +190,39 @@ describe("parser/serializer", () => {
     assert.match(out, /Public x As Integer = 42/);
   });
 
+  test("serialises native array dimensions on module fields", () => {
+    const src = "Private _containers(10) As Container";
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.equal(out, "Private _containers(10) As Container");
+  });
+
+  test("serialises native matrix dimensions on local variables", () => {
+    const src = ["Sub Run()", "   Dim _matrix(10, 5) As Integer", "End Sub"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Dim _matrix\(10, 5\) As Integer/);
+  });
+
+  test("serialises native public enums without splitting the enum name", () => {
+    const src = ["Public Enum Options", "   SqlServer = 0", "   Sybase = 1", "End Enum"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /^Public Enum Options$/m);
+    assert.doesNotMatch(out, /^Public Enum\r?\nOptions$/m);
+  });
+
+  test("serialises Enun sugar declarations without rewriting them as native Enum", () => {
+    const src = ["Enun Color", "   Verde", "End Enun"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.equal(out, src);
+  });
+
   test("serialises and indents nested classes and structures correctly", () => {
     const src = [
       "Namespace mod_demo",

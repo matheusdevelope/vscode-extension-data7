@@ -62,6 +62,8 @@ import type {
   SelectCaseStatement,
   SelectCaseBranch,
   ContinueStatement,
+  EnumDeclaration,
+  SourceLocation,
 } from "../ast/ast";
 import { tokenize } from "./lexer";
 import { makeError, type ParseError, type ParseErrorCode } from "./parser-errors";
@@ -338,6 +340,7 @@ export class Parser {
       if (v === "delegate") return this.parseDelegate();
       if (v === "imports") return this.parseImportsDeclaration();
       if (v === "declare") return this.consumeLineAsOpaque();
+      if (v === "enum") return this.parseNativeEnumDeclaration();
 
       if (v === "dim" || v === "const") {
         this.parseModifiers();
@@ -352,6 +355,7 @@ export class Parser {
         }
         return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
       }
+      if (lookahead > 0) return this.parseField();
     }
 
     // Try to parse the top-level member as a statement structurally first
@@ -711,6 +715,7 @@ export class Parser {
     const name = nameToken?.value ?? "";
     let type: TypeReference | undefined;
     let hasAsNew = false;
+    const nativeArrayDimensions = this.parseNativeArrayDimensions();
     const isArraySugar = this.consumeArraySugarMarker();
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
       if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
@@ -740,7 +745,7 @@ export class Parser {
         loc: type.loc,
       };
     }
-    return {
+    const declaration: VariableDeclaration = {
       kind: "VariableDeclaration",
       name,
       type,
@@ -749,6 +754,10 @@ export class Parser {
       isArraySugar,
       loc: locOf(startLoc),
     };
+    if (nativeArrayDimensions !== undefined) {
+      declaration.nativeArrayDimensions = nativeArrayDimensions;
+    }
+    return declaration;
   }
 
   public parseLocalVariableDeclarationAfterDim(
@@ -1253,6 +1262,60 @@ export class Parser {
     };
   }
 
+  private parseNativeEnumDeclaration(): EnumDeclaration {
+    const startLoc = this.peek().loc;
+    const modifiers = this.parseModifiers();
+    this.advance(); // 'Enum'
+    const nameToken = this.expect("identifier", "<enum-name>");
+    const name = nameToken?.value ?? "";
+    this.skipToEndOfLine();
+
+    const entries: { name: string; value?: Expression; loc?: SourceLocation }[] = [];
+    let endLoc: TokenLocation | undefined;
+    while (!this.isEOF()) {
+      this.skipNewlines();
+      if (this.matchEnd("enum")) {
+        endLoc = this.consumeEnd("enum");
+        this.skipToEndOfLine();
+        break;
+      }
+
+      if (this.peek().kind === "comment") {
+        this.consumeLineAsOpaque();
+        continue;
+      }
+
+      const entryNameToken = this.consume("identifier");
+      if (entryNameToken) {
+        const entryName = entryNameToken.value;
+        let value: Expression | undefined;
+        if (this.consume("punct", "=")) {
+          value = this.parseExpression();
+        }
+        const entryLoc = value?.loc
+          ? {
+              startLine: entryNameToken.loc.line,
+              startChar: entryNameToken.loc.column,
+              endLine: value.loc.endLine,
+              endChar: value.loc.endChar,
+            }
+          : locOf(entryNameToken.loc);
+        entries.push({ name: entryName, value, loc: entryLoc });
+      } else {
+        this.consumeLineAsOpaque();
+      }
+      this.skipToEndOfLine();
+    }
+
+    return {
+      kind: "EnumDeclaration",
+      name,
+      entries,
+      loc: locOf(startLoc, endLoc),
+      modifiers,
+    };
+  }
+
   // private parseProperty(): PropertyDeclaration {
   //   const startLoc = this.peek().loc;
   //   const modifiers = this.parseModifiers();
@@ -1281,6 +1344,7 @@ export class Parser {
     const name = nameToken.value;
     let type: TypeReference = emptyTypeReference();
     let hasAsNew = false;
+    const nativeArrayDimensions = this.parseNativeArrayDimensions();
     const isArraySugar = this.consumeArraySugarMarker();
     if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
       if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
@@ -1311,7 +1375,7 @@ export class Parser {
       };
     }
     const comment = this.skipToEndOfLine();
-    return {
+    const field: FieldDeclaration = {
       kind: "FieldDeclaration",
       name,
       type,
@@ -1321,6 +1385,8 @@ export class Parser {
       modifiers,
       comment,
     };
+    if (nativeArrayDimensions !== undefined) field.nativeArrayDimensions = nativeArrayDimensions;
+    return field;
   }
 
   private consumeArraySugarMarker(): boolean {
@@ -1330,6 +1396,23 @@ export class Parser {
     this.advance();
     this.advance();
     return true;
+  }
+
+  private parseNativeArrayDimensions(): Expression[] | undefined {
+    const open = this.peek();
+    if (open.kind !== "punct" || (open.value !== "(" && open.value !== "[")) return undefined;
+    const closeValue = open.value === "(" ? ")" : "]";
+    const first = this.peek(1);
+    if (first.kind === "punct" && first.value === closeValue) return undefined;
+
+    this.advance();
+    const dimensions: Expression[] = [];
+    while (!this.isEOF() && !this.match("newline") && !this.match("punct", closeValue)) {
+      dimensions.push(this.parseExpression());
+      if (!this.consume("punct", ",")) break;
+    }
+    this.expect("punct", closeValue, { literal: true });
+    return dimensions;
   }
 
   private parseOptionalArgumentList(): Expression[] {

@@ -61,7 +61,28 @@ export class SugarEngine {
   public createDisabledSyntaxLinePreserver(): ((sourceLine: string) => boolean) | undefined {
     const disabledParserSugarIds = new Set(PARSER_SUGAR_IDS.filter((id) => !this.isEnabled(id)));
     if (disabledParserSugarIds.size === 0) return undefined;
-    return (sourceLine) => isDisabledSugarSyntaxLine(sourceLine, disabledParserSugarIds);
+    let preservingDisabledEnumBlock = false;
+    return (sourceLine) => {
+      if (disabledParserSugarIds.has("enum")) {
+        if (preservingDisabledEnumBlock) {
+          if (/^\s*end\s+enun\b/i.test(sourceLine)) {
+            preservingDisabledEnumBlock = false;
+          }
+          return true;
+        }
+        if (isDisabledSugarSyntaxLine(sourceLine, disabledParserSugarIds)) {
+          if (
+            /^\s*(?:(?:public|private|protected|shared|overrides|override|static|readonly)\s+)*enun\s+\w+\b/i.test(
+              sourceLine,
+            )
+          ) {
+            preservingDisabledEnumBlock = true;
+          }
+          return true;
+        }
+      }
+      return isDisabledSugarSyntaxLine(sourceLine, disabledParserSugarIds);
+    };
   }
 
   public getUtilityModules(usedSugarIds: Iterable<string>): SugarUtilityModule[] {

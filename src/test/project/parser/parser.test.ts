@@ -5,6 +5,7 @@ import { parse, parseBasic } from "../../../project/parser";
 import type {
   ClassDeclaration,
   DelegateDeclaration,
+  FieldDeclaration,
   MethodDeclaration,
   NamespaceDeclaration,
   VariableDeclaration,
@@ -516,6 +517,69 @@ describe("parser/parser", () => {
       assert.equal((block.statements[1] as any).name, "count");
       assert.equal((block.statements[1] as any).type?.name, "Integer");
       assert.equal((block.statements[1] as any).initializer?.kind, "Literal");
+    }
+  });
+
+  test("parses native array dimensions on module fields", () => {
+    const src = "Private _containers(10) As Container";
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const field = r.unit.members[0] as FieldDeclaration;
+    assert.equal(field.kind, "FieldDeclaration");
+    assert.equal(field.name, "_containers");
+    assert.equal(field.type.name, "Container");
+    assert.equal(field.nativeArrayDimensions?.length, 1);
+    assert.equal(field.nativeArrayDimensions?.[0]?.kind, "Literal");
+  });
+
+  test("parses native matrix dimensions on local variables", () => {
+    const src = ["Sub Run()", "   Dim _matrix(10, 5) As Integer", "End Sub"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const method = r.unit.members[0] as MethodDeclaration;
+    const decl = method.body[0] as VariableDeclaration;
+    assert.equal(decl.kind, "VariableDeclaration");
+    assert.equal(decl.name, "_matrix");
+    assert.equal(decl.type?.name, "Integer");
+    assert.equal(decl.nativeArrayDimensions?.length, 2);
+  });
+
+  test("parses private module constants as const variable declarations", () => {
+    const src = "Private Const GWL_STYLE = -16";
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const declaration = r.unit.members[0] as VariableDeclaration;
+    assert.equal(declaration.kind, "VariableDeclaration");
+    assert.equal(declaration.name, "GWL_STYLE");
+    assert.equal(declaration.isConst, true);
+    assert.equal(declaration.initializer?.kind, "UnaryExpression");
+  });
+
+  test("parses native public enum declarations without treating them as sugar", () => {
+    const src = ["Public Enum Options", "   SqlServer = 0", "   Sybase = 1", "End Enum"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const declaration = r.unit.members[0];
+    assert.equal(declaration?.kind, "EnumDeclaration");
+    if (declaration?.kind === "EnumDeclaration") {
+      assert.equal(declaration.name, "Options");
+      assert.equal(declaration.isSugar, undefined);
+      assert.deepEqual(declaration.modifiers, ["public"]);
+      assert.equal(declaration.entries.length, 2);
+      assert.equal(declaration.entries[0]?.name, "SqlServer");
+    }
+  });
+
+  test("parses Enun declarations as enum sugar", () => {
+    const src = ["Enun Color", "   Verde", "End Enun"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const declaration = r.unit.members[0];
+    assert.equal(declaration?.kind, "EnumDeclaration");
+    if (declaration?.kind === "EnumDeclaration") {
+      assert.equal(declaration.name, "Color");
+      assert.equal(declaration.isSugar, true);
+      assert.equal(declaration.entries[0]?.name, "Verde");
     }
   });
 

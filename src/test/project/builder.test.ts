@@ -158,9 +158,9 @@ End Namespace
         seedProject(tmp);
         fs.writeFileSync(
           path.join(tmp, "src", "Principal.bas"),
-          `Enum Color
+          `Enun Color
    Red
-End Enum
+End Enun
 
 Dim colors[] As Color = [Color.Red]
 `,

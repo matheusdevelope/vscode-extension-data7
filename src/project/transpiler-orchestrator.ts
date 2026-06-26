@@ -69,16 +69,27 @@ export class SugarTranspiler {
 
     // 2. Parse to AST (Check if has structural definitions first)
     const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
-    const preserveLine = sugarEngine.createDisabledSyntaxLinePreserver();
-    const tempParse = parseBasic(processedCode, { plugins, preserveLine });
-    const hasStructural = tempParse.unit.members.some(
-      (m) =>
-        m.kind === "NamespaceDeclaration" ||
-        m.kind === "ClassDeclaration" ||
-        m.kind === "MethodDeclaration" ||
-        m.kind === "DelegateDeclaration" ||
-        m.kind === "EnumDeclaration",
-    );
+    const tempParse = parseBasic(processedCode, {
+      plugins,
+      preserveLine: sugarEngine.createDisabledSyntaxLinePreserver(),
+    });
+    const hasDisabledEnumSugarBlock =
+      !sugarEngine.isEnabled("enum") &&
+      lines.some((line) =>
+        /^\s*(?:(?:public|private|protected|shared|overrides|override|static|readonly)\s+)*enun\s+\w+\b/i.test(
+          line,
+        ),
+      );
+    const hasStructural =
+      hasDisabledEnumSugarBlock ||
+      tempParse.unit.members.some(
+        (m) =>
+          m.kind === "NamespaceDeclaration" ||
+          m.kind === "ClassDeclaration" ||
+          m.kind === "MethodDeclaration" ||
+          m.kind === "DelegateDeclaration" ||
+          m.kind === "EnumDeclaration",
+      );
 
     let finalUnit = tempParse.unit;
     let wrapped = false;
@@ -86,7 +97,10 @@ export class SugarTranspiler {
     if (!hasStructural) {
       wrapped = true;
       const wrappedCode = `Sub __syntheticMethod()${eol}${processedCode}${eol}End Sub`;
-      finalUnit = parseBasic(wrappedCode, { plugins, preserveLine }).unit;
+      finalUnit = parseBasic(wrappedCode, {
+        plugins,
+        preserveLine: sugarEngine.createDisabledSyntaxLinePreserver(),
+      }).unit;
     }
 
     // 3. Run generic monomorphization only when the optional language feature

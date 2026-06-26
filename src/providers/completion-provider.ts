@@ -8,78 +8,7 @@ import {
   lookupSystemByContainer,
   lookupSystemNamespaceOrClassByName,
 } from "../system-library";
-
-const KEYWORDS = [
-  "Imports",
-  "Namespace",
-  "Class",
-  "Structure",
-  "Delegate",
-  "Property",
-  "Get",
-  "Set",
-  "Shared",
-  "Sub",
-  "Function",
-  "Dim",
-  "Const",
-  "As",
-  "If",
-  "Then",
-  "Else",
-  "ElseIf",
-  "End If",
-  "Select Case",
-  "Case",
-  "End Select",
-  "For",
-  "To",
-  "Step",
-  "Next",
-  "Each",
-  "In",
-  "Do",
-  "Loop",
-  "While",
-  "Until",
-  "Try",
-  "Catch",
-  "Finally",
-  "End Try",
-  "Return",
-  "New",
-  "Inherits",
-  "MyBase",
-  "Me",
-  "Null",
-  "Exit",
-  "Overrides",
-  "Overridable",
-  "Private",
-  "Public",
-  "Protected",
-  "Declare",
-  "Lib",
-  "Alias",
-  "And",
-  "Or",
-  "Not",
-  "Xor",
-  "AndAlso",
-  "OrElse",
-  "Mod",
-  "Is",
-  "IsNot",
-  "Like",
-  "ByRef",
-  "ByVal",
-  "Enum",
-  "Let",
-  "Nothing",
-  "ReadOnly",
-  "When",
-  "CType",
-];
+import { LANGUAGE_KEYWORD_CANONICALS } from "../project/language/keywords";
 
 // Re-export for backwards compatibility with code that imports `TypeResolver`
 // from `./completion-provider`. New code should import directly from `../analysis/type-resolver`.
@@ -321,7 +250,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       );
     });
 
-    KEYWORDS.forEach((kw) => {
+    LANGUAGE_KEYWORD_CANONICALS.forEach((kw) => {
       entries.push(
         this.createRankedItem(
           new vscode.CompletionItem(kw, vscode.CompletionItemKind.Keyword),
@@ -701,6 +630,15 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     );
     trySnippet.documentation = "Tratamento de Excecoes Try Catch";
     pushSnippet(trySnippet);
+
+    const enunSnippet = new vscode.CompletionItem(
+      "Enun...End Enun",
+      vscode.CompletionItemKind.Snippet,
+    );
+    enunSnippet.insertText = new vscode.SnippetString("Enun ${1:Nome}\n\t${2:Valor}\nEnd Enun");
+    enunSnippet.documentation =
+      "Enum rico do Data7 sugar, transpilado para uma classe que herda de TEnum.";
+    pushSnippet(enunSnippet);
 
     const propSnippet = new vscode.CompletionItem(
       "Property Block",

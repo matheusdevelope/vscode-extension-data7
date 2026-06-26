@@ -212,7 +212,9 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 
 | ID | Sintaxe | Exemplo |
 |---|---|---|
-| D1 | `Enum X As TEnum / V = "..." / End Enum` (multi-line) | [`enum-declarative/`](../example/sugar/enum-declarative) |
+| D1 | `Enun X / V = "..." / End Enun` (multi-line) | [`enum-declarative/`](../example/sugar/enum-declarative) |
+
+`Enun` é a palavra-chave do açúcar declarativo de enums ricos. `Enum X / V = 0 / End Enum` é enum nativa do compilador e não é expandida pelo `SugarTranspiler`.
 
 ### Fase E — Destructuring
 

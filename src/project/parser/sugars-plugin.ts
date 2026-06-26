@@ -46,7 +46,14 @@ export function isDisabledSugarSyntaxLine(
   ) {
     return true;
   }
-  if (has("enum") && /^\s*enum\b/i.test(code)) return true;
+  if (
+    has("enum") &&
+    /^\s*(?:(?:public|private|protected|shared|overrides|override|static|readonly)\s+)*enun\s+\w+\b/i.test(
+      code,
+    )
+  ) {
+    return true;
+  }
   if (has("using") && /^\s*using\b/i.test(code)) return true;
   if (has("object-initializer") && /\bnew\b[\s\S]*\bwith\s*\{/i.test(code)) return true;
   if (has("optional-chain") && code.includes("?.")) return true;
@@ -110,8 +117,9 @@ export class SugarsParserPlugin implements ParserPlugin {
       return null;
     }
 
+    const enunOffset = this.enunKeywordOffset(parser);
     const v = head.value.toLowerCase();
-    if (v === "enum" && this.isEnabled("enum")) {
+    if (enunOffset !== undefined && this.isEnabled("enum")) {
       return this.parseEnum(parser);
     }
     if (v === "using" && this.isEnabled("using")) {
@@ -540,24 +548,49 @@ export class SugarsParserPlugin implements ParserPlugin {
     return this.enabledSugarIds === undefined || this.enabledSugarIds.has(id.toLowerCase());
   }
 
+  private enunKeywordOffset(parser: Parser): number | undefined {
+    let offset = 0;
+    while (this.isModifierToken(parser.peek(offset))) {
+      offset++;
+    }
+    const token = parser.peek(offset);
+    if (
+      (token.kind === "keyword" || token.kind === "identifier") &&
+      token.value.toLowerCase() === "enun"
+    ) {
+      return offset;
+    }
+    return undefined;
+  }
+
+  private isModifierToken(token: Token): boolean {
+    if (token.kind !== "keyword" && token.kind !== "identifier") return false;
+    return [
+      "public",
+      "private",
+      "protected",
+      "shared",
+      "overrides",
+      "override",
+      "static",
+      "readonly",
+    ].includes(token.value.toLowerCase());
+  }
+
   private parseEnum(parser: Parser): EnumDeclaration {
     const startLoc = parser.peek().loc;
-    parser.parseModifiers();
-    parser.advance(); // 'Enum'
+    const modifiers = parser.parseModifiers();
+    parser.advance(); // 'Enun'
     const nameToken = parser.expect("identifier", "<enum-name>");
     const name = nameToken?.value ?? "";
-    let baseType: TypeReference | undefined;
-    if (parser.consume("keyword", "as") || parser.consume("identifier", "as")) {
-      baseType = parser.parseTypeReference() ?? undefined;
-    }
     parser.skipToEndOfLine();
 
     const entries: { name: string; value?: Expression; loc?: SourceLocation }[] = [];
     let endLoc: TokenLocation | undefined;
     while (!parser.isEOF()) {
       parser.skipNewlines();
-      if (parser.matchEnd("enum")) {
-        endLoc = parser.consumeEnd("enum");
+      if (parser.matchEnd("enun")) {
+        endLoc = parser.consumeEnd("enun");
         parser.skipToEndOfLine();
         break;
       }
@@ -592,10 +625,10 @@ export class SugarsParserPlugin implements ParserPlugin {
     return {
       kind: "EnumDeclaration",
       name,
-      baseType,
       entries,
       loc: locOf(startLoc, endLoc),
-      modifiers: [], // Modifiers are processed but not used in EnumDeclaration usually
+      isSugar: true,
+      modifiers,
     };
   }
 

@@ -1,77 +1,9 @@
 import * as vscode from "vscode";
 import { tokenizeLine } from "../project/parser/lexer";
+import { LANGUAGE_KEYWORD_CASING } from "../project/language/keywords";
 
-const keywordCasingMap = new Map<string, string>([
-  ["and", "And"],
-  ["andalso", "AndAlso"],
-  ["alias", "Alias"],
-  ["as", "As"],
-  ["byref", "ByRef"],
-  ["byval", "ByVal"],
-  ["case", "Case"],
-  ["catch", "Catch"],
-  ["class", "Class"],
-  ["const", "Const"],
-  ["declare", "Declare"],
-  ["delegate", "Delegate"],
-  ["dim", "Dim"],
-  ["do", "Do"],
-  ["each", "Each"],
-  ["else", "Else"],
-  ["elseif", "ElseIf"],
-  ["end", "End"],
-  ["enum", "Enum"],
-  ["exit", "Exit"],
-  ["false", "False"],
-  ["finally", "Finally"],
-  ["for", "For"],
-  ["function", "Function"],
-  ["get", "Get"],
-  ["if", "If"],
-  ["imports", "Imports"],
-  ["in", "In"],
-  ["inherits", "Inherits"],
-  ["is", "Is"],
-  ["let", "Let"],
-  ["lib", "Lib"],
-  ["loop", "Loop"],
-  ["me", "me"],
-  ["mod", "Mod"],
-  ["mybase", "MyBase"],
-  ["namespace", "Namespace"],
-  ["new", "New"],
-  ["next", "Next"],
-  ["not", "Not"],
-  ["nothing", "Nothing"],
-  ["null", "NULL"],
-  ["or", "Or"],
-  ["orelse", "OrElse"],
-  ["overridable", "Overridable"],
-  ["overrides", "Overrides"],
-  ["private", "Private"],
-  ["property", "Property"],
-  ["protected", "Protected"],
-  ["public", "Public"],
-  ["readonly", "ReadOnly"],
-  ["return", "Return"],
-  ["select", "Select"],
-  ["set", "Set"],
-  ["shared", "Shared"],
-  ["step", "Step"],
-  ["structure", "Structure"],
-  ["sub", "Sub"],
-  ["then", "Then"],
-  ["throw", "Throw"],
-  ["to", "To"],
-  ["true", "True"],
-  ["try", "Try"],
-  ["until", "Until"],
-  ["using", "Using"],
-  ["when", "When"],
-  ["while", "While"],
-  ["with", "With"],
-  ["xor", "Xor"],
-]);
+const keywordCasingMap = new Map<string, string>(LANGUAGE_KEYWORD_CASING);
+keywordCasingMap.set("me", "me");
 
 export interface CodeFormatterOptions {
   readonly insertSpaces?: boolean;
@@ -83,6 +15,7 @@ type IndentFrame =
   | "class"
   | "structure"
   | "enum"
+  | "enun"
   | "property"
   | "get"
   | "set"
@@ -208,6 +141,7 @@ function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
   if (new RegExp(`^${DECLARATION_MODIFIERS}class\\s+`).test(lowerClean)) return "class";
   if (new RegExp(`^${DECLARATION_MODIFIERS}structure\\s+`).test(lowerClean)) return "structure";
   if (new RegExp(`^${DECLARATION_MODIFIERS}enum\\s+`).test(lowerClean)) return "enum";
+  if (new RegExp(`^${DECLARATION_MODIFIERS}enun\\s+`).test(lowerClean)) return "enun";
   if (new RegExp(`^${DECLARATION_MODIFIERS}property\\s+`).test(lowerClean)) return "property";
   if (isSubDeclaration(lowerClean)) return "sub";
   if (isFunctionDeclaration(lowerClean)) return "function";
@@ -254,6 +188,8 @@ function getClosingFrame(lowerClean: string): IndentFrame[] | undefined {
       return ["structure"];
     case "end enum":
       return ["enum"];
+    case "end enun":
+      return ["enun"];
     case "end property":
       return ["property"];
     case "end get":

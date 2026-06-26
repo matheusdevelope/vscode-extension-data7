@@ -15,6 +15,7 @@
  */
 
 import type { Token, TokenKind } from "./token-types";
+import { isLanguageKeyword } from "../language/keywords";
 
 // ===========================================================================
 // Single-line Tokenizer Types and Implementation
@@ -76,82 +77,6 @@ export type LineToken =
   | CommentToken
   | PunctToken
   | WhitespaceToken;
-
-/**
- * Canonical Data7 Basic keyword set (case-insensitive lookups).
- */
-const KEYWORDS: ReadonlySet<string> = new Set(
-  [
-    "And",
-    "AndAlso",
-    "As",
-    "ByRef",
-    "ByVal",
-    "Case",
-    "Catch",
-    "Class",
-    "Const",
-    "Continue",
-    "Declare",
-    "Delegate",
-    "Dim",
-    "Do",
-    "Each",
-    "Else",
-    "ElseIf",
-    "End",
-    "Enum",
-    "Exit",
-    "False",
-    "Finally",
-    "For",
-    "Function",
-    "Get",
-    "If",
-    "Imports",
-    "In",
-    "Inherits",
-    "Is",
-    "Let",
-    "Loop",
-    "Me",
-    "Mod",
-    "MyBase",
-    "Namespace",
-    "New",
-    "Next",
-    "Not",
-    "Nothing",
-    "NULL",
-    "Or",
-    "OrElse",
-    "Overridable",
-    "Overrides",
-    "Private",
-    "Property",
-    "Protected",
-    "Public",
-    "ReadOnly",
-    "Return",
-    "Select",
-    "Set",
-    "Shared",
-    "Step",
-    "Structure",
-    "Sub",
-    "Then",
-    "Throw",
-    "To",
-    "True",
-    "Try",
-    "Until",
-    "Using",
-    "When",
-    "While",
-    "With",
-    "Xor",
-  ].map((k) => k.toLowerCase()),
-);
 
 /**
  * Tokenizes a single line of Data7 Basic source.
@@ -249,7 +174,7 @@ export function tokenizeLine(
       const start = i;
       while (i < n && isIdentChar(line[i] ?? "")) i++;
       const value = line.slice(start, i);
-      const kind = KEYWORDS.has(value.toLowerCase()) ? "keyword" : "identifier";
+      const kind = isLanguageKeyword(value) ? "keyword" : "identifier";
       tokens.push({ kind, value, col: start });
       continue;
     }

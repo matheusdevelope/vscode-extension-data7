@@ -81,11 +81,11 @@ A System Library oferece **apenas** `Collections.StringList` (lista de strings +
 
 **Workaround atual**: classes tipadas derivando de uma `TTList` base (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)) ou templates `TList<T>` monomorfizados pelo Builder/preview/MCP (vide [07-generics.md](./07-generics.md)).
 
-### 11. Sem `Enum` nativo
+### 11. `Enum` nativo é limitado
 
-Data7 Basic não tem palavra-chave `Enum`. O equivalente é o padrão **`TEnum`** — classe que herda de `TEnum` e usa `Shared` factory methods (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
+Data7 Basic aceita `Enum X ... End Enum` nativo para constantes enumeradas simples. Para enums ricos com cache, factories `Shared`, `Load` e `GetOptions`, use o padrão **`TEnum`** — classe que herda de `TEnum` e usa `Shared` factory methods (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)).
 
-**Workaround atual de tooling**: sugar `Enum X / End Enum` gera a classe `TEnum` equivalente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)).
+**Açúcar de tooling**: `Enun X / End Enun` gera a classe `TEnum` equivalente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)). A palavra-chave própria `Enun` evita conflito com o `Enum` nativo.
 
 ### 12. Sem interface natively + `Implements`
 

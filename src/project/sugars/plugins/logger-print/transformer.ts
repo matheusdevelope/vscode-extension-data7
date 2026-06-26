@@ -23,6 +23,10 @@ export class LoggerPrintSugarTransformer {
       case "DelegateDeclaration":
       case "EnumDeclaration":
       case "OpaqueStatement":
+      case "FieldDeclaration":
+        if (member.kind === "FieldDeclaration" && member.initializer) {
+          member.initializer = this.transformExpression(member.initializer);
+        }
         return member;
       case "NamespaceDeclaration":
         member.members = member.members.map((m) => this.transformTopLevelMember(m));
