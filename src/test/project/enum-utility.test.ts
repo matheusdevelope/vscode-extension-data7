@@ -23,7 +23,6 @@ test("core enum and logger use TTObject without the legacy console module", () =
   assert.match(enumSource, /Overrides Function Clone\(\) As TEnum/);
   assert.match(enumSource, /Overrides Sub Dispose\(\)/);
   assert.match(loggerSource, /Class LogLevel\s+Inherits TTObject/);
-  assert.match(loggerSource, /TypeOf\(pObject\) Is TDateTime/);
   assert.match(loggerSource, /TTObject\(pObject\)\.ToString\(\)/);
   assert.match(loggerSource, /ObjectAsString = pObject\.ToString\(\)/);
   assert.ok(!fs.existsSync(path.join(coreModulesDir, "mod_console.bas")));

@@ -87,6 +87,10 @@ Namespace mod_logger
          End Select
       End Function
 
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+
    End Class
 
    Private Function LoggerLevelAsString(pLevel As Integer) As String
@@ -144,15 +148,13 @@ Namespace mod_logger
       ElseIf pValue.IsTime Then
          DateTimeAsString = pValue.ToString("hh:nn:ss.zzz")
       Else
-         DateTimeAsString = pValue.ToString()
+         DateTimeAsString = pValue.ToString("c")
       End If
    End Function
 
    Private Function ObjectAsString(pObject As TObject) As String
       If pObject = NULL Then
          ObjectAsString = ""
-      ElseIf TypeOf(pObject) Is TDateTime Then
-         ObjectAsString = DateTimeAsString(TDateTime(pObject))
       ElseIf TypeOf(pObject) Is TTObject Then
          ObjectAsString = TTObject(pObject).ToString()
       Else
@@ -223,11 +225,21 @@ Namespace mod_logger
          _json.PutString("level", me.LevelName)
          _json.PutString("message", me.Message)
          _json.PutString("timestamp", me.Timestamp.ToString("yyyy-mm-dd hh:nn:ss.zzz"))
-         If me.Label <> "" Then _json.PutString("label", me.Label)
-         If me.DetailsText <> "" Then _json.PutString("extra", me.DetailsText)
-         If me.Meta <> "" Then _json.PutString("meta", me.Meta)
-         If me.DurationMs > 0 Then _json.PutInteger("durationMs", me.DurationMs)
-         If me.IsException Then _json.PutString("exception", me.ExceptionMessage)
+         If me.Label <> "" Then
+            _json.PutString("label", me.Label)
+         End If
+         If me.DetailsText <> "" Then
+            _json.PutString("extra", me.DetailsText)
+         End If
+         If me.Meta <> "" Then
+            _json.PutString("meta", me.Meta)
+         End If
+         If me.DurationMs > 0 Then
+            _json.PutInteger("durationMs", me.DurationMs)
+         End If
+         If me.IsException Then
+            _json.PutString("exception", me.ExceptionMessage)
+         End If
          ToJson = _json.ToString()
          _json.Free()
       End Function
@@ -300,13 +312,25 @@ Namespace mod_logger
          End If
 
          Dim _message As String = ""
-         If me.IncludeTimestamp Then _message = _message + "[" + pInfo.Timestamp.ToString(me.TimestampFormat) + "] "
-         If me.IncludeLevel Then _message = _message + "[" + pInfo.LevelName + "] "
-         If me.IncludeLabel And pInfo.Label <> "" Then _message = _message + "[" + pInfo.Label + "] "
+         If me.IncludeTimestamp Then
+            _message = _message + "[" + pInfo.Timestamp.ToString(me.TimestampFormat) + "] "
+         End If
+         If me.IncludeLevel Then
+            _message = _message + "[" + pInfo.LevelName + "] "
+         End If
+         If me.IncludeLabel And pInfo.Label <> "" Then
+            _message = _message + "[" + pInfo.Label + "] "
+         End If
          _message = _message + pInfo.Message
-         If me.IncludeExtra And pInfo.DetailsText <> "" Then _message = _message + Char(13) + pInfo.DetailsText
-         If pInfo.IsException And pInfo.ExceptionMessage <> "" Then _message = _message + Char(13) + pInfo.ExceptionMessage
-         If me.IncludeMeta And pInfo.Meta <> "" Then _message = _message + Char(13) + pInfo.Meta
+         If me.IncludeExtra And pInfo.DetailsText <> "" Then
+            _message = _message + Char(13) + pInfo.DetailsText
+         End If
+         If pInfo.IsException And pInfo.ExceptionMessage <> "" Then
+            _message = _message + Char(13) + pInfo.ExceptionMessage
+         End If
+         If me.IncludeMeta And pInfo.Meta <> "" Then
+            _message = _message + Char(13) + pInfo.Meta
+         End If
          If pInfo.DurationMs > 0 Then
             _message = _message + " +" + pInfo.DurationMs.ToString() + "ms"
          End If
@@ -362,7 +386,9 @@ Namespace mod_logger
             me.StrictLevel = pValue.StrictLevel
             me.Silent = pValue.Silent
             me.HandleExceptions = pValue.HandleExceptions
-            If Assigned(me.Format) Then me.Format.Free()
+            If Assigned(me.Format) Then
+               me.Format.Free()
+            End If
             If Assigned(pValue.Format) Then
                me.Format = pValue.Format.Clone()
             Else
@@ -424,9 +450,13 @@ Namespace mod_logger
       Sub Assign(pValue As LogTransport)
          If Assigned(pValue) Then
             me.Name = pValue.Name
-            If Assigned(me.Options) Then me.Options.Free()
+            If Assigned(me.Options) Then
+               me.Options.Free()
+            End If
             me.Options = NULL
-            If Assigned(pValue.Options) Then me.Options = pValue.Options.Clone()
+            If Assigned(pValue.Options) Then
+               me.Options = pValue.Options.Clone()
+            End If
          End If
       End Sub
 
@@ -479,7 +509,9 @@ Namespace mod_logger
       End Function
 
       Sub Write(pInfo As LogInfo)
-         If Not me.ShouldLog(pInfo) Then Exit Sub
+         If Not me.ShouldLog(pInfo) Then
+            Exit Sub
+         End If
          Dim _formatted As String = me.Options.Format.Transform(pInfo)
          pInfo.FormattedMessage = _formatted
          me.Log(pInfo, _formatted)
@@ -532,7 +564,9 @@ Namespace mod_logger
 
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
          Print(pFormatted)
-         If me.ProcessMessages Then Forms.ProcessMessages()
+         If me.ProcessMessages Then
+            Forms.ProcessMessages()
+         End If
       End Sub
 
       Overrides Sub Dispose()
@@ -582,9 +616,13 @@ Namespace mod_logger
       End Function
 
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If me.FileName = "" Then Exit Sub
+         If me.FileName = "" Then
+            Exit Sub
+         End If
          Dim _lines As New StringList()
-         If File.Exists(me.FileName) Then _lines.LoadFromFile(me.FileName)
+         If File.Exists(me.FileName) Then
+            _lines.LoadFromFile(me.FileName)
+         End If
          _lines.Add(pFormatted)
          _lines.SaveToFile(me.FileName)
          _lines.Free()
@@ -614,7 +652,9 @@ Namespace mod_logger
       End Sub
 
       Sub Assign(pValue As TransportVSCode)
-         If Assigned(pValue) Then MyBase.Assign(pValue)
+         If Assigned(pValue) Then
+            MyBase.Assign(pValue)
+         End If
       End Sub
 
       Overrides Function Clone() As TransportVSCode
@@ -677,7 +717,9 @@ Namespace mod_logger
       End Function
 
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If me.Writer <> NULL Then me.Writer(pInfo, pFormatted)
+         If me.Writer <> NULL Then
+            me.Writer(pInfo, pFormatted)
+         End If
       End Sub
 
       Overrides Sub Dispose()
@@ -728,7 +770,9 @@ Namespace mod_logger
       End Function
 
       Sub Add(pTransport As LogTransport)
-         If pTransport = NULL Then Exit Sub
+         If pTransport = NULL Then
+            Exit Sub
+         End If
          me._list.Push(pTransport.GetID().ToUpper(), pTransport)
       End Sub
 
@@ -794,12 +838,20 @@ Namespace mod_logger
             me.ExitOnError = pValue.ExitOnError
             me.DefaultMeta = pValue.DefaultMeta
             me.Label = pValue.Label
-            If Assigned(me.Format) Then me.Format.Free()
-            If Assigned(me.Transports) Then me.Transports.Free()
+            If Assigned(me.Format) Then
+               me.Format.Free()
+            End If
+            If Assigned(me.Transports) Then
+               me.Transports.Free()
+            End If
             me.Format = NULL
             me.Transports = NULL
-            If Assigned(pValue.Format) Then me.Format = pValue.Format.Clone()
-            If Assigned(pValue.Transports) Then me.Transports = pValue.Transports.Clone()
+            If Assigned(pValue.Format) Then
+               me.Format = pValue.Format.Clone()
+            End If
+            If Assigned(pValue.Transports) Then
+               me.Transports = pValue.Transports.Clone()
+            End If
          End If
       End Sub
 
@@ -858,9 +910,13 @@ Namespace mod_logger
 
       Sub Assign(pValue As Logger)
          If Assigned(pValue) Then
-            If Assigned(me.Options) Then me.Options.Free()
+            If Assigned(me.Options) Then
+               me.Options.Free()
+            End If
             me.Options = NULL
-            If Assigned(pValue.Options) Then me.Options = pValue.Options.Clone()
+            If Assigned(pValue.Options) Then
+               me.Options = pValue.Options.Clone()
+            End If
             me._sharedOptions = False
          End If
       End Sub
@@ -884,8 +940,12 @@ Namespace mod_logger
          _child.Options.StrictLevel = me.Options.StrictLevel
          _child.Options.Silent = me.Options.Silent
          _child.Options.ExitOnError = me.Options.ExitOnError
-         If Assigned(_child.Options.Format) Then _child.Options.Format.Free()
-         If Assigned(_child.Options.Transports) Then _child.Options.Transports.Free()
+         If Assigned(_child.Options.Format) Then
+            _child.Options.Format.Free()
+         End If
+         If Assigned(_child.Options.Transports) Then
+            _child.Options.Transports.Free()
+         End If
          _child.Options.Format = me.Options.Format
          _child.Options.Transports = me.Options.Transports
          _child.Options.DefaultMeta = me.MergeText(me.Options.DefaultMeta, pDefaultMeta)
@@ -915,11 +975,17 @@ Namespace mod_logger
       End Sub
 
       Private Sub LogText(pLevel As Integer, pMessage As String, pExtra As String = "", pMeta As String = "")
-         If me.Options.Silent Then Exit Sub
+         If me.Options.Silent Then
+            Exit Sub
+         End If
          If me.Options.StrictLevel Then
-            If me.Options.Level <> pLevel Then Exit Sub
+            If me.Options.Level <> pLevel Then
+               Exit Sub
+            End If
          Else
-            If pLevel > me.Options.Level Then Exit Sub
+            If pLevel > me.Options.Level Then
+               Exit Sub
+            End If
          End If
 
          Dim _info As New LogInfo(pLevel, pMessage, pExtra, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
@@ -934,7 +1000,9 @@ Namespace mod_logger
       Sub Exceptiom(pMessage As Variant, pEx As Exception, pMeta As String = "")
          Dim _info As New LogInfo(0, CStr(pMessage), "", me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
          _info.IsException = True
-         If pEx <> NULL Then _info.ExceptionMessage = pEx._GetMessage()
+         If pEx <> NULL Then
+            _info.ExceptionMessage = pEx._GetMessage()
+         End If
          me.Dispatch(_info)
          _info.Free()
       End Sub
@@ -942,7 +1010,9 @@ Namespace mod_logger
       Sub Exceptiom(pObject As TObject, pEx As Exception, pMeta As String = "")
          Dim _info As New LogInfo(0, ObjectAsString(pObject), "", me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
          _info.IsException = True
-         If pEx <> NULL Then _info.ExceptionMessage = pEx._GetMessage()
+         If pEx <> NULL Then
+            _info.ExceptionMessage = pEx._GetMessage()
+         End If
          me.Dispatch(_info)
          _info.Free()
       End Sub
@@ -1025,7 +1095,9 @@ Namespace mod_logger
 
       Private Sub Dispatch(pInfo As LogInfo)
          If me.Options.Transports.Count() = 0 Then
-            If Not IsNativePrintEnabled() Then Exit Sub
+            If Not IsNativePrintEnabled() Then
+               Exit Sub
+            End If
             me.Options.Transports.Add(New TransportConsole())
          End If
          Dim i As Integer, _count As Integer = me.Options.Transports.Count()
@@ -1139,6 +1211,14 @@ Namespace mod_logger
       GetDefault().Add(pTransport)
    End Sub
 
+   Sub Log(pLevel As Integer, pMessage As String)
+      GetDefault().Log(pLevel, pMessage)
+   End Sub
+
+   Sub Log(pLevel As Integer, pMessage As TDateTime)
+      GetDefault().Log(pLevel, DateTimeAsString(pMessage))
+   End Sub
+
    Sub Log(pLevel As Integer, pMessage As Variant)
       GetDefault().Log(pLevel, pMessage)
    End Sub
@@ -1147,8 +1227,24 @@ Namespace mod_logger
       GetDefault().Log(pLevel, pObject)
    End Sub
 
+   Sub Log(pLevel As String, pMessage As TDateTime)
+      GetDefault().Log(pLevel, DateTimeAsString(pMessage))
+   End Sub
+
+   Sub Log(pLevel As String, pMessage As String)
+      GetDefault().Log(pLevel, pMessage)
+   End Sub
+
    Sub Log(pLevel As String, pMessage As Variant)
       GetDefault().Log(pLevel, pMessage)
+   End Sub
+
+   Sub Printe(pMessage As TDateTime)
+      GetDefault().Printe(DateTimeAsString(pMessage))
+   End Sub
+
+   Sub Printe(pMessage As String)
+      GetDefault().Printe(pMessage)
    End Sub
 
    Sub Printe(pMessage As Variant)
@@ -1157,6 +1253,14 @@ Namespace mod_logger
 
    Sub Printe(pObject As TObject)
       GetDefault().Printe(pObject)
+   End Sub
+
+   Sub Erro(pMessage As TDateTime)
+      GetDefault().Erro(DateTimeAsString(pMessage))
+   End Sub
+
+   Sub Erro(pMessage As String)
+      GetDefault().Erro(pMessage)
    End Sub
 
    Sub Erro(pMessage As Variant)
@@ -1175,6 +1279,14 @@ Namespace mod_logger
       GetDefault().Exceptiom(pObject, pEx)
    End Sub
 
+   Sub Warn(pMessage As TDateTime)
+      GetDefault().Warn(DateTimeAsString(pMessage))
+   End Sub
+
+   Sub Warn(pMessage As String)
+      GetDefault().Warn(pMessage)
+   End Sub
+
    Sub Warn(pMessage As Variant)
       GetDefault().Warn(pMessage)
    End Sub
@@ -1183,12 +1295,28 @@ Namespace mod_logger
       GetDefault().Warn(pObject)
    End Sub
 
+   Sub Info(pMessage As TDateTime)
+      GetDefault().Info(DateTimeAsString(pMessage))
+   End Sub
+
+   Sub Info(pMessage As String)
+      GetDefault().Info(pMessage)
+   End Sub
+
    Sub Info(pMessage As Variant)
       GetDefault().Info(pMessage)
    End Sub
 
    Sub Info(pObject As TObject)
       GetDefault().Info(pObject)
+   End Sub
+
+   Sub Debug(pMessage As TDateTime)
+      GetDefault().Debug(DateTimeAsString(pMessage))
+   End Sub
+
+   Sub Debug(pMessage As String)
+      GetDefault().Debug(pMessage)
    End Sub
 
    Sub Debug(pMessage As Variant)
@@ -1204,14 +1332,20 @@ Namespace mod_logger
          _timers = New StringList()
          _timers.NameValueSeparator = ";"
       End If
-      If _timers.IndexOfName(pLabel) >= 0 Then _timers.Delete(_timers.IndexOfName(pLabel))
+      If _timers.IndexOfName(pLabel) >= 0 Then
+         _timers.Delete(_timers.IndexOfName(pLabel))
+      End If
       _timers.Add(pLabel + _timers.NameValueSeparator + DateTime().ToString("hh:nn:ss.zzz"))
    End Sub
 
    Function StopTimer(pLabel As String) As Integer
       StopTimer = 0
-      If _timers = NULL Then Exit Function
-      If _timers.IndexOfName(pLabel) < 0 Then Exit Function
+      If _timers = NULL Then
+         Exit Function
+      End If
+      If _timers.IndexOfName(pLabel) < 0 Then
+         Exit Function
+      End If
 
       Dim _time As String = _timers.Values(pLabel)
       Dim _hours As Integer = CInt(_time.Split(":")[0])
