@@ -34,8 +34,14 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     [COMMAND_IDS.decompose, (uri: vscode.Uri) => ProjectService.decomposeActiveProject(uri)],
 
     // Module commands
-    [COMMAND_IDS.installModule, (moduleName?: string) => DependencyService.installModule(moduleName)],
-    [COMMAND_IDS.installModulesBulk, (moduleNames: string[]) => DependencyService.installModules(moduleNames)],
+    [
+      COMMAND_IDS.installModule,
+      (moduleName?: string) => DependencyService.installModule(moduleName),
+    ],
+    [
+      COMMAND_IDS.installModulesBulk,
+      (moduleNames: string[]) => DependencyService.installModules(moduleNames),
+    ],
     [COMMAND_IDS.updateDependencies, () => DependencyService.updateDependencies()],
     [
       COMMAND_IDS.importModuleToRepository,

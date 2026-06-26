@@ -558,7 +558,7 @@ export class ProjectService {
 
           vscode.window.showInformationMessage(
             `Projeto '${projectName}' aberto com sucesso. ` +
-            (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
+              (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
           );
 
           await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(workspaceDir), {
