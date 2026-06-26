@@ -1126,6 +1126,27 @@ End Namespace`,
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
     });
 
+    test("resolves private module constants declared before class code", () => {
+      const diags = runLinter(
+        "file:///winapi_constants.bas",
+        `Private Const GWL_STYLE = -16
+Private Const WS_BORDER = 8388608
+Private Const SWP_NOMOVE = 2
+Private Const SWP_NOSIZE = 1
+Private Const SWP_NOZORDER = 4
+Private Const SWP_FRAMECHANGED = 32
+
+Class C
+   Public Sub Run()
+      Dim style As Integer = GWL_STYLE
+      style = style And Not WS_BORDER
+      style = style Or SWP_NOMOVE Or SWP_NOSIZE Or SWP_NOZORDER Or SWP_FRAMECHANGED
+   End Sub
+End Class`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    });
+
     test("resolves imported workspace classes and marks the import as used", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const serviceUri = "file:///servicos_usuarios.bas";
@@ -1421,6 +1442,39 @@ End Namespace`,
             Throw New Exception("missing")
          End If
       End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.DeadCode);
+    });
+
+    test("does not mark inline comments after Return as dead code", () => {
+      const diags = runLinter(
+        "file:///return_inline_comment_dead_code.bas",
+        `Namespace mod_return_comment
+   Class TStringList
+      Public Sub Add(pValue As String)
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class C
+      Shared Function split(pString As String) As TStringList
+         Dim _list As TStringList = New TStringList()
+         Try
+            _list.Add(pString)
+         Catch ex As Exception
+            Return _list ' data7:disable-line return-unrecommended
+         End Try
+         Return _list ' data7:disable-line return-unrecommended
+      End Function
 
       Public Sub Free()
          MyBase.Free()
@@ -2294,6 +2348,76 @@ End Namespace`;
     assert.equal((secondReturn as any).data.isConditional, false);
     assert.equal((secondReturn as any).data.targetName, "Calc");
     assert.equal((secondReturn as any).data.exitType, "Function");
+  });
+
+  test("warns on function return assignment inside Catch and allows Return there", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///return_assignment_in_catch.bas";
+    const code = `Namespace mod_return_catch
+   Class C
+      Function Calc() As Integer
+         Try
+            Calc = 1
+         Catch ex As Exception
+            Calc = 2
+         End Try
+         Return 3
+      End Function
+
+      Property Total As Integer
+         Get
+            Try
+               Total = 1
+            Catch ex As Exception
+               Total = 2
+            End Try
+         End Get
+      End Property
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    const catchAssignmentDiags = diags.filter(
+      (d: any) => d.code === DiagnosticCodes.ReturnAssignmentInCatch,
+    );
+    assert.equal(catchAssignmentDiags.length, 2);
+    assert.equal((catchAssignmentDiags[0] as any).data.expressionText, "2");
+    assert.equal((catchAssignmentDiags[1] as any).data.expressionText, "2");
+
+    const returnDiags = diags.filter((d: any) => d.code === DiagnosticCodes.ReturnUnrecommended);
+    assert.equal(returnDiags.length, 1, "Return outside Catch should keep the existing warning");
+  });
+
+  test("return-assignment-in-catch preserves method invocation arguments in payload", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///return_assignment_in_catch_call.bas";
+    const code = `Namespace mod_return_catch_call
+   Class C
+      Shared Function StringToDate(pValue As String) As TDateTime
+         Try
+            StringToDate = StrToDateTime(pValue)
+         Catch ex As Exception
+            StringToDate = StrToDateTime("01/01/1900 00:00:00")
+         End Try
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    const catchAssignmentDiag = diags.find(
+      (d: any) => d.code === DiagnosticCodes.ReturnAssignmentInCatch,
+    );
+    assert.ok(catchAssignmentDiag);
+    assert.equal(
+      (catchAssignmentDiag as any).data.expressionText,
+      'StrToDateTime("01/01/1900 00:00:00")',
+    );
   });
 
   test("warns on inline If statements and sets isSingleLineIf on Return payload", () => {

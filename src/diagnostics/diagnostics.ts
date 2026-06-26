@@ -22,6 +22,7 @@ import type {
   MissingThenPayload,
   ElseIfWhitespacePayload,
   ReturnUnrecommendedPayload,
+  ReturnAssignmentInCatchPayload,
   InlineIfThenPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
@@ -437,6 +438,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.ElseIfWhitespace]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.MissingThen]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ReturnUnrecommended]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.ReturnAssignmentInCatch]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.InlineIfThen]: vscode.DiagnosticSeverity.Warning,
   };
 
@@ -1520,6 +1522,11 @@ class DiagnosticsASTWalker extends ASTWalker {
 
     const isLocalAssignmentTarget =
       node.target.kind === "Identifier" && this.isLocalDeclared(node.target.name);
+    const isCurrentFunctionReturnTarget = this.isCurrentReturnAssignmentTarget(node);
+    if (isCurrentFunctionReturnTarget && this.isInsideCatchBlock(node)) {
+      this.pushReturnAssignmentInCatchDiagnostic(node);
+    }
+
     let resolvedLhs: SymbolInfo | undefined;
     if (node.target.kind === "Identifier" && !isLocalAssignmentTarget) {
       if (this.activeClass) {
@@ -1580,18 +1587,6 @@ class DiagnosticsASTWalker extends ASTWalker {
         resolvedLhs.kind === "declare_function" ||
         resolvedLhs.kind === "declare_sub";
       if (isMethod) {
-        const activeMethod = this.activeMethod;
-        const activeProperty = this.activeProperty;
-        const isCurrentMethodReturnTarget =
-          node.target.kind === "Identifier" &&
-          activeMethod?.returnType !== undefined &&
-          node.target.name.toLowerCase() === activeMethod.name.toLowerCase();
-        const isCurrentPropertyReturnTarget =
-          node.target.kind === "Identifier" &&
-          node.target.name.toLowerCase() === activeProperty?.name.toLowerCase();
-        const isCurrentFunctionReturnTarget =
-          isCurrentMethodReturnTarget || isCurrentPropertyReturnTarget;
-
         if (!isCurrentFunctionReturnTarget) {
           const range = new vscode.Range(
             lineIdx,
@@ -2043,6 +2038,7 @@ class DiagnosticsASTWalker extends ASTWalker {
         ? this.activeMethod?.name
         : undefined;
     const exitType = inProperty ? "Property" : inFunction ? "Function" : "Sub";
+    if (targetName && this.isInsideCatchBlock(node)) return;
 
     let msg = "O uso de 'Return' não é recomendado devido a lentidão gerada no compilador.";
     if (inSub) {
@@ -2082,5 +2078,105 @@ class DiagnosticsASTWalker extends ASTWalker {
     };
     setDiagnosticPayload(diag, payload);
     this.diagnostics.push(diag);
+  }
+
+  private pushReturnAssignmentInCatchDiagnostic(node: Assignment): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const lineText = this.lines[lineIdx] ?? "";
+    const range = new vscode.Range(
+      lineIdx,
+      node.target.loc?.startChar ?? node.loc.startChar,
+      lineIdx,
+      node.target.loc?.endChar ?? node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      "Retorno por atribuição dentro de Catch não é aceito pelo compilador nativo. Use 'Return <valor>'.",
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.ReturnAssignmentInCatch;
+
+    let expressionText: string | undefined = exprToString(node.value);
+    if (node.value.loc) {
+      const startLine = node.value.loc.startLine - 1;
+      const endLine = node.value.loc.endLine - 1;
+      if (startLine === endLine) {
+        expressionText = (this.lines[startLine] ?? "").substring(
+          node.value.loc.startChar,
+          node.value.loc.endChar,
+        );
+        if (expressionText.trim().length === 0) {
+          expressionText = exprToString(node.value);
+        }
+      } else {
+        expressionText = exprToString(node.value);
+      }
+    }
+    const expressionTextFromLine = this.expressionTextFromAssignmentLine(lineText, node);
+    if (
+      expressionTextFromLine &&
+      (!expressionText || expressionTextFromLine.startsWith(expressionText))
+    ) {
+      expressionText = expressionTextFromLine;
+    }
+
+    const payload: ReturnAssignmentInCatchPayload = {
+      code: DiagnosticCodes.ReturnAssignmentInCatch,
+      line: lineIdx,
+      startChar: node.loc.startChar,
+      endChar: Math.max(node.loc.endChar, lineText.trimEnd().length),
+      expressionText,
+    };
+    setDiagnosticPayload(diag, payload);
+    this.diagnostics.push(diag);
+  }
+
+  private expressionTextFromAssignmentLine(lineText: string, node: Assignment): string | undefined {
+    const startChar = node.target.loc?.endChar ?? node.loc?.startChar ?? 0;
+    const equalsIndex = lineText.indexOf("=", startChar);
+    if (equalsIndex === -1) return undefined;
+    const commentIndex = this.findInlineCommentColumn(lineText, equalsIndex + 1);
+    const endChar = commentIndex === -1 ? lineText.length : commentIndex;
+    const expressionText = lineText.slice(equalsIndex + 1, endChar).trim();
+    return expressionText.length > 0 ? expressionText : undefined;
+  }
+
+  private findInlineCommentColumn(lineText: string, startColumn: number): number {
+    let inString = false;
+    for (let index = startColumn; index < lineText.length; index++) {
+      const char = lineText[index];
+      if (char === '"') {
+        if (inString && lineText[index + 1] === '"') {
+          index++;
+          continue;
+        }
+        inString = !inString;
+        continue;
+      }
+      if (!inString && char === "'") return index;
+    }
+    return -1;
+  }
+
+  private isCurrentReturnAssignmentTarget(node: Assignment): boolean {
+    if (node.target.kind !== "Identifier") return false;
+    const targetName = node.target.name.toLowerCase();
+    const activeMethodName =
+      this.activeMethod?.returnType !== undefined ? this.activeMethod.name.toLowerCase() : "";
+    const activePropertyName = this.activeProperty?.name.toLowerCase() ?? "";
+    return targetName === activeMethodName || targetName === activePropertyName;
+  }
+
+  private isInsideCatchBlock(node: Node): boolean {
+    if (!node.loc) return false;
+    const line = node.loc.startLine;
+    return this.parentStack.some((parent) => {
+      if (parent.kind !== "TryCatchStatement" || parent.catchBody.length === 0) return false;
+      const first = parent.catchBody[0]?.loc;
+      const last = parent.catchBody[parent.catchBody.length - 1]?.loc;
+      if (!first || !last) return false;
+      return line >= first.startLine && line <= last.endLine;
+    });
   }
 }

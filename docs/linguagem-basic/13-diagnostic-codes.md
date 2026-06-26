@@ -31,6 +31,7 @@ export const DiagnosticCodes = {
    ElseIfWhitespace: "elseif-whitespace",
    MissingThen: "missing-then",
    ReturnUnrecommended: "return-unrecommended",
+   ReturnAssignmentInCatch: "return-assignment-in-catch",
    // Generics (Fase 1 do plano "Generics Hardening + AST Parser + Linter Integration")
    UnknownTemplate: "unknown-template",
    GenericArityMismatch: "generic-arity-mismatch",

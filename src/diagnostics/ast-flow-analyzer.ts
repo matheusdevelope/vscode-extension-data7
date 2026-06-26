@@ -65,6 +65,9 @@ export class ASTFlowAnalyzer {
   }
 
   private isUnreachableStatement(node: Node): boolean {
+    if (node.kind === "OpaqueStatement" && isCommentOnlyOpaqueStatement(node.text)) {
+      return false;
+    }
     const statementKinds = new Set([
       "ExpressionStatement",
       "Assignment",
@@ -378,4 +381,8 @@ export class ASTFlowAnalyzer {
     if (expr.operator === "*") return left * right;
     return expr.operator === "/" && right !== 0 ? left / right : undefined;
   }
+}
+
+function isCommentOnlyOpaqueStatement(text: string): boolean {
+  return /^\s*(?:'|rem\b)/i.test(text);
 }

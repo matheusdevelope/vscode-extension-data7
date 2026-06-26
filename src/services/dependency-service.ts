@@ -46,6 +46,8 @@ export interface DependencyDetectionResult {
 }
 
 export class DependencyService {
+  private static readonly dependencyRefreshTimers = new Map<string, NodeJS.Timeout>();
+
   public static syncProjectData7Modules(
     workspaceDir: string,
     dependencies?: Record<string, string>,
@@ -290,6 +292,38 @@ export class DependencyService {
     } catch (err: unknown) {
       logger.error("Falha ao atualizar contexto do projeto após importação.", err);
     }
+  }
+
+  public static scheduleWorkspaceDependencyRefresh(workspaceDir: string): void {
+    const key = path.normalize(workspaceDir).toLowerCase();
+    const existing = this.dependencyRefreshTimers.get(key);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      this.dependencyRefreshTimers.delete(key);
+      void this.refreshWorkspaceDependencies(workspaceDir).catch((err: unknown) => {
+        logger.error(
+          `Falha ao sincronizar dependências do projeto ${workspaceDir} após alteração local.`,
+          err,
+        );
+      });
+    }, 350);
+    this.dependencyRefreshTimers.set(key, timer);
+  }
+
+  public static async refreshWorkspaceDependencies(
+    workspaceDir: string,
+  ): Promise<DependencyDetectionResult> {
+    const result = await this.detectAndSyncProjectDependencies(workspaceDir, { silent: true });
+    const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    indexer.deleteWorkspaceFolder(path.normalize(data7ModulesDir).toLowerCase());
+    if (fs.existsSync(data7ModulesDir)) {
+      await indexer.indexDirectory(data7ModulesDir);
+    }
+    DiagnosticService.invalidateWorkspaceCacheFor(path.join(workspaceDir, PROJECT_CONFIG_FILENAME));
+    DiagnosticService.refreshAllActive();
+    return result;
   }
 
   /** Manual install of a shared module from the repository into the active project. */

@@ -15,17 +15,19 @@ import { MCPService } from "./services/mcp-service";
 import { RepositoryService } from "./services/repository-service";
 import { PreviewService } from "./services/preview-service";
 import { WorkspaceFixService } from "./services/workspace-fix-service";
+import { DependencyService } from "./services/dependency-service";
+import { ProjectService } from "./services/project-service";
 
 export function activate(context: vscode.ExtensionContext): void {
   initLogger(context);
   RepositoryService.initialize(context);
   logger.info("Extensão Data7 Dev Studio ativada.");
 
+  DiagnosticService.initialize(context);
   registerWorkspaceListeners(context);
   registerCommands(context);
   registerLanguageProviders(context);
 
-  DiagnosticService.initialize(context);
   ActivationService.initializeWorkspace(context);
   const features = readConfiguration().features;
   if (features.preview.enabled) {
@@ -64,12 +66,10 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   indexer
     .indexWorkspace(vscode.workspace.workspaceFolders)
     .then(() => {
-      const diagnostics = readConfiguration().features.diagnostics;
-      if (!diagnostics.enabled || !diagnostics.lintWorkspaceOnStartup) return;
-      // Quando o cache "esquentar", iniciamos o linter no projeto inteiro.
-      void DiagnosticService.lintWorkspace(true).catch((err) => {
-        logger.error("Erro ao rodar linter no workspace inicial.", err);
-      });
+      if (readConfiguration().features.diagnostics.enabled) {
+        DiagnosticService.refreshOpenDocuments();
+        DiagnosticService.pruneClosedDiagnostics();
+      }
     })
     .catch((err) => {
       logger.error("Erro ao indexar workspace.", err);
@@ -79,14 +79,18 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   basWatcher.onDidChange((uri) => {
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
+    scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidCreate((uri) => {
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
+    scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidDelete((uri) => {
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.removeFile(uri.toString());
+    DiagnosticService.clearDiagnostics(uri);
+    scheduleDependencyRefreshForFile(uri.fsPath);
   });
   context.subscriptions.push(basWatcher);
 
@@ -104,15 +108,25 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   const docCloseListener = vscode.workspace.onDidCloseTextDocument((doc) => {
     if (doc.languageId === LANGUAGE_IDS.d7basic || doc.fileName.endsWith(".bas")) {
       LanguageProcessor.getInstance().invalidate(doc.uri.toString());
+      DiagnosticService.clearDiagnostics(doc.uri);
     }
   });
   context.subscriptions.push(docChangeListener, docCloseListener);
+
+  const docSaveListener = vscode.workspace.onDidSaveTextDocument((doc) => {
+    if (doc.languageId === LANGUAGE_IDS.d7basic || doc.fileName.endsWith(".bas")) {
+      scheduleDependencyRefreshForFile(doc.fileName);
+    }
+  });
+  context.subscriptions.push(docSaveListener);
 
   const renameListener = vscode.workspace.onDidRenameFiles((e) => {
     for (const file of e.files) {
       const oldPath = path.normalize(file.oldUri.fsPath).toLowerCase();
       const newPath = path.normalize(file.newUri.fsPath).toLowerCase();
       indexer.renameWorkspaceFolder(oldPath, newPath);
+      scheduleDependencyRefreshForFile(file.oldUri.fsPath);
+      scheduleDependencyRefreshForFile(file.newUri.fsPath);
     }
   });
 
@@ -120,6 +134,8 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     for (const uri of e.files) {
       const deletedPath = path.normalize(uri.fsPath).toLowerCase();
       indexer.deleteWorkspaceFolder(deletedPath);
+      DiagnosticService.clearDiagnostics(uri);
+      scheduleDependencyRefreshForFile(uri.fsPath);
     }
   });
 
@@ -175,4 +191,11 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     );
   });
   context.subscriptions.push(formatOnSaveListener);
+}
+
+function scheduleDependencyRefreshForFile(filePath: string): void {
+  if (!filePath.toLowerCase().endsWith(".bas")) return;
+  const project = ProjectService.findProjectPaths(filePath);
+  if (!project) return;
+  DependencyService.scheduleWorkspaceDependencyRefresh(project.workspaceDir);
 }

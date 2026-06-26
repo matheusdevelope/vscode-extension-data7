@@ -30,6 +30,13 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Corrigido
 
+- O parser/transpiler agora preserva arrays nativos de tamanho fixo em declarações `Private _items(10) As Tipo` e matrizes `Dim m(10, 5) As Integer`, sem confundir essa sintaxe com o sugar `[]`.
+- O parser voltou a reconhecer `Private Const`/`Public Const` no nível do módulo antes do fallback de campos, evitando falsos `unknown-symbol` no linter para constantes WinAPI como `GWL_STYLE`, `WS_BORDER` e `SWP_*`.
+- Declarações nativas `Public Enum Options ... End Enum` agora são preservadas como enum do compilador; o sugar de enum declarativo passou a usar a palavra-chave própria `Enun X ... End Enun`.
+- O diagnóstico `dead-code` deixou de marcar comentários inline após `Return` como código inalcançável, evitando falso positivo em blocos `Try/Catch` que retornam no `Catch`.
+- Novo diagnóstico `return-assignment-in-catch` alerta quando Function/Property usa retorno por atribuição dentro de `Catch`, com quick-fix para trocar por `Return`.
+- O linter live agora reanalisa arquivos `.bas` físicos já abertos na ativação e remove diagnósticos ao fechar ou excluir arquivos; a análise completa do workspace fica restrita aos comandos explícitos.
+- A sincronização de dependências agora reavalia o projeto em saves, criação, deleção e rename de `.bas`, promovendo módulos globais quando uma implementação local deixa de suprir um namespace importado.
 - Removido completamente o sugar `Match`/`Case Is`, incluindo AST, parser, transformação, formatação e documentação associada.
 - O diagnóstico e o Quick Fix de `missing-then` agora reconhecem comentários no fim da linha como terminadores, preservam o alinhamento antes do comentário e evitam inserir `Then` duas vezes em correções em massa.
 - O Quick Fix de `return-unrecommended` agora reescreve a linha inteira da declaração `If` inline para o formato de bloco com `End If` (preservando o escopo correto da instrução `Exit`), em vez de apenas substituir o `Return` na linha única.

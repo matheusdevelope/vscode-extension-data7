@@ -223,6 +223,8 @@ export const DiagnosticCodes = {
   MissingThen: "missing-then",
   /** A Return statement was used when method/property assignment + Exit is preferred. */
   ReturnUnrecommended: "return-unrecommended",
+  /** Function/property return assignment was used inside Catch, which the native compiler rejects. */
+  ReturnAssignmentInCatch: "return-assignment-in-catch",
   InlineIfThen: "inline-if-then",
 } as const;
 
@@ -490,6 +492,14 @@ export interface ReturnUnrecommendedPayload {
   isSingleLineIf?: boolean;
 }
 
+export interface ReturnAssignmentInCatchPayload {
+  code: typeof DiagnosticCodes.ReturnAssignmentInCatch;
+  line: number;
+  startChar: number;
+  endChar: number;
+  expressionText?: string;
+}
+
 export interface InlineIfThenPayload {
   code: typeof DiagnosticCodes.InlineIfThen;
   line: number;
@@ -523,6 +533,7 @@ export type DiagnosticPayload =
   | ElseIfWhitespacePayload
   | MissingThenPayload
   | ReturnUnrecommendedPayload
+  | ReturnAssignmentInCatchPayload
   | InlineIfThenPayload;
 
 /**

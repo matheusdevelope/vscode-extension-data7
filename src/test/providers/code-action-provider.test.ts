@@ -16,6 +16,7 @@ import {
   type ElseIfWhitespacePayload,
   type MissingThenPayload,
   type ReturnUnrecommendedPayload,
+  type ReturnAssignmentInCatchPayload,
   type InlineIfThenPayload,
   setDiagnosticPayload,
 } from "../../diagnostics/diagnostic-codes";
@@ -814,6 +815,134 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(fix);
       expectEdit(fix.edit, { type: "replace", textIncludes: "Calc = a + 1" });
       expectEdit(fix.edit, { type: "replace", textIncludes: "Exit Function" });
+    });
+
+    test("return-assignment-in-catch rewrites assignment to Return", async () => {
+      const doc = mockDoc("            Calc = fallback ' keep\n");
+      const payload: ReturnAssignmentInCatchPayload = {
+        code: DiagnosticCodes.ReturnAssignmentInCatch,
+        line: 0,
+        startChar: 12,
+        endChar: 34,
+        expressionText: "fallback",
+      };
+      const range = new vscode.Range(0, 12, 0, 16);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.ReturnAssignmentInCatch, payload, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.edit?.edits?.some((edit: { text?: string }) =>
+          edit.text?.includes("Return fallback"),
+        ),
+      );
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "replace", textIncludes: "Return fallback ' keep" });
+    });
+
+    test("return-assignment-in-catch offers a bulk fix for every occurrence in the file", async () => {
+      const source = [
+        "      Function Calc() As Integer",
+        "         Try",
+        "            Calc = 1",
+        "         Catch ex As Exception",
+        "            Calc = fallback",
+        "         End Try",
+        "      End Function",
+        "      Function Total() As Integer",
+        "         Try",
+        "            Total = 1",
+        "         Catch ex As Exception",
+        "            Total = current ' keep",
+        "         End Try",
+        "      End Function",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const firstPayload: ReturnAssignmentInCatchPayload = {
+        code: DiagnosticCodes.ReturnAssignmentInCatch,
+        line: 4,
+        startChar: 12,
+        endChar: 27,
+        expressionText: "fallback",
+      };
+      const secondPayload: ReturnAssignmentInCatchPayload = {
+        code: DiagnosticCodes.ReturnAssignmentInCatch,
+        line: 11,
+        startChar: 12,
+        endChar: 35,
+        expressionText: "current",
+      };
+      const first = diagWith(
+        DiagnosticCodes.ReturnAssignmentInCatch,
+        firstPayload,
+        new vscode.Range(4, 12, 4, 16),
+      );
+      const second = diagWith(
+        DiagnosticCodes.ReturnAssignmentInCatch,
+        secondPayload,
+        new vscode.Range(11, 12, 11, 17),
+      );
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [first, second];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(doc, first.range, { diagnostics: [first] } as any, noopToken),
+        )) as any[];
+        const bulk = onlyQuickFixes(all).find((action) =>
+          action.title.includes("todas as atribuicoes"),
+        );
+        assert.ok(bulk);
+        assert.equal(bulk.edit.edits.length, 2);
+        assert.deepEqual(
+          bulk.edit.edits.map((edit: { text: string }) => edit.text).sort(),
+          ["Return current ' keep", "Return fallback"].sort(),
+        );
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+
+    test("return-assignment-in-catch recovers full call expressions when payload is truncated", async () => {
+      const doc = mockDoc('            stringToDate = StrToDateTime("01/01/1900 00:00:00")\n');
+      const payload: ReturnAssignmentInCatchPayload = {
+        code: DiagnosticCodes.ReturnAssignmentInCatch,
+        line: 0,
+        startChar: 12,
+        endChar: 66,
+        expressionText: "StrToDateTime",
+      };
+      const range = new vscode.Range(0, 12, 0, 24);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.ReturnAssignmentInCatch, payload, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.edit?.edits?.some((edit: { text?: string }) =>
+          edit.text?.includes('StrToDateTime("01/01/1900 00:00:00")'),
+        ),
+      );
+      assert.ok(fix);
+      expectEdit(fix.edit, {
+        type: "replace",
+        textIncludes: 'Return StrToDateTime("01/01/1900 00:00:00")',
+      });
     });
 
     test("return-unrecommended outside conditional block rewrites to direct assignment only", async () => {

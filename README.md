@@ -11,7 +11,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 - O Quick Fix de `Return` permanece disponivel mesmo quando o VS Code nao preserva os metadados internos do diagnostico.
 
-- O Quick Fix de `Return` atribui diretamente o valor fora de condicionais e adiciona `Exit Function` ou `Exit Property` apenas dentro de ramificacoes. `MyBase.Free()` e inserido no fim do `Sub Free`, depois das liberacoes de recursos da classe.
+- O Quick Fix de `Return` atribui diretamente o valor fora de condicionais e adiciona `Exit Function` ou `Exit Property` apenas dentro de ramificacoes. Dentro de `Catch`, Function/Property preservam `Return` e o diagnostico `return-assignment-in-catch` troca retorno por atribuicao para `Return`. `MyBase.Free()` e inserido no fim do `Sub Free`, depois das liberacoes de recursos da classe.
 
 - O linter reconhece dependencias transitivas entre `Imports`, promocao numerica sem perda e a API global de compatibilidade `dateUtils.toStringFormat(...)`.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
@@ -27,10 +27,11 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - **Folding** semântico de `Namespace`, `Class`, `Sub`, `Function`, `If`, `For`, `While`.
 - **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`).
 - **Quick Fixes e Correções em Massa**: Ações rápidas individuais e em lote ("Aplicar a todas as ocorrências no arquivo") para importar/remover dependências, instalar módulos ausentes, resolver erros de escrita ("Você quis dizer X?") e adicionar `()` em instanciações `New Tipo`.
+- O parser/transpiler preserva arrays nativos fixos do PaxCompiler/Data7 Basic, como `Private _containers(10) As Container` e `Dim _matrix(10, 5) As Integer`.
 
 ### Sistema de projeto
 
-Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then` e `return-unrecommended`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correÃ§Ã£o em massa do workspace. Para `missing-then`, comentários inline e seu espaçamento de alinhamento são preservados.
+Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then`, `return-unrecommended` e `return-assignment-in-catch`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correÃ§Ã£o em massa do workspace. Para `missing-then`, comentários inline e seu espaçamento de alinhamento são preservados.
 
 - **Decompositor** (`.7Proj` → árvore de `.bas`): abre um `.7Proj` e gera a estrutura física do projeto.
 - **Builder** (`.bas` → `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências.
@@ -43,7 +44,7 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 - Repositório privado de módulos isolado (`globalStoragePath`) que evita poluir o disco.
 - Importação manual ou em lote de `.bas`/`.7Proj` externos.
 - Módulos orientados a objeto usam `TTObject` para permitir armazenamento seguro em `TTList` e descarte determinístico de recursos.
-- O sugar declarativo `Enum` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções.
+- O sugar declarativo `Enun X` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções, sem conflitar com `Enum X` nativo.
 - Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
 - Sincronização automática para `data7_modules/` no workspace conforme `data7.json#dependencies`.
 
@@ -108,7 +109,7 @@ Veja `Settings` → busca por `data7.`:
 }
 ```
 
-`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. `features.diagnostics.lintWorkspaceOnStartup` apenas evita a varredura automática inicial; com `features.diagnostics.enabled: true`, o linter dos arquivos abertos e o comando **Data7: Reiniciar/Rodar Linter no Projeto** continuam disponíveis. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção completa e explícita, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
+`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. `features.diagnostics.lintWorkspaceOnStartup` é legado: com `features.diagnostics.enabled: true`, o linter live acompanha apenas arquivos `.bas` físicos abertos e a varredura completa fica no comando **Data7: Reiniciar/Rodar Linter no Projeto**. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção completa e explícita, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
 
 ## Suprimir diagnósticos com comentários
 

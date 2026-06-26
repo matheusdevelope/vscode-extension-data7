@@ -432,6 +432,10 @@ class MockUri {
 // ===========================================================================
 
 const diagnosticListeners: ((e: unknown) => void)[] = [];
+const openTextDocumentListeners: unknown[] = [];
+const closeTextDocumentListeners: unknown[] = [];
+const changeTextDocumentListeners: unknown[] = [];
+const saveTextDocumentListeners: unknown[] = [];
 
 const mockVsCode = {
   EventEmitter,
@@ -541,6 +545,22 @@ const mockVsCode = {
     }),
     onDidChangeConfiguration: () => ({ dispose: () => undefined }),
     onWillSaveTextDocument: () => ({ dispose: () => undefined }),
+    onDidOpenTextDocument: (listener: unknown) => {
+      openTextDocumentListeners.push(listener);
+      return { dispose: () => undefined };
+    },
+    onDidCloseTextDocument: (listener: unknown) => {
+      closeTextDocumentListeners.push(listener);
+      return { dispose: () => undefined };
+    },
+    onDidChangeTextDocument: (listener: unknown) => {
+      changeTextDocumentListeners.push(listener);
+      return { dispose: () => undefined };
+    },
+    onDidSaveTextDocument: (listener: unknown) => {
+      saveTextDocumentListeners.push(listener);
+      return { dispose: () => undefined };
+    },
     openTextDocument: async (_path: string): Promise<unknown> => ({}),
     asRelativePath: (p: string): string => p,
     getWorkspaceFolder: (_uri: unknown): unknown => undefined,

@@ -28,6 +28,7 @@ import { readProjectConfig } from "../project/project-config";
 export class DiagnosticService {
   private static _collection: vscode.DiagnosticCollection | undefined;
   private static readonly REFRESH_DELAY_MS = 250;
+  private static readonly liveDiagnosticUris = new Map<string, vscode.Uri>();
 
   /** Cache of expensive workspace-level data, keyed by workspaceDir. */
   private static workspaceCache = new Map<string, WorkspaceDiagnosticCache>();
@@ -56,13 +57,12 @@ export class DiagnosticService {
     );
 
     const handleDocument = (doc: vscode.TextDocument): void => {
-      if (doc.uri.scheme !== "file") {
-        this._collection?.delete(doc.uri);
+      if (!this.isLiveDiagnosticDocument(doc)) {
+        this.clearDiagnostics(doc.uri);
         return;
       }
-      if (doc.languageId !== LANGUAGE_IDS.d7basic && !doc.fileName.endsWith(".bas")) return;
       if (!this.isEnabled()) {
-        this._collection?.delete(doc.uri);
+        this.clearDiagnostics(doc.uri);
         return;
       }
       // Only feed the workspace indexer with documents that actually belong
@@ -88,6 +88,13 @@ export class DiagnosticService {
     vscode.workspace.onDidChangeTextDocument(
       (e) => {
         handleDocument(e.document);
+      },
+      null,
+      context.subscriptions,
+    );
+    vscode.workspace.onDidCloseTextDocument(
+      (doc) => {
+        this.clearDiagnostics(doc.uri);
       },
       null,
       context.subscriptions,
@@ -134,11 +141,36 @@ export class DiagnosticService {
   }
 
   public static refreshAllActive(): void {
-    vscode.window.visibleTextEditors.forEach((editor) => {
-      if (editor.document.uri.scheme === "file") {
-        this.refreshDebounced(editor.document);
+    this.refreshOpenDocuments();
+    this.pruneClosedDiagnostics();
+  }
+
+  public static refreshOpenDocuments(): void {
+    vscode.workspace.textDocuments.forEach((document) => {
+      if (this.isLiveDiagnosticDocument(document)) {
+        this.refreshDebounced(document);
       }
     });
+  }
+
+  public static clearDiagnostics(uri: vscode.Uri): void {
+    this._collection?.delete(uri);
+    this.liveDiagnosticUris.delete(uri.toString().toLowerCase());
+  }
+
+  public static pruneClosedDiagnostics(): void {
+    const openUris = new Set(
+      vscode.workspace.textDocuments
+        .filter((document) => this.isLiveDiagnosticDocument(document))
+        .map((document) => document.uri.toString().toLowerCase()),
+    );
+    for (const uriKey of Array.from(this.liveDiagnosticUris.keys())) {
+      if (!openUris.has(uriKey)) {
+        const uri = this.liveDiagnosticUris.get(uriKey);
+        this.liveDiagnosticUris.delete(uriKey);
+        if (uri) this._collection?.delete(uri);
+      }
+    }
   }
 
   /**
@@ -150,15 +182,12 @@ export class DiagnosticService {
   }
 
   private static refreshDiagnosticsNow(document: vscode.TextDocument): void {
-    if (document.uri.scheme !== "file") {
-      this._collection?.delete(document.uri);
-      return;
-    }
-    if (document.languageId !== LANGUAGE_IDS.d7basic && !document.fileName.endsWith(".bas")) {
+    if (!this.isLiveDiagnosticDocument(document)) {
+      this.clearDiagnostics(document.uri);
       return;
     }
     if (!this.isEnabled()) {
-      this._collection?.delete(document.uri);
+      this.clearDiagnostics(document.uri);
       return;
     }
 
@@ -167,13 +196,13 @@ export class DiagnosticService {
     // be indexed for type resolution) but we still treat them as read-only
     // and emit no diagnostics on them.
     if (isExcluded(document.fileName) || isReadOnlyModuleFile(document.fileName)) {
-      this._collection?.delete(document.uri);
+      this.clearDiagnostics(document.uri);
       return;
     }
 
     const paths = ProjectService.findProjectPaths(document.fileName);
     if (!paths) {
-      this._collection?.delete(document.uri);
+      this.clearDiagnostics(document.uri);
       return;
     }
 
@@ -250,6 +279,7 @@ export class DiagnosticService {
     }
 
     this._collection?.set(document.uri, diagnostics);
+    this.liveDiagnosticUris.set(document.uri.toString().toLowerCase(), document.uri);
   }
 
   private static validateModuleReference(
@@ -375,7 +405,7 @@ export class DiagnosticService {
    * Drops cached scans for any workspace that contains the given file path.
    * Called when `data7.json`, a `.bas` file, or the configuration changes.
    */
-  private static invalidateWorkspaceCacheFor(filePath: string): void {
+  public static invalidateWorkspaceCacheFor(filePath: string): void {
     for (const workspaceDir of Array.from(this.workspaceCache.keys())) {
       if (filePath.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
         this.workspaceCache.delete(workspaceDir);
@@ -396,7 +426,7 @@ export class DiagnosticService {
 
   public static async lintFile(uri: vscode.Uri): Promise<vscode.Diagnostic[]> {
     if (uri.scheme !== "file") {
-      this._collection?.delete(uri);
+      this.clearDiagnostics(uri);
       return [];
     }
     const document = await vscode.workspace.openTextDocument(uri);
@@ -479,10 +509,19 @@ export class DiagnosticService {
   /** Test-only hook: clears all cached state. */
   public static __resetForTests(): void {
     this.workspaceCache.clear();
+    this.liveDiagnosticUris.clear();
   }
 
   private static isEnabled(): boolean {
     return readConfiguration().features.diagnostics.enabled;
+  }
+
+  private static isLiveDiagnosticDocument(document: vscode.TextDocument): boolean {
+    return (
+      document.uri.scheme === "file" &&
+      (document.languageId === LANGUAGE_IDS.d7basic || document.fileName.endsWith(".bas")) &&
+      fs.existsSync(document.uri.fsPath)
+    );
   }
 }
 

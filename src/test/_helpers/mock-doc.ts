@@ -38,6 +38,7 @@ export function createMockDoc(uri: string, text: string, opts: MockDocOptions = 
 
   const doc = {
     uri: vscode.Uri.parse(uri),
+    fileName: vscode.Uri.parse(uri).fsPath,
     languageId: opts.languageId ?? "d7basic",
     lineCount: lines.length,
     getText: (range?: {

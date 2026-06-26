@@ -8,9 +8,11 @@ Este documento consolida o contexto de negócio, regras conceituais, objetivos, 
 
 ---
 
-Os Quick Fixes de `return-unrecommended` usam a linha atual do documento: um `Return` fora de condicional vira apenas atribuicao ao alvo do metodo/propriedade, enquanto retornos em condicionais tambem recebem o `Exit` correspondente. O Quick Fix de `missing-mybase-free` insere `MyBase.Free()` imediatamente antes de `End Sub`, preservando todas as liberacoes de recursos anteriores. O Quick Fix de `missing-then` insere a palavra-chave no fim da expressão, antes dos espaços de alinhamento e do comentário inline, e deduplica diagnósticos equivalentes durante correções em massa.
+Os Quick Fixes de `return-unrecommended` usam a linha atual do documento: um `Return` fora de condicional vira apenas atribuicao ao alvo do metodo/propriedade, enquanto retornos em condicionais tambem recebem o `Exit` correspondente. Dentro de `Catch`, Function/Property preservam `Return`; quando o retorno por atribuicao e usado ali, `return-assignment-in-catch` emite warning e oferece troca para `Return`. O Quick Fix de `missing-mybase-free` insere `MyBase.Free()` imediatamente antes de `End Sub`, preservando todas as liberacoes de recursos anteriores. O Quick Fix de `missing-then` insere a palavra-chave no fim da expressão, antes dos espaços de alinhamento e do comentário inline, e deduplica diagnósticos equivalentes durante correções em massa.
 
 Os recursos opcionais da extensão são agrupados em `data7.features`: `language.generics` e `language.sugars` controlam as extensões de linguagem; `diagnostics.enabled` controla o linter e `diagnostics.lintWorkspaceOnStartup` controla somente a varredura inicial (os comandos manuais permanecem disponíveis quando o linter está ativo); `workspace` controla detecção de `.7proj` e instalação automática do MCP; `save` controla auto-fix e auto-format; `build.autoFixBeforeBuild` habilita opcionalmente o auto-fix incremental antes de build, execução e abertura no Developer Studio; `preview.enabled` controla a prévia transpilada. O auto-fix pré-build fica desligado por padrão para preservar a responsividade de projetos grandes; o comando explícito de correção continua percorrendo o workspace inteiro. Desativar generics impede monomorfização, diagnósticos e símbolos sintéticos, mas a sintaxe continua sendo parseada para preservar o código durante a serialização.
+
+O parser estrutural preserva arrays nativos de tamanho fixo do PaxCompiler/Data7 Basic em declarações de campo e variáveis locais, como `Private _containers(10) As Container` e `Dim _matrix(10, 5) As Integer`. Essa sintaxe é tratada como recurso nativo da linguagem-alvo, separada do sugar de listas `[]`, e o serializer reemite as dimensões antes do `As`.
 
 O pipeline de build mantÃ©m snapshots persistentes em `.data7/build-cache/` e pula o empacotamento quando as entradas (`src/`, `data7_modules/`, `data7.json`, opÃ§Ãµes de transpile/logger) e o `.7Proj` de saÃ­da continuam idÃªnticos. Em rebuilds incrementais, o `Builder` reutiliza resultados de transpile por arquivo quando o conteÃºdo e a assinatura pÃºblica global nÃ£o mudaram. A execuÃ§Ã£o via F5 usa uma saÃ­da dedicada em `.data7/run/*.run.7Proj` para que a variante com logger nÃ£o sobrescreva o `.7Proj` standard aberto pelo Developer Studio.
 
@@ -20,7 +22,9 @@ Quando o VS Code nao preserva `Diagnostic.data`, o Quick Fix de `return-unrecomm
 
 As correções automáticas de sintaxe/estilo reutilizam o mesmo contrato de `source.fixAll.data7` no save, no comando `data7.fixAllWorkspace` e, quando `data7.features.build.autoFixBeforeBuild` está ativo, no pipeline de build/execução. O caminho pré-build mantém fingerprints por workspace e só reavalia arquivos `.bas` alterados desde a última passagem; ele não é habilitado por padrão. O comando `data7.fixAllWorkspace` resolve dinamicamente a primeira correção rápida (Quick Fix) aplicável a cada diagnóstico do projeto (ignorando ações de supressão) e sempre percorre o projeto completo.
 
-O linter inicializa avaliando todo o projeto (arquivos físicos locais com esquema `file`) logo após a conclusão da indexação do workspace. Ao concluir, exibe uma notificação informativa com o resumo dos diagnósticos e botões para executar correções em massa ou reiniciar a análise via o comando `data7.runLinter`.
+O linter live acompanha apenas arquivos físicos locais com esquema `file` que estejam abertos no editor: na ativação ele reanalisa os `.bas` já abertos, em alterações/saves atualiza o arquivo correspondente, e ao fechar ou excluir o arquivo remove seus diagnósticos da aba Problemas. A análise do workspace inteiro só é carregada por comandos explícitos, como `data7.runLinter`; ao concluir, exibe uma notificação informativa com o resumo dos diagnósticos e botões para executar correções em massa ou reiniciar a análise.
+
+O `DependencyService` mantém `data7.json#dependencies` e `data7_modules/` sincronizados com o grafo atual do projeto. Saves, criação, deleção e rename de arquivos `.bas` agendam uma reavaliação debounced: se um namespace antes suprido por `src/` desaparece ou muda, a dependência global equivalente passa a ser declarada e copiada; se uma dependência deixa de ser referenciada, ela é removida da lista e da pasta gerada. Esse refresh reindexa apenas `data7_modules/` e atualiza diagnósticos abertos, sem rebuild completo.
 
 Os diagnostics devem reconhecer imports transitivos de modulos utilizados, promocoes numericas sem perda e APIs globais legadas registradas na System Library, como `dateUtils.toStringFormat(...)`.
 
@@ -66,7 +70,7 @@ A arquitetura distingue dois tipos de transformação em `src/project/transpiler
 **Açúcares Complexos e Namespaces Utilitários**:
 Todo açúcar complexo que necessita de utilitários comuns a mais de uma materialização deve colocá-los em um namespace específico (ex: `core_sugars_list` contendo `CoreSugarBaseList`). Quando a implementação concreta já existe em um módulo compartilhado, o sugar a importa diretamente.
 
-- O sugar materializa a lógica final/classe específica no local declarado (ex: a classe `Color` gerada pelo sugar `Enum` herda de `TEnum`, importado de `mod_tenum`).
+- O sugar materializa a lógica final/classe específica no local declarado (ex: a classe `Color` gerada pelo sugar `Enun Color` herda de `TEnum`, importado de `mod_tenum`). A forma `Enum Color` é enum nativa do compilador e deve ser preservada.
 - O transpiler injeta automaticamente o respectivo `Imports <namespace>` no topo do arquivo que utiliza o sugar.
 - A base utilitária e as dependências entre sugars (ex: `enum` dependendo de `list`) são registradas no `SugarRegistry` (`src/project/sugar-registry.ts`).
 - Durante o build, as dependências são resolvidas transitivamente e os módulos utilitários virtuais correspondentes são gerados, indexados (para passar no linter estrito) e injetados na compilação final sob o XML do `.7proj`.
@@ -162,9 +166,10 @@ End Class
 - Array: cada binding vira `Dim x = lista.Item(i)` indexado pela posição. Rest binding (`[first, ...rest]`) emite um loop For que coleta a cauda em uma `StringList` nova.
 - Parser puro em `src/utils/destructure-parser.ts`.
 
-#### `Enum X As TEnum / V = "..." / End Enum` (multi-line)
+#### `Enun X / V = "..." / End Enun` (multi-line)
 
 - Expandido para a classe específica do Enum que herda de `TEnum` (do namespace `mod_tenum`). A base herda de `TTObject`, preservando identidade, cópia e descarte para uso seguro em `TTList`, e a classe gerada expõe Initialize lazy, Shared Function por valor, Load por String e GetOptions.
+- `Enun` é a palavra-chave do sugar; `Public Enum Options ... End Enum` e `Enum Options ... End Enum` são sintaxe nativa e passam intactos para o compilador.
 - O linter ignora a verificação do método `Sub Free()` para classes que herdam de `TEnum`.
 
 #### `Return If cond Then a Else b`

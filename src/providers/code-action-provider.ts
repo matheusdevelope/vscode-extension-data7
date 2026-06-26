@@ -45,6 +45,10 @@ import {
   addReturnUnrecommendedFix,
   addReturnUnrecommendedBulkFix,
 } from "./quick-fixes/return-unrecommended";
+import {
+  addReturnAssignmentInCatchFix,
+  addReturnAssignmentInCatchBulkFix,
+} from "./quick-fixes/return-assignment-in-catch";
 import { addInlineIfThenFix, addInlineIfThenBulkFix } from "./quick-fixes/inline-if-then";
 import {
   addFinallyBlockUnsupportedFix,
@@ -63,6 +67,7 @@ import { logger } from "../infra/logger";
 
 const DIAGNOSTIC_PRIORITY: Record<string, number> = {
   [DiagnosticCodes.ReturnUnrecommended]: 1,
+  [DiagnosticCodes.ReturnAssignmentInCatch]: 1,
   [DiagnosticCodes.InlineIfThen]: 2,
   [DiagnosticCodes.ElseIfWhitespace]: 3,
   [DiagnosticCodes.MissingThen]: 4,
@@ -166,6 +171,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       case DiagnosticCodes.ReturnUnrecommended:
         addReturnUnrecommendedFix(actions, document, diagnostic);
         addReturnUnrecommendedBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.ReturnAssignmentInCatch:
+        addReturnAssignmentInCatchFix(actions, document, diagnostic);
+        addReturnAssignmentInCatchBulkFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.InlineIfThen:
         addInlineIfThenFix(actions, document, diagnostic);
