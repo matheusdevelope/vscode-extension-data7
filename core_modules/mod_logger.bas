@@ -1227,9 +1227,9 @@ Namespace mod_logger
       GetDefault().Log(pLevel, pObject)
    End Sub
 
-   Sub Log(pLevel As String, pMessage As TDateTime)
-      GetDefault().Log(pLevel, DateTimeAsString(pMessage))
-   End Sub
+   ' Sub Log(pLevel As String, pMessage As TDateTime)
+   '    GetDefault().Log(pLevel, DateTimeAsString(pMessage))
+   ' End Sub
 
    Sub Log(pLevel As String, pMessage As String)
       GetDefault().Log(pLevel, pMessage)
@@ -1239,9 +1239,9 @@ Namespace mod_logger
       GetDefault().Log(pLevel, pMessage)
    End Sub
 
-   Sub Printe(pMessage As TDateTime)
-      GetDefault().Printe(DateTimeAsString(pMessage))
-   End Sub
+   ' Sub Printe(pMessage As TDateTime)
+   '    GetDefault().Printe(DateTimeAsString(pMessage))
+   ' End Sub
 
    Sub Printe(pMessage As String)
       GetDefault().Printe(pMessage)
@@ -1255,9 +1255,9 @@ Namespace mod_logger
       GetDefault().Printe(pObject)
    End Sub
 
-   Sub Erro(pMessage As TDateTime)
-      GetDefault().Erro(DateTimeAsString(pMessage))
-   End Sub
+   ' Sub Erro(pMessage As TDateTime)
+   '    GetDefault().Erro(DateTimeAsString(pMessage))
+   ' End Sub
 
    Sub Erro(pMessage As String)
       GetDefault().Erro(pMessage)
@@ -1279,9 +1279,9 @@ Namespace mod_logger
       GetDefault().Exceptiom(pObject, pEx)
    End Sub
 
-   Sub Warn(pMessage As TDateTime)
-      GetDefault().Warn(DateTimeAsString(pMessage))
-   End Sub
+   ' Sub Warn(pMessage As TDateTime)
+   '    GetDefault().Warn(DateTimeAsString(pMessage))
+   ' End Sub
 
    Sub Warn(pMessage As String)
       GetDefault().Warn(pMessage)
@@ -1295,9 +1295,9 @@ Namespace mod_logger
       GetDefault().Warn(pObject)
    End Sub
 
-   Sub Info(pMessage As TDateTime)
-      GetDefault().Info(DateTimeAsString(pMessage))
-   End Sub
+   ' Sub Info(pMessage As TDateTime)
+   '    GetDefault().Info(DateTimeAsString(pMessage))
+   ' End Sub
 
    Sub Info(pMessage As String)
       GetDefault().Info(pMessage)
@@ -1311,9 +1311,9 @@ Namespace mod_logger
       GetDefault().Info(pObject)
    End Sub
 
-   Sub Debug(pMessage As TDateTime)
-      GetDefault().Debug(DateTimeAsString(pMessage))
-   End Sub
+   ' Sub Debug(pMessage As TDateTime)
+   '    GetDefault().Debug(DateTimeAsString(pMessage))
+   ' End Sub
 
    Sub Debug(pMessage As String)
       GetDefault().Debug(pMessage)
