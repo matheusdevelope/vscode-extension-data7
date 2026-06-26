@@ -255,4 +255,21 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "File",
     description: "Contém métodos para compactar e descompactar arquivos.",
   },
+  {
+    name: "ZipFile",
+    kind: "class",
+    type: "IO.File.ZipFile",
+    isShared: true,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "IO.File",
+    description:
+      "Alias qualificado de IO.File.ZipFile para resolucao de tipos e membros aninhados.",
+  },
 ];

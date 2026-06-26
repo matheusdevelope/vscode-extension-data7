@@ -16,6 +16,7 @@ export type SystemContainer =
   | "Data7"
   | "System"
   | "System.Classes"
+  | "System.IOUtils"
   | "Environment"
   | "IO"
   | "Collections"
@@ -73,8 +74,11 @@ export type SystemContainer =
 
   // ───────── IO ─────────
   | "IOUtils"
+  | "TFile"
+  | "TPath"
   | "Directory"
   | "File"
+  | "IO.File"
   | "ZipFile"
 
   // ───────── Collections ─────────
