@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import type { SharedModuleInfo } from "../analysis/dependency-scanner";
-import { DependencyScanner, IMPORTS_REGEX } from "../analysis/dependency-scanner";
+import { DependencyScanner } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { LanguageProcessor } from "../analysis/language-processor";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
@@ -211,42 +211,24 @@ export class DiagnosticService {
 
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);
 
-    const lines = text.split(/\r?\n/);
-    const importsRegex = IMPORTS_REGEX;
-    const directCallRegex = /\b(mod_[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)(?=\.)/i;
-
-    lines.forEach((lineText, lineIndex) => {
-      const cleanLine = DependencyScanner.stripComments(lineText);
-      if (!cleanLine.trim()) return;
-
-      const match = cleanLine.match(importsRegex);
-      const importedName = match?.[1];
-      if (importedName) {
+    try {
+      for (const reference of DependencyScanner.collectModuleReferences(text)) {
+        const namespace = reference.isExplicit
+          ? (reference.name.split(".")[0] ?? reference.name)
+          : reference.name;
         this.validateModuleReference(
-          importedName,
-          lineIndex,
-          cleanLine.indexOf(importedName),
+          namespace,
+          reference.loc?.line ?? 0,
+          reference.loc?.character ?? 0,
           diagnostics,
           wsCache,
-          true,
+          reference.isExplicit,
+          document.uri.toString(),
         );
       }
-
-      const dMatch = directCallRegex.exec(cleanLine);
-      const calledName = dMatch?.[1];
-      if (calledName) {
-        if (!DependencyScanner.isIgnoredNamespace(calledName.toLowerCase())) {
-          this.validateModuleReference(
-            calledName,
-            lineIndex,
-            cleanLine.indexOf(calledName),
-            diagnostics,
-            wsCache,
-            false,
-          );
-        }
-      }
-    });
+    } catch (err: unknown) {
+      logger.error("Falha ao coletar referências de módulos via AST.", err);
+    }
 
     try {
       const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
@@ -289,43 +271,37 @@ export class DiagnosticService {
     diagnostics: vscode.Diagnostic[],
     wsCache: WorkspaceDiagnosticCache,
     isExplicit: boolean,
+    documentUri: string,
   ): void {
     const lowerModName = modName.toLowerCase();
     if (wsCache.localModules.has(lowerModName)) return;
     if (DependencyScanner.isIgnoredNamespace(lowerModName)) return;
-
-    let resolvedKey = lowerModName;
-    if (!wsCache.sharedModules.has(resolvedKey)) {
-      if (wsCache.sharedModules.has("mod_" + resolvedKey)) {
-        resolvedKey = "mod_" + resolvedKey;
-      } else {
-        if (isExplicit || lowerModName.startsWith("mod_")) {
-          // Distinguish the three scenarios so the message tells the user
-          // exactly which action recovers the project state.
-          const declared = Object.keys(wsCache.dependencies).some(
-            (k) => k.toLowerCase() === lowerModName,
-          );
-          const message = declared
-            ? `Módulo "${modName}" está declarado em data7.json mas não está presente no repositório de módulos da extensão. Importe-o novamente ou ajuste data7.json.`
-            : `Módulo "${modName}" não foi encontrado. Implemente-o localmente ou adicione-o ao repositório global de módulos.`;
-          const range = new vscode.Range(
-            lineIndex,
-            charIndex,
-            lineIndex,
-            charIndex + modName.length,
-          );
-          const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
-          diag.code = DiagnosticCodes.ModuleNotFound;
-          setDiagnosticPayload(diag, {
-            code: DiagnosticCodes.ModuleNotFound,
-            moduleName: modName,
-          });
-          diagnostics.push(diag);
-        }
-        return;
-      }
+    if (!isExplicit && wsCache.localTypes.has(lowerModName)) return;
+    if (!isExplicit) {
+      const symbol = WorkspaceSymbolIndexer.getInstance().findSymbolByName(modName, documentUri);
+      if (symbol && symbol.kind !== "namespace") return;
     }
 
+    const resolvedKey = lowerModName;
+    if (!wsCache.sharedModules.has(resolvedKey)) {
+      // Distinguish the three scenarios so the message tells the user
+      // exactly which action recovers the project state.
+      const declared = Object.keys(wsCache.dependencies).some(
+        (k) => k.toLowerCase() === lowerModName,
+      );
+      const message = declared
+        ? `Módulo "${modName}" está declarado em data7.json mas não está presente no repositório de módulos da extensão. Importe-o novamente ou ajuste data7.json.`
+        : `Módulo "${modName}" não foi encontrado. Implemente-o localmente ou adicione-o ao repositório global de módulos.`;
+      const range = new vscode.Range(lineIndex, charIndex, lineIndex, charIndex + modName.length);
+      const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+      diag.code = DiagnosticCodes.ModuleNotFound;
+      setDiagnosticPayload(diag, {
+        code: DiagnosticCodes.ModuleNotFound,
+        moduleName: modName,
+      });
+      diagnostics.push(diag);
+      return;
+    }
     const isDeclared = Object.keys(wsCache.dependencies).some(
       (k) => k.toLowerCase() === resolvedKey,
     );
@@ -376,19 +352,11 @@ export class DiagnosticService {
     }
 
     const srcDir = path.join(workspaceDir, "src");
-    const localModules = new Set<string>();
-    if (fs.existsSync(srcDir)) {
-      const basFiles = DependencyScanner.getFilesRecursive(srcDir, [".bas"]);
-      for (const file of basFiles) {
-        localModules.add(path.basename(file, ".bas").toLowerCase());
-        try {
-          const content = fs.readFileSync(file, "utf-8");
-          const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-          if (nsMatch?.[1]) localModules.add(nsMatch[1].toLowerCase());
-        } catch {
-          // Skip files we cannot read; the indexer will report them separately.
-        }
-      }
+    const localModules = DependencyScanner.getLocalModuleNames(srcDir);
+    const localTypes = DependencyScanner.getLocalTypeNames(srcDir);
+    const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+    for (const typeName of DependencyScanner.getLocalTypeNames(data7ModulesDir)) {
+      localTypes.add(typeName);
     }
 
     const snapshot: WorkspaceDiagnosticCache = {
@@ -396,6 +364,7 @@ export class DiagnosticService {
       sharedModules,
       coreModules,
       localModules,
+      localTypes,
     };
     this.workspaceCache.set(workspaceDir, snapshot);
     return snapshot;
@@ -530,4 +499,5 @@ interface WorkspaceDiagnosticCache {
   sharedModules: Map<string, SharedModuleInfo>;
   coreModules: Map<string, SharedModuleInfo>;
   localModules: Set<string>;
+  localTypes: Set<string>;
 }

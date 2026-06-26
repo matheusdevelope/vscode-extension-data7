@@ -45,13 +45,17 @@ describe("DependencyScanner", () => {
   });
 
   describe("detectReferencedModules", () => {
-    test("detects imports (explicit + qualified) and direct module calls", async () => {
+    test("detects imports and qualified namespace member access", async () => {
       await withTempDir(async (tmp) => {
         const fileContent = `
       Imports ModA
       Imports ModB.SubClass
       ' Imports ModC
-      mod_external.SomeCall()
+      Namespace App
+        Public Sub Run()
+          mod_external.SomeCall()
+        End Sub
+      End Namespace
     `;
         fs.writeFileSync(path.join(tmp, "test.bas"), fileContent, "utf-8");
 

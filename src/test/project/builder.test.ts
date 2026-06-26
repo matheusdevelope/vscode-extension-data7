@@ -265,7 +265,7 @@ describe("Decompiler", () => {
       });
     });
 
-    test("preserves knownSharedModules in src/ if they don't have @Module marker", async () => {
+    test("extracts only namespaces marked with @Module as dependencies", async () => {
       await withTempDir(async (tmp) => {
         const xml = `<?xml version="1.0" encoding="utf-8"?>
 <Projeto_Data7 _Language="Basic" _Version="1.0">
@@ -301,8 +301,7 @@ End Namespace</Codigo>
         const dest = path.join(tmp, "decompiled");
         fs.mkdirSync(dest);
 
-        const knownShared = new Set(["mod_strings_helper", "mod_logger"]);
-        const meta = Decompiler.decompileProject(projPath, dest, knownShared);
+        const meta = Decompiler.decompileProject(projPath, dest);
 
         assert.ok(
           fs.existsSync(path.join(dest, "src", "mod_strings_helper.bas")),

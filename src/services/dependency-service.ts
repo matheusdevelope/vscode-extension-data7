@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import type { SharedModuleInfo } from "../analysis/dependency-scanner";
-import { DependencyScanner, IMPORTS_REGEX } from "../analysis/dependency-scanner";
+import { DependencyScanner } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { Builder } from "../project/builder";
 import { ProjectService } from "./project-service";
@@ -101,20 +101,17 @@ export class DependencyService {
       availableModules.set(key, info);
     }
 
-    const localModules = new Set<string>();
     const basFiles = DependencyScanner.getFilesRecursive(srcDir, [".bas"]);
-    for (const file of basFiles) {
-      const filename = path.basename(file, ".bas");
-      localModules.add(filename.toLowerCase());
+    const localModules = DependencyScanner.getLocalModuleNames(srcDir);
+    const knownTypes = DependencyScanner.getLocalTypeNames(srcDir);
+    for (const info of availableModules.values()) {
+      if (!info.code) continue;
       try {
-        const content = fs.readFileSync(file, "utf-8");
-        const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-        const ns = nsMatch?.[1];
-        if (ns) {
-          localModules.add(ns.toLowerCase());
+        for (const typeName of DependencyScanner.getDeclaredTypeNames(info.code)) {
+          knownTypes.add(typeName.toLowerCase());
         }
-      } catch (err) {
-        logger.warn(`Falha ao ler ${file}: ${err instanceof Error ? err.message : String(err)}`);
+      } catch {
+        /* Ignore unparsable repository modules during dependency discovery. */
       }
     }
 
@@ -123,28 +120,14 @@ export class DependencyService {
     const resolvedDependencies = new Map<string, SharedModuleInfo>();
     const missingModules = new Set<string>();
 
-    const importsRegex = IMPORTS_REGEX;
-    const directCallRegex = /\b(mod_[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)(?=\.)/i;
-
     const processReferencedModuleName = (rawModName: string, isExplicit: boolean): void => {
       if (DependencyScanner.isIgnoredNamespace(rawModName)) return;
       const lowerModName = rawModName.toLowerCase();
       if (localModules.has(lowerModName)) return;
+      if (!isExplicit && knownTypes.has(lowerModName)) return;
 
-      let resolvedKey = lowerModName;
-      let found = availableModules.has(resolvedKey);
-      if (!found) {
-        if (availableModules.has("mod_" + resolvedKey)) {
-          resolvedKey = "mod_" + resolvedKey;
-          found = true;
-        } else if (
-          resolvedKey.startsWith("mod_") &&
-          availableModules.has(resolvedKey.substring(4))
-        ) {
-          resolvedKey = resolvedKey.substring(4);
-          found = true;
-        }
-      }
+      const resolvedKey = lowerModName;
+      const found = availableModules.has(resolvedKey);
 
       if (found) {
         const resolvedInfo = availableModules.get(resolvedKey);
@@ -152,7 +135,7 @@ export class DependencyService {
           resolvedDependencies.set(resolvedKey, resolvedInfo);
           filesToScan.push(resolvedInfo.sourceFilePath);
         }
-      } else if (isExplicit || lowerModName.startsWith("mod_")) {
+      } else {
         missingModules.add(rawModName);
       }
     };
@@ -166,14 +149,11 @@ export class DependencyService {
 
       try {
         const fileContent = fs.readFileSync(currentFilePath, "utf-8");
-        const lines = fileContent.split(/\r?\n/);
-        for (const lineText of lines) {
-          const cleanLine = DependencyScanner.stripComments(lineText);
-          if (!cleanLine.trim()) continue;
-          const match = cleanLine.match(importsRegex);
-          if (match?.[1]) processReferencedModuleName(match[1], true);
-          const dMatch = directCallRegex.exec(cleanLine);
-          if (dMatch?.[1]) processReferencedModuleName(dMatch[1], false);
+        for (const reference of DependencyScanner.collectModuleReferences(fileContent)) {
+          const namespace = reference.isExplicit
+            ? (reference.name.split(".")[0] ?? reference.name)
+            : reference.name;
+          processReferencedModuleName(namespace, reference.isExplicit);
         }
       } catch (err) {
         logger.error(`Erro ao escanear ${currentFilePath} para dependências.`, err);

@@ -4,6 +4,7 @@ import type { ProjectMetadata, VirtualFolder } from "./project-metadata";
 import { isXmlRecord, parseProjectXml, xmlRecord, xmlText, xmlRawText } from "../utils/xml-helpers";
 import { safeJoinInside, isSafeSegment } from "../utils/path-safety";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { parseBasic } from "./parser";
 
 /**
  * Expands a `.7Proj` XML container back into a workspace tree:
@@ -18,7 +19,7 @@ export class Decompiler {
   public static decompileProject(
     filePath: string,
     outputDir: string,
-    knownSharedModules?: Set<string>,
+    _knownSharedModules?: Set<string>,
   ): ProjectMetadata {
     const xmlContent = fs.readFileSync(filePath, "utf-8");
     const parsed = parseProjectXml(xmlContent);
@@ -115,14 +116,12 @@ export class Decompiler {
       const aberto = xmlRawText(mod, "Aberto").toLowerCase() === "true";
       const ordemAbertura = parseIntSafe(xmlRawText(mod, "OrdemAbertura"), 0);
 
-      const lowerModName = modName.toLowerCase();
-      const lowerModCode = modCode.toLowerCase();
-      const isDependency =
-        lowerModCode.includes("@module-imported") ||
-        (lowerModCode.includes("@module") && (knownSharedModules?.has(lowerModName) ?? false));
+      const moduleNamespaces = getModuleMarkedNamespaces(modCode);
+      const isDependency = hasModuleImportedMarker(modCode) || moduleNamespaces.length > 0;
 
       if (isDependency) {
-        detectedDeps[modName] = "1.0.0.0";
+        const dependencyName = moduleNamespaces[0] ?? modName;
+        detectedDeps[dependencyName] = "1.0.0.0";
         continue;
       }
 
@@ -158,6 +157,48 @@ function stringAttr(record: Record<string, unknown>, key: string): string {
 function parseIntSafe(value: string, fallback: number): number {
   const n = parseInt(value, 10);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function getModuleMarkedNamespaces(content: string): string[] {
+  try {
+    const { unit } = parseBasic(content);
+    const markedNamespaces: string[] = [];
+    let previousWasModuleMarker = false;
+
+    for (const member of unit.members) {
+      if (member.kind === "OpaqueStatement") {
+        previousWasModuleMarker = member.text.trim().toLowerCase() === "'@module";
+        continue;
+      }
+      if (member.kind === "NamespaceDeclaration") {
+        if (previousWasModuleMarker) {
+          markedNamespaces.push(member.name);
+        }
+        previousWasModuleMarker = false;
+        continue;
+      }
+      if (member.kind !== "ImportsDeclaration") {
+        previousWasModuleMarker = false;
+      }
+    }
+
+    return markedNamespaces;
+  } catch {
+    return [];
+  }
+}
+
+function hasModuleImportedMarker(content: string): boolean {
+  try {
+    const { unit } = parseBasic(content);
+    return unit.members.some(
+      (member) =>
+        member.kind === "OpaqueStatement" &&
+        member.text.trim().toLowerCase() === "'@module-imported",
+    );
+  } catch {
+    return false;
+  }
 }
 
 // Re-export shared metadata types so existing imports `from './decompiler'` keep working.

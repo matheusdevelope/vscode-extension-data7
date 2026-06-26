@@ -7,6 +7,9 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+- Corrigida a deteccao/sincronizacao de dependencias para consumir a AST do parser em vez de regex textual para `Imports` e acessos `Namespace.Membro`, evitando falsos modulos como `mod_powershell`, `mod_database` e `mod_rdbms` quando aparecem em strings ou membros locais. A resolucao agora usa o namespace exato e trata como modulo apenas namespaces marcados com `'@Module`.
+- Corrigido falso `module-not-found` em acessos estaticos a classes importadas, como `Helper.timeUid()` e `stringHelper.split(...)`, que eram ambiguos com acesso qualificado de namespace.
+
 ### Performance - Developer Studio
 
 - A execuÃ§Ã£o via F5 agora gera a variante com logger em `.data7/run/*.run.7Proj`, evitando sobrescrever o `.7Proj` standard e invalidar o cache usado pelo Developer Studio.

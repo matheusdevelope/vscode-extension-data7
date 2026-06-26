@@ -74,4 +74,160 @@ describe("DependencyService", () => {
       assert.equal(fs.existsSync(path.join(data7ModulesDir, "mod_base_list.bas")), true);
     });
   });
+
+  test("does not detect dependencies from string literals or declared member access", async () => {
+    await withTempDir(async (tmp) => {
+      const workspaceDir = path.join(tmp, "workspace");
+      const srcDir = path.join(workspaceDir, "src");
+      const repoDir = path.join(tmp, "repo");
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.mkdirSync(repoDir, { recursive: true });
+
+      fs.writeFileSync(
+        path.join(workspaceDir, "data7.json"),
+        JSON.stringify({ nome: "TmpProject", dependencies: {} }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "Principal.bas"),
+        [
+          "Namespace app",
+          "Class Usuario",
+          "  DataBase As String",
+          "  Public Sub Run()",
+          '    Dim cmd As String = "powershell.exe -ExecutionPolicy Bypass"',
+          "    Dim label As String = DataBase.toString()",
+          "  End Sub",
+          "End Class",
+          "End Namespace",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(repoDir, "mod_powershell.bas"),
+        "'@Module\nNamespace mod_powershell\nEnd Namespace\n",
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(repoDir, "mod_database.bas"),
+        "'@Module\nImports mod_rdbms\nNamespace mod_database\nEnd Namespace\n",
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(repoDir, "mod_rdbms.bas"),
+        "'@Module\nNamespace mod_rdbms\nEnd Namespace\n",
+        "utf8",
+      );
+
+      RepositoryService.getRepoBasPath = () => repoDir;
+
+      await DependencyService.refreshWorkspaceDependencies(workspaceDir);
+
+      const data7Json = JSON.parse(
+        fs.readFileSync(path.join(workspaceDir, "data7.json"), "utf8"),
+      ) as { dependencies: Record<string, string> };
+      assert.deepEqual(data7Json.dependencies, {});
+    });
+  });
+
+  test("does not report local imported classes as missing modules", async () => {
+    await withTempDir(async (tmp) => {
+      const workspaceDir = path.join(tmp, "workspace");
+      const srcDir = path.join(workspaceDir, "src");
+      const repoDir = path.join(tmp, "repo");
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.mkdirSync(repoDir, { recursive: true });
+
+      fs.writeFileSync(
+        path.join(workspaceDir, "data7.json"),
+        JSON.stringify({ nome: "TmpProject", dependencies: {} }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "Principal.bas"),
+        [
+          "Imports helpers",
+          "Imports stringHelpers",
+          "Namespace app",
+          "Public Sub Run()",
+          "  Helper.timeUid()",
+          '  stringHelper.split("-", "1-2")',
+          "End Sub",
+          "End Namespace",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "helpers.bas"),
+        "Namespace helpers\nClass Helper\nEnd Class\nEnd Namespace\n",
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "stringHelpers.bas"),
+        "Namespace stringHelpers\nClass StringHelper\nEnd Class\nEnd Namespace\n",
+        "utf8",
+      );
+
+      RepositoryService.getRepoBasPath = () => repoDir;
+
+      const result = await DependencyService.refreshWorkspaceDependencies(workspaceDir);
+
+      const data7Json = JSON.parse(
+        fs.readFileSync(path.join(workspaceDir, "data7.json"), "utf8"),
+      ) as { dependencies: Record<string, string> };
+      assert.deepEqual(data7Json.dependencies, {});
+      assert.deepEqual(result.missing, []);
+    });
+  });
+
+  test("resolves repository modules by exact namespace instead of mod_ prefix convention", async () => {
+    await withTempDir(async (tmp) => {
+      const workspaceDir = path.join(tmp, "workspace");
+      const srcDir = path.join(workspaceDir, "src");
+      const repoDir = path.join(tmp, "repo");
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.mkdirSync(repoDir, { recursive: true });
+
+      fs.writeFileSync(
+        path.join(workspaceDir, "data7.json"),
+        JSON.stringify({ nome: "TmpProject", dependencies: {} }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "Principal.bas"),
+        [
+          "Imports billing.Sub",
+          "Imports database",
+          "Namespace app",
+          "Public Sub Run()",
+          "End Sub",
+          "End Namespace",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(repoDir, "billing.bas"),
+        "'@Module\nNamespace billing\nEnd Namespace\n",
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(repoDir, "mod_database.bas"),
+        "'@Module\nNamespace mod_database\nEnd Namespace\n",
+        "utf8",
+      );
+
+      RepositoryService.getRepoBasPath = () => repoDir;
+
+      const result = await DependencyService.refreshWorkspaceDependencies(workspaceDir);
+
+      const data7Json = JSON.parse(
+        fs.readFileSync(path.join(workspaceDir, "data7.json"), "utf8"),
+      ) as { dependencies: Record<string, string> };
+      assert.deepEqual(Object.keys(data7Json.dependencies), ["billing"]);
+      assert.deepEqual(result.missing, ["database"]);
+    });
+  });
 });

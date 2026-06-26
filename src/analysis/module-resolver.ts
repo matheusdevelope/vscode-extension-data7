@@ -1,9 +1,9 @@
-import * as fs from "fs";
+﻿import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
 import { getCoreModulesPath, getRepoBasPath } from "../infra/extension-paths";
-import { escapeForRegex } from "../utils/regex-helpers";
+import { DependencyScanner } from "./dependency-scanner";
 
 /**
  * Resolves a Data7 namespace identifier (`Imports MyModule`) to the absolute
@@ -54,7 +54,7 @@ export function resolveNamespaceFile(
 }
 
 function findNamespaceInDirectory(dir: string, namespace: string): string | undefined {
-  const targetRegex = new RegExp(`^\\s*Namespace\\s+${escapeForRegex(namespace)}\\b`, "i");
+  const lowerNamespace = namespace.toLowerCase();
   const entries = safeReaddir(dir);
   for (const entry of entries) {
     const full = path.join(dir, entry);
@@ -70,10 +70,10 @@ function findNamespaceInDirectory(dir: string, namespace: string): string | unde
     } else if (stat.isFile() && entry.toLowerCase().endsWith(".bas")) {
       try {
         const text = fs.readFileSync(full, "utf-8");
-        // Read only the first 40 lines — namespace declarations live at the top.
-        for (const line of text.split(/\r?\n/, 40)) {
-          if (targetRegex.test(line)) return full;
-        }
+        const declaresNamespace = DependencyScanner.getDeclaredNamespaces(text).some(
+          (declared) => declared.toLowerCase() === lowerNamespace,
+        );
+        if (declaresNamespace) return full;
       } catch {
         // ignore unreadable
       }

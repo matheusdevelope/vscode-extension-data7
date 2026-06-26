@@ -2,7 +2,6 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { logger } from "../infra/logger";
-// Removed dependency-scanner import since we no longer use IMPORTS_REGEX_ANCHORED here
 import { isExcluded, readConfiguration } from "../infra/configuration";
 import {
   collectGenericsContext,

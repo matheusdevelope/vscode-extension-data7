@@ -26,9 +26,11 @@ O linter live acompanha apenas arquivos físicos locais com esquema `file` que e
 
 O `DependencyService` mantém `data7.json#dependencies` e `data7_modules/` sincronizados com o grafo atual do projeto. Saves, criação, deleção e rename de arquivos `.bas` agendam uma reavaliação debounced: se um namespace antes suprido por `src/` desaparece ou muda, a dependência global equivalente passa a ser declarada e copiada; se uma dependência deixa de ser referenciada, ela é removida da lista e da pasta gerada. Esse refresh reindexa apenas `data7_modules/` e atualiza diagnósticos abertos, sem rebuild completo.
 
+A deteccao de dependencias deve consumir a AST do parser para `Imports`, tipos qualificados e acessos `Namespace.Membro`; strings, comentarios, `OpaqueStatement` e nomes declarados no proprio arquivo nao podem promover modulos em `data7.json`. Modulo nao segue convencao `mod_*`: o identificador e o namespace exato, e um namespace so vira modulo de repositorio quando estiver marcado com o comentario `'@Module` imediatamente antes do `Namespace`.
+
 Os diagnostics devem reconhecer imports transitivos de modulos utilizados, promocoes numericas sem perda e APIs globais legadas registradas na System Library, como `dateUtils.toStringFormat(...)`.
 
-Quick Fixes devem normalizar o codigo do diagnostico recebido do VS Code antes do despacho, pois ele pode ser uma string ou um objeto com a propriedade `value`. Adicionalmente, devem prever fallbacks robustos (como extração do nome do namespace via RegExp diretamente da linha no documento) caso o payload `data` seja omitido pelo VS Code.
+Quick Fixes devem normalizar o codigo do diagnostico recebido do VS Code antes do despacho, pois ele pode ser uma string ou um objeto com a propriedade `value`. Adicionalmente, devem prever fallbacks robustos por payload tipado, AST ou tokens do documento caso o payload `data` seja omitido pelo VS Code.
 
 O objetivo principal desta extensão é fornecer suporte completo de desenvolvimento (Language Server Features) no VS Code para desenvolvedores do ERP Data7, editando arquivos de script `.bas` (Data7 Basic) e manipulando arquivos de projeto `.7proj` (formatados em XML).
 
@@ -272,7 +274,7 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `missing-import` — um tipo referenciado pertence a um namespace ausente da seção `Imports` do arquivo.
 - `unused-import` — uma diretiva `Imports` declarada no cabeçalho não é referenciada pelo restante do arquivo.
 - `duplicate-import` — a mesma diretiva `Imports` foi declarada mais de uma vez no cabeçalho.
-- `module-not-found` — um módulo referenciado (por `Imports` ou prefixo `mod_*`) não existe nem no workspace, nem no repositório privado, nem na System Library.
+- `module-not-found` — um namespace referenciado por `Imports` ou nome qualificado não existe nem no workspace, nem no repositório privado, nem na System Library.
 - `module-not-declared` — um módulo existe no repositório privado mas não foi adicionado a `data7.json#dependencies`.
 - `unknown-member` — um acesso `obj.X` ou `Me.X` referencia um membro inexistente no tipo resolvido. O payload pode incluir até 3 sugestões "Você quis dizer…?" calculadas por Levenshtein.
 - `private-member-access` — um acesso `obj.X` referencia um membro `Private` declarado fora da classe atual.

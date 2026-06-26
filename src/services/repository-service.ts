@@ -5,7 +5,7 @@ import { DependencyScanner } from "../analysis/dependency-scanner";
 import { logger } from "../infra/logger";
 import { readConfiguration, getRawConfiguration } from "../infra/configuration";
 import { getRepoBasPath, initializeExtensionPaths } from "../infra/extension-paths";
-import { parseProjectXml, xmlText, xmlRawText, xmlRecord } from "../utils/xml-helpers";
+import { parseProjectXml, xmlText, xmlRecord } from "../utils/xml-helpers";
 import { safeJoinInside, isSafeSegment } from "../utils/path-safety";
 import { WorkspaceTrustService } from "./workspace-trust-service";
 
@@ -149,18 +149,20 @@ export class RepositoryService {
 
   private importBasFileSync(sourceFile: string): void {
     const content = fs.readFileSync(sourceFile, "utf-8");
-    const contentLower = content.toLowerCase();
-    const isModule = contentLower.includes("@module") && !contentLower.includes("@module-imported");
-    if (!isModule) {
+    if (DependencyScanner.hasModuleImportedMarker(content)) {
       vscode.window.showWarningMessage(
         "O arquivo selecionado não possui a flag @Module ou contém @Module-Imported. Importação não permitida.",
       );
       return;
     }
 
-    const filename = path.basename(sourceFile, ".bas");
-    const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-    const modName = nsMatch?.[1] ?? filename;
+    const modName = DependencyScanner.getModuleMarkedNamespaces(content)[0];
+    if (!modName) {
+      vscode.window.showWarningMessage(
+        "O arquivo selecionado possui @Module, mas nenhum Namespace marcado foi encontrado.",
+      );
+      return;
+    }
     this.writeModuleFile(modName, content);
 
     vscode.window.showInformationMessage(
@@ -179,36 +181,43 @@ export class RepositoryService {
       return;
     }
 
-    const modNames = Object.keys(modulosContainer).filter((name) => {
-      if (name.startsWith("#") || name.startsWith("@_")) return false;
+    const detectedModules = Object.keys(modulosContainer).flatMap((name) => {
+      if (name.startsWith("#") || name.startsWith("@_")) return [];
       const mod = modulosContainer[name];
-      const code = xmlRawText(mod, "Codigo").toLowerCase();
-      return code.includes("@module") && !code.includes("@module-imported");
+      const decodedCode = xmlText(mod, "Codigo");
+      if (DependencyScanner.hasModuleImportedMarker(decodedCode)) return [];
+      return DependencyScanner.getModuleMarkedNamespaces(decodedCode).map((moduleName) => ({
+        moduleName,
+        code: decodedCode,
+      }));
     });
 
-    if (modNames.length === 0) {
+    if (detectedModules.length === 0) {
       vscode.window.showErrorMessage(
         "Nenhum módulo válido com a flag @Module (e sem @Module-Imported) encontrado na tag <Modulos>.",
       );
       return;
     }
 
-    const pick = await vscode.window.showQuickPick(modNames, {
-      placeHolder: "Selecione o(s) módulo(s) para importar para o repositório:",
-      canPickMany: true,
-      ignoreFocusOut: true,
-    });
+    const pick = await vscode.window.showQuickPick(
+      detectedModules.map((module) => ({
+        label: module.moduleName,
+        module,
+      })),
+      {
+        placeHolder: "Selecione o(s) módulo(s) para importar para o repositório:",
+        canPickMany: true,
+        ignoreFocusOut: true,
+      },
+    );
 
     if (!pick || pick.length === 0) return;
 
     let count = 0;
-    for (const modName of pick) {
-      const mod = modulosContainer[modName];
-      const decodedCode = xmlText(mod, "Codigo");
-      this.writeModuleFile(modName, decodedCode);
+    for (const item of pick) {
+      this.writeModuleFile(item.module.moduleName, item.module.code);
       count++;
     }
-
     vscode.window.showInformationMessage(
       `${count} módulo(s) importados com sucesso para o repositório.`,
     );
@@ -275,14 +284,9 @@ export class RepositoryService {
             if (ext === ".bas") {
               try {
                 const content = fs.readFileSync(filePath, "utf-8");
-                const contentLower = content.toLowerCase();
-                if (
-                  contentLower.includes("@module") &&
-                  !contentLower.includes("@module-imported")
-                ) {
-                  const filename = path.basename(filePath, ".bas");
-                  const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-                  const modName = nsMatch?.[1] ?? filename;
+                if (!DependencyScanner.hasModuleImportedMarker(content)) {
+                  const modName = DependencyScanner.getModuleMarkedNamespaces(content)[0];
+                  if (!modName) continue;
                   detectedList.push({ modName, sourcePath: filePath, code: content, type: "bas" });
                 }
               } catch (err) {
@@ -297,15 +301,18 @@ export class RepositoryService {
                 for (const modName of Object.keys(modulosContainer)) {
                   if (modName.startsWith("#") || modName.startsWith("@_")) continue;
                   const mod = modulosContainer[modName];
-                  const rawCode = xmlRawText(mod, "Codigo");
-                  const codeLower = rawCode.toLowerCase();
-                  if (codeLower.includes("@module") && !codeLower.includes("@module-imported")) {
-                    detectedList.push({
-                      modName,
-                      sourcePath: filePath,
-                      code: xmlText(mod, "Codigo"),
-                      type: "7proj",
-                    });
+                  const decodedCode = xmlText(mod, "Codigo");
+                  if (!DependencyScanner.hasModuleImportedMarker(decodedCode)) {
+                    for (const moduleName of DependencyScanner.getModuleMarkedNamespaces(
+                      decodedCode,
+                    )) {
+                      detectedList.push({
+                        modName: moduleName,
+                        sourcePath: filePath,
+                        code: decodedCode,
+                        type: "7proj",
+                      });
+                    }
                   }
                 }
               } catch (err) {

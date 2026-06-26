@@ -5,23 +5,8 @@ import { parseBasic, GenericsParserPlugin } from "../project/parser";
 import { SugarEngine } from "../project/sugars";
 import type { Node } from "../project/ast/ast";
 
-// -----------------------------------------------------------------------------
-// Canonical `Imports <namespace>` regexes.
-//
-// Before consolidation we had six slightly-different copies, of which three
-// did NOT accept qualified names like `mod_a.mod_b`. The variants below are
-// the only forms callers should use:
-//
-//   IMPORTS_REGEX           – first occurrence anywhere on a line  (use with .match)
-//   IMPORTS_REGEX_ANCHORED  – line-start only, allows leading whitespace
-//
-// Every variant captures the namespace name in group 1 and accepts qualified
-// names by allowing the `.` character in the namespace pattern.
-// -----------------------------------------------------------------------------
-const IMPORTS_NS = "[A-Za-z_][\\w.]*";
-export const IMPORTS_REGEX = new RegExp(`\\bImports\\s+(${IMPORTS_NS})`, "i");
-export const IMPORTS_REGEX_ANCHORED = new RegExp(`^\\s*Imports\\s+(${IMPORTS_NS})`, "i");
-
+// Module dependency analysis consumes parser AST nodes.
+// Do not infer imports, namespaces, or member access from raw source text here.
 export interface SharedModuleInfo {
   moduleName: string;
   sourceFilePath: string; // The .7Proj or .bas file containing the module
@@ -36,6 +21,15 @@ export interface SyncDependenciesOptions {
    * into `data7_modules/`, independent of `data7.json#dependencies`.
    */
   alwaysSyncDirs?: string[];
+}
+
+export interface ModuleReference {
+  readonly name: string;
+  readonly isExplicit: boolean;
+  readonly loc?: {
+    readonly line: number;
+    readonly character: number;
+  };
 }
 
 export class DependencyScanner {
@@ -72,22 +66,17 @@ export class DependencyScanner {
     files.forEach((filePath) => {
       try {
         const content = fs.readFileSync(filePath, "utf-8");
-        const filename = path.basename(filePath, ".bas");
+        const moduleNames = this.getModuleMarkedNamespaces(content);
 
-        // Match "Namespace namespace_name". Group 1 is mandatory in the
-        // pattern, so when `nsMatch` is truthy `nsMatch[1]` is a string —
-        // but `noUncheckedIndexedAccess` widens the array element so we
-        // narrow with a fallback to the bare filename.
-        const nsMatch = /\bNamespace\s+([a-zA-Z0-9_]+)/i.exec(content);
-        const modName = nsMatch?.[1] ?? filename;
-
-        map.set(modName.toLowerCase(), {
-          moduleName: modName,
-          sourceFilePath: filePath,
-          isProj: false,
-          code: content,
-          version: "1.0.0.0", // Default fallback for raw files
-        });
+        for (const modName of moduleNames) {
+          map.set(modName.toLowerCase(), {
+            moduleName: modName,
+            sourceFilePath: filePath,
+            isProj: false,
+            code: content,
+            version: "1.0.0.0", // Default fallback for raw files
+          });
+        }
       } catch (err: unknown) {
         logger.error(`Erro ao ler arquivo .bas no repositório: ${filePath}`, err);
       }
@@ -144,7 +133,7 @@ export class DependencyScanner {
     return parts[0] ?? line;
   }
 
-  // Helper to resolve module name using direct name or mod_ prefix
+  // Helper to resolve module name by exact namespace match.
   public static resolveModuleName(
     name: string,
     localModules: Set<string>,
@@ -157,14 +146,125 @@ export class DependencyScanner {
     if (availableSharedModules.has(lowerName)) {
       return lowerName;
     }
-    const prefixedName = "mod_" + lowerName;
-    if (availableSharedModules.has(prefixedName)) {
-      return prefixedName;
-    }
-    if (lowerName.startsWith("mod_") && availableSharedModules.has(lowerName.substring(4))) {
-      return lowerName.substring(4);
-    }
     return null;
+  }
+
+  public static getDeclaredNamespaces(content: string): string[] {
+    const { unit } = parseBasic(content, {
+      plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+    });
+    return unit.members
+      .filter((member) => member.kind === "NamespaceDeclaration")
+      .map((member) => member.name);
+  }
+
+  public static getDeclaredTypeNames(content: string): string[] {
+    const { unit } = parseBasic(content, {
+      plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+    });
+    const names: string[] = [];
+    collectDeclaredTypeNames(unit, names);
+    return names;
+  }
+
+  public static getModuleMarkedNamespaces(content: string): string[] {
+    const { unit } = parseBasic(content, {
+      plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+    });
+    const markedNamespaces: string[] = [];
+    let previousWasModuleMarker = false;
+
+    for (const member of unit.members) {
+      if (member.kind === "OpaqueStatement") {
+        previousWasModuleMarker = isModuleMarker(member.text);
+        continue;
+      }
+      if (member.kind === "NamespaceDeclaration") {
+        if (previousWasModuleMarker) {
+          markedNamespaces.push(member.name);
+        }
+        previousWasModuleMarker = false;
+        continue;
+      }
+      if (member.kind !== "ImportsDeclaration") {
+        previousWasModuleMarker = false;
+      }
+    }
+
+    return markedNamespaces;
+  }
+
+  public static hasModuleImportedMarker(content: string): boolean {
+    const { unit } = parseBasic(content, {
+      plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+    });
+    return unit.members.some(
+      (member) => member.kind === "OpaqueStatement" && isModuleImportedMarker(member.text),
+    );
+  }
+
+  public static collectModuleReferences(content: string): ModuleReference[] {
+    const { unit } = parseBasic(content, {
+      plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+    });
+    const declaredNames = collectDeclaredNames(unit);
+    const references: ModuleReference[] = [];
+
+    for (const member of unit.members) {
+      if (member.kind === "ImportsDeclaration") {
+        references.push({ name: member.target, isExplicit: true, loc: sourceLoc(member) });
+      }
+    }
+
+    collectModuleReferences(unit, (name, node) => {
+      if (!declaredNames.has(name.toLowerCase())) {
+        references.push({ name, isExplicit: false, loc: sourceLoc(node) });
+      }
+    });
+
+    return references;
+  }
+
+  public static getLocalModuleNames(srcDir: string): Set<string> {
+    const localModules = new Set<string>();
+    if (!fs.existsSync(srcDir)) {
+      return localModules;
+    }
+
+    const basFiles = this.getFilesRecursive(srcDir, [".bas"]);
+    basFiles.forEach((file) => {
+      try {
+        const content = fs.readFileSync(file, "utf-8");
+        for (const namespace of this.getDeclaredNamespaces(content)) {
+          localModules.add(namespace.toLowerCase());
+        }
+      } catch {
+        /* file unreadable or unparsable - keep scanning the rest */
+      }
+    });
+
+    return localModules;
+  }
+
+  public static getLocalTypeNames(srcDir: string): Set<string> {
+    const localTypes = new Set<string>();
+    if (!fs.existsSync(srcDir)) {
+      return localTypes;
+    }
+
+    const basFiles = this.getFilesRecursive(srcDir, [".bas"]);
+    basFiles.forEach((file) => {
+      try {
+        const content = fs.readFileSync(file, "utf-8");
+        for (const typeName of this.getDeclaredTypeNames(content)) {
+          localTypes.add(typeName.toLowerCase());
+        }
+      } catch {
+        /* file unreadable or unparsable - keep scanning the rest */
+      }
+    });
+
+    return localTypes;
   }
 
   // Scan local src/ files for any references to modules
@@ -177,60 +277,19 @@ export class DependencyScanner {
       return referenced;
     }
 
-    // Get all local .bas files
     const basFiles = this.getFilesRecursive(srcDir, [".bas"]);
-
-    // Find local module names so we don't treat them as external dependencies
-    const localModules = new Set<string>();
-    basFiles.forEach((file) => {
-      const filename = path.basename(file, ".bas");
-      localModules.add(filename.toLowerCase());
-
-      // Also parse namespace in local file just in case
-      try {
-        const content = fs.readFileSync(file, "utf-8");
-        const { unit } = parseBasic(content, {
-          plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
-        });
-        for (const member of unit.members) {
-          if (member.kind === "NamespaceDeclaration") {
-            localModules.add(member.name.toLowerCase());
-          }
-        }
-      } catch {
-        /* file unreadable — skip namespace inference */
-      }
-    });
+    const localModules = this.getLocalModuleNames(srcDir);
 
     basFiles.forEach((file) => {
       try {
         const content = fs.readFileSync(file, "utf-8");
-        const { unit } = parseBasic(content, {
-          plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
-        });
-
-        // 1. Scan explicit imports
-        for (const member of unit.members) {
-          if (member.kind === "ImportsDeclaration") {
-            const firstSegment = member.target.split(".")[0] ?? member.target;
-            const resolved = this.resolveModuleName(
-              firstSegment,
-              localModules,
-              availableSharedModules,
-            );
-            if (resolved) {
-              referenced.add(resolved);
-            }
-          }
+        for (const reference of this.collectModuleReferences(content)) {
+          const namespace = reference.isExplicit
+            ? (reference.name.split(".")[0] ?? reference.name)
+            : reference.name;
+          const resolved = this.resolveModuleName(namespace, localModules, availableSharedModules);
+          if (resolved) referenced.add(resolved);
         }
-
-        // 2. Scan direct references
-        collectModuleReferences(unit, (callName) => {
-          const resolved = this.resolveModuleName(callName, localModules, availableSharedModules);
-          if (resolved) {
-            referenced.add(resolved);
-          }
-        });
       } catch (err: unknown) {
         logger.error(`Erro ao escanear arquivo local para dependências: ${file}`, err);
       }
@@ -238,7 +297,6 @@ export class DependencyScanner {
 
     return referenced;
   }
-
   // Extract dependencies and copy them to data7_modules/
   public static syncDependencies(
     srcDir: string,
@@ -336,7 +394,10 @@ export class DependencyScanner {
   }
 }
 
-function collectModuleReferences(node: Node | undefined, callback: (name: string) => void): void {
+function collectModuleReferences(
+  node: Node | undefined,
+  callback: (name: string, node: Node) => void,
+): void {
   if (!node) return;
 
   switch (node.kind) {
@@ -385,13 +446,13 @@ function collectModuleReferences(node: Node | undefined, callback: (name: string
     case "TypeReference":
       if (node.name.includes(".")) {
         const parts = node.name.split(".");
-        if (parts[0]) callback(parts[0]);
+        if (parts[0]) callback(parts[0], node);
       }
       for (const arg of node.typeArguments) collectModuleReferences(arg, callback);
       break;
     case "MemberAccess":
       if (node.target.kind === "Identifier") {
-        callback(node.target.name);
+        callback(node.target.name, node.target);
       } else {
         collectModuleReferences(node.target, callback);
       }
@@ -399,7 +460,7 @@ function collectModuleReferences(node: Node | undefined, callback: (name: string
     case "MethodInvocation":
       if (node.callee) {
         if (node.callee.kind === "Identifier") {
-          callback(node.callee.name);
+          callback(node.callee.name, node.callee);
         } else {
           collectModuleReferences(node.callee, callback);
         }
@@ -493,19 +554,132 @@ function collectModuleReferences(node: Node | undefined, callback: (name: string
       collectModuleReferences(node.right, callback);
       break;
     case "TaggedTemplateExpression":
-      if (node.tag) callback(node.tag);
+      if (node.tag) callback(node.tag, node);
       break;
     case "Block":
       for (const s of node.statements) collectModuleReferences(s, callback);
       break;
     case "OpaqueStatement": {
-      const opaqueMatchRegex = /\b(mod_[a-zA-Z0-9_]+|[a-zA-Z0-9_]+)(?=\.)/gi;
-      let match;
-      opaqueMatchRegex.lastIndex = 0;
-      while ((match = opaqueMatchRegex.exec(node.text)) !== null) {
-        if (match[1]) callback(match[1]);
-      }
       break;
     }
   }
+}
+
+function collectDeclaredNames(node: Node | undefined, declared = new Set<string>()): Set<string> {
+  if (!node) return declared;
+
+  switch (node.kind) {
+    case "CompilationUnit":
+      for (const member of node.members) collectDeclaredNames(member, declared);
+      break;
+    case "NamespaceDeclaration":
+    case "ClassDeclaration":
+    case "MethodDeclaration":
+    case "FieldDeclaration":
+    case "PropertyDeclaration":
+    case "ParameterDeclaration":
+    case "VariableDeclaration":
+      addDeclaredName(declared, node.name);
+      if (node.kind === "NamespaceDeclaration") {
+        for (const member of node.members) collectDeclaredNames(member, declared);
+      } else if (node.kind === "ClassDeclaration") {
+        for (const member of node.members) collectDeclaredNames(member, declared);
+      } else if (node.kind === "MethodDeclaration") {
+        for (const parameter of node.parameters) collectDeclaredNames(parameter, declared);
+        for (const statement of node.body) collectDeclaredNames(statement, declared);
+      }
+      break;
+    case "DelegateDeclaration":
+    case "EnumDeclaration":
+      addDeclaredName(declared, node.name);
+      break;
+    case "DestructuredVariableDeclaration":
+      for (const binding of node.bindings) addDeclaredName(declared, binding.name);
+      break;
+    case "ForStatement":
+      addDeclaredName(declared, node.counter.name);
+      for (const statement of node.body) collectDeclaredNames(statement, declared);
+      break;
+    case "ForEachStatement":
+      addDeclaredName(declared, node.elementVar.name);
+      for (const statement of node.body) collectDeclaredNames(statement, declared);
+      break;
+    case "TryCatchStatement":
+      if (node.catchVar) addDeclaredName(declared, node.catchVar.name);
+      for (const statement of node.tryBody) collectDeclaredNames(statement, declared);
+      for (const statement of node.catchBody) collectDeclaredNames(statement, declared);
+      for (const statement of node.finallyBody ?? []) collectDeclaredNames(statement, declared);
+      break;
+    case "UsingStatement":
+      addDeclaredName(declared, node.resourceVar.name);
+      for (const statement of node.body) collectDeclaredNames(statement, declared);
+      break;
+    case "IfStatement":
+      for (const statement of node.thenBranch) collectDeclaredNames(statement, declared);
+      for (const branch of node.elseIfBranches) {
+        for (const statement of branch.body) collectDeclaredNames(statement, declared);
+      }
+      for (const statement of node.elseBranch ?? []) collectDeclaredNames(statement, declared);
+      break;
+    case "WhileStatement":
+    case "Block":
+    case "WithStatement":
+      for (const statement of node.kind === "Block" ? node.statements : node.body) {
+        collectDeclaredNames(statement, declared);
+      }
+      break;
+    case "SelectCaseStatement":
+      for (const branch of node.cases) collectDeclaredNames(branch, declared);
+      break;
+    case "SelectCaseBranch":
+      for (const statement of node.body) collectDeclaredNames(statement, declared);
+      break;
+    default:
+      break;
+  }
+
+  return declared;
+}
+
+function addDeclaredName(declared: Set<string>, name: string): void {
+  if (name.length > 0) declared.add(name.toLowerCase());
+}
+
+function collectDeclaredTypeNames(node: Node | undefined, names: string[]): void {
+  if (!node) return;
+
+  switch (node.kind) {
+    case "CompilationUnit":
+      for (const member of node.members) collectDeclaredTypeNames(member, names);
+      break;
+    case "NamespaceDeclaration":
+      for (const member of node.members) collectDeclaredTypeNames(member, names);
+      break;
+    case "ClassDeclaration":
+      names.push(node.name);
+      for (const member of node.members) collectDeclaredTypeNames(member, names);
+      break;
+    case "DelegateDeclaration":
+    case "EnumDeclaration":
+      names.push(node.name);
+      break;
+    default:
+      break;
+  }
+}
+
+function isModuleMarker(text: string): boolean {
+  return text.trim().toLowerCase() === "'@module";
+}
+
+function isModuleImportedMarker(text: string): boolean {
+  return text.trim().toLowerCase() === "'@module-imported";
+}
+
+function sourceLoc(node: Node): ModuleReference["loc"] | undefined {
+  if (!node.loc) return undefined;
+  return {
+    line: Math.max(0, node.loc.startLine - 1),
+    character: Math.max(0, node.loc.startChar),
+  };
 }
