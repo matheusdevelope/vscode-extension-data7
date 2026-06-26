@@ -38,28 +38,41 @@ export type LanguageId = (typeof LANGUAGE_IDS)[keyof typeof LANGUAGE_IDS];
  * `registerCommand(...)` call must pull its id from this object.
  */
 export const COMMAND_IDS = {
-  openProject: "data7.openProject",
-  newProject: "data7.newProject",
-  openDevStudio: "data7.openDevStudio",
-  build: "data7.build",
-  runProject: "data7.runProject",
-  installModule: "data7.installModule",
-  installModulesBulk: "data7.installModulesBulk",
-  updateDependencies: "data7.updateDependencies",
-  importModuleToRepository: "data7.importModuleToRepository",
-  bulkImportToRepository: "data7.bulkImportToRepository",
-  exploreRepository: "data7.exploreRepository",
-  decompose: "data7.decompose",
-  openParentFolder: "data7.openParentFolder",
-  generateSystemLibraryDocs: "data7.generateSystemLibraryDocs",
-  injectSystemLibraryDocs: "data7.injectSystemLibraryDocs",
-  showOutput: "data7.showOutput",
-  installMcpServer: "data7.installMcpServer",
-  previewMcpClientConfig: "data7.previewMcpClientConfig",
-  previewTranspiledCode: "data7.previewTranspiledCode",
-  previewTranspiledCodeActive: "data7.previewTranspiledCodeActive",
-  fixAllWorkspace: "data7.fixAllWorkspace",
-  runLinter: "data7.runLinter",
+  // Project commands
+  newProject: "data7.project.new",
+  openProject: "data7.project.open",
+  openDevStudio: "data7.project.openInDevStudio",
+  build: "data7.project.build",
+  runProject: "data7.project.run",
+  decompose: "data7.project.decompose",
+
+  // Module commands
+  installModule: "data7.modules.install",
+  installModulesBulk: "data7.modules.installBulk",
+  updateDependencies: "data7.modules.updateDependencies",
+  importModuleToRepository: "data7.modules.importToRepository",
+  bulkImportToRepository: "data7.modules.bulkImportToRepository",
+  exploreRepository: "data7.modules.exploreRepository",
+
+  // Linter/Fixer commands
+  runLinter: "data7.linter.run",
+  fixAllWorkspace: "data7.linter.fixAllWorkspace",
+
+  // Preview commands
+  previewTranspiledCode: "data7.preview.transpiledCode",
+  previewTranspiledCodeActive: "data7.preview.transpiledCodeActive",
+
+  // Documentation commands
+  generateSystemLibraryDocs: "data7.docs.generateSystemLibrary",
+  injectSystemLibraryDocs: "data7.docs.injectToAgentsMd",
+
+  // MCP commands
+  installMcpServer: "data7.mcp.installServer",
+  previewMcpClientConfig: "data7.mcp.previewClientConfig",
+
+  // Utility commands
+  openParentFolder: "data7.util.openParentFolder",
+  showOutput: "data7.util.showOutput",
 } as const;
 
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];

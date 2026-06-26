@@ -38,7 +38,7 @@
   "activationEvents": [
     "onLanguage:data7project",
     "workspaceContains:**/*.7proj",
-    "workspaceContains:**/*.7Proj"
+    "workspaceContains:**/*.bas"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -47,7 +47,7 @@
         "editor.insertSpaces": true,
         "editor.tabSize": 4,
         "editor.quickSuggestions": {
-          "other": false,
+          "other": true,
           "comments": false,
           "strings": false
         }
@@ -93,160 +93,182 @@
     ],
     "commands": [
       {
-        "command": "data7.openProject",
-        "title": "Abrir Projeto",
+        "command": "data7.project.open",
+        "title": "01 - Projeto - Abrir Existente",
         "category": "Data7",
-        "icon": "$(folder-opened)"
+        "icon": "$(folder-opened)",
+        "detail": "Abre um arquivo de projeto Data7 (.7proj) no VS Code"
       },
       {
-        "command": "data7.newProject",
-        "title": "Criar Projeto",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.openDevStudio",
-        "title": "Abrir no Developer Studio",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.build",
-        "title": "Compilar Projeto",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.runProject",
-        "title": "Executar Projeto",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.installModule",
-        "title": "Instalar Módulo",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.installModulesBulk",
-        "title": "Instalar Módulos em Massa",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.updateDependencies",
-        "title": "Atualizar Dependências",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.importModuleToRepository",
-        "title": "Adicionar Módulo ao Repositório",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.bulkImportToRepository",
-        "title": "Importar Módulos em Massa",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.exploreRepository",
-        "title": "Explorar Repositório",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.decompose",
-        "title": "Decompor Projeto (.7Proj)",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.openParentFolder",
-        "title": "Voltar para Pasta Pai",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.generateSystemLibraryDocs",
-        "title": "Gerar Documentação da System Library",
+        "command": "data7.project.new",
+        "title": "01 - Projeto - Criar Novo",
         "category": "Data7",
-        "icon": "$(book)"
+        "detail": "Cria um novo projeto Data7 (.7proj)"
       },
       {
-        "command": "data7.injectSystemLibraryDocs",
-        "title": "Sincronizar Documentação no AGENTS.md",
+        "command": "data7.project.openInDevStudio",
+        "title": "01 - Projeto - Abrir no DevStudio",
         "category": "Data7",
-        "icon": "$(file-add)"
+        "detail": "Abre o projeto Data7 ativo no Developer Studio"
       },
       {
-        "command": "data7.showOutput",
-        "title": "Mostrar Log de Saída",
+        "command": "data7.project.build",
+        "title": "01 - Projeto - Compilar",
         "category": "Data7",
-        "icon": "$(output)"
+        "detail": "Compila o projeto Data7 ativo"
       },
       {
-        "command": "data7.installMcpServer",
-        "title": "Instalar/Atualizar Servidor MCP",
+        "command": "data7.project.run",
+        "title": "01 - Projeto - Executar",
         "category": "Data7",
-        "icon": "$(extensions)"
+        "detail": "Executa o projeto Data7 ativo no Executor"
       },
       {
-        "command": "data7.previewMcpClientConfig",
-        "title": "Mostrar Configuração MCP (Cursor / Claude / Continue)",
+        "command": "data7.project.decompose",
+        "title": "01 - Projeto - Decompor",
         "category": "Data7",
-        "icon": "$(json)"
+        "detail": "Decompõe um projeto .7proj em arquivos .bas individuais"
       },
       {
-        "command": "data7.previewTranspiledCode",
-        "title": "Ver Código Transpilado ao Lado",
+        "command": "data7.modules.install",
+        "title": "01 - Projeto - Instalar Módulo",
         "category": "Data7",
-        "icon": "$(split-horizontal)"
+        "detail": "Instala um módulo Data7 no projeto ativo"
       },
       {
-        "command": "data7.previewTranspiledCodeActive",
-        "title": "Ver Código Transpilado",
-        "category": "Data7"
-      },
-      {
-        "command": "data7.fixAllWorkspace",
-        "title": "Corrigir Erros de Sintaxe/Estilo no Projeto Completo",
+        "command": "data7.modules.installBulk",
+        "title": "01 - Projeto - Instalar Módulos Em Massa",
         "category": "Data7",
-        "icon": "$(tools)"
+        "detail": "Instala múltiplos módulos Data7 no projeto ativo"
       },
       {
-        "command": "data7.runLinter",
-        "title": "Reiniciar/Rodar Linter no Projeto",
+        "command": "data7.modules.updateDependencies",
+        "title": "01 - Projeto - Atualizar Módulos",
         "category": "Data7",
-        "icon": "$(refresh)"
+        "detail": "Atualiza as dependências do projeto Data7 ativo"
+      },
+      {
+        "command": "data7.modules.importToRepository",
+        "title": "03 - Repositório - Importar Módulo",
+        "category": "Data7",
+        "detail": "Importa um módulo ou projeto para o repositório local da extensão"
+      },
+      {
+        "command": "data7.modules.bulkImportToRepository",
+        "title": "03 - Repositório - Importar Módulos Em Massa",
+        "category": "Data7",
+        "detail": "Importa múltiplos módulos ou projetos para o repositório local da extensão"
+      },
+      {
+        "command": "data7.modules.exploreRepository",
+        "title": "03 - Repositório - Explorar Módulos",
+        "category": "Data7",
+        "detail": "Abre o repositório de módulos Data7 no explorador de arquivos"
+      },
+      {
+        "command": "data7.linter.run",
+        "title": "04 - Linter - Analisar Workspace",
+        "category": "Data7",
+        "icon": "$(refresh)",
+        "detail": "Executa o linter Data7 em todo o workspace"
+      },
+      {
+        "command": "data7.linter.fixAllWorkspace",
+        "title": "04 - Linter - Corrigir Workspace",
+        "category": "Data7",
+        "icon": "$(tools)",
+        "detail": "Aplica todas as correções automáticas do linter em todo o workspace"
+      },
+      {
+        "command": "data7.preview.transpiledCode",
+        "title": "02 - Prévia - Ver Código Transpilado (lado a lado)",
+        "category": "Data7",
+        "icon": "$(split-horizontal)",
+        "detail": "Mostra a prévia do código Data7 Basic transpilado em uma aba lateral"
+      },
+      {
+        "command": "data7.preview.transpiledCodeActive",
+        "title": "02 - Prévia - Ver Código Transpilado (aba ativo)",
+        "category": "Data7",
+        "detail": "Mostra a prévia do código Data7 Basic transpilado na aba ativa"
+      },
+      {
+        "command": "data7.docs.generateSystemLibrary",
+        "title": "06 - Documentação - Gerar System Library",
+        "category": "Data7",
+        "icon": "$(book)",
+        "detail": "Gera a documentação da System Library do Data7"
+      },
+      {
+        "command": "data7.docs.injectToAgentsMd",
+        "title": "06 - Documentação - Sincronizar AGENTS.md",
+        "category": "Data7",
+        "icon": "$(file-add)",
+        "detail": "Sincroniza a documentação da System Library no arquivo AGENTS.md"
+      },
+      {
+        "command": "data7.mcp.installServer",
+        "title": "05 - MCP - Instalar/Atualizar Servidor",
+        "category": "Data7",
+        "icon": "$(extensions)",
+        "detail": "Instala ou atualiza o servidor MCP (Model Context Protocol) para Data7"
+      },
+      {
+        "command": "data7.mcp.previewClientConfig",
+        "title": "05 - MCP - Prévia Config Cliente",
+        "category": "Data7",
+        "icon": "$(json)",
+        "detail": "Mostra a configuração do cliente MCP para integração com ferramentas de IA"
+      },
+      {
+        "command": "data7.util.openParentFolder",
+        "title": "07 - Utilidades - Abrir Pasta Pai",
+        "category": "Data7",
+        "detail": "Abre a pasta pai do arquivo ou diretório ativo"
+      },
+      {
+        "command": "data7.util.showOutput",
+        "title": "07 - Utilidades - Mostrar Log de Saída",
+        "category": "Data7",
+        "icon": "$(output)",
+        "detail": "Mostra o canal de saída da extensão Data7"
       }
     ],
     "menus": {
       "explorer/context": [
         {
-          "command": "data7.openProject",
+          "command": "data7.project.open",
           "when": "resourceExtname == .7proj",
           "group": "navigation"
         }
       ],
       "editor/title/context": [
         {
-          "command": "data7.openProject",
+          "command": "data7.project.open",
           "when": "resourceExtname == .7proj",
           "group": "navigation"
         }
       ],
       "editor/title": [
         {
-          "command": "data7.openProject",
+          "command": "data7.project.open",
           "when": "resourceExtname == .7proj",
           "group": "navigation"
         },
         {
-          "command": "data7.previewTranspiledCode",
+          "command": "data7.preview.transpiledCodeActive",
           "when": "editorLangId == d7basic",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
-          "command": "data7.previewTranspiledCode",
+          "command": "data7.preview.transpiledCode",
           "when": "editorLangId == d7basic",
           "group": "navigation"
         },
         {
-          "command": "data7.previewTranspiledCodeActive",
+          "command": "data7.preview.transpiledCodeActive",
           "when": "editorLangId == d7basic",
           "group": "navigation"
         }
@@ -254,78 +276,100 @@
     },
     "keybindings": [
       {
-        "command": "data7.runProject",
+        "command": "data7.project.run",
         "key": "f5",
         "when": "editorLangId == d7basic"
       },
       {
-        "command": "data7.build",
+        "command": "data7.project.build",
         "key": "ctrl+shift+b",
         "when": "editorLangId == d7basic"
       },
       {
-        "command": "data7.openProject",
+        "command": "data7.project.open",
         "key": "ctrl+alt+o"
       },
       {
-        "command": "data7.newProject",
+        "command": "data7.project.new",
         "key": "ctrl+alt+n"
       },
       {
-        "command": "data7.openDevStudio",
+        "command": "data7.project.openInDevStudio",
         "key": "ctrl+alt+d"
       },
       {
-        "command": "data7.decompose",
+        "command": "data7.project.decompose",
         "key": "ctrl+alt+x",
         "when": "editorLangId == d7basic"
       },
       {
-        "command": "data7.previewTranspiledCode",
-        "key": "ctrl+alt+p",
-        "when": "editorLangId == d7basic"
-      },
-      {
-        "command": "data7.previewTranspiledCodeActive",
-        "key": "ctrl+alt+shift+p",
-        "when": "editorLangId == d7basic"
-      },
-      {
-        "command": "data7.installModule",
+        "command": "data7.modules.install",
         "key": "ctrl+alt+i"
       },
       {
-        "command": "data7.updateDependencies",
+        "command": "data7.modules.installBulk",
+        "key": "ctrl+alt+shift+i"
+      },
+      {
+        "command": "data7.modules.updateDependencies",
         "key": "ctrl+alt+u"
       },
       {
-        "command": "data7.exploreRepository",
-        "key": "ctrl+alt+e"
-      },
-      {
-        "command": "data7.importModuleToRepository",
+        "command": "data7.modules.importToRepository",
         "key": "ctrl+alt+m",
         "when": "editorLangId == d7basic"
       },
       {
-        "command": "data7.bulkImportToRepository",
+        "command": "data7.modules.bulkImportToRepository",
         "key": "ctrl+alt+shift+m"
       },
       {
-        "command": "data7.openParentFolder",
-        "key": "ctrl+alt+left"
+        "command": "data7.modules.exploreRepository",
+        "key": "ctrl+alt+e"
       },
       {
-        "command": "data7.showOutput",
-        "key": "ctrl+alt+l"
+        "command": "data7.linter.run",
+        "key": "ctrl+alt+l",
+        "when": "editorLangId == d7basic"
       },
       {
-        "command": "data7.generateSystemLibraryDocs",
+        "command": "data7.linter.fixAllWorkspace",
+        "key": "ctrl+alt+f",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.preview.transpiledCode",
+        "key": "ctrl+alt+p",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.preview.transpiledCodeActive",
+        "key": "ctrl+alt+shift+p",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.docs.generateSystemLibrary",
         "key": "ctrl+alt+g"
       },
       {
-        "command": "data7.injectSystemLibraryDocs",
+        "command": "data7.docs.injectToAgentsMd",
         "key": "ctrl+alt+s"
+      },
+      {
+        "command": "data7.mcp.installServer",
+        "key": "ctrl+alt+j"
+      },
+      {
+        "command": "data7.mcp.previewClientConfig",
+        "key": "ctrl+alt+k"
+      },
+      {
+        "command": "data7.util.openParentFolder",
+        "key": "ctrl+alt+left"
+      },
+      {
+        "command": "data7.util.showOutput",
+        "key": "ctrl+alt+o"
       }
     ],
     "walkthroughs": [
@@ -348,18 +392,18 @@
           {
             "id": "open-project",
             "title": "2. Abrir um projeto .7Proj",
-            "description": "Abra um `.7Proj` existente — a extensão oferece decompor a árvore para edição confortável no VS Code.\n[Abrir projeto…](command:data7.openProject)",
+            "description": "Abra um `.7Proj` existente — a extensão oferece decompor a árvore para edição confortável no VS Code.\n[Abrir projeto…](command:data7.project.open)",
             "media": {
               "markdown": ""
             },
             "completionEvents": [
-              "onCommand:data7.openProject"
+              "onCommand:data7.project.open"
             ]
           },
           {
             "id": "build-run",
             "title": "3. Compilar e executar",
-            "description": "Use `Ctrl+Shift+B` para compilar e `F5` para rodar no Executor.\n[Compilar agora](command:data7.build)\n[Rodar agora](command:data7.runProject)",
+            "description": "Use `Ctrl+Shift+B` para compilar e `F5` para rodar no Executor.\n[Compilar agora](command:data7.build)\n[Rodar agora](command:data7.project.run)",
             "media": {
               "markdown": ""
             },
@@ -381,23 +425,23 @@
           {
             "id": "sync-agents-md",
             "title": "5. Sincronizar contexto para IA (legado)",
-            "description": "Se você usa Cursor / Copilot Chat, sincronize a documentação da System Library no `AGENTS.md` — agentes leem automaticamente.\n[Sincronizar AGENTS.md](command:data7.injectSystemLibraryDocs)\n\n_Esta etapa permanece como fallback; prefira o passo 6 (MCP) para entregar contexto rico sem inflar o arquivo._",
+            "description": "Se você usa Cursor / Copilot Chat, sincronize a documentação da System Library no `AGENTS.md` — agentes leem automaticamente.\n[Sincronizar AGENTS.md](command:data7.docs.injectSystemLibrary)\n\n_Esta etapa permanece como fallback; prefira o passo 6 (MCP) para entregar contexto rico sem inflar o arquivo._",
             "media": {
               "markdown": ""
             },
             "completionEvents": [
-              "onCommand:data7.injectSystemLibraryDocs"
+              "onCommand:data7.docs.injectSystemLibrary"
             ]
           },
           {
             "id": "install-mcp",
             "title": "6. Configurar MCP para sua IA (recomendado)",
-            "description": "Instale o servidor MCP do Data7 no Cursor / Claude Desktop / Continue. Em vez de injetar 60+ k tokens em `AGENTS.md`, o MCP entrega contexto sob demanda + ferramentas executáveis (linter, transpilador) ao agente.\n[Ver instruções de instalação](command:data7.previewMcpClientConfig)\n[Re-instalar binário](command:data7.installMcpServer)",
+            "description": "Instale o servidor MCP do Data7 no Cursor / Claude Desktop / Continue. Em vez de injetar 60+ k tokens em `AGENTS.md`, o MCP entrega contexto sob demanda + ferramentas executáveis (linter, transpilador) ao agente.\n[Ver instruções de instalação](command:data7.mcp.previewClientConfig)\n[Re-instalar binário](command:data7.mcp.installServer)",
             "media": {
               "markdown": ""
             },
             "completionEvents": [
-              "onCommand:data7.previewMcpClientConfig"
+              "onCommand:data7.mcp.previewClientConfig"
             ]
           }
         ]
