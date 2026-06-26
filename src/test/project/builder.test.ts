@@ -240,6 +240,78 @@ End Namespace
         }
       });
     });
+
+    test("applies minify.removeUnused from build optimization options", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          build?: unknown;
+        };
+        config.build = {
+          optimization: {
+            sourceMap: true,
+            minify: {
+              enabled: false,
+              stripComments: false,
+              removeUnused: true,
+            },
+            uglify: {
+              enabled: false,
+            },
+          },
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Namespace mod_principal
+   Class TPrincipalClass
+      Public Sub Main()
+         Dim helper As THelper = New THelper()
+         helper.Touch()
+      End Sub
+
+      Public Sub DeadPrincipal()
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "helper.bas"),
+          `Namespace mod_helper
+   Class THelper
+      Public Sub New()
+      End Sub
+
+      Public Sub Touch()
+      End Sub
+
+      Public Sub DeadMethod()
+      End Sub
+   End Class
+
+   Class DeadClass
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Sub Main/);
+        assert.match(xml, /Class THelper/);
+        assert.match(xml, /Sub Touch/);
+        assert.doesNotMatch(xml, /DeadPrincipal/);
+        assert.doesNotMatch(xml, /DeadMethod/);
+        assert.doesNotMatch(xml, /DeadClass/);
+      });
+    });
   });
 });
 

@@ -123,4 +123,110 @@ describe("DiagnosticService live lifecycle", () => {
       false,
     );
   });
+
+  test("does not emit module-not-found for With shorthand member access", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    const principalPath = path.join(srcDir, "Principal.bas");
+    const principal = [
+      "Namespace app",
+      "Class Screen",
+      "  Public Sub Run()",
+      "    With Me",
+      '      .Title = "Link de Cobranca"',
+      "      .Refresh()",
+      "    End With",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    fs.writeFileSync(principalPath, principal, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    const doc = createMockDoc(vscode.Uri.file(principalPath).toString(), principal);
+
+    DiagnosticService.refreshDiagnostics(doc);
+
+    const diags = entries.get(doc.uri.toString().toLowerCase()) ?? [];
+    assert.equal(
+      diags.some((diag) => diag.code === DiagnosticCodes.ModuleNotFound),
+      false,
+    );
+  });
+
+  test("does not emit module-not-found for imported system classes used statically", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    const principalPath = path.join(srcDir, "Principal.bas");
+    const principal = [
+      "Imports IO",
+      "Imports System.IOUtils",
+      "Namespace app",
+      "Class Screen",
+      "  Public Sub Run(pPath As String)",
+      "    TFile.Exists(pPath)",
+      "    File.ExtractName(pPath)",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    fs.writeFileSync(principalPath, principal, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    const doc = createMockDoc(vscode.Uri.file(principalPath).toString(), principal);
+
+    DiagnosticService.refreshDiagnostics(doc);
+
+    const diags = entries.get(doc.uri.toString().toLowerCase()) ?? [];
+    assert.equal(
+      diags.some((diag) => diag.code === DiagnosticCodes.ModuleNotFound),
+      false,
+    );
+  });
 });

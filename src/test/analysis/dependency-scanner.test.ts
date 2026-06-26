@@ -87,6 +87,26 @@ describe("DependencyScanner", () => {
     });
   });
 
+  describe("collectModuleReferences", () => {
+    test("does not treat With shorthand member access as an empty module", () => {
+      const refs = DependencyScanner.collectModuleReferences(`Namespace App
+   Class Screen
+      Public Sub Run()
+         With Me
+            .Title = "Link"
+            .Refresh()
+         End With
+      End Sub
+   End Class
+End Namespace`);
+
+      assert.equal(
+        refs.some((ref) => ref.name.length === 0),
+        false,
+      );
+    });
+  });
+
   describe("syncDependencies", () => {
     test("syncs declared repository dependencies together with always-on core modules", async () => {
       await withTempDir(async (tmp) => {

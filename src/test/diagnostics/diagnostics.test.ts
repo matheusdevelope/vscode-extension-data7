@@ -2515,4 +2515,27 @@ End Namespace`;
     );
     assert.deepEqual(missingReturnDiags, []);
   });
+
+  test("resolves IO.File.ZipFile and Delphi System.IOUtils helper classes", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///io_helpers_test.bas";
+    const code = `Imports IO
+Imports System.IOUtils
+Namespace mod_io_helpers
+   Class C
+      Public Sub Run(pPath As String)
+         Dim zipper As IO.File.ZipFile
+         Dim exists As Boolean = TFile.Exists(pPath)
+         Dim temp As String = TPath.GetTempPath()
+         Dim fileName As String = File.ExtractName(pPath)
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+  });
 });

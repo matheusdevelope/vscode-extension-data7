@@ -217,8 +217,9 @@ export class DependencyScanner {
     }
 
     collectModuleReferences(unit, (name, node) => {
-      if (!declaredNames.has(name.toLowerCase())) {
-        references.push({ name, isExplicit: false, loc: sourceLoc(node) });
+      const trimmedName = name.trim();
+      if (trimmedName.length > 0 && !declaredNames.has(trimmedName.toLowerCase())) {
+        references.push({ name: trimmedName, isExplicit: false, loc: sourceLoc(node) });
       }
     });
 

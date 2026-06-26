@@ -173,6 +173,31 @@ describe("System namespace — funções e constantes globais", () => {
   });
 });
 
+describe("System.IOUtils / IO nested aliases", () => {
+  test("System.IOUtils exposes TFile and TPath static helper classes", () => {
+    const tFile = lookupSystemClassByName("TFile").find(
+      (s) => s.containerName === "System.IOUtils",
+    );
+    const tPath = lookupSystemClassByName("TPath").find(
+      (s) => s.containerName === "System.IOUtils",
+    );
+
+    assert.ok(tFile);
+    assert.ok(tPath);
+    assert.ok(findMember("TFile", "Exists"));
+    assert.ok(findMember("TFile", "ReadAllText"));
+    assert.ok(findMember("TPath", "Combine"));
+    assert.ok(findMember("TPath", "GetTempPath"));
+  });
+
+  test("IO.File.ZipFile resolves by fully qualified container", () => {
+    const zipFile = lookupSystemClassByName("ZipFile").find((s) => s.containerName === "IO.File");
+
+    assert.ok(zipFile);
+    assert.equal(zipFile.type, "IO.File.ZipFile");
+  });
+});
+
 describe("SQL aliases (FireDAC delegates)", () => {
   test("TFDDataSetEvent existe como classe", () => {
     const matches = lookupSystemByName("TFDDataSetEvent");
