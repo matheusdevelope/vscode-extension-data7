@@ -7,8 +7,13 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+- Declarados `System.IOUtils.TFile` e `System.IOUtils.TPath` na System Library com os helpers estaticos iniciais usados por modulos Delphi, e adicionado alias qualificado para `IO.File.ZipFile`.
+- Corrigido falso `module-not-found` para classes da System Library usadas como chamadas estaticas, como `TFile.Exists(...)` e `File.ExtractName(...)`.
+- Corrigido falso `module-not-found` com nome vazio em acessos abreviados de bloco `With`, como `.Title` e `.Refresh()`, que nao devem ser tratados como referencias a namespaces/modulos.
 - Corrigida a deteccao/sincronizacao de dependencias para consumir a AST do parser em vez de regex textual para `Imports` e acessos `Namespace.Membro`, evitando falsos modulos como `mod_powershell`, `mod_database` e `mod_rdbms` quando aparecem em strings ou membros locais. A resolucao agora usa o namespace exato e trata como modulo apenas namespaces marcados com `'@Module`.
 - Corrigido falso `module-not-found` em acessos estaticos a classes importadas, como `Helper.timeUid()` e `stringHelper.split(...)`, que eram ambiguos com acesso qualificado de namespace.
+- Corrigido aviso falso "módulos referenciados não foram encontrados" ao abrir projeto para nomes que pertencem à System Library (`messageBox`, `Directory`, `File`, `TFile`, `TPath`, etc.). O `DependencyService` agora consulta `lookupSystemNamespaceOrClassByName` antes de marcar um nome como módulo ausente, espelhando o guard que já existia no `DiagnosticService`.
+
 
 ### Performance - Developer Studio
 
@@ -16,13 +21,17 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Performance
 
-- Build, execuÃ§Ã£o e abertura no Developer Studio agora usam snapshot persistente em `.data7/build-cache.json` para pular o empacotamento quando o `.7Proj` jÃ¡ estÃ¡ atualizado; quando hÃ¡ rebuild, o `Builder` reutiliza o transpile cacheado dos arquivos inalterados.
+- Build, execução e abertura no Developer Studio agora usam snapshot persistente em `.data7/build-cache.json` para pular o empacotamento quando o `.7Proj` já está atualizado; quando há rebuild, o `Builder` reutiliza o transpile cacheado dos arquivos inalterados.
+- **Otimização de performance do linter e fix em massa** (`workspace-fix-service`, `diagnostic-service`): os comandos "Analisar projeto" e "Corrigir Tudo (Ajuste em Massa)" agora leem arquivos diretamente do disco via `node:fs` sem abrir editores (`openTextDocument`), eliminando o disparo em cascata de `onDidOpenTextDocument` → linter por cada arquivo. As correções são aplicadas em memória e escritas diretamente em disco via `fs.writeFileSync`, sem `workspace.applyEdit` nem `.save()` por arquivo. Uma flag `isBatchFixInProgress` suprime os debounces de diagnóstico durante o batch; ao final, um único `refreshAllActive()` relinta os documentos abertos no editor. O linter em massa ganhou suporte a cancelamento (botão no progresso) e barra de progresso por arquivo. Para projetos com centenas de arquivos, isso elimina virtualmente o congelamento da interface durante essas operações.
 
 ### Alterado
 
 - Build, execução e abertura no Developer Studio não executam mais a varredura completa de auto-fix por padrão. A nova flag `data7.features.build.autoFixBeforeBuild` reativa esse comportamento de forma incremental: apenas arquivos `.bas` alterados desde o último build da sessão são reavaliados. O comando explícito `data7.fixAllWorkspace` continua corrigindo todo o projeto.
 
 ### Adicionado
+
+- Iniciado o pipeline de otimizacao de build em `src/project/optimizer/`, com contrato tipado para `data7.json#build.optimization`, compatibilidade com `opcoes.minify`/`opcoes.stripComments`, inclusao das flags no cache de build e task tracker em `docs/tasks/optimization-pipeline.md`.
+- Implementado o primeiro passe de `build.optimization.minify.removeUnused`, removendo declaracoes Data7 Basic de usuario nao alcancadas por um grafo global AST antes da minificacao textual.
 
 - `data7.features`: flags por categoria para ativar ou desativar generics, sugars, diagnósticos, varredura inicial do linter, detecção de `.7proj`, auto-instalação do MCP, auto-fix/auto-format ao salvar, auto-fix pré-build e prévia transpilada. A varredura inicial é independente do linter e dos comandos manuais. Os valores padrão preservam a compatibilidade atual, exceto o auto-fix pré-build, que é desativado para evitar atraso em projetos grandes.
 - Novo sugar plugin `inline-if` para converter automaticamente declarações `If` inline em bloco `If ... Then ... End If` durante a transpilação.

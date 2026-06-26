@@ -12,6 +12,7 @@ import { logger } from "../infra/logger";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig } from "../project/project-config";
+import { lookupSystemNamespaceOrClassByName } from "../system-library";
 
 interface ProjectMetadataJson {
   dependencies?: Record<string, string>;
@@ -125,6 +126,10 @@ export class DependencyService {
       const lowerModName = rawModName.toLowerCase();
       if (localModules.has(lowerModName)) return;
       if (!isExplicit && knownTypes.has(lowerModName)) return;
+      // Mirror the guard from DiagnosticService.validateModuleReference: names
+      // that resolve to a System Library namespace or class are always available
+      // built-in and should never be flagged as missing user modules.
+      if (!isExplicit && lookupSystemNamespaceOrClassByName(rawModName).length > 0) return;
 
       const resolvedKey = lowerModName;
       const found = availableModules.has(resolvedKey);

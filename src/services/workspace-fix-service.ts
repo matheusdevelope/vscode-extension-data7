@@ -8,6 +8,7 @@ import { isExcluded, isReadOnlyModuleFile } from "../infra/configuration";
 import { DIAGNOSTIC_SOURCE } from "../infra/constants";
 import { D7BasicCodeActionProvider } from "../providers/code-action-provider";
 import { logger } from "../infra/logger";
+import { buildMockDocument, applyTextEditsToContent } from "../utils/text-edit-utils";
 
 interface WorkspaceFixResult {
   readonly filesScanned: number;
@@ -31,6 +32,14 @@ export interface BuildWorkspaceFixOptions {
 
 export class WorkspaceFixService {
   private static readonly buildFixFingerprints = new Map<string, Map<string, string>>();
+
+  /**
+   * Set to `true` while a batch fix (or batch lint) is running.
+   * `DiagnosticService.handleDocument` checks this flag and skips debounced
+   * re-linting during the operation, preventing an avalanche of redundant
+   * linter runs — one per file opened/saved by the batch pipeline.
+   */
+  public static isBatchFixInProgress = false;
 
   public static async fixAllWorkspace(): Promise<void> {
     const candidateUris = await this.findCandidateUris();
@@ -94,7 +103,7 @@ export class WorkspaceFixService {
   public static buildWillSaveTextEdits(
     document: vscode.TextDocument,
   ): vscode.TextEdit[] | undefined {
-    const diagnostics = this.collectDiagnostics(document);
+    const diagnostics = this.collectDiagnosticsFromDocument(document);
     if (diagnostics.length === 0) return undefined;
 
     const provider = new D7BasicCodeActionProvider();
@@ -104,6 +113,20 @@ export class WorkspaceFixService {
     return this.extractTextEditsForDocument(document.uri, fixEdit.edit);
   }
 
+  /**
+   * Core batch pipeline. For each candidate URI:
+   *  1. Read content from disk via `node:fs` (no VS Code document events).
+   *  2. Build a lightweight mock TextDocument and collect diagnostics.
+   *  3. Compute TextEdits via the code-action provider.
+   *  4. Apply edits in-memory with `applyTextEditsToContent`.
+   *  5. Write the corrected file directly to disk via `node:fs`.
+   *
+   * This avoids opening editors (`openTextDocument`), avoids `applyEdit` (which
+   * triggers `onDidChangeTextDocument` for every file), and avoids per-file
+   * `.save()` calls (which trigger `onDidSaveTextDocument`). A single
+   * `DiagnosticService.refreshAllActive()` at the end re-lints whatever is
+   * currently open in the editor, keeping the Problems panel consistent.
+   */
   private static async applyFixesToUris(
     uris: readonly vscode.Uri[],
     options: WorkspaceFixOptions & {
@@ -111,73 +134,116 @@ export class WorkspaceFixService {
       readonly token?: vscode.CancellationToken;
     } = {},
   ): Promise<WorkspaceFixResult> {
-    const mergedEdit = new vscode.WorkspaceEdit();
-    const touchedUris = new Map<string, vscode.Uri>();
     const provider = new D7BasicCodeActionProvider();
 
     let filesFixed = 0;
     let totalEdits = 0;
 
-    for (let index = 0; index < uris.length; index++) {
-      if (options.token?.isCancellationRequested) {
-        break;
-      }
+    // Suppress DiagnosticService debounced linting while the batch runs.
+    WorkspaceFixService.isBatchFixInProgress = true;
+    try {
+      for (let index = 0; index < uris.length; index++) {
+        if (options.token?.isCancellationRequested) {
+          break;
+        }
 
-      const uri = uris[index];
-      if (!uri) continue;
+        const uri = uris[index];
+        if (!uri) continue;
 
-      options.progress?.report({
-        message: `Processando ${index + 1}/${uris.length} (${vscode.workspace.asRelativePath(uri)})`,
-        increment: uris.length > 0 ? 100 / uris.length : undefined,
-      });
+        // Yield the event loop so VS Code can repaint the progress bar
+        // between iterations. fs.readFileSync + synchronous parse would
+        // otherwise monopolise the main thread and freeze the UI.
+        await new Promise<void>((resolve) => setImmediate(resolve));
 
-      try {
-        const document = await vscode.workspace.openTextDocument(uri);
-        const diagnostics = this.collectDiagnostics(document);
-        if (diagnostics.length === 0) continue;
+        options.progress?.report({
+          message: `Processando ${index + 1}/${uris.length} (${vscode.workspace.asRelativePath(uri)})`,
+          increment: uris.length > 0 ? 100 / uris.length : undefined,
+        });
 
-        const fixEdit = provider.buildFixAllWorkspaceEdit(document, diagnostics);
-        if (!fixEdit) continue;
-
-        totalEdits += this.appendWorkspaceEdit(mergedEdit, fixEdit.edit);
-        filesFixed++;
-        touchedUris.set(uri.toString(), uri);
-      } catch (error) {
-        logger.error(`Erro ao coletar correções automáticas para ${uri.fsPath}.`, error);
-      }
-    }
-
-    if (totalEdits === 0) {
-      return { filesScanned: uris.length, filesFixed: 0, totalEdits: 0 };
-    }
-
-    const applied = await vscode.workspace.applyEdit(mergedEdit);
-    if (!applied) {
-      throw new Error("O VS Code recusou a aplicação das correções automáticas.");
-    }
-
-    if (options.save !== false) {
-      for (const uri of touchedUris.values()) {
         try {
-          const document = await vscode.workspace.openTextDocument(uri);
-          const save = (document as vscode.TextDocument & { save?: () => Thenable<boolean> }).save;
-          if (typeof save === "function") {
-            await save.call(document);
+          // Read file content from disk without opening an editor tab.
+          const content = this.readFileSafe(uri.fsPath);
+          if (content === undefined) continue;
+
+          // Build a lightweight mock document (no VS Code events fired).
+          const mockDoc = buildMockDocument(uri, content);
+          const diagnostics = this.collectDiagnosticsFromDocument(mockDoc);
+          if (diagnostics.length === 0) continue;
+
+          const fixEdit = provider.buildFixAllWorkspaceEdit(mockDoc, diagnostics);
+          if (!fixEdit) continue;
+
+          // Collect the TextEdits for this file from the WorkspaceEdit.
+          const textEdits = this.extractTextEditsForDocument(uri, fixEdit.edit);
+          if (textEdits.length === 0) continue;
+
+          // Apply edits in-memory (no applyEdit → no onDidChangeTextDocument).
+          const correctedContent = applyTextEditsToContent(content, textEdits);
+          if (correctedContent === content) continue;
+
+          // Write corrected file directly to disk.
+          if (options.save !== false) {
+            fs.writeFileSync(uri.fsPath, correctedContent, "utf-8");
+            // Invalidate parser cache so hover/completion reflects new content.
+            LanguageProcessor.getInstance().invalidate(uri.toString());
           }
+
+          totalEdits += textEdits.length;
+          filesFixed++;
         } catch (error) {
-          logger.warn(
-            `As correções foram aplicadas em ${uri.fsPath}, mas o arquivo não pôde ser salvo automaticamente: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
+          logger.error(`Erro ao aplicar correções automáticas para ${uri.fsPath}.`, error);
         }
       }
+    } finally {
+      WorkspaceFixService.isBatchFixInProgress = false;
+    }
+
+    if (totalEdits > 0 && options.save !== false) {
+      // Reload any documents that are currently open in the editor so the
+      // in-memory buffer reflects the corrected on-disk content, then
+      // re-run diagnostics for all open files in one pass.
+      await this.reloadOpenDocuments(uris);
     }
 
     return { filesScanned: uris.length, filesFixed, totalEdits };
   }
 
-  private static collectDiagnostics(document: vscode.TextDocument): vscode.Diagnostic[] {
+  /**
+   * For files that were written to disk during the batch and happen to be
+   * currently open in the editor, ask VS Code to revert the buffer so it
+   * reflects the new on-disk content.  This avoids showing a "file changed on
+   * disk" prompt to the user.
+   */
+  private static async reloadOpenDocuments(uris: readonly vscode.Uri[]): Promise<void> {
+    const uriSet = new Set(uris.map((u) => u.toString().toLowerCase()));
+    for (const doc of vscode.workspace.textDocuments) {
+      if (uriSet.has(doc.uri.toString().toLowerCase()) && doc.uri.scheme === "file") {
+        try {
+          await vscode.commands.executeCommand("workbench.action.revertFile", doc.uri);
+        } catch {
+          // Non-critical: if revert fails the user will see the disk-change prompt.
+        }
+      }
+    }
+
+    // Single re-lint pass for all currently open documents.
+    try {
+      const { DiagnosticService } = await import("./diagnostic-service");
+      DiagnosticService.refreshAllActive();
+    } catch {
+      // Avoid circular-dependency crash if import fails.
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Diagnostics helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Collects diagnostics for a document (real or mock). Used by both the
+   * batch pipeline (mock docs) and `buildWillSaveTextEdits` (real docs).
+   */
+  private static collectDiagnosticsFromDocument(document: vscode.TextDocument): vscode.Diagnostic[] {
     const diagnostics: vscode.Diagnostic[] = [];
     const text = document.getText();
 
@@ -285,49 +351,16 @@ export class WorkspaceFixService {
     );
   }
 
-  private static appendWorkspaceEdit(
-    target: vscode.WorkspaceEdit,
-    source: vscode.WorkspaceEdit,
-  ): number {
-    let count = 0;
-
-    if (typeof source.entries === "function") {
-      for (const [uri, edits] of source.entries()) {
-        for (const edit of edits) {
-          if (edit.newText === "") {
-            target.delete(uri, edit.range);
-          } else if (edit.range.isEmpty) {
-            target.insert(uri, edit.range.start, edit.newText);
-          } else {
-            target.replace(uri, edit.range, edit.newText);
-          }
-          count++;
-        }
-      }
-      return count;
+  /** Reads a file from disk, returning `undefined` on any I/O error. */
+  private static readFileSafe(fsPath: string): string | undefined {
+    try {
+      return fs.readFileSync(fsPath, "utf-8");
+    } catch (err) {
+      logger.warn(
+        `Falha ao ler ${fsPath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return undefined;
     }
-
-    const mockEdits = (source as { edits?: unknown[] }).edits;
-    if (!Array.isArray(mockEdits)) return 0;
-
-    for (const mockEdit of mockEdits) {
-      const entry = mockEdit as
-        | { type: "insert"; uri: vscode.Uri; position: vscode.Position; text: string }
-        | { type: "replace"; uri: vscode.Uri; range: vscode.Range; text: string }
-        | { type: "delete"; uri: vscode.Uri; range: vscode.Range };
-      if (entry.type === "insert") {
-        target.insert(entry.uri, entry.position, entry.text);
-        count++;
-      } else if (entry.type === "replace") {
-        target.replace(entry.uri, entry.range, entry.text);
-        count++;
-      } else {
-        target.delete(entry.uri, entry.range);
-        count++;
-      }
-    }
-
-    return count;
   }
 
   private static extractTextEditsForDocument(

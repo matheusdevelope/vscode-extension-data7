@@ -9,12 +9,14 @@ import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostics/diagnostic-codes";
+import { lookupSystemNamespaceOrClassByName } from "../system-library";
 import { debounceKeyed } from "../utils/debounce";
 import { isExcluded, isReadOnlyModuleFile, readConfiguration } from "../infra/configuration";
 import { logger } from "../infra/logger";
 import { DIAGNOSTIC_SOURCE, LANGUAGE_IDS, PROJECT_CONFIG_FILENAME } from "../infra/constants";
 import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig } from "../project/project-config";
+import { buildMockDocument } from "../utils/text-edit-utils";
 
 /**
  * Runs validation diagnostics against `.bas` documents. Refresh is debounced
@@ -57,6 +59,17 @@ export class DiagnosticService {
     );
 
     const handleDocument = (doc: vscode.TextDocument): void => {
+      // Skip debounced linting while a batch fix or batch lint is in progress.
+      // The batch pipeline manages its own diagnostic lifecycle and triggers a
+      // single refreshAllActive() at the end, so individual per-file debounces
+      // during the batch would be redundant and slow the IDE to a crawl.
+      //
+      // Import lazily to avoid a circular reference at module load time.
+      const { WorkspaceFixService } = require("./workspace-fix-service") as {
+        WorkspaceFixService: { isBatchFixInProgress: boolean };
+      };
+      if (WorkspaceFixService.isBatchFixInProgress) return;
+
       if (!this.isLiveDiagnosticDocument(doc)) {
         this.clearDiagnostics(doc.uri);
         return;
@@ -273,11 +286,14 @@ export class DiagnosticService {
     isExplicit: boolean,
     documentUri: string,
   ): void {
+    if (modName.trim().length === 0) return;
+
     const lowerModName = modName.toLowerCase();
     if (wsCache.localModules.has(lowerModName)) return;
     if (DependencyScanner.isIgnoredNamespace(lowerModName)) return;
     if (!isExplicit && wsCache.localTypes.has(lowerModName)) return;
     if (!isExplicit) {
+      if (lookupSystemNamespaceOrClassByName(modName).length > 0) return;
       const symbol = WorkspaceSymbolIndexer.getInstance().findSymbolByName(modName, documentUri);
       if (symbol && symbol.kind !== "namespace") return;
     }
@@ -398,9 +414,19 @@ export class DiagnosticService {
       this.clearDiagnostics(uri);
       return [];
     }
-    const document = await vscode.workspace.openTextDocument(uri);
-    this.refreshDiagnosticsNow(document);
-    return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+    // If the document is already open in the editor, use the live buffer.
+    const existingDoc = vscode.workspace.textDocuments.find(
+      (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+    );
+    if (existingDoc) {
+      this.refreshDiagnosticsNow(existingDoc);
+      return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+    }
+    // Otherwise lint from disk without opening an editor tab.
+    const diags = this.lintFileFromDisk(uri);
+    this._collection?.set(uri, diags);
+    this.liveDiagnosticUris.set(uri.toString().toLowerCase(), uri);
+    return diags;
   }
 
   public static async lintWorkspace(showNotification = false): Promise<void> {
@@ -427,30 +453,71 @@ export class DiagnosticService {
     let warningCount = 0;
     let infoCount = 0;
 
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: "Analisando projeto com o linter...",
-      },
-      async () => {
-        for (const uri of uris) {
-          try {
-            const diags = await this.lintFile(uri);
-            for (const diag of diags) {
-              if (diag.severity === vscode.DiagnosticSeverity.Error) {
-                errorCount++;
-              } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
-                warningCount++;
+    // Suppress per-document debounced linting during the batch pass.
+    const { WorkspaceFixService } = require("./workspace-fix-service") as {
+      WorkspaceFixService: { isBatchFixInProgress: boolean };
+    };
+    WorkspaceFixService.isBatchFixInProgress = true;
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Analisando projeto com o linter...",
+          cancellable: true,
+        },
+        async (progress, token) => {
+          for (let i = 0; i < uris.length; i++) {
+            if (token.isCancellationRequested) break;
+            const uri = uris[i];
+            if (!uri) continue;
+
+            // Yield the event loop so VS Code can repaint the progress
+            // notification between iterations. Without this, the synchronous
+            // fs.readFileSync + parse work monopolises the main thread and the
+            // progress bar freezes on the first rendered frame.
+            await new Promise<void>((resolve) => setImmediate(resolve));
+
+            progress.report({
+              message: `${i + 1}/${uris.length} — ${vscode.workspace.asRelativePath(uri)}`,
+              increment: 100 / uris.length,
+            });
+
+            try {
+              // Lint the document without opening an editor tab.
+              // If the file is already open in an editor, use its live buffer.
+              const openDoc = vscode.workspace.textDocuments.find(
+                (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+              );
+              let diags: vscode.Diagnostic[];
+              if (openDoc) {
+                this.refreshDiagnosticsNow(openDoc);
+                diags = this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
               } else {
-                infoCount++;
+                // Read from disk and publish to DiagnosticCollection without
+                // opening any editor — the Problems panel will show the results.
+                diags = this.lintFileFromDisk(uri);
+                this._collection?.set(uri, diags);
+                this.liveDiagnosticUris.set(uri.toString().toLowerCase(), uri);
               }
+
+              for (const diag of diags) {
+                if (diag.severity === vscode.DiagnosticSeverity.Error) {
+                  errorCount++;
+                } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+                  warningCount++;
+                } else {
+                  infoCount++;
+                }
+              }
+            } catch (err) {
+              logger.error(`Erro ao analisar arquivo ${uri?.fsPath ?? ""} no linter:`, err);
             }
-          } catch (err) {
-            logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
           }
-        }
-      },
-    );
+        },
+      );
+    } finally {
+      WorkspaceFixService.isBatchFixInProgress = false;
+    }
 
     if (showNotification) {
       const totalIssues = errorCount + warningCount + infoCount;
@@ -473,6 +540,98 @@ export class DiagnosticService {
         }
       });
     }
+  }
+
+  /**
+   * Lints a file by reading its content from disk (no editor open), builds a
+   * mock TextDocument, and runs the full diagnostics pipeline. Returns the
+   * collected diagnostics without publishing them to the collection.
+   *
+   * Callers are responsible for publishing to `this._collection` if desired.
+   */
+  private static lintFileFromDisk(uri: vscode.Uri): vscode.Diagnostic[] {
+    const fsPath = uri.fsPath;
+    let content: string;
+    try {
+      content = fs.readFileSync(fsPath, "utf-8");
+    } catch (err) {
+      logger.warn(
+        `Falha ao ler ${fsPath} para linting: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return [];
+    }
+
+    const mockDoc = buildMockDocument(uri, content);
+    return this.collectDiagnosticsFromMockDocument(mockDoc);
+  }
+
+  /**
+   * Runs the full diagnostics pipeline on a mock (or real) document object.
+   * Extracted from `refreshDiagnosticsNow` so both the live editor path and
+   * the batch-from-disk path share identical logic.
+   */
+  private static collectDiagnosticsFromMockDocument(
+    document: vscode.TextDocument,
+  ): vscode.Diagnostic[] {
+    const diagnostics: vscode.Diagnostic[] = [];
+    const text = document.getText();
+    const paths = ProjectService.findProjectPaths(document.fileName);
+    if (!paths) return [];
+
+    const wsCache = this.getWorkspaceCache(paths.workspaceDir);
+
+    try {
+      for (const reference of DependencyScanner.collectModuleReferences(text)) {
+        const namespace = reference.isExplicit
+          ? (reference.name.split(".")[0] ?? reference.name)
+          : reference.name;
+        this.validateModuleReference(
+          namespace,
+          reference.loc?.line ?? 0,
+          reference.loc?.character ?? 0,
+          diagnostics,
+          wsCache,
+          reference.isExplicit,
+          document.uri.toString(),
+        );
+      }
+    } catch (err: unknown) {
+      logger.error("Falha ao coletar referências de módulos via AST.", err);
+    }
+
+    try {
+      const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+      cachedDoc.errors.forEach((err) => {
+        const line = Math.max(0, err.loc.line - 1);
+        const col = Math.max(0, err.loc.column);
+        const range = new vscode.Range(line, col, line, col + 1);
+        const isMissingThen =
+          err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
+        const severity = isMissingThen
+          ? vscode.DiagnosticSeverity.Warning
+          : vscode.DiagnosticSeverity.Error;
+        const diag = new vscode.Diagnostic(range, err.message, severity);
+        diag.code = err.code;
+        diag.source = DIAGNOSTIC_SOURCE;
+        diagnostics.push(diag);
+      });
+    } catch (err: unknown) {
+      logger.error("Falha ao obter erros sintáticos do LanguageProcessor.", err);
+    }
+
+    try {
+      const advanced = DiagnosticsLinter.runAdvancedDiagnostics(
+        document,
+        WorkspaceSymbolIndexer.getInstance(),
+      );
+      diagnostics.push(...advanced);
+    } catch (err: unknown) {
+      logger.error("Falha ao executar diagnósticos avançados.", err);
+    }
+
+    return diagnostics;
   }
 
   /** Test-only hook: clears all cached state. */
