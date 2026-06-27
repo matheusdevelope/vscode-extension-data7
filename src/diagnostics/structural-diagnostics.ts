@@ -34,9 +34,10 @@ export function validateDuplicateDeclarations(
 
   SYSTEM_SYMBOLS.forEach((s) => {
     if (
-      !s.containerName ||
-      s.containerName.toLowerCase() === "system" ||
-      s.containerName.toLowerCase() === "globals"
+      (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") &&
+      (!s.containerName ||
+        s.containerName.toLowerCase() === "system" ||
+        s.containerName.toLowerCase() === "globals")
     ) {
       outerSymbols.set(s.name.toLowerCase(), {
         kind: "símbolo global do sistema",
@@ -62,7 +63,9 @@ export function validateDuplicateDeclarations(
     if (s.fileUri && s.fileUri === document.uri.toString()) return;
 
     const containerLower = s.containerName.toLowerCase();
-    if (importedNs.has(containerLower)) {
+    const isImportedType =
+      s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
+    if (importedNs.has(containerLower) && isImportedType) {
       outerSymbols.set(s.name.toLowerCase(), {
         kind: `tipo importado de ${s.containerName}`,
         container: s.containerName,

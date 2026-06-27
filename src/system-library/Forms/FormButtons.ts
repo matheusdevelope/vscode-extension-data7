@@ -19,4 +19,20 @@ export const symbols: SystemSymbolInfo[] = [
     description:
       "Formulário padrão do Data7 com barra de botões inferior (Ok/Cancela/auxiliares) já configurada.",
   },
+  {
+    name: "btnOK",
+    kind: "property",
+    type: "ButtonOk",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "FormButtons",
+    description: "Botao OK padrao exposto pelo formulario FormButtons.",
+  },
 ];

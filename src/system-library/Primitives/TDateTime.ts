@@ -53,6 +53,23 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Retorna a diferença em segundos entre dois TDateTime.",
   },
   {
+    name: "DaySpan",
+    kind: "method",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pDateTime", type: "TDateTime", isByRef: false, isOptional: false }],
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "TDateTime",
+    description: "Retorna a diferenca em dias entre dois TDateTime.",
+  },
+  {
     name: "Year",
     kind: "property",
     type: "Integer",

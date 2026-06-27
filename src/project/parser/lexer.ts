@@ -152,17 +152,17 @@ export function tokenizeLine(
       const start = i;
       if (ch === "&") {
         i += 2;
-        while (i < n && isHexDigit(line[i] ?? "")) i++;
+        while (i < n && isHexNumberPart(line, i)) i++;
       } else {
-        while (i < n && isDigit(line[i] ?? "")) i++;
+        while (i < n && isDecimalNumberPart(line, i)) i++;
         if (line[i] === "." && line[i + 1] !== ".") {
           i++;
-          while (i < n && isDigit(line[i] ?? "")) i++;
+          while (i < n && isDecimalNumberPart(line, i)) i++;
         }
         if (line[i] === "e" || line[i] === "E") {
           i++;
           if (line[i] === "+" || line[i] === "-") i++;
-          while (i < n && isDigit(line[i] ?? "")) i++;
+          while (i < n && isDecimalNumberPart(line, i)) i++;
         }
       }
       tokens.push({ kind: "number", value: line.slice(start, i), col: start });
@@ -220,6 +220,23 @@ function isDigit(ch: string): boolean {
 
 function isHexDigit(ch: string): boolean {
   return isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F");
+}
+
+function isDecimalNumberPart(line: string, index: number): boolean {
+  const ch = line[index] ?? "";
+  if (isDigit(ch)) return true;
+  return ch === "_" && isDigit(line[index - 1] ?? "") && isDecimalUnderscoreTail(line, index);
+}
+
+function isHexNumberPart(line: string, index: number): boolean {
+  const ch = line[index] ?? "";
+  if (isHexDigit(ch)) return true;
+  return ch === "_" && isHexDigit(line[index - 1] ?? "") && isHexDigit(line[index + 1] ?? "");
+}
+
+function isDecimalUnderscoreTail(line: string, index: number): boolean {
+  const next = line[index + 1] ?? "";
+  return isDigit(next) || next === ")" || next === "]" || next === ",";
 }
 
 function isIdentStart(ch: string): boolean {

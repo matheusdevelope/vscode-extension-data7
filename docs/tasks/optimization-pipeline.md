@@ -23,7 +23,8 @@ Este arquivo acompanha a implementação de `minify`, `uglify` agressivo e sourc
 - [ ] Compor source map de transpile/sugars/generics com otimizações.
 - [x] Migrar minify atual para `src/project/optimizer/minify`.
 - [x] Implementar `minify.removeUnused` por grafo global AST.
-- [ ] Implementar diretivas `@data7:keep`, `@data7:keep-name`, `@data7:entrypoint`.
+- [x] Implementar diretivas `@data7:keep`, `@data7:keep-name`, `@data7:entrypoint`.
+- [x] Corrigir `stripComments` para preservar apostrofos e aspas escapadas dentro de strings.
 - [ ] Implementar classificador de API nativa/System Library.
 - [ ] Implementar alocador global de nomes para uglify agressivo.
 - [ ] Reescrever referências globais de namespaces/classes/membros/tipos/imports.

@@ -42,6 +42,54 @@ export class TypeResolver {
     return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
   }
 
+  public static findVariableSymbol(
+    varName: string,
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo | undefined {
+    const varLower = varName.toLowerCase();
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    const activeNamespace = fileSyms
+      ? findActiveNamespaceName(fileSyms.symbols, position.line)
+      : undefined;
+    const isMatchingVariable = (s: SymbolInfo): boolean =>
+      s.name.toLowerCase() === varLower && isVariableLikeSymbol(s);
+
+    const currentFileSymbol = fileSyms?.symbols.find((s) => {
+      if (!isMatchingVariable(s)) return false;
+      if (!s.containerName) return true;
+      return activeNamespace !== undefined && s.containerName.toLowerCase() === activeNamespace;
+    });
+    if (currentFileSymbol) return currentFileSymbol;
+
+    const allSymbols = indexer.getAllSymbols();
+
+    if (activeNamespace) {
+      const namespaceSymbol = allSymbols.find(
+        (s) => isMatchingVariable(s) && s.containerName?.toLowerCase() === activeNamespace,
+      );
+      if (namespaceSymbol) return namespaceSymbol;
+    }
+
+    const importedNamespaces = new Set(fileSyms?.imports.map((imp) => imp.toLowerCase()) ?? []);
+    if (importedNamespaces.size > 0) {
+      const importedSymbol = allSymbols.find(
+        (s) => isMatchingVariable(s) && importedNamespaces.has(s.containerName?.toLowerCase() ?? ""),
+      );
+      if (importedSymbol) return importedSymbol;
+    }
+
+    const projectGlobals = allSymbols.filter(
+      (s) => isMatchingVariable(s) && !s.containerName && !s.fileUri.startsWith("system://"),
+    );
+    return (
+      projectGlobals.find((s) => isPrincipalFileUri(s.fileUri)) ??
+      projectGlobals.find((s) => s.fileUri === document.uri.toString()) ??
+      projectGlobals[0]
+    );
+  }
+
   private static getRawVariableType(
     varName: string,
     document: vscode.TextDocument,
@@ -134,12 +182,7 @@ export class TypeResolver {
       }
     }
 
-    const globalVar = fileSyms.symbols.find(
-      (s) =>
-        s.name.toLowerCase() === varLower &&
-        (s.kind === "variable" || s.kind === "property" || s.kind === "indexed-property") &&
-        !s.containerName,
-    );
+    const globalVar = TypeResolver.findVariableSymbol(varName, document, position, indexer);
     if (globalVar) return globalVar.type;
 
     return undefined;
@@ -282,12 +325,16 @@ export class TypeResolver {
             indexer,
           );
           if (!targetType) return undefined;
-          const member = TypeResolver.findMember(
-            targetType,
-            expr.methodName,
-            indexer,
-            expr.arguments.length,
+          const argumentTypes = expr.arguments.map((arg) =>
+            TypeResolver.resolveExpressionType(arg, document, lineIdx, indexer),
           );
+          const member =
+            TypeResolver.findMemberWithArgumentTypes(
+              targetType,
+              expr.methodName,
+              indexer,
+              argumentTypes,
+            ) ?? TypeResolver.findMember(targetType, expr.methodName, indexer, expr.arguments.length);
           if (!member) return undefined;
           if (member.kind === "variable" || member.kind === "property") {
             const delegateSym =
@@ -731,6 +778,27 @@ export class TypeResolver {
     };
 
     return search(typeName);
+  }
+
+  public static findMemberWithArgumentTypes(
+    typeName: string,
+    memberName: string,
+    indexer: WorkspaceSymbolIndexer,
+    argumentTypes: readonly (string | undefined)[],
+  ): SymbolInfo | undefined {
+    const memberLower = memberName.toLowerCase();
+    const arity = argumentTypes.length;
+    const candidates = TypeResolver.getAllMembersForType(typeName, indexer).filter(
+      (s) =>
+        s.name.toLowerCase() === memberLower &&
+        (s.parameters ? s.parameters.length : 0) === arity,
+    );
+
+    return (
+      candidates.find((candidate) =>
+        parametersAcceptArguments(candidate.parameters ?? [], argumentTypes, indexer),
+      ) ?? candidates[0]
+    );
   }
 
   /**
@@ -1206,6 +1274,83 @@ function findGenericBaseSymbol(
     );
   }
   return lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
+}
+
+function isVariableLikeSymbol(symbol: SymbolInfo): boolean {
+  return (
+    symbol.kind === "variable" ||
+    symbol.kind === "property" ||
+    symbol.kind === "indexed-property"
+  );
+}
+
+function findActiveNamespaceName(
+  symbols: readonly SymbolInfo[],
+  lineIdx: number,
+): string | undefined {
+  const namespace = symbols.find(
+    (s) => s.kind === "namespace" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
+  );
+  return namespace?.name.toLowerCase();
+}
+
+function isPrincipalFileUri(fileUri: string): boolean {
+  return /(?:^|[/\\])principal\.bas$/i.test(fileUri);
+}
+
+function parametersAcceptArguments(
+  parameters: readonly { readonly type: string }[],
+  argumentTypes: readonly (string | undefined)[],
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  if (parameters.length !== argumentTypes.length) return false;
+  return parameters.every((parameter, index) => {
+    const argumentType = argumentTypes[index];
+    if (!argumentType) return true;
+    return isArgumentAssignableToParameter(argumentType, parameter.type, indexer);
+  });
+}
+
+function isArgumentAssignableToParameter(
+  argumentType: string,
+  parameterType: string,
+  indexer: WorkspaceSymbolIndexer,
+): boolean {
+  const argLower = argumentType.toLowerCase();
+  const paramLower = parameterType.toLowerCase();
+  if (argLower === paramLower) return true;
+  if (paramLower === "variant" || argLower === "variant") return true;
+  if (isNumericType(argLower) && isNumericType(paramLower)) return true;
+
+  const argClass = TypeResolver.findClassSymbol(argumentType, indexer);
+  const paramClass = TypeResolver.findClassSymbol(parameterType, indexer);
+  if (argClass && paramClass) {
+    if (
+      argClass.name.toLowerCase() === paramClass.name.toLowerCase() &&
+      (argClass.containerName ?? "").toLowerCase() ===
+        (paramClass.containerName ?? "").toLowerCase()
+    ) {
+      return true;
+    }
+  }
+
+  return TypeResolver.isSubclassOf(argumentType, parameterType, indexer);
+}
+
+function isNumericType(typeName: string): boolean {
+  return [
+    "integer",
+    "byte",
+    "long",
+    "short",
+    "single",
+    "double",
+    "decimal",
+    "extended",
+    "longint",
+    "word",
+    "currency",
+  ].includes(typeName);
 }
 
 function typeofLiteral(value: string | number | boolean): string {

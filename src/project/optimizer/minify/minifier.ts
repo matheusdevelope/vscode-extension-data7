@@ -42,6 +42,11 @@ function compressWhitespaceOutsideStrings(text: string): string {
   while (i < text.length) {
     const char = text[i] ?? "";
     if (char === '"') {
+      if (inString && text[i + 1] === '"') {
+        compressed += '""';
+        i += 2;
+        continue;
+      }
       inString = !inString;
       compressed += char;
       i++;

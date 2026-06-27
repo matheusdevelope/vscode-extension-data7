@@ -42,6 +42,10 @@ import {
   addElseIfWhitespaceBulkFix,
 } from "./quick-fixes/elseif-whitespace";
 import {
+  addLineContinuationWithoutBreakFix,
+  addLineContinuationWithoutBreakBulkFix,
+} from "./quick-fixes/line-continuation-without-break";
+import {
   addReturnUnrecommendedFix,
   addReturnUnrecommendedBulkFix,
 } from "./quick-fixes/return-unrecommended";
@@ -167,6 +171,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       case DiagnosticCodes.ElseIfWhitespace:
         addElseIfWhitespaceFix(actions, document, diagnostic);
         addElseIfWhitespaceBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.LineContinuationWithoutBreak:
+        addLineContinuationWithoutBreakFix(actions, document, diagnostic);
+        addLineContinuationWithoutBreakBulkFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.ReturnUnrecommended:
         addReturnUnrecommendedFix(actions, document, diagnostic);

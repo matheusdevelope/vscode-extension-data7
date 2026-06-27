@@ -59,6 +59,7 @@ interface Declaration {
   readonly module: ParsedModule;
   readonly namespace?: Declaration;
   readonly ownerClass?: Declaration;
+  readonly keep: boolean;
 }
 
 interface DeclarationRegistry {
@@ -115,6 +116,8 @@ const RESERVED_WORDS = new Set([
   "while",
   "with",
 ]);
+
+const KEEP_DIRECTIVE_PATTERN = /'\s*@data7:(?:keep|keep-name|entrypoint|external-api)\b/i;
 
 export function removeUnusedDeclarations(
   modules: readonly RemoveUnusedModuleInput[],
@@ -183,6 +186,7 @@ function collectTopLevelDeclarations(
         name: member.name,
         node: member,
         module,
+        keep: hasKeepDirective(module, member.loc?.startLine),
       });
       collectTopLevelDeclarations(member.members, module, add, ns);
     } else if (member.kind === "ClassDeclaration") {
@@ -195,6 +199,7 @@ function collectTopLevelDeclarations(
         node: member,
         module,
         namespace,
+        keep: hasKeepDirective(module, member.loc?.startLine),
       });
     } else if (member.kind === "DelegateDeclaration") {
       add({
@@ -204,6 +209,7 @@ function collectTopLevelDeclarations(
         node: member,
         module,
         namespace,
+        keep: hasKeepDirective(module, member.loc?.startLine),
       });
     } else if (member.kind === "VariableDeclaration") {
       add({
@@ -213,6 +219,7 @@ function collectTopLevelDeclarations(
         node: member,
         module,
         namespace,
+        keep: hasKeepDirective(module, member.loc?.startLine),
       });
     } else if (member.kind === "EnumDeclaration") {
       add({
@@ -222,6 +229,7 @@ function collectTopLevelDeclarations(
         node: member,
         module,
         namespace,
+        keep: hasKeepDirective(module, member.loc?.startLine),
       });
     }
   }
@@ -242,6 +250,7 @@ function collectClassDeclaration(
     module,
     namespace,
     ownerClass,
+    keep: hasKeepDirective(module, klass.loc?.startLine),
   });
 
   for (const member of klass.members) {
@@ -258,6 +267,7 @@ function collectClassDeclaration(
       module,
       namespace,
       ownerClass: classDecl,
+      keep: hasKeepDirective(module, member.loc?.startLine),
     });
   }
 
@@ -297,6 +307,9 @@ function computeReachableDeclarations(
 
   for (const module of modules) {
     seedModuleRoots(module, registry, mark);
+  }
+  for (const decl of registry.declarations) {
+    if (decl.keep) mark(decl);
   }
 
   while (queue.length > 0) {
@@ -560,4 +573,16 @@ function qualifiedName(
   if (ownerClass) parts.push(ownerClass.name);
   parts.push(name);
   return parts.join(".");
+}
+
+function hasKeepDirective(module: ParsedModule, startLine: number | undefined): boolean {
+  if (startLine === undefined || startLine <= 1) return false;
+  const lines = module.input.code.split(/\r?\n/);
+  for (let index = startLine - 2; index >= 0; index--) {
+    const line = lines[index] ?? "";
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    return KEEP_DIRECTIVE_PATTERN.test(trimmed);
+  }
+  return false;
 }

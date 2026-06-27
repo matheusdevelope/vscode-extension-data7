@@ -2,7 +2,7 @@
   "name": "vscode-extension-data7",
   "displayName": "Data7 Dev Studio integration",
   "description": "Ferramentas para desenvolvimento, sincronização e execução de projetos Data7 (.7Proj) no VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "matheusdevelope",
   "license": "MIT",
   "repository": {
@@ -611,7 +611,7 @@
                 "lintWorkspaceOnStartup": {
                   "type": "boolean",
                   "default": false,
-                  "description": "Legado: a extensão não executa mais varredura completa no startup. O linter live acompanha apenas arquivos físicos abertos; use Data7: Reiniciar/Rodar Linter no Projeto para analisar o workspace inteiro."
+                  "description": "Executa a análise completa do linter no workspace ao abrir a IDE. Desativado por padrão para evitar custo inicial em projetos grandes; o comando manual continua disponível."
                 }
               }
             },

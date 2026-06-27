@@ -66,10 +66,14 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   indexer
     .indexWorkspace(vscode.workspace.workspaceFolders)
     .then(() => {
-      if (readConfiguration().features.diagnostics.enabled) {
-        DiagnosticService.refreshOpenDocuments();
-        DiagnosticService.pruneClosedDiagnostics();
+      const diagnosticsFeatures = readConfiguration().features.diagnostics;
+      if (!diagnosticsFeatures.enabled) return;
+      if (diagnosticsFeatures.lintWorkspaceOnStartup) {
+        void DiagnosticService.lintWorkspace(false);
+        return;
       }
+      DiagnosticService.refreshOpenDocuments();
+      DiagnosticService.pruneClosedDiagnostics();
     })
     .catch((err) => {
       logger.error("Erro ao indexar workspace.", err);

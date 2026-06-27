@@ -380,7 +380,7 @@ class SymbolIndexerWalker extends ASTWalker {
     }
 
     if (node.kind === "VariableDeclaration") {
-      if (this.activeNamespace && !this.activeClass) {
+      if (!this.activeClass) {
         const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
         const varSymbol: SymbolInfo = {
           name: node.name,

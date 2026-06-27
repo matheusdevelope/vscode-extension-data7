@@ -105,6 +105,18 @@ describe("parser/parser", () => {
     }
   });
 
+  test("parses indexed member access with a parenthesized expression argument", () => {
+    const src = [
+      "Sub Run()",
+      '   If gdrRetornos.Row < gdrRetornos.RowCount And gdrRetornos.Cells[1, (gdrRetornos.Row + 1_)] <> "" Then',
+      "   End If",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+
+    assert.deepEqual([...r.errors], []);
+  });
+
   test("parses a Function with generic type params and return type", () => {
     const src = ["Function Wrap<T>(pValue As T) As T", "   Wrap = pValue", "End Function"].join(
       "\n",

@@ -127,10 +127,23 @@ export class DependencyScanner {
     ) {
       return "";
     }
-    // `String.prototype.split` always returns at least one element, so the
-    // `?? line` fallback is purely a `noUncheckedIndexedAccess` formality.
-    const parts = line.split("'");
-    return parts[0] ?? line;
+
+    let inString = false;
+    for (let index = 0; index < line.length; index++) {
+      const char = line[index] ?? "";
+      if (char === '"') {
+        if (inString && line[index + 1] === '"') {
+          index++;
+          continue;
+        }
+        inString = !inString;
+        continue;
+      }
+      if (!inString && char === "'") {
+        return line.slice(0, index);
+      }
+    }
+    return line;
   }
 
   // Helper to resolve module name by exact namespace match.

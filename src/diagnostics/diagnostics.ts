@@ -21,6 +21,7 @@ import type {
   FinallyBlockUnsupportedPayload,
   MissingThenPayload,
   ElseIfWhitespacePayload,
+  LineContinuationWithoutBreakPayload,
   ReturnUnrecommendedPayload,
   ReturnAssignmentInCatchPayload,
   InlineIfThenPayload,
@@ -78,6 +79,7 @@ import {
   type IfStatement,
   type ReturnStatement,
 } from "../project/ast/ast";
+import { tokenizeLine, type LineToken } from "../project/parser/lexer";
 
 export class DiagnosticsLinter {
   private static resolveClassName(className: string): string {
@@ -437,6 +439,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.TypeMismatch]: vscode.DiagnosticSeverity.Error,
     [LegacyDiagnosticCodes.FinallyBlockUnsupported]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ElseIfWhitespace]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.LineContinuationWithoutBreak]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.MissingThen]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ReturnUnrecommended]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ReturnAssignmentInCatch]: vscode.DiagnosticSeverity.Warning,
@@ -489,6 +492,8 @@ export class DiagnosticsLinter {
     }
 
     const lines = text.split(/\r?\n/);
+    DiagnosticsLinter.collectLineContinuationWithoutBreakDiagnostics(lines, diagnostics);
+
     const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
     const unit = cached.unit;
 
@@ -546,6 +551,78 @@ export class DiagnosticsLinter {
     }
 
     return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+  }
+
+  private static collectLineContinuationWithoutBreakDiagnostics(
+    lines: readonly string[],
+    diagnostics: vscode.Diagnostic[],
+  ): void {
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx] ?? "";
+      const tokens = tokenizeLine(line, { includeWhitespace: false }).filter(
+        (token) => token.kind !== "comment",
+      );
+      if (tokens.length === 0) continue;
+
+      for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
+        const token = tokens[tokenIdx];
+        if (!token) continue;
+        const nextToken = tokens[tokenIdx + 1];
+        if (!nextToken) continue;
+
+        if (token.kind === "number" && token.value.endsWith("_")) {
+          this.pushLineContinuationWithoutBreakDiagnostic(
+            diagnostics,
+            lineIdx,
+            token.col + token.value.length - 1,
+          );
+          continue;
+        }
+
+        if (
+          token.kind === "identifier" &&
+          token.value === "_" &&
+          this.looksLikeInlineLineContinuation(tokens, tokenIdx)
+        ) {
+          this.pushLineContinuationWithoutBreakDiagnostic(diagnostics, lineIdx, token.col);
+        }
+      }
+    }
+  }
+
+  private static looksLikeInlineLineContinuation(
+    tokens: readonly Exclude<LineToken, { kind: "comment" }>[],
+    tokenIdx: number,
+  ): boolean {
+    const previous = tokens[tokenIdx - 1];
+    const next = tokens[tokenIdx + 1];
+    if (!previous || !next) return false;
+    if (previous.kind === "keyword" && ["dim", "const", "as"].includes(previous.value.toLowerCase())) {
+      return false;
+    }
+    if (next.kind === "keyword" && next.value.toLowerCase() === "as") return false;
+    return true;
+  }
+
+  private static pushLineContinuationWithoutBreakDiagnostic(
+    diagnostics: vscode.Diagnostic[],
+    lineIdx: number,
+    column: number,
+  ): void {
+    const range = new vscode.Range(lineIdx, column, lineIdx, column + 1);
+    const diag = new vscode.Diagnostic(
+      range,
+      "O marcador '_' de continuacao de linha esta na mesma linha do codigo seguinte. Remova o marcador ou quebre a linha nesse ponto.",
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.LineContinuationWithoutBreak;
+    const payload: LineContinuationWithoutBreakPayload = {
+      code: DiagnosticCodes.LineContinuationWithoutBreak,
+      line: lineIdx,
+      column,
+    };
+    setDiagnosticPayload(diag, payload);
+    diagnostics.push(diag);
   }
 
   private static postProcessDiagnostics(
@@ -953,6 +1030,12 @@ class DiagnosticsASTWalker extends ASTWalker {
           nameLower === this.activeProperty?.name.toLowerCase() ||
           this.isLocalDeclared(name) ||
           this.isGenericTypeParameter(name) ||
+          TypeResolver.findVariableSymbol(
+            name,
+            this.document,
+            new vscode.Position(node.loc.startLine - 1, node.loc.startChar),
+            this.indexer,
+          ) !== undefined ||
           !!(
             this.activeClass &&
             (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
@@ -1096,7 +1179,16 @@ class DiagnosticsASTWalker extends ASTWalker {
       }
 
       if (typeName) {
-        resolvedMethod = TypeResolver.findMember(typeName, node.methodName, this.indexer, arity);
+        const argumentTypes = node.arguments.map((arg) =>
+          TypeResolver.resolveExpressionType(arg, this.document, lineIdx, this.indexer),
+        );
+        resolvedMethod =
+          TypeResolver.findMemberWithArgumentTypes(
+            typeName,
+            node.methodName,
+            this.indexer,
+            argumentTypes,
+          ) ?? TypeResolver.findMember(typeName, node.methodName, this.indexer, arity);
 
         // Check UnknownMember for method call
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -1459,7 +1551,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     );
     const diag = new vscode.Diagnostic(
       range,
-      `O tipo "${targetType}" nÃ£o expÃµe uma property indexada compatÃ­vel com ${arity} argumento(s). Use colchetes apenas em arrays, matrizes ou properties indexadas.`,
+      `O tipo "${targetType}" não expõe uma property indexada compatível com ${arity} argumento(s). Use colchetes apenas em arrays, matrizes ou properties indexadas.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.DefaultIndexerMissing;
@@ -1559,7 +1651,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     );
     const diag = new vscode.Diagnostic(
       range,
-      `Incompatibilidade de tipos: nÃ£o Ã© possÃ­vel usar "${actualType}" onde "${expectedType}" Ã© esperado.`,
+      `Incompatibilidade de tipos: não Ã© possÃ­vel usar "${actualType}" onde "${expectedType}" Ã© esperado.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.TypeMismatch;
@@ -1580,10 +1672,10 @@ class DiagnosticsASTWalker extends ASTWalker {
 
     const enumerable = enumerableType
       ? detectEnumerable(
-          enumerableType,
-          (t) => TypeResolver.getAllMembersForType(t, this.indexer),
-          explicitType,
-        )
+        enumerableType,
+        (t) => TypeResolver.getAllMembersForType(t, this.indexer),
+        explicitType,
+      )
       : undefined;
 
     if (!enumerable) {
@@ -1595,7 +1687,7 @@ class DiagnosticsASTWalker extends ASTWalker {
       const diag = new vscode.Diagnostic(
         range,
         `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
-          `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
+        `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
         vscode.DiagnosticSeverity.Warning,
       );
       diag.code = DiagnosticCodes.NotEnumerable;

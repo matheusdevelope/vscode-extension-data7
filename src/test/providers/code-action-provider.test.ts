@@ -14,6 +14,7 @@ import {
   type UnusedImportPayload,
   type FinallyBlockUnsupportedPayload,
   type ElseIfWhitespacePayload,
+  type LineContinuationWithoutBreakPayload,
   type MissingThenPayload,
   type ReturnUnrecommendedPayload,
   type ReturnAssignmentInCatchPayload,
@@ -78,6 +79,24 @@ function applyInsertEdit(
   assert.ok(edit.position);
   const offset = offsetAt(text, edit.position.line, edit.position.character);
   return `${text.slice(0, offset)}${edit.text ?? ""}${text.slice(offset)}`;
+}
+
+function applyDeleteEdit(
+  text: string,
+  edit: {
+    type: string;
+    range?: {
+      start: { line: number; character?: number };
+      end?: { line: number; character?: number };
+    };
+  },
+): string {
+  assert.equal(edit.type, "delete");
+  assert.ok(edit.range);
+  assert.ok(edit.range.end);
+  const start = offsetAt(text, edit.range.start.line, edit.range.start.character ?? 0);
+  const end = offsetAt(text, edit.range.end.line, edit.range.end.character ?? 0);
+  return `${text.slice(0, start)}${text.slice(end)}`;
 }
 
 /**
@@ -1171,6 +1190,40 @@ describe("D7BasicCodeActionProvider", () => {
       assert.match(replaceEdit.text ?? "", /If a > 10 Then/);
       assert.match(replaceEdit.text ?? "", /a = 10/);
       assert.match(replaceEdit.text ?? "", /End If/);
+    });
+  });
+
+  describe("line-continuation-without-break quick-fix", () => {
+    test("removes only the inline line-continuation marker", async () => {
+      const source = 'If g.Cells[1, (g.Row + 1_)] <> "" Then\n';
+      const doc = mockDoc(source);
+      const column = source.indexOf("_");
+      const payload: LineContinuationWithoutBreakPayload = {
+        code: DiagnosticCodes.LineContinuationWithoutBreak,
+        line: 0,
+        column,
+      };
+      const range = new vscode.Range(0, column, 0, column + 1);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [
+              diagWith(DiagnosticCodes.LineContinuationWithoutBreak, payload, range),
+            ],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.title.includes("continuacao de linha"),
+      );
+
+      assert.ok(fix);
+      const deleteEdit = expectEdit(fix.edit, { type: "delete", line: 0 });
+      assert.equal(applyDeleteEdit(source, deleteEdit), 'If g.Cells[1, (g.Row + 1)] <> "" Then\n');
     });
   });
 

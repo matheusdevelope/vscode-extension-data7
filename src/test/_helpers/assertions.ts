@@ -71,7 +71,7 @@ export function expectEdit(
   workspaceEdit: {
     edits: {
       type: string;
-      range?: { start: { line: number } };
+      range?: { start: { line: number; character?: number }; end?: { line: number; character?: number } };
       position?: { line: number };
       text?: string;
     }[];
@@ -79,7 +79,7 @@ export function expectEdit(
   predicate: EditPredicate,
 ): {
   type: string;
-  range?: { start: { line: number } };
+  range?: { start: { line: number; character?: number }; end?: { line: number; character?: number } };
   position?: { line: number };
   text?: string;
 } {

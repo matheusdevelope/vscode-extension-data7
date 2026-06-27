@@ -26,6 +26,22 @@ describe("DependencyScanner", () => {
     test("passes plain code through unchanged", () => {
       assert.equal(DependencyScanner.stripComments("a = b"), "a = b");
     });
+
+    test("keeps apostrophes inside string literals", () => {
+      const line = `query.CommandText = "SELECT * FROM T WHERE Name = '' AND Kind = 'A'" ' comment`;
+      assert.equal(
+        DependencyScanner.stripComments(line),
+        `query.CommandText = "SELECT * FROM T WHERE Name = '' AND Kind = 'A'" `,
+      );
+    });
+
+    test("keeps escaped double quotes inside string literals", () => {
+      const line = `Dim command As String = "$l.Prefixes.Add(""http://+:8080/"")" ' comment`;
+      assert.equal(
+        DependencyScanner.stripComments(line),
+        `Dim command As String = "$l.Prefixes.Add(""http://+:8080/"")" `,
+      );
+    });
   });
 
   describe("isIgnoredNamespace", () => {

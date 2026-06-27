@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
 import { DiagnosticService } from "../../services/diagnostic-service";
 import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, mockTextDocuments, resetMockWorkspace } from "../_helpers/mock-doc";
@@ -63,6 +64,59 @@ describe("DiagnosticService live lifecycle", () => {
     assert.deepEqual(deleted, [doc.uri.toString().toLowerCase()]);
   });
 
+  test("keeps workspace lint diagnostics for closed files after pruning live diagnostics", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_bad.bas");
+    const code = [
+      "Namespace mod_bad",
+      "Class C",
+      "  Public Sub Run()",
+      "    Dim value As MissingType",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    fs.writeFileSync(basPath, code, "utf8");
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    const deleted: string[] = [];
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        deleted.push(target.toString().toLowerCase());
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+
+    DiagnosticService.lintFile(uri);
+
+    const key = uri.toString().toLowerCase();
+    assert.ok(entries.get(key)?.some((diag) => diag.code === DiagnosticCodes.UnknownType));
+
+    mockTextDocuments.length = 0;
+    DiagnosticService.pruneClosedDiagnostics();
+
+    assert.ok(entries.has(key), "workspace lint diagnostics must remain visible in Problems");
+    assert.equal(deleted.includes(key), false);
+  });
+
   test("does not emit module-not-found for imported local classes used statically", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
     const srcDir = path.join(tmpDir, "src");
@@ -114,6 +168,73 @@ describe("DiagnosticService live lifecycle", () => {
 
     DiagnosticService.initialize({ subscriptions: [] } as any);
     const doc = createMockDoc(vscode.Uri.file(principalPath).toString(), principal);
+
+    DiagnosticService.refreshDiagnostics(doc);
+
+    const diags = entries.get(doc.uri.toString().toLowerCase()) ?? [];
+    assert.equal(
+      diags.some((diag) => diag.code === DiagnosticCodes.ModuleNotFound),
+      false,
+    );
+  });
+
+  test("does not emit module-not-found for project globals declared in Principal.bas", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    const principalPath = path.join(srcDir, "Principal.bas");
+    const principal = [
+      "Namespace modelo_usuario",
+      "Class Usuario",
+      "  Public CodEmpresa As Integer",
+      "End Class",
+      "End Namespace",
+      "",
+      "Dim _usuario As Usuario",
+      "",
+    ].join("\n");
+    fs.writeFileSync(principalPath, principal, "utf8");
+
+    const formPath = path.join(srcDir, "frmEventos.bas");
+    const formCode = [
+      "Namespace frmEventos",
+      "Class Eventos",
+      "  Public Sub Run()",
+      "    Dim empresa As Integer = _usuario.CodEmpresa",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    fs.writeFileSync(formPath, formCode, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    indexer.updateFileContent(vscode.Uri.file(principalPath).toString(), principal);
+    indexer.updateFileContent(vscode.Uri.file(formPath).toString(), formCode);
+
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    const doc = createMockDoc(vscode.Uri.file(formPath).toString(), formCode);
 
     DiagnosticService.refreshDiagnostics(doc);
 

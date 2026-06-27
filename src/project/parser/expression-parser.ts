@@ -64,7 +64,10 @@ export function parsePrefix(parser: Parser): Expression | null {
   const token = parser.peek();
   if (token.kind === "number") {
     parser.advance();
-    const value = token.value.includes(".") ? parseFloat(token.value) : parseInt(token.value);
+    const normalized = token.value.replace(/_/g, "");
+    const value = normalized.includes(".") || /e/i.test(normalized)
+      ? Number.parseFloat(normalized)
+      : Number.parseInt(normalized, 10);
     return { kind: "Literal", value: isNaN(value) ? token.value : value, loc: locOf(token.loc) };
   }
   if (token.kind === "string") {

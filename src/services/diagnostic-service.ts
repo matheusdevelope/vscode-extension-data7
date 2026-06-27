@@ -17,6 +17,7 @@ import { DIAGNOSTIC_SOURCE, LANGUAGE_IDS, PROJECT_CONFIG_FILENAME } from "../inf
 import { getCoreModulesPath } from "../infra/extension-paths";
 import { readProjectConfig } from "../project/project-config";
 import { buildMockDocument } from "../utils/text-edit-utils";
+import { WorkspaceFixService } from "./workspace-fix-service";
 
 /**
  * Runs validation diagnostics against `.bas` documents. Refresh is debounced
@@ -31,6 +32,7 @@ export class DiagnosticService {
   private static _collection: vscode.DiagnosticCollection | undefined;
   private static readonly REFRESH_DELAY_MS = 250;
   private static readonly liveDiagnosticUris = new Map<string, vscode.Uri>();
+  private static readonly workspaceDiagnosticUris = new Map<string, vscode.Uri>();
 
   /** Cache of expensive workspace-level data, keyed by workspaceDir. */
   private static workspaceCache = new Map<string, WorkspaceDiagnosticCache>();
@@ -64,10 +66,6 @@ export class DiagnosticService {
       // single refreshAllActive() at the end, so individual per-file debounces
       // during the batch would be redundant and slow the IDE to a crawl.
       //
-      // Import lazily to avoid a circular reference at module load time.
-      const { WorkspaceFixService } = require("./workspace-fix-service") as {
-        WorkspaceFixService: { isBatchFixInProgress: boolean };
-      };
       if (WorkspaceFixService.isBatchFixInProgress) return;
 
       if (!this.isLiveDiagnosticDocument(doc)) {
@@ -169,6 +167,7 @@ export class DiagnosticService {
   public static clearDiagnostics(uri: vscode.Uri): void {
     this._collection?.delete(uri);
     this.liveDiagnosticUris.delete(uri.toString().toLowerCase());
+    this.workspaceDiagnosticUris.delete(uri.toString().toLowerCase());
   }
 
   public static pruneClosedDiagnostics(): void {
@@ -275,6 +274,7 @@ export class DiagnosticService {
 
     this._collection?.set(document.uri, diagnostics);
     this.liveDiagnosticUris.set(document.uri.toString().toLowerCase(), document.uri);
+    this.workspaceDiagnosticUris.delete(document.uri.toString().toLowerCase());
   }
 
   private static validateModuleReference(
@@ -409,7 +409,7 @@ export class DiagnosticService {
     });
   }
 
-  public static async lintFile(uri: vscode.Uri): Promise<vscode.Diagnostic[]> {
+  public static lintFile(uri: vscode.Uri): vscode.Diagnostic[] {
     if (uri.scheme !== "file") {
       this.clearDiagnostics(uri);
       return [];
@@ -425,7 +425,7 @@ export class DiagnosticService {
     // Otherwise lint from disk without opening an editor tab.
     const diags = this.lintFileFromDisk(uri);
     this._collection?.set(uri, diags);
-    this.liveDiagnosticUris.set(uri.toString().toLowerCase(), uri);
+    this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
     return diags;
   }
 
@@ -453,10 +453,9 @@ export class DiagnosticService {
     let warningCount = 0;
     let infoCount = 0;
 
+    this.clearWorkspaceDiagnostics();
+
     // Suppress per-document debounced linting during the batch pass.
-    const { WorkspaceFixService } = require("./workspace-fix-service") as {
-      WorkspaceFixService: { isBatchFixInProgress: boolean };
-    };
     WorkspaceFixService.isBatchFixInProgress = true;
     try {
       await vscode.window.withProgress(
@@ -497,7 +496,7 @@ export class DiagnosticService {
                 // opening any editor — the Problems panel will show the results.
                 diags = this.lintFileFromDisk(uri);
                 this._collection?.set(uri, diags);
-                this.liveDiagnosticUris.set(uri.toString().toLowerCase(), uri);
+                this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
               }
 
               for (const diag of diags) {
@@ -510,7 +509,7 @@ export class DiagnosticService {
                 }
               }
             } catch (err) {
-              logger.error(`Erro ao analisar arquivo ${uri?.fsPath ?? ""} no linter:`, err);
+              logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
             }
           }
         },
@@ -638,6 +637,7 @@ export class DiagnosticService {
   public static __resetForTests(): void {
     this.workspaceCache.clear();
     this.liveDiagnosticUris.clear();
+    this.workspaceDiagnosticUris.clear();
   }
 
   private static isEnabled(): boolean {
@@ -650,6 +650,13 @@ export class DiagnosticService {
       (document.languageId === LANGUAGE_IDS.d7basic || document.fileName.endsWith(".bas")) &&
       fs.existsSync(document.uri.fsPath)
     );
+  }
+
+  private static clearWorkspaceDiagnostics(): void {
+    for (const uri of this.workspaceDiagnosticUris.values()) {
+      this._collection?.delete(uri);
+    }
+    this.workspaceDiagnosticUris.clear();
   }
 }
 

@@ -553,6 +553,50 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
 
+    test("accepts parenthesized expressions as indexed property bracket arguments", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///indexed_property_expression_arg.bas";
+      const code = `Namespace mod_indexed_property_expression
+   Class GridLike
+      Property Row As Integer
+      Property RowCount As Integer
+      Property Cells(pCol As Integer, pRow As Integer) As String
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim gdrRetornos As GridLike
+         If gdrRetornos.Row < gdrRetornos.RowCount And gdrRetornos.Cells[1, (gdrRetornos.Row + 1_)] <> "" Then
+         End If
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+      expectDiagnostic(diags, DiagnosticCodes.LineContinuationWithoutBreak);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("does not flag numeric separators as line continuations", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///numeric_separator_not_continuation.bas";
+      const code = `Namespace mod_numeric_separator
+   Class C
+      Public Sub Run()
+         Dim value As Integer
+         value = 1_000
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.LineContinuationWithoutBreak);
+    });
+
     test("rejects bracket arguments on methods and validates indexed property argument types", () => {
       const indexer = WorkspaceSymbolIndexer.createDetached();
       const uri = "file:///method_bracket_calls.bas";
@@ -617,6 +661,37 @@ End Namespace`;
 
       expectNoDiagnostic(diags, DiagnosticCodes.DefaultIndexerMissing);
       expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("recognizes Data7 form members and TDateTime DaySpan from the system library", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///formbuttons_members.bas";
+      const code = `Imports Forms
+Namespace mod_formbuttons
+   Class C
+      Public Sub Run()
+         Dim conciliacao As FormButtons = New FormButtons()
+         Dim handler As Variant
+         conciliacao.btnOK.OnClick = handler
+
+         Dim group As ControlGroup = New ControlGroup()
+         group.Text = ""
+
+         Dim button As CommandButton = New CommandButton()
+         button.Text = "&Anterior"
+
+         Dim startDate As TDateTime
+         Dim endDate As TDateTime
+         If startDate.DaySpan(endDate) > 3 Then
+         End If
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
   });
@@ -854,6 +929,27 @@ End Namespace`;
         DiagnosticCodes.DuplicateDeclaration,
         "conflita com o tipo importado",
       );
+    });
+
+    test("does NOT emit error when a local namespace method shadows an imported method", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const menuUri = "file:///frmMenu.bas";
+      const menuCode = `Namespace frmMenu
+   Sub Dispose()
+   End Sub
+End Namespace`;
+      indexer.updateFileContent(menuUri, menuCode);
+
+      const uri = "file:///frmConciliacaoManual.bas";
+      const code = `Imports frmMenu
+Namespace frmConciliacaoManual
+   Sub Dispose()
+   End Sub
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
   });
 
@@ -1466,6 +1562,99 @@ Dim value As Product = Fetch()`;
       indexer.updateFileContent(usageUri, usageCode);
       const doc = createMockDoc(usageUri, usageCode);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("resolves project globals declared at the top level of Principal.bas", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(
+        "file:///modelo_usuario.bas",
+        `Namespace modelo_usuario
+   Class Usuario
+      Public CodEmpresa As Integer
+      Public CodFilial As Integer
+   End Class
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        "file:///modeloConciliacaoCartoes.bas",
+        `Namespace modeloConciliacaoCartoes
+   Class ConciliacaoCartoes
+      Public CodCadastroOperadora As Integer
+   End Class
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        "file:///Principal.bas",
+        `Imports modelo_usuario
+Imports modeloConciliacaoCartoes
+Dim _usuario As Usuario
+Dim _modeloOperacaoConciliacao As ConciliacaoCartoes`,
+      );
+
+      const uri = "file:///frmConciliacaoManualEventos.bas";
+      const code = `Namespace frmConciliacaoManualEventos
+   Class Eventos
+      Public Sub Run()
+         Dim empresa As Integer = _usuario.CodEmpresa
+         Dim filial As Integer = _usuario.CodFilial
+         Dim cliente As Integer = _modeloOperacaoConciliacao.CodCadastroOperadora
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("selects the overload whose parameter types match the call arguments", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(
+        "file:///ModeloTitulo.bas",
+        `Namespace ModeloTitulo
+   Class Titulo
+   End Class
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        "file:///ModeloTitulos.bas",
+        `Namespace ModeloTitulos
+   Class Titulos
+   End Class
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        "file:///ControleTitulos.bas",
+        `Namespace ControleTitulos
+   Class ControleTitulos
+      Function buscar(pCodEmpresa As Integer, pParametros As String) As Titulos
+      End Function
+      Function buscar(pCodEmpresa As Integer, pCodContaReceber As Integer) As Titulo
+      End Function
+   End Class
+End Namespace`,
+      );
+
+      const uri = "file:///frmConciliacaoManualRegras.bas";
+      const code = `Imports ModeloTitulo
+Imports ModeloTitulos
+Imports ControleTitulos
+Namespace frmConciliacaoManualRegras
+   Class C
+      Public Sub Run()
+         Dim _titulo As Titulo = New Titulo()
+         Dim _controleTitulos As ControleTitulos = New ControleTitulos()
+         _titulo = _controleTitulos.buscar(1, CInt("23"))
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
 
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });

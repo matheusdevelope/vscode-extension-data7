@@ -219,6 +219,8 @@ export const DiagnosticCodes = {
   TypeMismatch: "type-mismatch",
   /** Else If used with a space instead of ElseIf. */
   ElseIfWhitespace: "elseif-whitespace",
+  /** A line-continuation marker `_` is followed by more code on the same line. */
+  LineContinuationWithoutBreak: "line-continuation-without-break",
   /** An If statement is missing the 'Then' keyword. */
   MissingThen: "missing-then",
   /** A Return statement was used when method/property assignment + Exit is preferred. */
@@ -480,6 +482,12 @@ export interface MissingThenPayload {
   insertColumn: number;
 }
 
+export interface LineContinuationWithoutBreakPayload {
+  code: typeof DiagnosticCodes.LineContinuationWithoutBreak;
+  line: number;
+  column: number;
+}
+
 export interface ReturnUnrecommendedPayload {
   code: typeof DiagnosticCodes.ReturnUnrecommended;
   line: number;
@@ -531,6 +539,7 @@ export type DiagnosticPayload =
   | MissingMyBaseFreePayload
   | FinallyBlockUnsupportedPayload
   | ElseIfWhitespacePayload
+  | LineContinuationWithoutBreakPayload
   | MissingThenPayload
   | ReturnUnrecommendedPayload
   | ReturnAssignmentInCatchPayload

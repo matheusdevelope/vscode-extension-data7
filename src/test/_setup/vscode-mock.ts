@@ -523,6 +523,7 @@ const mockVsCode = {
   ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
   QuickPickItemKind: { Separator: -1, Default: 0 },
   TextEditorRevealType: { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 },
+  EndOfLine: { LF: 1, CRLF: 2 },
   workspace: {
     isTrusted: true,
     textDocuments: [] as unknown[],

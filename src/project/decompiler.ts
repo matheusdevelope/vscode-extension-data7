@@ -45,6 +45,19 @@ export class Decompiler {
         preScript: xmlText(opcoesSource, "PreScript"),
         identificacaoBancoDados: xmlText(opcoesSource, "IdentificacaoBancoDados"),
       },
+      build: {
+        optimization: {
+          sourceMap: true,
+          minify: {
+            enabled: false,
+            stripComments: false,
+            removeUnused: false
+          },
+          uglify: {
+            enabled: false
+          }
+        }
+      },
       virtualFolders: [],
       modulesMetadata: {},
       dependencies: {},

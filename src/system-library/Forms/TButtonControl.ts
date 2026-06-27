@@ -207,6 +207,17 @@ export const symbols: SystemSymbolInfo[] = [
 
   // ───────── Methods (TCustomButton) ─────────
   {
+    name: "Text",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TButtonControl",
+    description: "Alias textual usado pelo Data7 para o caption do botao.",
+  },
+  {
     name: "Click",
     kind: "method",
     type: "Void",

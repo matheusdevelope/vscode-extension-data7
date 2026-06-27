@@ -241,6 +241,33 @@ End Namespace
       });
     });
 
+    test("does not strip comments or string content when minify is not enabled", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Namespace mod_principal
+   Class TPrincipalClass
+      Public Sub Main()
+         Dim sql As String = "SELECT * FROM T WHERE Name = '' AND Kind = 'A'" ' keep regular comment
+         Dim command As String = "$l.Prefixes.Add(""http://+:8080/"")"
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Name = &apos;&apos; AND Kind = &apos;A&apos;/);
+        assert.match(xml, /\$l\.Prefixes\.Add\(&quot;&quot;http:\/\/\+:8080\/&quot;&quot;\)/);
+        assert.match(xml, /keep regular comment/);
+      });
+    });
+
     test("applies minify.removeUnused from build optimization options", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);

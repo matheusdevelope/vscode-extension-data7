@@ -477,7 +477,7 @@ export class Builder {
       options.optimizationOptions ??
       resolveBuildOptimizationOptions(metadata, options.optimizationOverride);
     const minify = optimizationOptions.minify.enabled;
-    const stripComments = optimizationOptions.minify.stripComments;
+    const stripComments = this.shouldStripComments(metadata, optimizationOptions);
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
       srcDir,
       data7ModulesDir,
@@ -914,6 +914,18 @@ export class Builder {
 
     lines.splice(insertIdx, 0, ...injected);
     return lines.join(eol);
+  }
+
+  private static shouldStripComments(
+    metadata: ProjectMetadata,
+    optimizationOptions: BuildOptimizationOptions,
+  ): boolean {
+    if (optimizationOptions.minify.enabled) {
+      return optimizationOptions.minify.stripComments;
+    }
+    return (
+      metadata.build?.optimization?.minify === undefined && metadata.opcoes.stripComments === true
+    );
   }
 
   /**

@@ -20,6 +20,7 @@ describe("DiagnosticCodes", () => {
       "private-member-access",
       "event-signature-mismatch",
       "unsupported-member",
+      "line-continuation-without-break",
     ]) {
       assert.ok(
         Object.values(DiagnosticCodes).includes(expected as never),

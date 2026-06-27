@@ -79,4 +79,40 @@ End Namespace`,
 
     assert.equal(result.modules.get("Principal"), broken);
   });
+
+  test("preserves declarations marked with data7 keep directives", () => {
+    const result = removeUnusedDeclarations([
+      {
+        moduleName: "Principal",
+        fileUri: "file:///workspace/src/Principal.bas",
+        code: `Namespace app
+   Class Program
+      Public Sub Main()
+      End Sub
+   End Class
+End Namespace`,
+      },
+      {
+        moduleName: "external_api",
+        fileUri: "file:///workspace/src/external_api.bas",
+        code: `Namespace external_api
+   '@data7:keep
+   Class ExternalEntry
+      '@data7:entrypoint
+      Public Sub CalledByNativeIde()
+      End Sub
+
+      Public Sub DeadMethod()
+      End Sub
+   End Class
+End Namespace`,
+      },
+    ]);
+
+    const externalApi = result.modules.get("external_api") ?? "";
+
+    assert.match(externalApi, /Class ExternalEntry/);
+    assert.match(externalApi, /CalledByNativeIde/);
+    assert.doesNotMatch(externalApi, /DeadMethod/);
+  });
 });
