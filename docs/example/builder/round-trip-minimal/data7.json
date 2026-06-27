@@ -25,7 +25,8 @@
       "minify": {
         "enabled": false,
         "stripComments": true,
-        "removeUnused": false
+        "removeUnused": false,
+        "mergeNamespaces": false
       },
       "uglify": {
         "enabled": false

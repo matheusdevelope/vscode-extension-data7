@@ -5,6 +5,7 @@ export interface MinifyOptimizationOptions {
   readonly enabled: boolean;
   readonly stripComments: boolean;
   readonly removeUnused: boolean;
+  readonly mergeNamespaces: boolean;
 }
 
 export interface UglifyOptimizationOptions {
@@ -23,6 +24,7 @@ export const DEFAULT_BUILD_OPTIMIZATION_OPTIONS: BuildOptimizationOptions = Obje
     enabled: false,
     stripComments: true,
     removeUnused: false,
+    mergeNamespaces: false,
   }),
   uglify: Object.freeze({
     enabled: false,
@@ -64,6 +66,10 @@ export function resolveBuildOptimizationOptions(
         typeof minifyRaw.removeUnused === "boolean"
           ? minifyRaw.removeUnused
           : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.removeUnused,
+      mergeNamespaces:
+        typeof minifyRaw.mergeNamespaces === "boolean"
+          ? minifyRaw.mergeNamespaces
+          : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.mergeNamespaces,
     },
     uglify: {
       enabled:
@@ -87,6 +93,7 @@ function mergeBuildOptimizationOptions(
       enabled: override.minify?.enabled ?? base.minify.enabled,
       stripComments: override.minify?.stripComments ?? base.minify.stripComments,
       removeUnused: override.minify?.removeUnused ?? base.minify.removeUnused,
+      mergeNamespaces: override.minify?.mergeNamespaces ?? base.minify.mergeNamespaces,
     },
     uglify: {
       enabled: override.uglify?.enabled ?? base.uglify.enabled,

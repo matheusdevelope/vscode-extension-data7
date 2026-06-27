@@ -23,18 +23,25 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
     if (!range) throw new Error("Cursor não está sobre um identificador renomeável.");
 
     const word = document.getText(range);
-    
+
     // Obter o contexto do nome qualificado completo sob o cursor
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
-    const qNameCtx = resolveQualifiedNameAtPosition(cached.tokens, position.line, position.character);
-    
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
+    const qNameCtx = resolveQualifiedNameAtPosition(
+      cached.tokens,
+      position.line,
+      position.character,
+    );
+
     let symbol: SymbolInfo | undefined;
     if (qNameCtx) {
       const rootNs = qNameCtx.parts[0];
       if (rootNs) {
-        const rootSymbol = this.indexer.getAllSymbols().find(s => 
-          s.kind === "namespace" && s.name.toLowerCase() === rootNs.toLowerCase()
-        );
+        const rootSymbol = this.indexer
+          .getAllSymbols()
+          .find((s) => s.kind === "namespace" && s.name.toLowerCase() === rootNs.toLowerCase());
         if (rootSymbol) {
           const remainder = qNameCtx.parts.slice(1, qNameCtx.targetPartIndex + 1);
           const targetNamespaceFull = [rootSymbol.name, ...remainder].join(".");
@@ -45,15 +52,13 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
             isShared: true,
             isPrivate: false,
             range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-            fileUri: document.uri.toString()
+            fileUri: document.uri.toString(),
           };
         }
       }
     }
-    
-    if (!symbol) {
-      symbol = this.findRenameableSymbol(word);
-    }
+
+    symbol ??= this.findRenameableSymbol(word);
 
     if (!symbol) {
       throw new Error(
@@ -83,18 +88,25 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
     if (oldName === newName) return new vscode.WorkspaceEdit();
 
     // Obter o contexto do nome qualificado completo sob o cursor
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), document.getText());
-    const qNameCtx = resolveQualifiedNameAtPosition(cached.tokens, position.line, position.character);
-    
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
+    const qNameCtx = resolveQualifiedNameAtPosition(
+      cached.tokens,
+      position.line,
+      position.character,
+    );
+
     let symbol: SymbolInfo | undefined;
     let targetNamespaceFull: string | undefined;
-    
+
     if (qNameCtx) {
       const rootNs = qNameCtx.parts[0];
       if (rootNs) {
-        const rootSymbol = this.indexer.getAllSymbols().find(s => 
-          s.kind === "namespace" && s.name.toLowerCase() === rootNs.toLowerCase()
-        );
+        const rootSymbol = this.indexer
+          .getAllSymbols()
+          .find((s) => s.kind === "namespace" && s.name.toLowerCase() === rootNs.toLowerCase());
         if (rootSymbol) {
           const remainder = qNameCtx.parts.slice(1, qNameCtx.targetPartIndex + 1);
           targetNamespaceFull = [rootSymbol.name, ...remainder].join(".");
@@ -105,15 +117,13 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
             isShared: true,
             isPrivate: false,
             range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-            fileUri: document.uri.toString()
+            fileUri: document.uri.toString(),
           };
         }
       }
     }
-    
-    if (!symbol) {
-      symbol = this.findRenameableSymbol(oldName);
-    }
+
+    symbol ??= this.findRenameableSymbol(oldName);
 
     if (!symbol) return undefined;
 
@@ -121,7 +131,7 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
 
     if (symbol.kind === "namespace" && targetNamespaceFull) {
       const targetPartIndex = qNameCtx ? qNameCtx.targetPartIndex : 0;
-      
+
       rewriteNamespaceDocument(
         edit,
         this.indexer,
@@ -129,10 +139,11 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
         document.getText(),
         targetNamespaceFull,
         targetPartIndex,
-        newName
+        newName,
       );
 
       for (const fileSyms of this.indexer.getAllFileSymbols()) {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (token.isCancellationRequested) return undefined;
         if (fileSyms.fileUri === document.uri.toString()) continue;
         try {
@@ -144,21 +155,38 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
             text,
             targetNamespaceFull,
             targetPartIndex,
-            newName
+            newName,
           );
         } catch {
           // skip
         }
       }
     } else {
-      rewriteDocument(edit, this.indexer, document.uri, document.getText(), oldName, newName, symbol.kind);
+      rewriteDocument(
+        edit,
+        this.indexer,
+        document.uri,
+        document.getText(),
+        oldName,
+        newName,
+        symbol.kind,
+      );
 
       for (const fileSyms of this.indexer.getAllFileSymbols()) {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (token.isCancellationRequested) return undefined;
         if (fileSyms.fileUri === document.uri.toString()) continue;
         try {
           const text = readFileTextSafely(fileSyms.filePath);
-          rewriteDocument(edit, this.indexer, vscode.Uri.parse(fileSyms.fileUri), text, oldName, newName, symbol.kind);
+          rewriteDocument(
+            edit,
+            this.indexer,
+            vscode.Uri.parse(fileSyms.fileUri),
+            text,
+            oldName,
+            newName,
+            symbol.kind,
+          );
         } catch {
           // skip
         }
@@ -210,7 +238,7 @@ function resolveQualifiedNameAtTokenIndex(
   tokenIndex: number,
 ): QualifiedNameContext | undefined {
   const targetToken = tokens[tokenIndex];
-  if (!targetToken || targetToken.kind !== "identifier") return undefined;
+  if (targetToken?.kind !== "identifier") return undefined;
 
   const parts: string[] = [targetToken.value];
   let targetPartIndex = 0;
@@ -260,7 +288,7 @@ function rewriteNamespaceDocument(
 ): void {
   const cached = LanguageProcessor.getInstance().getOrParse(uri.toString(), fullText);
   const tokens = cached.tokens;
-  
+
   const targetNamespaceFullLower = targetNamespaceFull.toLowerCase();
   const targetNamespaceParts = targetNamespaceFull.split(".");
   const partOriginalName = targetNamespaceParts[targetPartIndex];
@@ -276,7 +304,10 @@ function rewriteNamespaceDocument(
     const qCtx = resolveQualifiedNameAtTokenIndex(tokens, i);
     if (!qCtx) continue;
 
-    const nsPrefixAtToken = qCtx.parts.slice(0, qCtx.targetPartIndex + 1).join(".").toLowerCase();
+    const nsPrefixAtToken = qCtx.parts
+      .slice(0, qCtx.targetPartIndex + 1)
+      .join(".")
+      .toLowerCase();
 
     if (nsPrefixAtToken === targetNamespaceFullLower && qCtx.targetPartIndex === targetPartIndex) {
       if (isValidNamespaceOccurrence(tokens, i, qCtx, nsPrefixAtToken, indexer)) {
@@ -297,7 +328,7 @@ function isValidNamespaceOccurrence(
   indexer: WorkspaceSymbolIndexer,
 ): boolean {
   const pathStartTokenIndex = tokenIndex - qCtx.targetPartIndex * 2;
-  
+
   // 1. Verificar se é precedido por "namespace" ou "imports"
   if (pathStartTokenIndex > 0) {
     const prevToken = tokens[pathStartTokenIndex - 1];
@@ -315,14 +346,14 @@ function isValidNamespaceOccurrence(
     const next2 = tokens[tokenIndex + 2];
     if (next1 && next2 && next1.value === "." && next2.kind === "identifier") {
       const nextId = next2.value.toLowerCase();
-      
+
       const fullNsPath = `${nsPrefixAtToken}.${nextId}`.toLowerCase();
-      const isKnownNamespace = indexer.getAllSymbols().some(s => 
-        s.kind === "namespace" && s.name.toLowerCase() === fullNsPath
-      );
+      const isKnownNamespace = indexer
+        .getAllSymbols()
+        .some((s) => s.kind === "namespace" && s.name.toLowerCase() === fullNsPath);
       if (isKnownNamespace) return true;
 
-      const isContainedSymbol = indexer.getAllSymbols().some(s => {
+      const isContainedSymbol = indexer.getAllSymbols().some((s) => {
         if (s.name.toLowerCase() !== nextId) return false;
         if (!s.containerName) return false;
         const containerLower = s.containerName.toLowerCase();
@@ -363,66 +394,80 @@ function rewriteDocument(
       const next2 = tokens[i + 2];
 
       // Regra A: Declaração de namespace (Namespace oldName)
-      if (prev1 && prev1.value.toLowerCase() === "namespace") {
+      if (prev1?.value.toLowerCase() === "namespace") {
         shouldRename = true;
       }
       // Regra B: Diretiva Imports (Imports oldName)
-      else if (prev1 && prev1.value.toLowerCase() === "imports") {
+      else if (prev1?.value.toLowerCase() === "imports") {
         shouldRename = true;
       }
       // Regra C: Prefixo qualificado (oldName.Classe)
-      else if (next1 && next1.value === "." && next2 && next2.kind === "identifier") {
+      else if (next1?.value === "." && next2?.kind === "identifier") {
         const nextName = next2.value;
-        const symbol = indexer.getAllSymbols().find(s => 
-          s.containerName?.toLowerCase() === oldNameLower &&
-          s.name.toLowerCase() === nextName.toLowerCase()
-        );
+        const symbol = indexer
+          .getAllSymbols()
+          .find(
+            (s) =>
+              s.containerName?.toLowerCase() === oldNameLower &&
+              s.name.toLowerCase() === nextName.toLowerCase(),
+          );
         if (symbol) {
           shouldRename = true;
         }
       }
-    } 
-    else if (symbolKind === "class" || symbolKind === "structure" || symbolKind === "delegate") {
+    } else if (symbolKind === "class" || symbolKind === "structure" || symbolKind === "delegate") {
       const prev1 = tokens[i - 1];
       const prev2 = tokens[i - 2];
 
       // Regra T1: Declaração (Class oldName, Structure oldName, Delegate Sub oldName)
       if (prev1 && ["class", "structure", "delegate"].includes(prev1.value.toLowerCase())) {
         shouldRename = true;
-      } else if (prev1 && prev1.value.toLowerCase() === "sub" && prev2 && prev2.value.toLowerCase() === "delegate") {
+      } else if (
+        prev1?.value.toLowerCase() === "sub" &&
+        prev2?.value.toLowerCase() === "delegate"
+      ) {
         shouldRename = true;
-      } else if (prev1 && prev1.value.toLowerCase() === "function" && prev2 && prev2.value.toLowerCase() === "delegate") {
+      } else if (
+        prev1?.value.toLowerCase() === "function" &&
+        prev2?.value.toLowerCase() === "delegate"
+      ) {
         shouldRename = true;
       }
       // Regra T2: Declaração de tipo (As oldName, As New oldName)
-      else if (prev1 && prev1.value.toLowerCase() === "as") {
+      else if (prev1?.value.toLowerCase() === "as") {
         shouldRename = true;
-      } else if (prev1 && prev1.value.toLowerCase() === "new" && prev2 && prev2.value.toLowerCase() === "as") {
+      } else if (prev1?.value.toLowerCase() === "new" && prev2?.value.toLowerCase() === "as") {
         shouldRename = true;
       }
       // Regra T4: Herança (Inherits oldName)
-      else if (prev1 && prev1.value.toLowerCase() === "inherits") {
+      else if (prev1?.value.toLowerCase() === "inherits") {
         shouldRename = true;
       }
       // Regra T3: Qualificação qualificada (Namespace.oldName)
-      else if (prev1 && prev1.value === "." && prev2 && prev2.kind === "identifier") {
+      else if (prev1?.value === "." && prev2?.kind === "identifier") {
         const nsName = prev2.value.toLowerCase();
         // Verifica se a classe oldName pertence ao namespace nsName no indexador
-        const symbol = indexer.getAllSymbols().find(s =>
-          s.name.toLowerCase() === oldNameLower &&
-          s.containerName?.toLowerCase() === nsName &&
-          s.kind === symbolKind
-        );
+        const symbol = indexer
+          .getAllSymbols()
+          .find(
+            (s) =>
+              s.name.toLowerCase() === oldNameLower &&
+              s.containerName?.toLowerCase() === nsName &&
+              s.kind === symbolKind,
+          );
         if (symbol) {
           shouldRename = true;
         }
       }
       // Regra T5: Instanciação (New oldName)
-      else if (prev1 && prev1.value.toLowerCase() === "new") {
+      else if (prev1?.value.toLowerCase() === "new") {
         shouldRename = true;
       }
-    } 
-    else if (symbolKind === "method" || symbolKind === "declare_sub" || symbolKind === "declare_function") {
+    } else if (
+      symbolKind === "method" ||
+      symbolKind === "declare_sub" ||
+      symbolKind === "declare_function"
+    ) {
       const prev1 = tokens[i - 1];
       const next1 = tokens[i + 1];
 
@@ -431,11 +476,11 @@ function rewriteDocument(
         shouldRename = true;
       }
       // Regra M2: Acesso/Invocação qualificada ou direta (oldName(args))
-      else if (next1 && next1.value === "(") {
+      else if (next1?.value === "(") {
         shouldRename = true;
       }
       // Regra M3: Atribuição de retorno dentro da função (oldName = valor)
-      else if (next1 && next1.value === "=") {
+      else if (next1?.value === "=") {
         shouldRename = true;
       }
     }

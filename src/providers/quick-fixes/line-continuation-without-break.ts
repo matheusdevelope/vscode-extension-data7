@@ -28,9 +28,7 @@ export function addLineContinuationWithoutBreakBulkFix(
   const allDiags = vscode.languages.getDiagnostics(document.uri);
   const matches = dedupeDiagnostics([
     diagnostic,
-    ...allDiags.filter((d) =>
-      hasDiagnosticCode(d, DiagnosticCodes.LineContinuationWithoutBreak),
-    ),
+    ...allDiags.filter((d) => hasDiagnosticCode(d, DiagnosticCodes.LineContinuationWithoutBreak)),
   ]);
   if (matches.length <= 1) return;
 

@@ -549,10 +549,7 @@ export class WorkspaceSymbolIndexer {
     if (fileUri.startsWith("system://")) {
       return true;
     }
-    if (
-      fileUri.startsWith("file:///synthetic-build-dir/") ||
-      fileUri.startsWith("file:///proj/")
-    ) {
+    if (fileUri.startsWith("file:///synthetic-build-dir/") || fileUri.startsWith("file:///proj/")) {
       return true;
     }
     try {

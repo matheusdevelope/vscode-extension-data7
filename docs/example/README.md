@@ -193,12 +193,13 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (58)
+### diagnostics (59)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
 | [`diagnostics/auto-new-non-default-ctor/trigger.bas`](./diagnostics/auto-new-non-default-ctor/trigger.bas) | Dim x As New T mas T só tem construtor com args — runtime falha | `auto-new-non-default-ctor@5` | `classe TNeedsArgs sem construtor sem-args` |
 | [`diagnostics/call-parentheses-mismatch/trigger.bas`](./diagnostics/call-parentheses-mismatch/trigger.bas) | missing parentheses for method call with multiple arguments | `call-parentheses-mismatch@12` | `linter implementation for call parentheses validation` |
+| [`diagnostics/chained-global-function-assignment/trigger.bas`](./diagnostics/chained-global-function-assignment/trigger.bas) | assignment from a member chain rooted at a global function | `chained-global-function-assignment@20` | `linter implementation for chained global function assignment detection` |
 | [`diagnostics/class-generic-method-unsupported/trigger.bas`](./diagnostics/class-generic-method-unsupported/trigger.bas) | a generic method declared inside a non-generic class | `class-generic-method-unsupported@9` | `only emitted by the AST monomorphization engine (Fase 6); the live linter does not yet detect generic methods inside classes.` |
 | [`diagnostics/dead-code/trigger.bas`](./diagnostics/dead-code/trigger.bas) | dead code after return | `dead-code@10` | `linter implementation for dead code detection` |
 | [`diagnostics/declaration-parentheses-mismatch/trigger.bas`](./diagnostics/declaration-parentheses-mismatch/trigger.bas) | method declaration missing parentheses | `declaration-parentheses-mismatch@8` | — |

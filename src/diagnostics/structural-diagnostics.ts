@@ -555,11 +555,7 @@ export function validateNamespaceNameConflicts(
   const nsNameLower = namespaceSym.name.toLowerCase();
 
   for (const sym of fileSyms.symbols) {
-    if (
-      sym.kind !== "class" &&
-      sym.kind !== "structure" &&
-      sym.kind !== "delegate"
-    ) {
+    if (sym.kind !== "class" && sym.kind !== "structure" && sym.kind !== "delegate") {
       continue;
     }
     if (sym.isSyntheticGenericInstantiation) continue;

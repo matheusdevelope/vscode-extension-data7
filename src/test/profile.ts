@@ -2,9 +2,7 @@ import "./_setup/global-hooks";
 import * as fs from "fs";
 import * as path from "path";
 import { performance } from "perf_hooks";
-import { parseBasic } from "../project/parser/index";
-import { tokenize } from "../project/parser/lexer";
-import { SymbolParser, WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { DiagnosticsLinter, DiagnosticsASTWalker } from "../diagnostics/diagnostics";
 import { buildMockDocument } from "../utils/text-edit-utils";
@@ -73,12 +71,7 @@ for (const m of typeResolverMethods) {
   interceptStaticMethod(TypeResolver, m);
 }
 
-const walkerMethods = [
-  "walk",
-  "checkMemberAccess",
-  "checkAssignment",
-  "checkVariableDeclaration",
-];
+const walkerMethods = ["walk", "checkMemberAccess", "checkAssignment", "checkVariableDeclaration"];
 
 for (const wm of walkerMethods) {
   interceptPrototypeMethod(DiagnosticsASTWalker, wm);
@@ -89,7 +82,8 @@ const originalWalk = DiagnosticsASTWalker.prototype.walk;
 DiagnosticsASTWalker.prototype.walk = function (this: any, node: any) {
   const t0 = performance.now();
   try {
-    return originalWalk.call(this, node);
+    originalWalk.call(this, node);
+    return;
   } finally {
     const elapsed = performance.now() - t0;
     const key = `Walker.walk[${node.kind}]`;
@@ -138,7 +132,7 @@ async function profileDir(dir: string) {
   console.log(`Total de arquivos .bas/.d7b encontrados: ${files.length}`);
   if (files.length === 0) return;
 
-  const filesData = files.map(f => ({
+  const filesData = files.map((f) => ({
     path: f,
     content: fs.readFileSync(f, "utf8"),
   }));
@@ -167,19 +161,21 @@ async function profileDir(dir: string) {
   const t1LintAll = performance.now();
   console.log(`Tempo total para lintar 119 arquivos: ${(t1LintAll - t0LintAll).toFixed(2)} ms`);
 
-  console.log("\n3. Relatório de Métricas Agregadas do Linter e TypeResolver (Ordenado por Custo):");
+  console.log(
+    "\n3. Relatório de Métricas Agregadas do Linter e TypeResolver (Ordenado por Custo):",
+  );
   const statsArray = Array.from(perfStats.values());
   statsArray.sort((a, b) => b.totalTime - a.totalTime);
 
   console.log("--------------------------------------------------------------------------------");
   console.log(
-    `${"Nome da Função / Operação".padEnd(45)} | ${"Chamadas".padStart(10)} | ${"Tempo Total".padStart(12)} | ${"Tempo Médio".padStart(10)}`
+    `${"Nome da Função / Operação".padEnd(45)} | ${"Chamadas".padStart(10)} | ${"Tempo Total".padStart(12)} | ${"Tempo Médio".padStart(10)}`,
   );
   console.log("--------------------------------------------------------------------------------");
   for (const s of statsArray) {
     const avg = s.calls > 0 ? s.totalTime / s.calls : 0;
     console.log(
-      `${s.name.padEnd(45)} | ${s.calls.toString().padStart(10)} | ${s.totalTime.toFixed(2).padStart(9)} ms | ${avg.toFixed(4).padStart(7)} ms`
+      `${s.name.padEnd(45)} | ${s.calls.toString().padStart(10)} | ${s.totalTime.toFixed(2).padStart(9)} ms | ${avg.toFixed(4).padStart(7)} ms`,
     );
   }
   console.log("--------------------------------------------------------------------------------");

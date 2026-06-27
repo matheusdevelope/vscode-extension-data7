@@ -13,7 +13,9 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Definition | vscode.LocationLink[]> {
     if (token.isCancellationRequested) return undefined;
-    const tracker = new TimeTracker(`Definition no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
+    const tracker = new TimeTracker(
+      `Definition no arquivo ${vscode.workspace.asRelativePath(document.uri)}`,
+    );
 
     try {
       const result = this.provideDefinitionInternal(document, position, token);
@@ -28,7 +30,7 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   private provideDefinitionInternal(
     document: vscode.TextDocument,
     position: vscode.Position,
-    token: vscode.CancellationToken,
+    _: vscode.CancellationToken,
   ): vscode.Definition | vscode.LocationLink[] | undefined {
     const ast = new D7AstContext(document, position, this.indexer);
     const word = ast.word;

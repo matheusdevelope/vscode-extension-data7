@@ -36,7 +36,6 @@ export class TimeTracker {
     const elapsed = performance.now() - this.startTime;
     const msg = `[PERF] ${this.label} levou ${elapsed.toFixed(2)} ms`;
     logger.info(msg);
-    console.log(msg);
     return elapsed;
   }
 }

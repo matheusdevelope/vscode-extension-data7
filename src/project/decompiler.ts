@@ -52,6 +52,7 @@ export class Decompiler {
             enabled: false,
             stripComments: false,
             removeUnused: false,
+            mergeNamespaces: false,
           },
           uglify: {
             enabled: false,

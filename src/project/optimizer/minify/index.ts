@@ -4,3 +4,4 @@ export {
   type RemoveUnusedModuleInput,
   type RemoveUnusedResult,
 } from "./remove-unused";
+export { mergeDuplicateNamespaces } from "./merge-namespaces";

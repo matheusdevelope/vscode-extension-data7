@@ -124,7 +124,6 @@ export function isQualifiedTypeInvocation(
   const calleeName = exprToString(expr.callee);
   if (!calleeName) return false;
   const containerLower = calleeName.toLowerCase();
-  const nameLower = expr.methodName.toLowerCase();
   return (
     lookupSystemByName(expr.methodName).some(
       (symbol) =>

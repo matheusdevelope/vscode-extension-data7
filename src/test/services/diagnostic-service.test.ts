@@ -402,8 +402,15 @@ describe("DiagnosticService live lifecycle", () => {
       mockTextDocuments.length = 0;
       DiagnosticService.pruneClosedDiagnostics();
 
-      assert.ok(entries.has(uri.toString().toLowerCase()), "workspace diagnostics should persist after pruning closed files");
-      assert.equal(deleted.includes(uri.toString().toLowerCase()), false, "should not delete from diagnostic collection");
+      assert.ok(
+        entries.has(uri.toString().toLowerCase()),
+        "workspace diagnostics should persist after pruning closed files",
+      );
+      assert.equal(
+        deleted.includes(uri.toString().toLowerCase()),
+        false,
+        "should not delete from diagnostic collection",
+      );
     } finally {
       (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
     }
@@ -508,7 +515,11 @@ describe("DiagnosticService live lifecycle", () => {
       // Now check if X has been updated and now has a diagnostic (e.g. missing-import or similar)
       const finalDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
       assert.ok(
-        finalDiagsX.some((diag) => diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType),
+        finalDiagsX.some(
+          (diag) =>
+            diag.code === DiagnosticCodes.MissingImport ||
+            diag.code === DiagnosticCodes.UnknownType,
+        ),
         "X should automatically receive diagnostics because Y was changed and no longer declares ControleTitulos",
       );
     } finally {
@@ -542,10 +553,7 @@ describe("DiagnosticService live lifecycle", () => {
 
     // Y initially does NOT define ControleTitulos.Titulo class (empty namespace)
     const fileY = path.join(srcDir, "ControleTitulos.bas");
-    const codeYEmpty = [
-      "Namespace ControleTitulos",
-      "End Namespace",
-    ].join("\n");
+    const codeYEmpty = ["Namespace ControleTitulos", "End Namespace"].join("\n");
 
     fs.writeFileSync(fileX, codeX, "utf8");
     fs.writeFileSync(fileY, codeYEmpty, "utf8");
@@ -585,7 +593,11 @@ describe("DiagnosticService live lifecycle", () => {
       DiagnosticService.refreshDiagnostics(docX);
       const initialDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
       assert.ok(
-        initialDiagsX.some((diag) => diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType),
+        initialDiagsX.some(
+          (diag) =>
+            diag.code === DiagnosticCodes.MissingImport ||
+            diag.code === DiagnosticCodes.UnknownType,
+        ),
         "Initially X should have type resolution errors",
       );
 
@@ -612,9 +624,14 @@ describe("DiagnosticService live lifecycle", () => {
       // Now check if X has been updated and its type resolution error has been cleared!
       const finalDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
       const hasErrors = finalDiagsX.some(
-        (diag) => diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType
+        (diag) =>
+          diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType,
       );
-      assert.equal(hasErrors, false, "Errors in X should be resolved and cleared after Y was fixed");
+      assert.equal(
+        hasErrors,
+        false,
+        "Errors in X should be resolved and cleared after Y was fixed",
+      );
     } finally {
       (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
     }

@@ -25,20 +25,22 @@ Status: completed.
 
 ## Phase 3 - Quick Fix Engine
 
-Status: pending.
+Status: in progress.
 
-- [ ] Generate bulk fixes from unit fixes where the payload and edit shape are deterministic.
-- [ ] Enforce action order: unit fix, bulk fix, line suppression, file suppression.
-- [ ] Add command/context menu action to apply linter quick fixes to the active file.
-- [ ] Reuse cached diagnostics after workspace fixes so Problems updates without a redundant full reanalysis.
+- [x] Generate bulk fixes from unit fixes where the payload and edit shape are deterministic.
+- [x] Enforce action order: unit fix, bulk fix, line suppression, file suppression.
+- [x] Add command/context menu action to apply linter quick fixes to the active file.
+- [x] Reuse cached diagnostics after workspace fixes so Problems updates without a redundant full reanalysis.
 
 ## Phase 4 - New Diagnostics and Build Options
 
-Status: pending.
+Status: in progress.
 
-- [ ] Group `dead-code` diagnostics by unreachable block instead of per line.
-- [ ] Warn on direct assignment from chained global functions that the compiler cannot handle.
-- [ ] Add optional warnings/fixes for final method calls without parentheses.
-- [ ] Improve empty `Finally` removal.
+- [x] Group `dead-code` diagnostics by unreachable block instead of per line.
+- [x] Warn on direct assignment from chained global functions that the compiler cannot handle.
+- [x] Add optional warnings/fixes for final method calls without parentheses.
+- [x] Improve empty `Finally` removal.
 - [x] Preserve local `@module` namespaces when repository modules are missing.
-- [ ] Design optional build minify flags for unused declarations and namespace merge.
+- [x] Ignore declared project values when detecting implicit module dependencies.
+- [x] Generate MCP client config with `node`, forward-slash paths and `--workspace=${workspaceFolder}` fallback.
+- [x] Design optional build minify flags for unused declarations and namespace merge.

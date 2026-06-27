@@ -8,10 +8,21 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ## [Unreleased]
 
 ### Adicionado
+- Adicionado o comando `data7.linter.fixActiveFile` para aplicar `source.fixAll.data7` no arquivo `.bas` ativo, disponivel por command palette, menu de contexto do editor e atalho `Ctrl+Alt+Shift+F`.
+- Adicionado Quick Fix para comentar blocos inteiros de `dead-code`, incluindo acao em lote por arquivo.
+- Adicionado o diagnostico `chained-global-function-assignment` para alertar atribuicoes diretas a partir de cadeias iniciadas por funcoes globais que o compilador Data7 pode rejeitar.
+- Adicionado Quick Fix para chamadas finais sem argumentos e sem `()`, com bulk fix gerado automaticamente a partir da correcao unitaria deterministica.
+- Adicionada a opcao `build.optimization.minify.mergeNamespaces` para mesclar blocos `Namespace` duplicados dentro de cada modulo durante o build.
 - Implementado cache de membros de herança de classes (`allMembersForTypeCache` no `WorkspaceSymbolIndexer`) que acelera em $O(1)$ a análise de expressões e atribuições complexas no linter, reduzindo tempos de resposta do walker.
 - Restrição de reavaliação de arquivos dependentes em cascata apenas para o momento do salvamento do arquivo (`onDidSaveTextDocument`), mantendo o editor sempre leve durante a digitação contínua.
 
 ### Corrigido
+- Quick Fixes especificos agora aparecem antes das supressoes, e a supressao de linha gerada pela extensao usa `data7:disable-next-line` na linha anterior ao diagnostico, incluindo `unsupported-member`.
+- Correcoes em massa do workspace agora publicam os diagnosticos recalculados do conteudo final diretamente na colecao Problems, evitando um `refreshAllActive()` redundante apos o batch.
+- `dead-code` agora agrupa branches estaticamente inalcancaveis em um unico diagnostico por bloco, em vez de marcar cada statement interno.
+- O Quick Fix de `finally-block-unsupported` remove apenas o bloco `Finally` vazio quando nao ha corpo a preservar, em vez de encapsular o `Catch`.
+- A configuracao MCP gerada usa `command: "node"`, caminhos com `/` e `--workspace=${workspaceFolder}` quando nao ha workspace fisico resolvido.
+- O scanner de dependencias passou a ignorar variaveis, constantes, membros e rotinas declaradas no projeto ao detectar modulos implicitos, evitando promover globais como `_usuario` para `module-not-found`.
 - Resolvido o loop infinito de re-entrada no indexador do linter: `updateFileContentFromParsed` agora compara inteligentemente se os namespaces declarados em um arquivo mudaram antes de marcá-los como alterados.
 - Configurado o watcher de arquivos `.bas` para ignorar a pasta controlada `data7_modules/`, evitando loops de indexação em cascata.
 - Desativado o aviso e quick-fix de `return-unrecommended` para blocos `Property Get`, dado que o compilador nativo do Data7 não suporta a instrução `Exit Property`.
@@ -41,7 +52,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ### Performance
 
 - Build, execução e abertura no Developer Studio agora usam snapshot persistente em `.data7/build-cache.json` para pular o empacotamento quando o `.7Proj` já está atualizado; quando há rebuild, o `Builder` reutiliza o transpile cacheado dos arquivos inalterados.
-- **Otimização de performance do linter e fix em massa** (`workspace-fix-service`, `diagnostic-service`): os comandos "Analisar projeto" e "Corrigir Tudo (Ajuste em Massa)" agora leem arquivos diretamente do disco via `node:fs` sem abrir editores (`openTextDocument`), eliminando o disparo em cascata de `onDidOpenTextDocument` → linter por cada arquivo. As correções são aplicadas em memória e escritas diretamente em disco via `fs.writeFileSync`, sem `workspace.applyEdit` nem `.save()` por arquivo. Uma flag `isBatchFixInProgress` suprime os debounces de diagnóstico durante o batch; ao final, um único `refreshAllActive()` relinta os documentos abertos no editor. O linter em massa ganhou suporte a cancelamento (botão no progresso) e barra de progresso por arquivo. Para projetos com centenas de arquivos, isso elimina virtualmente o congelamento da interface durante essas operações.
+- **Otimização de performance do linter e fix em massa** (`workspace-fix-service`, `diagnostic-service`): os comandos "Analisar projeto" e "Corrigir Tudo (Ajuste em Massa)" agora leem arquivos diretamente do disco via `node:fs` sem abrir editores (`openTextDocument`), eliminando o disparo em cascata de `onDidOpenTextDocument` → linter por cada arquivo. As correções são aplicadas em memória e escritas diretamente em disco via `fs.writeFileSync`, sem `workspace.applyEdit` nem `.save()` por arquivo. Uma flag `isBatchFixInProgress` suprime os debounces de diagnóstico durante o batch; ao final, os diagnosticos recalculados do conteudo corrigido sao publicados diretamente na colecao Problems. O linter em massa ganhou suporte a cancelamento (botão no progresso) e barra de progresso por arquivo. Para projetos com centenas de arquivos, isso elimina virtualmente o congelamento da interface durante essas operações.
 
 ### Alterado
 
@@ -51,6 +62,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 - Iniciado o pipeline de otimizacao de build em `src/project/optimizer/`, com contrato tipado para `data7.json#build.optimization`, compatibilidade com `opcoes.minify`/`opcoes.stripComments`, inclusao das flags no cache de build e task tracker em `docs/tasks/optimization-pipeline.md`.
 - Implementado o primeiro passe de `build.optimization.minify.removeUnused`, removendo declaracoes Data7 Basic de usuario nao alcancadas por um grafo global AST antes da minificacao textual.
+- Implementado o passe `build.optimization.minify.mergeNamespaces`, que mescla namespaces duplicados dentro de cada modulo parseavel e preserva o codigo original quando o modulo tem erro de parse.
 - `minify.removeUnused` agora respeita diretivas `@data7:keep`, `@data7:keep-name`, `@data7:entrypoint` e `@data7:external-api` em comentario imediatamente anterior a declaracao.
 - Corrigido `stripComments` para nao truncar strings SQL/PowerShell com apostrofos ou aspas escapadas; `build.optimization.minify.stripComments` tambem deixa de ser aplicado quando `minify.enabled` esta desligado.
 

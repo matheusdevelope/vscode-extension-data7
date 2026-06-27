@@ -36,6 +36,7 @@ describe("resolveBuildOptimizationOptions", () => {
     assert.equal(options.minify.enabled, false);
     assert.equal(options.minify.stripComments, true);
     assert.equal(options.minify.removeUnused, false);
+    assert.equal(options.minify.mergeNamespaces, false);
     assert.equal(options.uglify.enabled, false);
   });
 
@@ -52,6 +53,7 @@ describe("resolveBuildOptimizationOptions", () => {
     assert.equal(options.minify.enabled, true);
     assert.equal(options.minify.stripComments, false);
     assert.equal(options.minify.removeUnused, false);
+    assert.equal(options.minify.mergeNamespaces, false);
     assert.equal(options.uglify.enabled, false);
   });
 
@@ -69,6 +71,7 @@ describe("resolveBuildOptimizationOptions", () => {
               enabled: true,
               stripComments: true,
               removeUnused: true,
+              mergeNamespaces: true,
             },
             uglify: {
               enabled: true,
@@ -82,6 +85,7 @@ describe("resolveBuildOptimizationOptions", () => {
     assert.equal(options.minify.enabled, true);
     assert.equal(options.minify.stripComments, true);
     assert.equal(options.minify.removeUnused, true);
+    assert.equal(options.minify.mergeNamespaces, true);
     assert.equal(options.uglify.enabled, true);
   });
 
@@ -94,6 +98,7 @@ describe("resolveBuildOptimizationOptions", () => {
               enabled: false,
               stripComments: true,
               removeUnused: false,
+              mergeNamespaces: false,
             },
           },
         },
@@ -102,6 +107,7 @@ describe("resolveBuildOptimizationOptions", () => {
         minify: {
           enabled: true,
           removeUnused: true,
+          mergeNamespaces: true,
         },
         uglify: {
           enabled: true,
@@ -112,6 +118,7 @@ describe("resolveBuildOptimizationOptions", () => {
     assert.equal(options.minify.enabled, true);
     assert.equal(options.minify.stripComments, true);
     assert.equal(options.minify.removeUnused, true);
+    assert.equal(options.minify.mergeNamespaces, true);
     assert.equal(options.uglify.enabled, true);
   });
 });

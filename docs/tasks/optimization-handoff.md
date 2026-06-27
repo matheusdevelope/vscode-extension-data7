@@ -1,6 +1,6 @@
 # Handoff: build optimization pipeline
 
-Este arquivo resume o planejamento e o estado atual da implementacao de `minify`, `minify.removeUnused`, `uglify` agressivo e source maps. Use junto com `docs/tasks/optimization-pipeline.md`, que funciona como checklist incremental.
+Este arquivo resume o planejamento e o estado atual da implementacao de `minify`, `minify.removeUnused`, `minify.mergeNamespaces`, `uglify` agressivo e source maps. Use junto com `docs/tasks/optimization-pipeline.md`, que funciona como checklist incremental.
 
 ## Objetivo
 
@@ -13,6 +13,7 @@ source .bas
  -> sugars/generics
  -> AST normalizada
  -> minify.removeUnused
+ -> minify.mergeNamespaces
  -> uglify global agressivo
  -> serialize com source map
  -> minify textual/final preservando source map
@@ -21,7 +22,7 @@ source .bas
 
 ## Decisoes conceituais
 
-- `removeUnused` e subopcao de `minify`.
+- `removeUnused` e `mergeNamespaces` sao subopcoes de `minify`.
 - `uglify` deve ser agressivo desde o inicio.
 - Tudo que for declaracao de usuario pode ser renomeado no `uglify`.
 - APIs nativas do compilador/Data7 e simbolos da System Library nao podem ser renomeados.
@@ -39,7 +40,8 @@ source .bas
       "minify": {
         "enabled": false,
         "stripComments": true,
-        "removeUnused": false
+        "removeUnused": false,
+        "mergeNamespaces": false
       },
       "uglify": {
         "enabled": false
@@ -72,6 +74,8 @@ Compatibilidade legada mantida:
 - `src/project/source-map/` tem contratos base de source map e builder inicial de segmentos.
 - `src/project/optimizer/minify/remove-unused.ts` implementa o primeiro passe de `minify.removeUnused`.
 - `Builder` chama `removeUnusedDeclarations` somente quando `build.optimization.minify.removeUnused` esta ativo.
+- `src/project/optimizer/minify/merge-namespaces.ts` implementa `minify.mergeNamespaces`, mesclando blocos `Namespace` irmaos com o mesmo nome dentro de cada modulo parseavel.
+- `Builder` chama `mergeDuplicateNamespaces` somente quando `build.optimization.minify.mergeNamespaces` esta ativo.
 - `DependencyScanner.stripComments` e `optimizer/minify` preservam apostrofos e aspas escapadas dentro de strings.
 - `Builder` nao aplica `minify.stripComments` quando `minify.enabled` esta desligado; `opcoes.stripComments` legado continua funcionando quando nao ha bloco novo de minify.
 - README, CHANGELOG, `project_context.md` e exemplos canonicos foram atualizados.

@@ -47,6 +47,50 @@ export class TypeResolver {
     return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
   }
 
+  /**
+   * Returns `true` when `varName` is declared as a `Dim` local variable or method parameter
+   * **within** the enclosing method body at `lineIdx`. Unlike `getVariableType`, this does NOT
+   * fall back to class members, inherited members, or global symbols.
+   *
+   * Use this to distinguish `Dim retorno As T` (local variable) from a class method that happens
+   * to share the same name — the latter is a valid target for the call-parentheses-mismatch warning.
+   */
+  public static hasLocalDimDeclaration(
+    varName: string,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): boolean {
+    const nameLower = varName.toLowerCase();
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
+    const unit = cached.unit;
+    let fileCache = fileLocalsCache.get(unit);
+    if (!fileCache) {
+      fileCache = new Map();
+      fileLocalsCache.set(unit, fileCache);
+    }
+    let locals = fileCache.get(lineIdx);
+    if (!locals) {
+      locals = new Map<string, string>();
+      const position = { line: lineIdx, character: 0 } as vscode.Position;
+      collectLocalDeclarations(unit, position, locals, indexer, document, lineIdx);
+      fileCache.set(lineIdx, locals);
+    }
+    if (locals.has(nameLower)) return true;
+    // Also check method parameters (they don't appear in the Dim-locals map).
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    const currentMethod = fileSyms?.symbols.find(
+      (s) =>
+        s.kind === "method" &&
+        lineIdx >= s.range.startLine &&
+        lineIdx <= s.range.endLine,
+    );
+    return currentMethod?.parameters?.some((p) => p.name.toLowerCase() === nameLower) ?? false;
+  }
+
   public static findVariableSymbol(
     varName: string,
     document: vscode.TextDocument,
@@ -445,6 +489,21 @@ export class TypeResolver {
         const activeClass = fileSyms?.symbols.find(
           (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
         );
+
+        // A local variable named the same as the invocation takes priority over global callables.
+        // e.g. `Dim retorno As Foo` followed by `retorno()` — the parens are a no-op property-default
+        // call on the variable, not an invocation of an unrelated global method called "retorno".
+        if (expr.arguments.length === 0) {
+          const position = { line: lineIdx, character: 0 } as vscode.Position;
+          const localVarType = TypeResolver.getVariableType(
+            expr.methodName,
+            document,
+            position,
+            indexer,
+          );
+          if (localVarType) return localVarType;
+        }
+
         let member: SymbolInfo | undefined;
         if (activeClass) {
           member = TypeResolver.findMember(
@@ -1227,30 +1286,28 @@ function getGenericTemplateMembersForType(
 
   const templateContainer = template.name.toLowerCase();
   const concreteContainer = normalizeGenericTypeName(typeName);
-  return indexer
-    .getSymbolsByContainer(templateContainer)
-    .map((s) => {
-      const clone: SymbolInfo = {
-        ...s,
-        type: substituteGenericParametersInType(s.type, substitutions),
-        containerName: concreteContainer,
-      };
-      if (s.parameters !== undefined) {
-        clone.parameters = s.parameters.map((p) => ({
+  return indexer.getSymbolsByContainer(templateContainer).map((s) => {
+    const clone: SymbolInfo = {
+      ...s,
+      type: substituteGenericParametersInType(s.type, substitutions),
+      containerName: concreteContainer,
+    };
+    if (s.parameters !== undefined) {
+      clone.parameters = s.parameters.map((p) => ({
+        ...p,
+        type: substituteGenericParametersInType(p.type, substitutions),
+      }));
+    }
+    if (s.overloads !== undefined) {
+      clone.overloads = s.overloads.map((overload) =>
+        overload.map((p) => ({
           ...p,
           type: substituteGenericParametersInType(p.type, substitutions),
-        }));
-      }
-      if (s.overloads !== undefined) {
-        clone.overloads = s.overloads.map((overload) =>
-          overload.map((p) => ({
-            ...p,
-            type: substituteGenericParametersInType(p.type, substitutions),
-          })),
-        );
-      }
-      return clone;
-    });
+        })),
+      );
+    }
+    return clone;
+  });
 }
 
 function getGenericTemplateParentForType(
@@ -1262,11 +1319,7 @@ function getGenericTemplateParentForType(
 
   const template = indexer
     .getSymbolsByName(parsed.base)
-    .find(
-      (s) =>
-        s.kind === "class" &&
-        s.genericTypeParameters?.length === parsed.args.length,
-    );
+    .find((s) => s.kind === "class" && s.genericTypeParameters?.length === parsed.args.length);
   if (!template?.genericTypeParameters) return undefined;
 
   const parent = TypeResolver.resolveParent(template);
@@ -1546,7 +1599,6 @@ function qualifiedTypeNameFromInvocation(
   if (!calleeName) return undefined;
   const qualifiedName = `${calleeName}.${expr.methodName}`;
   const containerLower = calleeName.toLowerCase();
-  const nameLower = expr.methodName.toLowerCase();
   const systemMatch = lookupSystemClassByName(expr.methodName).some(
     (sym) => sym.containerName?.toLowerCase() === containerLower,
   );

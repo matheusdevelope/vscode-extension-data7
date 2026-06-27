@@ -114,7 +114,9 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     _context: vscode.CompletionContext,
   ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
     if (token.isCancellationRequested) return undefined;
-    const tracker = new TimeTracker(`Completion no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
+    const tracker = new TimeTracker(
+      `Completion no arquivo ${vscode.workspace.asRelativePath(document.uri)}`,
+    );
 
     try {
       const result = this.provideCompletionItemsInternal(document, position, token, _context);
@@ -129,7 +131,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
   private provideCompletionItemsInternal(
     document: vscode.TextDocument,
     position: vscode.Position,
-    token: vscode.CancellationToken,
+    _: vscode.CancellationToken,
     _context: vscode.CompletionContext,
   ): vscode.CompletionItem[] | vscode.CompletionList | undefined {
     const ast = new D7AstContext(document, position, this.indexer);

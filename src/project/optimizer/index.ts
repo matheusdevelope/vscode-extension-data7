@@ -9,6 +9,7 @@ export {
 export { minifyData7Text, type TextMinifyOptions } from "./minify";
 export {
   removeUnusedDeclarations,
+  mergeDuplicateNamespaces,
   type RemoveUnusedModuleInput,
   type RemoveUnusedResult,
 } from "./minify";

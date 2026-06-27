@@ -18,6 +18,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - O linter aceita indexacao em `Variant`/`String`, resolve chamadas sem receiver respeitando imports antes de homonimos globais e reconhece `Net`/`ftBinary`/`ftASCII` como itens nativos da System Library.
 - A System Library cobre flags de `Forms.GridConfigs` usadas em projetos legados e `TStringList`/`TStrings` podem ser indexados diretamente com `lista[i]`.
 - `private-member-access` permanece estrito, destaca o token exato do membro privado em cadeias longas e o autocomplete nao sugere membros `Private` fora da classe declarante. `redundant-terminal-exit` remove `Exit`/`Return` vazio terminal sem confundir com `missing-return-value`.
+- Quick Fixes corretivos aparecem antes das supressoes, supressoes de linha sao emitidas com `data7:disable-next-line`, `dead-code` agrupa blocos inalcançaveis e o arquivo `.bas` ativo pode ser corrigido pelo comando `Data7: Linter - Corrigir Arquivo Atual`.
 - A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio.
 - A System Library inclui aliases iniciais para `System.IOUtils.TFile`, `System.IOUtils.TPath` e `IO.File.ZipFile`; chamadas estaticas dessas classes nao sao tratadas como modulos externos.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
@@ -71,19 +72,20 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 
 ## Comandos principais
 
-| Comando                                        | Atalho         | Descrição                                                 |
-| ---------------------------------------------- | -------------- | --------------------------------------------------------- |
-| `Data7: Abrir Projeto`                         | —              | Decompõe um `.7Proj` em estrutura `.bas` editável         |
-| `Data7: Criar Novo Projeto`                    | —              | Cria um projeto Data7 do zero                             |
-| `Data7: Compilar/Rebuildar Projeto`            | `Ctrl+Shift+B` | Empacota a árvore atual no `.7Proj`                       |
-| `Data7: Executar Projeto`                      | `F5`           | Roda no Executor do Data7                                 |
-| `Data7: Abrir no Developer Studio`             | —              | Abre no IDE legado                                        |
-| `Data7: Instalar Módulo Compartilhado`         | —              | Sincroniza um módulo do repositório para `data7_modules/` |
-| `Data7: Atualizar Dependências do Projeto`     | —              | Refresh completo de `data7.json#dependencies`             |
-| `Data7: Gerar Documentação da System Library`  | —              | Gera `.md` por namespace em `docs/system-library/`        |
-| `Data7: Sincronizar Documentação no AGENTS.md` | —              | Injeta bloco gerado no `AGENTS.md` do workspace           |
-| `Data7: Mostrar Saída`                         | —              | Abre o canal "Data7" no painel Output                     |
-| `Data7: Reiniciar/Rodar Linter no Projeto`     | —              | Reavalia todo o projeto e exibe resumo de diagnósticos    |
+| Comando                                        | Atalho             | Descrição                                                 |
+| ---------------------------------------------- | ------------------ | --------------------------------------------------------- |
+| `Data7: Abrir Projeto`                         | —                  | Decompõe um `.7Proj` em estrutura `.bas` editável         |
+| `Data7: Criar Novo Projeto`                    | —                  | Cria um projeto Data7 do zero                             |
+| `Data7: Compilar/Rebuildar Projeto`            | `Ctrl+Shift+B`     | Empacota a árvore atual no `.7Proj`                       |
+| `Data7: Executar Projeto`                      | `F5`               | Roda no Executor do Data7                                 |
+| `Data7: Abrir no Developer Studio`             | —                  | Abre no IDE legado                                        |
+| `Data7: Instalar Módulo Compartilhado`         | —                  | Sincroniza um módulo do repositório para `data7_modules/` |
+| `Data7: Atualizar Dependências do Projeto`     | —                  | Refresh completo de `data7.json#dependencies`             |
+| `Data7: Gerar Documentação da System Library`  | —                  | Gera `.md` por namespace em `docs/system-library/`        |
+| `Data7: Sincronizar Documentação no AGENTS.md` | —                  | Injeta bloco gerado no `AGENTS.md` do workspace           |
+| `Data7: Mostrar Saída`                         | —                  | Abre o canal "Data7" no painel Output                     |
+| `Data7: Reiniciar/Rodar Linter no Projeto`     | —                  | Reavalia todo o projeto e exibe resumo de diagnósticos    |
+| `Data7: Linter - Corrigir Arquivo Atual`       | `Ctrl+Alt+Shift+F` | Aplica Quick Fixes corretivos no `.bas` ativo             |
 
 ## Configurações
 
@@ -118,9 +120,9 @@ Veja `Settings` → busca por `data7.`:
 }
 ```
 
-`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. Com `features.diagnostics.enabled: true`, o linter live acompanha arquivos `.bas` físicos abertos; o comando **Data7: Reiniciar/Rodar Linter no Projeto** analisa o workspace inteiro e mantém os resultados no painel Problems até nova análise, limpeza ou alteração do arquivo. `features.diagnostics.lintWorkspaceOnStartup` executa essa varredura completa ao abrir a IDE quando habilitado, mas fica desligado por padrão para evitar custo inicial em projetos grandes. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção completa e explícita, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
+`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. Com `features.diagnostics.enabled: true`, o linter live acompanha arquivos `.bas` físicos abertos; o comando **Data7: Reiniciar/Rodar Linter no Projeto** analisa o workspace inteiro e mantém os resultados no painel Problems até nova análise, limpeza ou alteração do arquivo. `features.diagnostics.lintWorkspaceOnStartup` executa essa varredura completa ao abrir a IDE quando habilitado, mas fica desligado por padrão para evitar custo inicial em projetos grandes. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção explícita no editor atual, use **Data7: Linter - Corrigir Arquivo Atual**; para o workspace inteiro, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
 
-O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `minify.removeUnused`, `uglify.enabled` e `sourceMap`. As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
+O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `minify.removeUnused`, `minify.mergeNamespaces`, `uglify.enabled` e `sourceMap`. As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
 
 ## Suprimir diagnósticos com comentários
 

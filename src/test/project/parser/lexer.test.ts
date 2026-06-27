@@ -47,13 +47,7 @@ describe("parser/lexer", () => {
   test("keeps numeric separators inside a single number token", () => {
     const t = tokenize("Dim n = 1_000");
 
-    assert.deepEqual(kinds(t), [
-      "keyword:Dim",
-      "identifier:n",
-      "punct:=",
-      "number:1_000",
-      "eof:",
-    ]);
+    assert.deepEqual(kinds(t), ["keyword:Dim", "identifier:n", "punct:=", "number:1_000", "eof:"]);
   });
 
   test("emits a newline token between lines", () => {

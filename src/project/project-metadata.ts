@@ -36,6 +36,7 @@ export interface ProjectBuildOptimizationMinify {
   enabled?: boolean;
   stripComments?: boolean;
   removeUnused?: boolean;
+  mergeNamespaces?: boolean;
 }
 
 export interface ProjectBuildOptimizationUglify {

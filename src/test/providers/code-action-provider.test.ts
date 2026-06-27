@@ -21,6 +21,7 @@ import {
   type ReturnUnrecommendedPayload,
   type ReturnAssignmentInCatchPayload,
   type InlineIfThenPayload,
+  type CallParenthesesMismatchPayload,
   setDiagnosticPayload,
 } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, noopToken } from "../_helpers/mock-doc";
@@ -49,24 +50,6 @@ function offsetAt(text: string, line: number, character: number): number {
     offset += (lines[index]?.length ?? 0) + 1;
   }
   return offset + character;
-}
-
-function applyReplaceEdit(
-  text: string,
-  edit: {
-    type: string;
-    range?: {
-      start: { line: number; character: number };
-      end: { line: number; character: number };
-    };
-    text?: string;
-  },
-): string {
-  assert.equal(edit.type, "replace");
-  assert.ok(edit.range);
-  const start = offsetAt(text, edit.range.start.line, edit.range.start.character);
-  const end = offsetAt(text, edit.range.end.line, edit.range.end.character);
-  return `${text.slice(0, start)}${edit.text ?? ""}${text.slice(end)}`;
 }
 
 function applyInsertEdit(
@@ -337,7 +320,7 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(suppressFix.title.includes("Suprimir"));
       expectEdit(suppressFix.edit, {
         type: "insert",
-        textIncludes: "data7:disable-line unsupported-member",
+        textIncludes: "data7:disable-next-line unsupported-member",
       });
     });
   });
@@ -1599,6 +1582,50 @@ describe("D7BasicCodeActionProvider", () => {
   });
 
   describe("buildFixAllWorkspaceEdit (dynamic bulk correction)", () => {
+    test("generates bulk fixes from deterministic unit fixes", async () => {
+      const doc = mockDoc("DoWork\nDoOther\n");
+      const diag1 = diagWith(
+        DiagnosticCodes.CallParenthesesMismatch,
+        {
+          code: DiagnosticCodes.CallParenthesesMismatch,
+          line: 0,
+          insertColumn: 6,
+        } satisfies CallParenthesesMismatchPayload,
+        new vscode.Range(0, 0, 0, 6),
+      );
+      const diag2 = diagWith(
+        DiagnosticCodes.CallParenthesesMismatch,
+        {
+          code: DiagnosticCodes.CallParenthesesMismatch,
+          line: 1,
+          insertColumn: 7,
+        } satisfies CallParenthesesMismatchPayload,
+        new vscode.Range(1, 0, 1, 7),
+      );
+      const originalGetDiagnostics = (vscode.languages as any).getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [diag1, diag2];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(
+            doc,
+            new vscode.Range(0, 0, 0, 6),
+            { diagnostics: [diag1] } as any,
+            noopToken,
+          ),
+        )) as any[];
+
+        const bulkFix = onlyQuickFixes(all).find((action) =>
+          action.title.includes("todas as chamadas"),
+        );
+        assert.ok(bulkFix);
+        assert.equal(bulkFix.edit?.edits.length, 2);
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+
     test("picks the first available quick-fix edit and excludes suppression fixes", () => {
       const doc = mockDoc("If x <> 1\n");
       const range = new vscode.Range(0, 9, 0, 10);

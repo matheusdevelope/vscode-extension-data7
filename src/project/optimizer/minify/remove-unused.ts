@@ -6,13 +6,11 @@ import {
   type CompilationUnit,
   type DelegateDeclaration,
   type EnumDeclaration,
-  type FieldDeclaration,
   type ImportsDeclaration,
   type MethodDeclaration,
   type Node,
   type OpaqueStatement,
   type ParameterDeclaration,
-  type PropertyDeclaration,
   type Statement,
   type TopLevelMember,
   type TypeParameter,
@@ -415,7 +413,7 @@ function collectReferences(
   node: Node | ParameterDeclaration | TypeParameter,
   refs: Set<string>,
 ): void {
-  new ReferenceCollector(refs).walk(node as Node);
+  new ReferenceCollector(refs).walk(node);
 }
 
 function pruneCompilationUnit(

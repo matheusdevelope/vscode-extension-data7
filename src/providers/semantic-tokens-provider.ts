@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { TypeResolver } from "../analysis/type-resolver";
 import { SYSTEM_SYMBOLS } from "../system-library";
 import { LanguageProcessor } from "../analysis/language-processor";
 
@@ -45,8 +46,18 @@ export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTok
     const tokens = cached.tokens;
     for (const t of tokens) {
       if (t.kind === "identifier") {
-        const kind = lookup.get(t.value.toLowerCase());
+        let kind = lookup.get(t.value.toLowerCase());
         if (kind) {
+          // A global symbol lookup can't distinguish local `Dim` variables from methods or
+          // global callables that share the same name (case-insensitively). When the lookup
+          // says "method", verify there isn't a local Dim declaration in scope — if there is,
+          // the identifier is a variable, not a method call.
+          if (kind === "method") {
+            const lineIdx = Math.max(0, t.loc.line - 1);
+            if (TypeResolver.hasLocalDimDeclaration(t.value, document, lineIdx, this.indexer)) {
+              kind = "variable";
+            }
+          }
           const tokenTypeIdx = TOKEN_TYPES.indexOf(kind);
           const line = Math.max(0, t.loc.line - 1);
           builder.push(line, t.loc.column, t.value.length, tokenTypeIdx, 0);

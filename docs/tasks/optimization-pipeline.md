@@ -4,7 +4,7 @@ Este arquivo acompanha a implementação de `minify`, `uglify` agressivo e sourc
 
 ## Decisões fechadas
 
-- `removeUnused` é subopção de `minify`.
+- `removeUnused` e `mergeNamespaces` sao subopcoes de `minify`.
 - `uglify` deve ser agressivo desde o início: tudo que é declaração de usuário pode ser renomeado.
 - APIs nativas do compilador/Data7 e símbolos da System Library não podem ser renomeados.
 - Source map é requisito do pipeline, não recurso posterior.
@@ -23,6 +23,7 @@ Este arquivo acompanha a implementação de `minify`, `uglify` agressivo e sourc
 - [ ] Compor source map de transpile/sugars/generics com otimizações.
 - [x] Migrar minify atual para `src/project/optimizer/minify`.
 - [x] Implementar `minify.removeUnused` por grafo global AST.
+- [x] Implementar `minify.mergeNamespaces` para mesclar namespaces duplicados por modulo.
 - [x] Implementar diretivas `@data7:keep`, `@data7:keep-name`, `@data7:entrypoint`.
 - [x] Corrigir `stripComments` para preservar apostrofos e aspas escapadas dentro de strings.
 - [ ] Implementar classificador de API nativa/System Library.
@@ -43,7 +44,8 @@ Este arquivo acompanha a implementação de `minify`, `uglify` agressivo e sourc
       "minify": {
         "enabled": false,
         "stripComments": true,
-        "removeUnused": false
+        "removeUnused": false,
+        "mergeNamespaces": false
       },
       "uglify": {
         "enabled": false

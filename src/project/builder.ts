@@ -23,6 +23,7 @@ import {
   resolveBuildOptimizationOptions,
   minifyData7Text,
   removeUnusedDeclarations,
+  mergeDuplicateNamespaces,
   type BuildOptimizationOptions,
   type BuildOptimizationOverride,
 } from "./optimizer";
@@ -768,26 +769,38 @@ export class Builder {
     for (const m of transpiledSrcModules) codeByModuleName.set(m.name, m.code);
     for (const m of transpiledDepModules) codeByModuleName.set(m.name, m.code);
 
+    const optimizationModuleInputs = (): {
+      readonly moduleName: string;
+      readonly fileUri: string;
+      readonly code: string;
+    }[] => [
+      { moduleName: "Principal", fileUri: mainUri, code: codeByModuleName.get("Principal") ?? mainTranspiled.code },
+      ...virtualSugarModules.map((m) => ({
+        moduleName: m.name,
+        fileUri: m.fileUri,
+        code: codeByModuleName.get(m.name) ?? m.code,
+      })),
+      ...transpiledSrcModules.map((m) => ({
+        moduleName: m.name,
+        fileUri: m.fileUri,
+        code: codeByModuleName.get(m.name) ?? m.code,
+      })),
+      ...transpiledDepModules.map((m) => ({
+        moduleName: m.name,
+        fileUri: m.fileUri,
+        code: codeByModuleName.get(m.name) ?? m.code,
+      })),
+    ];
+
     if (optimizationOptions.minify.removeUnused) {
-      const pruned = removeUnusedDeclarations([
-        { moduleName: "Principal", fileUri: mainUri, code: mainTranspiled.code },
-        ...virtualSugarModules.map((m) => ({
-          moduleName: m.name,
-          fileUri: m.fileUri,
-          code: m.code,
-        })),
-        ...transpiledSrcModules.map((m) => ({
-          moduleName: m.name,
-          fileUri: m.fileUri,
-          code: m.code,
-        })),
-        ...transpiledDepModules.map((m) => ({
-          moduleName: m.name,
-          fileUri: m.fileUri,
-          code: m.code,
-        })),
-      ]);
+      const pruned = removeUnusedDeclarations(optimizationModuleInputs());
       for (const [moduleName, code] of pruned.modules) {
+        codeByModuleName.set(moduleName, code);
+      }
+    }
+    if (optimizationOptions.minify.mergeNamespaces) {
+      const merged = mergeDuplicateNamespaces(optimizationModuleInputs());
+      for (const [moduleName, code] of merged.modules) {
         codeByModuleName.set(moduleName, code);
       }
     }

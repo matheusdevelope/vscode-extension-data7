@@ -1333,6 +1333,175 @@ End Namespace`);
     });
   });
 
+  describe("call-parentheses-mismatch", () => {
+    const runLinter = (code: string) => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///call_parens_test.bas";
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("warns when a final parameterless method call omits parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Public Sub Run()
+         DoWork
+      End Sub
+
+      Public Sub DoWork()
+      End Sub
+   End Class
+End Namespace`);
+
+      expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "DoWork");
+    });
+
+    test("insertColumn points past the method name on a MemberAccess (regression: was pointing to start)", () => {
+      // Line 3 (0-indexed: 2): "      me.doWork"
+      // "me.doWork" starts at col 6, "doWork" starts at col 9 (after "me.")
+      // insertColumn must be 9 + 6 = 15, NOT 9 (start of "doWork")
+      const code = `Namespace mod_reg
+   Class C
+      Public Sub Run()
+         me.doWork
+      End Sub
+
+      Public Sub doWork()
+      End Sub
+   End Class
+End Namespace`;
+      const diags = runLinter(code);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "doWork");
+      const payload = (diag as vscode.Diagnostic & { data?: { insertColumn?: number } }).data;
+      assert.ok(payload, "payload should be present");
+      // "      me.doWork" — 'doWork' is 6 chars, starts at col 9, so insertColumn should be 15
+      assert.ok(
+        (payload.insertColumn ?? 0) > (diag.range.start.character),
+        `insertColumn (${payload.insertColumn}) must be greater than the member start column (${diag.range.start.character})`,
+      );
+      assert.equal(
+        payload.insertColumn,
+        diag.range.start.character + "doWork".length,
+        "insertColumn should equal start + length of member name",
+      );
+    });
+
+    test("warns when a Dim initializer is a parameterless method without parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class T
+      Public Function logado() As T
+         logado = Nothing
+      End Function
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim obj As New T
+         Dim x As T = obj.logado
+      End Sub
+   End Class
+End Namespace`);
+
+      expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "logado");
+    });
+
+    test("warns when assignment RHS is a parameterless method without parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class T
+      Public Function logado() As T
+         logado = Nothing
+      End Function
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim obj As New T
+         Dim x As T
+         x = obj.logado
+      End Sub
+   End Class
+End Namespace`);
+
+      expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "logado");
+    });
+
+    test("does not warn when parameterless method call already has parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class T
+      Public Function logado() As T
+         logado = Nothing
+      End Function
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim obj As New T
+         Dim x As T = obj.logado()
+      End Sub
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+    });
+  });
+
+  describe("chained-global-function-assignment", () => {
+    const runLinter = (code: string) => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///chained_global_function_assignment.bas";
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("warns on assignment from a member chain rooted at a global function", () => {
+      const diags = runLinter(`Namespace mod_test
+   Function CreateItem() As TItem
+      CreateItem = Nothing
+   End Function
+
+   Class TItem
+      Public Function Name() As String
+         Name = ""
+      End Function
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim value As String
+         value = CreateItem().Name()
+      End Sub
+   End Class
+End Namespace`);
+
+      expectDiagnostic(diags, DiagnosticCodes.ChainedGlobalFunctionAssignment, "CreateItem");
+    });
+
+    test("does not emit type-mismatch when a local variable with the same name as a global method is called with empty parens (regression)", () => {
+      // `retorno` is a local variable of type `Retorno`. `retorno()` with empty parens is a
+      // property-default invocation on the variable, NOT a call to an unrelated global/imported
+      // method that happens to share the name. TypeResolver must prioritise the local variable.
+      const diags = runLinter(`Namespace mod_test
+   Class Retorno
+      Public Name As String
+   End Class
+
+   ' Simulate an imported callable named "Retorno" that returns a different type
+   Function Retorno() As String
+      Retorno = ""
+   End Function
+
+   Class C
+      Public Function getRetorno() As Retorno
+         Dim retorno As Retorno = New Retorno()
+         getRetorno = retorno()
+      End Function
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+  });
+
   describe("scope and type compatibility regressions", () => {
     const runLinter = (uri: string, code: string) => {
       const indexer = WorkspaceSymbolIndexer.getInstance();

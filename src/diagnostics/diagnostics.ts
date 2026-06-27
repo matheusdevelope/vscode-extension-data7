@@ -26,6 +26,9 @@ import type {
   ReturnUnrecommendedPayload,
   ReturnAssignmentInCatchPayload,
   InlineIfThenPayload,
+  CallParenthesesMismatchPayload,
+  ChainedGlobalFunctionAssignmentPayload,
+  SharedReturnGlobalFunctionPayload,
 } from "./diagnostic-codes";
 import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
@@ -75,6 +78,7 @@ import {
   type TaggedTemplateExpression,
   type TernaryExpression,
   type Assignment,
+  type Expression,
   type ExpressionStatement,
   type SourceLocation,
   type TryCatchStatement,
@@ -429,6 +433,8 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.UnknownSymbol]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.LooseTypeStatement]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.CallParenthesesMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.ChainedGlobalFunctionAssignment]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.SharedReturnGlobalFunction]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ObjectCreationParenthesesMissing]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.DeclarationParenthesesMismatch]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.FunctionReadSelf]: vscode.DiagnosticSeverity.Error,
@@ -472,7 +478,9 @@ export class DiagnosticsLinter {
     if (document.uri.scheme === "data7-preview") {
       return [];
     }
-    const tracker = new TimeTracker(`Análise do Linter no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
+    const tracker = new TimeTracker(
+      `Análise do Linter no arquivo ${vscode.workspace.asRelativePath(document.uri)}`,
+    );
     try {
       const diagnostics: vscode.Diagnostic[] = [];
       const text = document.getText();
@@ -884,7 +892,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     if (node.kind === "ClassDeclaration") {
       this.activeClass = node;
       this.activeClassInheritedNames = new Set(
-        TypeResolver.getInheritedMembers(node.name, this.indexer).map((m) => m.name.toLowerCase())
+        TypeResolver.getInheritedMembers(node.name, this.indexer).map((m) => m.name.toLowerCase()),
       );
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (node.typeParameters && node.typeParameters.length > 0) {
@@ -976,7 +984,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
       case "MemberAccess": {
         const t0 = performance.now();
         this.checkMemberAccess(node);
-        this.timeMemberAccess += (performance.now() - t0);
+        this.timeMemberAccess += performance.now() - t0;
         break;
       }
       case "ArrayAccessExpression":
@@ -1018,7 +1026,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     }
     const t1Dispatch = performance.now();
     if (node.kind !== "MemberAccess") {
-      this.timeOtherChecks += (t1Dispatch - t0Dispatch);
+      this.timeOtherChecks += t1Dispatch - t0Dispatch;
     }
 
     // Bare Identifier Unknown Symbol check
@@ -1114,13 +1122,13 @@ export class DiagnosticsASTWalker extends ASTWalker {
           this.diagnostics.push(diag);
         }
       }
-      this.timeIdentifier += (performance.now() - t0Id);
+      this.timeIdentifier += performance.now() - t0Id;
     }
 
     this.parentStack.push(node);
     const t0Super = performance.now();
     super.walk(node);
-    this.timeAstTraversal += (performance.now() - t0Super);
+    this.timeAstTraversal += performance.now() - t0Super;
     this.parentStack.pop();
 
     if (isConditional) {
@@ -1355,7 +1363,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
       //   this.diagnostics.push(diag);
       // }
     }
-    this.timeMethodInvocation += (performance.now() - t0);
+    this.timeMethodInvocation += performance.now() - t0;
   }
 
   private checkMemberAccess(node: MemberAccess): void {
@@ -1724,7 +1732,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     );
     const diag = new vscode.Diagnostic(
       range,
-      `Chamada do mÃ©todo/funÃ§Ã£o "${memberName}" usou colchetes. MÃ©todos e funÃ§Ãµes aceitam apenas parÃªnteses.`,
+      `Chamada do mÃ©todo/Função "${memberName}" usou colchetes. MÃ©todos e funÃ§Ãµes aceitam apenas parÃªnteses.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.CallParenthesesMismatch;
@@ -1948,6 +1956,19 @@ export class DiagnosticsASTWalker extends ASTWalker {
     if (isCurrentFunctionReturnTarget && this.isInsideCatchBlock(node)) {
       this.pushReturnAssignmentInCatchDiagnostic(node);
     }
+    const sharedReturnGlobal = this.resolveSharedReturnGlobalFunction(node.value, lineIdx);
+    if (isCurrentFunctionReturnTarget && sharedReturnGlobal) {
+      this.pushSharedReturnGlobalFunctionDiagnostic(
+        node.value,
+        sharedReturnGlobal,
+        lineIdx,
+        node.target,
+      );
+    } else if (this.findChainedGlobalFunctionRoot(node.value, lineIdx)) {
+      const chainedGlobalRoot = this.findChainedGlobalFunctionRoot(node.value, lineIdx);
+      if (!chainedGlobalRoot) return;
+      this.pushChainedGlobalFunctionAssignmentDiagnostic(node.value, chainedGlobalRoot, lineIdx);
+    }
 
     let resolvedLhs: SymbolInfo | undefined;
     if (node.target.kind === "Identifier" && !isLocalAssignmentTarget) {
@@ -2049,11 +2070,25 @@ export class DiagnosticsASTWalker extends ASTWalker {
         this.diagnostics.push(diag);
       }
     }
+
+    // Warn when the RHS is a parameterless callable used without parentheses,
+    // e.g. `x = obj.logado` should be `x = obj.logado()`.
+    const parameterlessCallable = this.resolveParameterlessFinalCall(node.value, lineIdx);
+    if (parameterlessCallable) {
+      this.pushFinalCallParenthesesDiagnostic(node.value, parameterlessCallable, lineIdx);
+    }
   }
 
   private checkVariableDeclaration(node: VariableDeclaration): void {
     if (!node.loc || !node.type || !node.initializer) return;
     const lineIdx = node.loc.startLine - 1;
+
+    // Warn when the initializer is a parameterless callable used without parentheses,
+    // e.g. `Dim x As T = obj.logado` should be `Dim x As T = obj.logado()`.
+    const parameterlessCallable = this.resolveParameterlessFinalCall(node.initializer, lineIdx);
+    if (parameterlessCallable) {
+      this.pushFinalCallParenthesesDiagnostic(node.initializer, parameterlessCallable, lineIdx);
+    }
 
     const lhsType = typeRefToString(node.type);
     const rhsType = TypeResolver.resolveExpressionType(
@@ -2080,6 +2115,257 @@ export class DiagnosticsASTWalker extends ASTWalker {
         this.diagnostics.push(diag);
       }
     }
+  }
+
+  private findChainedGlobalFunctionRoot(
+    expr: Expression,
+    lineIdx: number,
+  ): MethodInvocation | undefined {
+    switch (expr.kind) {
+      case "MemberAccess":
+        if (this.isGlobalFunctionInvocation(expr.target, lineIdx)) {
+          return expr.target;
+        }
+        return this.findChainedGlobalFunctionRoot(expr.target, lineIdx);
+      case "MethodInvocation":
+        if (!expr.callee) return undefined;
+        if (this.isGlobalFunctionInvocation(expr.callee, lineIdx)) {
+          return expr.callee;
+        }
+        return this.findChainedGlobalFunctionRoot(expr.callee, lineIdx);
+      case "ArrayAccessExpression":
+        if (this.isGlobalFunctionInvocation(expr.target, lineIdx)) {
+          return expr.target;
+        }
+        return this.findChainedGlobalFunctionRoot(expr.target, lineIdx);
+      case "BinaryExpression":
+        return (
+          this.findChainedGlobalFunctionRoot(expr.left, lineIdx) ??
+          this.findChainedGlobalFunctionRoot(expr.right, lineIdx)
+        );
+      case "UnaryExpression":
+        return this.findChainedGlobalFunctionRoot(expr.argument, lineIdx);
+      case "TernaryExpression":
+        return (
+          this.findChainedGlobalFunctionRoot(expr.condition, lineIdx) ??
+          this.findChainedGlobalFunctionRoot(expr.trueExpr, lineIdx) ??
+          this.findChainedGlobalFunctionRoot(expr.falseExpr, lineIdx)
+        );
+      case "NullCoalescingExpression":
+        return (
+          this.findChainedGlobalFunctionRoot(expr.left, lineIdx) ??
+          this.findChainedGlobalFunctionRoot(expr.right, lineIdx)
+        );
+      case "OptionalChainingExpression":
+        return this.findChainedGlobalFunctionRoot(expr.target, lineIdx);
+      case "PipeExpression":
+        return (
+          this.findChainedGlobalFunctionRoot(expr.left, lineIdx) ??
+          this.findChainedGlobalFunctionRoot(expr.right, lineIdx)
+        );
+      case "ObjectInitializerExpression":
+        for (const assignment of expr.assignments) {
+          const root = this.findChainedGlobalFunctionRoot(assignment.value, lineIdx);
+          if (root) return root;
+        }
+        return undefined;
+      case "ArrayLiteralExpression":
+        for (const element of expr.elements) {
+          const root = this.findChainedGlobalFunctionRoot(element, lineIdx);
+          if (root) return root;
+        }
+        return undefined;
+      case "SpreadExpression":
+        return this.findChainedGlobalFunctionRoot(expr.expression, lineIdx);
+      default:
+        return undefined;
+    }
+  }
+
+  private resolveSharedReturnGlobalFunction(
+    expr: Expression,
+    lineIdx: number,
+  ):
+    | {
+      readonly root: MethodInvocation;
+      readonly rootSymbol: SymbolInfo;
+      readonly startChar: number;
+      readonly endChar: number;
+      readonly rootText: string;
+      readonly suffixText: string;
+    }
+    | undefined {
+    if (!this.isActiveSharedFunction()) return undefined;
+
+    const directSymbol =
+      expr.kind === "MethodInvocation"
+        ? this.resolveGlobalFunctionInvocation(expr, lineIdx)
+        : undefined;
+    const root = directSymbol ? expr : this.findChainedGlobalFunctionRoot(expr, lineIdx);
+    if (!root) return undefined;
+    const rootSymbol = directSymbol ?? this.resolveGlobalFunctionInvocation(root, lineIdx);
+    if (!rootSymbol) return undefined;
+
+    const lineText = this.lines[lineIdx] ?? "";
+    const startChar = expr.loc?.startChar ?? root.loc?.startChar ?? 0;
+    const endChar = this.findExpressionEndColumn(lineText, startChar);
+    const rootStart = root.loc?.startChar ?? startChar;
+
+    const rootEnd = this.findInvocationEndColumn(lineText, rootStart, (root as MethodInvocation).methodName);
+    if (rootEnd <= rootStart || rootEnd > endChar) return undefined;
+
+    return {
+      root: (root as MethodInvocation),
+      rootSymbol,
+      startChar,
+      endChar,
+      rootText: lineText.slice(rootStart, rootEnd).trim(),
+      suffixText: lineText.slice(rootEnd, endChar).trim(),
+    };
+  }
+
+  private isActiveSharedFunction(): boolean {
+    return (
+      this.activeMethod?.returnType !== undefined &&
+      (this.activeMethod.modifiers ?? []).some((modifier) => modifier.toLowerCase() === "shared")
+    );
+  }
+
+  private isGlobalFunctionInvocation(expr: Expression, lineIdx: number): expr is MethodInvocation {
+    return this.resolveGlobalFunctionInvocation(expr, lineIdx) !== undefined;
+  }
+
+  private resolveGlobalFunctionInvocation(
+    expr: Expression,
+    lineIdx: number,
+  ): SymbolInfo | undefined {
+    if (expr.kind !== "MethodInvocation" || expr.callee) return undefined;
+    const resolved = TypeResolver.findUnqualifiedCallable(
+      expr.methodName,
+      this.document,
+      lineIdx,
+      this.indexer,
+      expr.arguments.map((arg) =>
+        TypeResolver.resolveExpressionType(arg, this.document, lineIdx, this.indexer),
+      ),
+    );
+    if (!resolved) return undefined;
+    if (resolved.kind !== "method" && resolved.kind !== "declare_function") return undefined;
+    if (resolved.type.toLowerCase() === "void") return undefined;
+    const ownerLower = resolved.containerName?.toLowerCase();
+    if (!ownerLower) return resolved;
+    if (ownerLower === this.activeClass?.name.toLowerCase()) return undefined;
+    if (this.activeClassInheritedNames?.has(ownerLower)) return undefined;
+    return resolved;
+  }
+
+  private pushChainedGlobalFunctionAssignmentDiagnostic(
+    expr: Expression,
+    root: MethodInvocation,
+    lineIdx: number,
+  ): void {
+    const lineText = this.lines[lineIdx] ?? "";
+    const startChar = expr.loc?.startChar ?? 0;
+    const endChar =
+      expr.loc && expr.loc.endChar > expr.loc.startChar
+        ? expr.loc.endChar
+        : this.findExpressionEndColumn(lineText, startChar);
+    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `AtribuiÃ§Ã£o direta a partir da cadeia iniciada pela Função global "${root.methodName}" pode falhar no compilador Data7. Armazene o retorno da Função em uma variÃ¡vel temporÃ¡ria antes de acessar membros.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    diag.code = DiagnosticCodes.ChainedGlobalFunctionAssignment;
+    const payload: ChainedGlobalFunctionAssignmentPayload = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      code: DiagnosticCodes.ChainedGlobalFunctionAssignment,
+      line: lineIdx,
+      startChar,
+      endChar,
+      functionName: root.methodName,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    setDiagnosticPayload(diag, payload);
+    this.diagnostics.push(diag);
+  }
+
+  private pushSharedReturnGlobalFunctionDiagnostic(
+    expr: Expression,
+    resolved: {
+      readonly root: MethodInvocation;
+      readonly rootSymbol: SymbolInfo;
+      readonly startChar: number;
+      readonly endChar: number;
+      readonly rootText: string;
+      readonly suffixText: string;
+    },
+    lineIdx: number,
+    _target: Expression | undefined,
+  ): void {
+    const targetName = this.activeMethod?.name;
+    if (!targetName) return;
+
+    const range = new vscode.Range(lineIdx, resolved.startChar, lineIdx, resolved.endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Função Shared nÃ£o deve retornar diretamente a Função global "${resolved.root.methodName}". Armazene o resultado em uma variÃ¡vel temporÃ¡ria antes de atribuir o retorno.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    diag.code = DiagnosticCodes.SharedReturnGlobalFunction;
+    const payload: SharedReturnGlobalFunctionPayload = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      code: DiagnosticCodes.SharedReturnGlobalFunction,
+      line: lineIdx,
+      startChar: resolved.startChar,
+      endChar: resolved.endChar,
+      targetName,
+      rootText: resolved.rootText,
+      suffixText: resolved.suffixText,
+      tempName: `__data7GlobalReturn${lineIdx + 1}`,
+      tempType: (resolved.rootSymbol.type || typeRefToString(this.activeMethod?.returnType)) ?? "Variant",
+      exitType: "Function",
+      isInsideCatch: this.isInsideCatchBlock(expr),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    setDiagnosticPayload(diag, payload);
+    this.diagnostics.push(diag);
+  }
+
+  private findInvocationEndColumn(lineText: string, startChar: number, methodName: string): number {
+    let cursor = this.findTokenEnd(lineText, startChar, methodName);
+    while (lineText[cursor] === " " || lineText[cursor] === "\t") cursor++;
+    if (lineText[cursor] !== "(") return cursor;
+
+    let depth = 0;
+    let inString = false;
+    for (; cursor < lineText.length; cursor++) {
+      const char = lineText[cursor];
+      if (char === '"') {
+        if (inString && lineText[cursor + 1] === '"') {
+          cursor++;
+          continue;
+        }
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char === "(") {
+        depth++;
+      } else if (char === ")") {
+        depth--;
+        if (depth === 0) return cursor + 1;
+      }
+    }
+    return cursor;
+  }
+
+  private findExpressionEndColumn(lineText: string, startChar: number): number {
+    const commentStart = getCommentStartIndex(lineText);
+    const limit = commentStart === -1 ? lineText.length : commentStart;
+    return lineText.slice(0, limit).trimEnd().length || startChar + 1;
   }
 
   private checkMethodDeclaration(node: MethodDeclaration): void {
@@ -2134,7 +2420,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
       })(this.diagnostics);
       const t0Self = performance.now();
       checkSelfRead.walk(node);
-      this.timeCheckSelfRead += (performance.now() - t0Self);
+      this.timeCheckSelfRead += performance.now() - t0Self;
     }
 
     // Run the AST-based Flow Analysis on method bodies
@@ -2142,7 +2428,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
       const t0Flow = performance.now();
       const flowAnalyzer = new ASTFlowAnalyzer(node, this.lines, this.diagnostics);
       flowAnalyzer.run();
-      this.timeFlowAnalyzer += (performance.now() - t0Flow);
+      this.timeFlowAnalyzer += performance.now() - t0Flow;
     }
 
     // DeclarationParenthesesMismatch checking
@@ -2184,12 +2470,113 @@ export class DiagnosticsASTWalker extends ASTWalker {
     }
   }
 
+  private resolveParameterlessFinalCall(
+    expr: Expression,
+    lineIdx: number,
+  ): SymbolInfo | undefined {
+    if (expr.kind === "Identifier") {
+      if (
+        PRIMITIVE_TYPES.has(expr.name.toLowerCase()) ||
+        DiagnosticsLinter.isKnownType(expr.name, this.indexer)
+      ) {
+        return undefined;
+      }
+      // A local Dim variable with the same name takes priority over any unqualified callable.
+      // Without this guard, `Dim retorno As T` followed by `returnRowGrid = retorno` would
+      // incorrectly match an imported function `Retorno()` and emit a false-positive warning.
+      // We use hasLocalDimDeclaration (not getVariableType) to avoid matching class members
+      // that happen to share the name — those are valid targets for the parentheses warning.
+      if (TypeResolver.hasLocalDimDeclaration(expr.name, this.document, lineIdx, this.indexer)) {
+        return undefined;
+      }
+      const resolved = TypeResolver.findUnqualifiedCallable(
+        expr.name,
+        this.document,
+        lineIdx,
+        this.indexer,
+        [],
+      );
+      return this.isParameterlessCallable(resolved) ? resolved : undefined;
+    }
+
+    if (expr.kind !== "MemberAccess") return undefined;
+    const targetType = TypeResolver.resolveExpressionType(
+      expr.target,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
+    if (!targetType) return undefined;
+    const resolved = TypeResolver.findMember(targetType, expr.member, this.indexer, 0);
+    return this.isParameterlessCallable(resolved) ? resolved : undefined;
+  }
+
+  private isParameterlessCallable(symbol: SymbolInfo | undefined): symbol is SymbolInfo {
+    if (!symbol) return false;
+    if (
+      symbol.kind !== "method" &&
+      symbol.kind !== "declare_function" &&
+      symbol.kind !== "declare_sub"
+    ) {
+      return false;
+    }
+    return (symbol.parameters?.length ?? 0) === 0;
+  }
+
+  private pushFinalCallParenthesesDiagnostic(
+    expr: Expression,
+    symbol: SymbolInfo,
+    lineIdx: number,
+  ): void {
+    const tokenName = expr.kind === "MemberAccess" ? expr.member : symbol.name;
+    const lineText = this.lines[lineIdx] ?? "";
+    const startChar =
+      expr.kind === "MemberAccess" && expr.memberLoc
+        ? expr.memberLoc.startChar
+        : (expr.loc?.startChar ?? 0);
+    // TokenLocation only stores the start column; endChar from memberLoc equals startChar.
+    // Use findTokenEnd uniformly so insertColumn always points past the last character of the name.
+    const endChar = this.findTokenEnd(lineText, startChar, tokenName);
+    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Chamada final do método "${symbol.name}" sem argumentos deve usar parênteses "()".`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.CallParenthesesMismatch;
+    const payload: CallParenthesesMismatchPayload = {
+      code: DiagnosticCodes.CallParenthesesMismatch,
+      line: lineIdx,
+      insertColumn: endChar,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    setDiagnosticPayload(diag, payload);
+    this.diagnostics.push(diag);
+  }
+
+  private findTokenEnd(lineText: string, startChar: number, tokenName: string): number {
+    const start = Math.max(0, startChar);
+    const expectedEnd = start + tokenName.length;
+    if (lineText.slice(start, expectedEnd).toLowerCase() === tokenName.toLowerCase()) {
+      return expectedEnd;
+    }
+    let cursor = start;
+    while (isIdentifierChar(lineText[cursor])) cursor++;
+    return cursor > start ? cursor : expectedEnd;
+  }
+
   private checkExpressionStatement(node: ExpressionStatement): void {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
 
     // Loose Type Statement
     const expr = node.expression;
+    const parameterlessCallable = this.resolveParameterlessFinalCall(expr, lineIdx);
+    if (parameterlessCallable) {
+      this.pushFinalCallParenthesesDiagnostic(expr, parameterlessCallable, lineIdx);
+      return;
+    }
+
     let isLooseType = false;
     let typeName = "";
     if (expr.kind === "Identifier") {
@@ -2466,6 +2853,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     if (!node.loc) return;
 
     if (this.activeProperty) return;
+    const lineIdx = node.loc.startLine - 1;
 
     let isSingleLineIf = false;
     for (let i = this.parentStack.length - 1; i >= 0; i--) {
@@ -2486,12 +2874,21 @@ export class DiagnosticsASTWalker extends ASTWalker {
       // inProperty
       //   ? this.activeProperty?.name
       //   :
-      inFunction
-        ? this.activeMethod?.name
-        : undefined;
+      inFunction ? this.activeMethod?.name : undefined;
     const exitType =
       // inProperty ? "Property" :
       inFunction ? "Function" : "Sub";
+    if (targetName && node.expression) {
+      const sharedReturnGlobal = this.resolveSharedReturnGlobalFunction(node.expression, lineIdx);
+      if (sharedReturnGlobal) {
+        this.pushSharedReturnGlobalFunctionDiagnostic(
+          node.expression,
+          sharedReturnGlobal,
+          lineIdx,
+          undefined,
+        );
+      }
+    }
     if (targetName && this.isInsideCatchBlock(node)) return;
 
     let msg = "O uso de 'Return' não é recomendado devido a lentidão gerada no compilador.";
@@ -2501,7 +2898,6 @@ export class DiagnosticsASTWalker extends ASTWalker {
       msg = `O uso de 'Return' não é recomendado. Prefira atribuir o valor a "${targetName}" e usar 'Exit ${exitType}'.`;
     }
 
-    const lineIdx = node.loc.startLine - 1;
     const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
     const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
     diag.code = DiagnosticCodes.ReturnUnrecommended;

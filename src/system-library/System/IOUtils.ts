@@ -158,7 +158,7 @@ export const symbols: SystemSymbolInfo[] = [
           { name: "Bytes", type: "Variant" },
         ],
         description: "Escreve conteudo binario em um arquivo.",
-      }
+      },
     ],
   }),
   ...buildClassSymbols({
@@ -242,7 +242,11 @@ export const symbols: SystemSymbolInfo[] = [
       {
         name: "MatchesPattern",
         returns: "Boolean",
-        params: [{ name: "FileName", type: "String" }, { name: "Pattern", type: "String" }, { name: "CaseSensitive", type: "Boolean" }],
+        params: [
+          { name: "FileName", type: "String" },
+          { name: "Pattern", type: "String" },
+          { name: "CaseSensitive", type: "Boolean" },
+        ],
         description: "Retorna True se o nome der match com o Pattern",
       },
     ],

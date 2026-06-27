@@ -53,12 +53,15 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Void",
     isShared: false,
     isPrivate: false,
-    parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }, {
-      name: "pItem",
-      type: "TObject",
-      isByRef: false,
-      isOptional: false,
-    }],
+    parameters: [
+      { name: "pIndex", type: "Integer", isByRef: false, isOptional: false },
+      {
+        name: "pItem",
+        type: "TObject",
+        isByRef: false,
+        isOptional: false,
+      },
+    ],
     range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
     fileUri: "system://library",
     containerName: "TObjectList",

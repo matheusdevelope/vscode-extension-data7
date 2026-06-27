@@ -68,7 +68,9 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Hover> {
     if (token.isCancellationRequested) return undefined;
-    const tracker = new TimeTracker(`Hover no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
+    const tracker = new TimeTracker(
+      `Hover no arquivo ${vscode.workspace.asRelativePath(document.uri)}`,
+    );
 
     try {
       const result = this.provideHoverInternal(document, position, token);
@@ -83,7 +85,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
   private provideHoverInternal(
     document: vscode.TextDocument,
     position: vscode.Position,
-    token: vscode.CancellationToken,
+    _: vscode.CancellationToken,
   ): vscode.Hover | undefined {
     const ast = new D7AstContext(document, position, this.indexer);
     const range = ast.wordRange;

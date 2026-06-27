@@ -34,7 +34,7 @@ function buildMockLine(lineNumber: number, text: string, isLastLine: boolean): M
   const rangeIncludingLineBreak = isLastLine
     ? range
     : new vscode.Range(lineNumber, 0, lineNumber + 1, 0);
-  const firstNonWS = text.match(/\S/)?.index ?? text.length;
+  const firstNonWS = /\S/.exec(text)?.index ?? text.length;
   return {
     lineNumber,
     text,
@@ -76,9 +76,7 @@ export function buildMockDocument(
   // only if the last "line" is empty and we actually have content — VS Code's
   // real documents behave identically.
   const lines: string[] =
-    rawLines.length > 1 && rawLines[rawLines.length - 1] === ""
-      ? rawLines.slice(0, -1)
-      : rawLines;
+    rawLines.length > 1 && rawLines[rawLines.length - 1] === "" ? rawLines.slice(0, -1) : rawLines;
 
   const lineCount = lines.length;
 
@@ -113,9 +111,7 @@ export function buildMockDocument(
   }
 
   function lineAt(lineOrPos: number | vscode.Position): MockTextLine {
-    const n = clampLine(
-      typeof lineOrPos === "number" ? lineOrPos : lineOrPos.line,
-    );
+    const n = clampLine(typeof lineOrPos === "number" ? lineOrPos : lineOrPos.line);
     const text = lines[n] ?? "";
     const isLast = n === lineCount - 1;
     return buildMockLine(n, text, isLast);
@@ -192,7 +188,7 @@ export function buildMockDocument(
     getWordRangeAtPosition,
     // No-op: batch pipeline writes via node:fs after applying edits.
     save: (): Thenable<boolean> => Promise.resolve(true),
-  } as unknown as vscode.TextDocument;
+  };
 }
 
 // ---------------------------------------------------------------------------

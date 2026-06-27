@@ -28,6 +28,7 @@ import {
   addObjectCreationParenthesesMissingFix,
   addObjectCreationParenthesesMissingBulkFix,
 } from "./quick-fixes/object-creation-parentheses-missing";
+import { addCallParenthesesMismatchFix } from "./quick-fixes/call-parentheses-mismatch";
 import {
   addMissingMyBaseNewFix,
   addMissingMyBaseNewBulkFix,
@@ -83,6 +84,17 @@ const DIAGNOSTIC_PRIORITY: Record<string, number> = {
   [DiagnosticCodes.MissingThen]: 4,
 };
 
+const GENERATED_BULK_FIX_TITLES: ReadonlyMap<string, string> = new Map([
+  [
+    DiagnosticCodes.CallParenthesesMismatch,
+    "Adicionar parenteses '()' em todas as chamadas deste arquivo",
+  ],
+]);
+
+interface QuickFixOptions {
+  readonly includeGeneratedBulk?: boolean;
+}
+
 /**
  * Provides Quick Fixes (lightbulb actions) for every canonical diagnostic
  * emitted by the linter.
@@ -115,6 +127,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
   public getQuickFixesForDiagnostic(
     document: vscode.TextDocument,
     diagnostic: vscode.Diagnostic,
+    options: QuickFixOptions = {},
   ): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
     const codeStr = getDiagnosticCode(diagnostic);
@@ -156,6 +169,9 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       case DiagnosticCodes.ObjectCreationParenthesesMissing:
         addObjectCreationParenthesesMissingFix(actions, document, diagnostic);
         addObjectCreationParenthesesMissingBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.CallParenthesesMismatch:
+        addCallParenthesesMismatchFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.MissingMyBaseNew:
         addMissingMyBaseNewFix(actions, document, diagnostic);
@@ -209,6 +225,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         break;
       default:
         break;
+    }
+
+    if (codeStr && options.includeGeneratedBulk !== false) {
+      addGeneratedBulkFixFromUnitFixes(actions, document, diagnostic, this, codeStr);
     }
 
     if (codeStr) {
@@ -278,6 +298,48 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     return mergeActionEdits(collected);
   }
+}
+
+function addGeneratedBulkFixFromUnitFixes(
+  actions: vscode.CodeAction[],
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic,
+  provider: D7BasicCodeActionProvider,
+  codeStr: string,
+): void {
+  const title = GENERATED_BULK_FIX_TITLES.get(codeStr);
+  if (!title) return;
+
+  const diagnostics = vscode.languages
+    .getDiagnostics(document.uri)
+    .filter((item) => getDiagnosticCode(item) === codeStr);
+  if (diagnostics.length <= 1) return;
+
+  const unitActions: vscode.CodeAction[] = [];
+  for (const item of diagnostics) {
+    const firstUnitFix = provider
+      .getQuickFixesForDiagnostic(document, item, { includeGeneratedBulk: false })
+      .find(isUnitEditQuickFix);
+    if (firstUnitFix) {
+      unitActions.push(firstUnitFix);
+    }
+  }
+
+  const merged = mergeActionEdits(unitActions);
+  if (!merged) return;
+
+  const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
+  action.diagnostics = [diagnostic];
+  action.edit = merged.edit;
+  actions.push(action);
+}
+
+function isUnitEditQuickFix(action: vscode.CodeAction): boolean {
+  return (
+    !!action.edit &&
+    !!action.kind?.value.startsWith(vscode.CodeActionKind.QuickFix.value) &&
+    !action.title.startsWith("Desabilitar ")
+  );
 }
 
 export function mergeActionEdits(

@@ -5,7 +5,6 @@ import type { SharedModuleInfo } from "../analysis/dependency-scanner";
 import { DependencyScanner } from "../analysis/dependency-scanner";
 import { WorkspaceSymbolIndexer, SymbolParser } from "../analysis/symbol-indexer";
 import { LanguageProcessor } from "../analysis/language-processor";
-import type { CompilationUnit } from "../project/ast/ast";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
@@ -85,7 +84,13 @@ export class DiagnosticService {
       }
     };
 
-    vscode.workspace.onDidOpenTextDocument((doc) => handleDocument(doc, false), null, context.subscriptions);
+    vscode.workspace.onDidOpenTextDocument(
+      (doc) => {
+        handleDocument(doc, false);
+      },
+      null,
+      context.subscriptions,
+    );
     vscode.workspace.onDidSaveTextDocument(
       (doc) => {
         this.invalidateWorkspaceCacheFor(doc.fileName);
@@ -171,6 +176,32 @@ export class DiagnosticService {
     this.workspaceDiagnosticUris.delete(uri.toString().toLowerCase());
   }
 
+  public static replaceDiagnosticsFromBatch(
+    entries: readonly { readonly uri: vscode.Uri; readonly diagnostics: readonly vscode.Diagnostic[] }[],
+  ): void {
+    for (const entry of entries) {
+      const uriKey = entry.uri.toString().toLowerCase();
+      if (entry.diagnostics.length === 0) {
+        this._collection?.delete(entry.uri);
+        this.liveDiagnosticUris.delete(uriKey);
+        this.workspaceDiagnosticUris.delete(uriKey);
+        continue;
+      }
+
+      this._collection?.set(entry.uri, [...entry.diagnostics]);
+      const isOpen = vscode.workspace.textDocuments.some(
+        (doc) => doc.uri.toString().toLowerCase() === uriKey,
+      );
+      if (isOpen) {
+        this.liveDiagnosticUris.set(uriKey, entry.uri);
+        this.workspaceDiagnosticUris.delete(uriKey);
+      } else {
+        this.workspaceDiagnosticUris.set(uriKey, entry.uri);
+        this.liveDiagnosticUris.delete(uriKey);
+      }
+    }
+  }
+
   public static pruneClosedDiagnostics(): void {
     const openUris = new Set(
       vscode.workspace.textDocuments
@@ -197,7 +228,10 @@ export class DiagnosticService {
     this.refreshDiagnosticsNow(document);
   }
 
-  private static refreshDiagnosticsNow(document: vscode.TextDocument, reevaluateDependent = true): void {
+  private static refreshDiagnosticsNow(
+    document: vscode.TextDocument,
+    reevaluateDependent = true,
+  ): void {
     if (!this.isLiveDiagnosticDocument(document)) {
       this.clearDiagnostics(document.uri);
       return;
@@ -236,8 +270,16 @@ export class DiagnosticService {
 
     // 2. Feed the indexer only at debounce time, using the pre-parsed AST to avoid double parses
     if (vscode.workspace.getWorkspaceFolder(document.uri)) {
-      const parsedSymbols = SymbolParser.parseFromAst(document.uri.toString(), text, cachedDoc.unit);
-      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(document.uri.toString(), text, parsedSymbols);
+      const parsedSymbols = SymbolParser.parseFromAst(
+        document.uri.toString(),
+        text,
+        cachedDoc.unit,
+      );
+      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(
+        document.uri.toString(),
+        text,
+        parsedSymbols,
+      );
     }
 
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);
@@ -292,7 +334,11 @@ export class DiagnosticService {
     this.workspaceDiagnosticUris.delete(document.uri.toString().toLowerCase());
 
     const docUriStr = document.uri.toString().toLowerCase();
-    if (reevaluateDependent && !DiagnosticService.pendingDependentUris.has(docUriStr) && !WorkspaceFixService.isBatchFixInProgress) {
+    if (
+      reevaluateDependent &&
+      !DiagnosticService.pendingDependentUris.has(docUriStr) &&
+      !WorkspaceFixService.isBatchFixInProgress
+    ) {
       DiagnosticService.reevaluateDependentFiles(document.uri);
     }
   }
@@ -614,7 +660,7 @@ export class DiagnosticService {
                 } catch (err) {
                   logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
                 }
-              })
+              }),
             );
 
             // Yield the event loop so VS Code repaints UI snappy
@@ -663,9 +709,7 @@ export class DiagnosticService {
       content = fs.readFileSync(fsPath, "utf-8");
     } catch (err) {
       logger.warn(
-        `Falha ao ler ${fsPath} para linting: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `Falha ao ler ${fsPath} para linting: ${err instanceof Error ? err.message : String(err)}`,
       );
       return [];
     }
@@ -716,8 +760,16 @@ export class DiagnosticService {
 
     // 2. Feed the indexer using the pre-parsed AST
     if (vscode.workspace.getWorkspaceFolder(document.uri)) {
-      const parsedSymbols = SymbolParser.parseFromAst(document.uri.toString(), text, cachedDoc.unit);
-      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(document.uri.toString(), text, parsedSymbols);
+      const parsedSymbols = SymbolParser.parseFromAst(
+        document.uri.toString(),
+        text,
+        cachedDoc.unit,
+      );
+      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(
+        document.uri.toString(),
+        text,
+        parsedSymbols,
+      );
     }
 
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);

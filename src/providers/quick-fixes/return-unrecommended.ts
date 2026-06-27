@@ -254,10 +254,10 @@ function resolveReturnUnrecommendedReplacement(
                 value: stmt.expression
                   ? deepClone(stmt.expression)
                   : {
-                    kind: "Literal",
-                    value: expressionText,
-                    loc: stmt.loc,
-                  },
+                      kind: "Literal",
+                      value: expressionText,
+                      loc: stmt.loc,
+                    },
                 loc: stmt.loc,
               });
             }

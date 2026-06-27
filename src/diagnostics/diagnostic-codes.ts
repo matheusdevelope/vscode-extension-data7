@@ -203,6 +203,10 @@ export const DiagnosticCodes = {
   LooseTypeStatement: "loose-type-statement",
   /** A method call violating the parentheses requirements. */
   CallParenthesesMismatch: "call-parentheses-mismatch",
+  /** Assignment directly consumes a member chain rooted at a global function call. */
+  ChainedGlobalFunctionAssignment: "chained-global-function-assignment",
+  /** Shared Function return directly consumes a global function call. */
+  SharedReturnGlobalFunction: "shared-return-global-function",
   /** An object creation (`New T`) omitted the empty `()` constructor call. */
   ObjectCreationParenthesesMissing: "object-creation-parentheses-missing",
   /** A method/delegate declaration missing parentheses. */
@@ -525,6 +529,34 @@ export interface DeadCodePayload {
   endLine: number;
 }
 
+export interface CallParenthesesMismatchPayload {
+  code: typeof DiagnosticCodes.CallParenthesesMismatch;
+  line: number;
+  insertColumn: number;
+}
+
+export interface ChainedGlobalFunctionAssignmentPayload {
+  code: typeof DiagnosticCodes.ChainedGlobalFunctionAssignment;
+  line: number;
+  startChar: number;
+  endChar: number;
+  functionName: string;
+}
+
+export interface SharedReturnGlobalFunctionPayload {
+  code: typeof DiagnosticCodes.SharedReturnGlobalFunction;
+  line: number;
+  startChar: number;
+  endChar: number;
+  targetName: string;
+  rootText: string;
+  suffixText: string;
+  tempName: string;
+  tempType: string;
+  exitType: "Function";
+  isInsideCatch: boolean;
+}
+
 export interface ReturnAssignmentInCatchPayload {
   code: typeof DiagnosticCodes.ReturnAssignmentInCatch;
   line: number;
@@ -581,6 +613,9 @@ export type DiagnosticPayload =
   | ReturnUnrecommendedPayload
   | RedundantTerminalExitPayload
   | DeadCodePayload
+  | CallParenthesesMismatchPayload
+  | ChainedGlobalFunctionAssignmentPayload
+  | SharedReturnGlobalFunctionPayload
   | ReturnAssignmentInCatchPayload
   | InlineIfThenPayload
   | NamespaceNameConflictPayload;

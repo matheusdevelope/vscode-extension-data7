@@ -2,7 +2,7 @@
   "name": "vscode-extension-data7",
   "displayName": "Data7 Dev Studio integration",
   "description": "Ferramentas para desenvolvimento, sincronização e execução de projetos Data7 (.7Proj) no VS Code.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "matheusdevelope",
   "license": "MIT",
   "repository": {

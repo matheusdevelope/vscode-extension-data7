@@ -7,8 +7,8 @@ import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers
  *
  *  1. **Comentar esta linha** — prefixes the line with `'` so the compiler
  *     ignores the statement and the author can revisit later.
- *  2. **Suprimir warning aqui** — appends `' data7:disable-line unsupported-member`
- *     at the end of the same line. Useful when the usage is intentional (legacy)
+ *  2. **Suprimir warning aqui** - inserts `' data7:disable-next-line unsupported-member`
+ *     above the diagnostic line. Useful when the usage is intentional (legacy)
  *     and the team has accepted the risk.
  */
 export function addUnsupportedMemberFixes(
@@ -45,17 +45,21 @@ export function addUnsupportedMemberFixes(
   }
   actions.push(commentAction);
 
-  // 2. Insert inline suppression at end of line.
+  // 2. Insert suppression above the diagnostic line.
   const suppressAction = new vscode.CodeAction(
     `Suprimir warning unsupported-member nesta linha`,
     vscode.CodeActionKind.QuickFix,
   );
   suppressAction.diagnostics = [diagnostic];
   {
-    const insertPos = new vscode.Position(line, lineText.length);
-    const trailing = lineText.endsWith(" ") ? "" : " ";
+    const indent = /^(\s*)/.exec(lineText)?.[1] ?? "";
+    const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
     const edit = new vscode.WorkspaceEdit();
-    edit.insert(document.uri, insertPos, `${trailing}' data7:disable-line unsupported-member`);
+    edit.insert(
+      document.uri,
+      new vscode.Position(line, 0),
+      `${indent}' data7:disable-next-line unsupported-member${eol}`,
+    );
     suppressAction.edit = edit;
   }
   actions.push(suppressAction);
@@ -112,9 +116,13 @@ export function addUnsupportedMemberBulkFix(
     for (const match of sorted) {
       const line = match.range.start.line;
       const lineText = document.lineAt(line).text;
-      const insertPos = new vscode.Position(line, lineText.length);
-      const trailing = lineText.endsWith(" ") ? "" : " ";
-      edit.insert(document.uri, insertPos, `${trailing}' data7:disable-line unsupported-member`);
+      const indent = /^(\s*)/.exec(lineText)?.[1] ?? "";
+      const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
+      edit.insert(
+        document.uri,
+        new vscode.Position(line, 0),
+        `${indent}' data7:disable-next-line unsupported-member${eol}`,
+      );
     }
     suppressAction.edit = edit;
   }

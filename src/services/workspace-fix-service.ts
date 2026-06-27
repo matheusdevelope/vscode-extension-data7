@@ -81,7 +81,7 @@ export class WorkspaceFixService {
   public static async fixActiveEditor(): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     const document = editor?.document;
-    if (!document || document.languageId !== "d7basic" || document.uri.scheme !== "file") {
+    if (document?.languageId !== "d7basic" || document.uri.scheme !== "file") {
       vscode.window.showInformationMessage("Abra um arquivo Data7 Basic para aplicar correcoes.");
       return;
     }
@@ -175,9 +175,9 @@ export class WorkspaceFixService {
    *
    * This avoids opening editors (`openTextDocument`), avoids `applyEdit` (which
    * triggers `onDidChangeTextDocument` for every file), and avoids per-file
-   * `.save()` calls (which trigger `onDidSaveTextDocument`). A single
-   * `DiagnosticService.refreshAllActive()` at the end re-lints whatever is
-   * currently open in the editor, keeping the Problems panel consistent.
+   * `.save()` calls (which trigger `onDidSaveTextDocument`). Corrected files
+   * are linted once from their final in-memory content and published directly
+   * to the Problems collection.
    */
   private static async applyFixesToUris(
     uris: readonly vscode.Uri[],
@@ -187,6 +187,7 @@ export class WorkspaceFixService {
     } = {},
   ): Promise<WorkspaceFixResult> {
     const provider = new D7BasicCodeActionProvider();
+    const diagnosticsAfterFix: { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }[] = [];
 
     let filesFixed = 0;
     let totalEdits = 0;
@@ -238,6 +239,11 @@ export class WorkspaceFixService {
             fs.writeFileSync(uri.fsPath, correctedContent, "utf-8");
             // Invalidate parser cache so hover/completion reflects new content.
             LanguageProcessor.getInstance().invalidate(uri.toString());
+            const correctedMockDoc = buildMockDocument(uri, correctedContent);
+            diagnosticsAfterFix.push({
+              uri,
+              diagnostics: this.collectDiagnosticsFromDocument(correctedMockDoc),
+            });
           }
 
           totalEdits += textEdits.length;
@@ -246,15 +252,22 @@ export class WorkspaceFixService {
           logger.error(`Erro ao aplicar correções automáticas para ${uri.fsPath}.`, error);
         }
       }
+      if (totalEdits > 0 && options.save !== false) {
+        // Reload open buffers while the batch flag is still enabled so VS Code
+        // document events do not schedule redundant re-lints for every file.
+        await this.reloadOpenDocuments(uris);
+      }
     } finally {
       WorkspaceFixService.isBatchFixInProgress = false;
     }
 
-    if (totalEdits > 0 && options.save !== false) {
-      // Reload any documents that are currently open in the editor so the
-      // in-memory buffer reflects the corrected on-disk content, then
-      // re-run diagnostics for all open files in one pass.
-      await this.reloadOpenDocuments(uris);
+    if (diagnosticsAfterFix.length > 0) {
+      try {
+        const { DiagnosticService } = await import("./diagnostic-service");
+        DiagnosticService.replaceDiagnosticsFromBatch(diagnosticsAfterFix);
+      } catch {
+        // Avoid circular-dependency crash if import fails.
+      }
     }
 
     return { filesScanned: uris.length, filesFixed, totalEdits };
@@ -278,13 +291,8 @@ export class WorkspaceFixService {
       }
     }
 
-    // Single re-lint pass for all currently open documents.
-    try {
-      const { DiagnosticService } = await import("./diagnostic-service");
-      DiagnosticService.refreshAllActive();
-    } catch {
-      // Avoid circular-dependency crash if import fails.
-    }
+    // Diagnostics are republished from the corrected in-memory content by the
+    // caller, avoiding a redundant full reanalysis of open documents.
   }
 
   // ---------------------------------------------------------------------------
