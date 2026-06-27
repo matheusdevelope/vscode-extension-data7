@@ -208,9 +208,14 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
   }
   if (token.kind === "punct" && token.value === "[") {
     parser.advance();
-    const index = parseExpression(parser);
+    const indices: Expression[] = [];
+    while (!parser.match("punct", "]") && !parser.isEOF()) {
+      indices.push(parseExpression(parser));
+      if (!parser.consume("punct", ",")) break;
+    }
     parser.expect("punct", "]", { literal: true });
-    return { kind: "ArrayAccessExpression", target: left, index, loc: left.loc };
+    const index = indices[0] ?? { kind: "Identifier", name: "", loc: left.loc };
+    return { kind: "ArrayAccessExpression", target: left, index, indices, loc: left.loc };
   }
   if (token.kind === "punct" && token.value === ".") {
     parser.advance();

@@ -252,6 +252,7 @@ export interface ArrayAccessExpression extends BaseNode {
   readonly kind: "ArrayAccessExpression";
   target: Expression;
   index: Expression;
+  indices?: Expression[];
 }
 
 export interface Identifier extends BaseNode {
@@ -546,7 +547,7 @@ export abstract class ASTWalker {
         return;
       case "ArrayAccessExpression":
         this.walk(node.target);
-        this.walk(node.index);
+        for (const index of node.indices ?? [node.index]) this.walk(index);
         return;
       case "Identifier":
       case "Literal":

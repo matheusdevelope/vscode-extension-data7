@@ -30,6 +30,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`).
 - **Quick Fixes e Correções em Massa**: Ações rápidas individuais e em lote ("Aplicar a todas as ocorrências no arquivo") para importar/remover dependências, instalar módulos ausentes, resolver erros de escrita ("Você quis dizer X?") e adicionar `()` em instanciações `New Tipo`.
 - O parser/transpiler preserva arrays nativos fixos do PaxCompiler/Data7 Basic, como `Private _containers(10) As Container` e `Dim _matrix(10, 5) As Integer`.
+- O parser/linter aceita propriedades indexadas com multiplos argumentos em colchetes, como `Grid.Cells[0, 1]`, alem da forma com parenteses; metodos/funcoes seguem restritos a parenteses, e `[]` tambem permanece valido para arrays e matrizes nativas.
 
 ### Sistema de projeto
 

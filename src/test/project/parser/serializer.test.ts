@@ -126,6 +126,14 @@ describe("parser/serializer", () => {
     assert.match(out, /Set\(pValue As String\)/);
   });
 
+  test("serialises indexed member access with multiple bracket arguments", () => {
+    const src = ["Sub Run()", '   grid.Cells[0, 1] = "A"', "End Sub"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /grid\.Cells\[0, 1\] = "A"/);
+  });
+
   test("serialises Select Case statement correctly", () => {
     const src = [
       "Sub TestSelect()",

@@ -89,6 +89,22 @@ describe("parser/parser", () => {
     }
   });
 
+  test("parses indexed member access with multiple bracket arguments", () => {
+    const src = ["Sub Run()", '   me.Grid.Cells[0, 1] = "A"', "End Sub"].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const stmt = m.body[0];
+    assert.equal(stmt?.kind, "Assignment");
+    if (stmt?.kind === "Assignment") {
+      assert.equal(stmt.target.kind, "ArrayAccessExpression");
+      if (stmt.target.kind === "ArrayAccessExpression") {
+        assert.equal(stmt.target.indices?.length, 2);
+        assert.equal(stmt.target.target.kind, "MemberAccess");
+      }
+    }
+  });
+
   test("parses a Function with generic type params and return type", () => {
     const src = ["Function Wrap<T>(pValue As T) As T", "   Wrap = pValue", "End Function"].join(
       "\n",

@@ -64,6 +64,7 @@ import {
   type VariableDeclaration,
   type Node,
   type MemberAccess,
+  type ArrayAccessExpression,
   type MethodInvocation,
   type ObjectCreationExpression,
   type TypeReference,
@@ -600,6 +601,12 @@ class DiagnosticsASTWalker extends ASTWalker {
   private readonly allowedTernaries = new Set<TernaryExpression>();
   private readonly imports: { name: string; loc: SourceLocation }[] = [];
   private readonly typeParamStack: Set<string>[] = [];
+  private readonly nativeArrayDeclarations: {
+    readonly name: string;
+    readonly rank: number;
+    readonly line: number;
+    readonly isField: boolean;
+  }[] = [];
 
   private isGenericTypeParameter(name: string): boolean {
     const nameLower = name.toLowerCase();
@@ -620,6 +627,8 @@ class DiagnosticsASTWalker extends ASTWalker {
   }
 
   public run(unit: CompilationUnit): void {
+    this.collectNativeArrayDeclarations(unit);
+
     // Phase 1: Collect used words to identify unused imports
     const wordCollector = new ASTWordCollector();
     wordCollector.walk(unit);
@@ -838,6 +847,9 @@ class DiagnosticsASTWalker extends ASTWalker {
       case "MemberAccess":
         this.checkMemberAccess(node);
         break;
+      case "ArrayAccessExpression":
+        this.checkArrayAccess(node);
+        break;
       case "ForEachStatement":
         this.checkForEachStatement(node);
         break;
@@ -989,6 +1001,26 @@ class DiagnosticsASTWalker extends ASTWalker {
     this.activeClass = prevClass;
     this.activeMethod = prevMethod;
     this.activeProperty = prevProp;
+  }
+
+  private collectNativeArrayDeclarations(unit: CompilationUnit): void {
+    const declarations = this.nativeArrayDeclarations;
+    new (class extends ASTWalker {
+      public override walk(node: Node): void {
+        if (
+          (node.kind === "FieldDeclaration" || node.kind === "VariableDeclaration") &&
+          node.nativeArrayDimensions !== undefined
+        ) {
+          declarations.push({
+            name: node.name.toLowerCase(),
+            rank: node.nativeArrayDimensions.length,
+            line: Math.max(0, (node.loc?.startLine ?? 1) - 1),
+            isField: node.kind === "FieldDeclaration",
+          });
+        }
+        super.walk(node);
+      }
+    })().walk(unit);
   }
 
   protected override visitImportsDeclaration(node: Node): void {
@@ -1350,6 +1382,188 @@ class DiagnosticsASTWalker extends ASTWalker {
         }
       }
     }
+  }
+
+  private checkArrayAccess(node: ArrayAccessExpression): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const args = node.indices ?? [node.index];
+    const arity = args.length;
+
+    if (node.target.kind === "MemberAccess") {
+      const receiverType = TypeResolver.resolveExpressionType(
+        node.target.target,
+        this.document,
+        lineIdx,
+        this.indexer,
+      );
+      if (!receiverType) return;
+
+      const arityMatch = TypeResolver.findMember(
+        receiverType,
+        node.target.member,
+        this.indexer,
+        arity,
+      );
+      if (arityMatch?.kind === "indexed-property") {
+        this.checkIndexedPropertyArgumentTypes(arityMatch, args, lineIdx);
+        return;
+      }
+      if (arityMatch?.kind === "variable" && arityMatch.nativeArrayRank === arity) {
+        this.checkNativeArrayIndexTypes(args, lineIdx);
+        return;
+      }
+
+      const anyMember = TypeResolver.findMember(receiverType, node.target.member, this.indexer);
+      if (
+        anyMember?.kind === "method" ||
+        anyMember?.kind === "declare_function" ||
+        anyMember?.kind === "declare_sub"
+      ) {
+        this.pushBracketCallDiagnostic(node, anyMember.name, lineIdx);
+        return;
+      }
+      if (anyMember?.kind === "indexed-property") {
+        this.pushIndexedPropertyArityDiagnostic(node, anyMember, arity, lineIdx);
+      }
+      return;
+    }
+
+    if (
+      node.target.kind === "Identifier" &&
+      this.isNativeArrayIdentifier(node.target.name, arity, lineIdx)
+    ) {
+      this.checkNativeArrayIndexTypes(args, lineIdx);
+      return;
+    }
+
+    const targetType = TypeResolver.resolveExpressionType(
+      node.target,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
+    if (!targetType) return;
+
+    const defaultIndexer = TypeResolver.findMember(targetType, "Item", this.indexer, arity);
+    if (defaultIndexer?.kind === "indexed-property") {
+      this.checkIndexedPropertyArgumentTypes(defaultIndexer, args, lineIdx);
+      return;
+    }
+
+    const range = new vscode.Range(
+      lineIdx,
+      node.target.loc?.startChar ?? node.loc.startChar,
+      lineIdx,
+      node.target.loc?.endChar ?? node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `O tipo "${targetType}" nÃ£o expÃµe uma property indexada compatÃ­vel com ${arity} argumento(s). Use colchetes apenas em arrays, matrizes ou properties indexadas.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.DefaultIndexerMissing;
+    this.diagnostics.push(diag);
+  }
+
+  private isNativeArrayIdentifier(name: string, arity: number, lineIdx: number): boolean {
+    const lower = name.toLowerCase();
+    return this.nativeArrayDeclarations.some(
+      (decl) =>
+        decl.name === lower && decl.rank === arity && (decl.isField || decl.line <= lineIdx),
+    );
+  }
+
+  private checkNativeArrayIndexTypes(
+    args: readonly ArrayAccessExpression["index"][],
+    lineIdx: number,
+  ): void {
+    for (const arg of args) {
+      const argType = TypeResolver.resolveExpressionType(arg, this.document, lineIdx, this.indexer);
+      if (argType && !DiagnosticsLinter.isTypeCompatible(argType, "Integer", this.indexer)) {
+        this.pushTypeMismatchDiagnostic(arg, argType, "Integer", lineIdx);
+      }
+    }
+  }
+
+  private checkIndexedPropertyArgumentTypes(
+    member: SymbolInfo,
+    args: readonly ArrayAccessExpression["index"][],
+    lineIdx: number,
+  ): void {
+    const params = member.parameters ?? [];
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      const param = params[i];
+      if (!arg || !param) continue;
+      const argType = TypeResolver.resolveExpressionType(arg, this.document, lineIdx, this.indexer);
+      if (argType && !DiagnosticsLinter.isTypeCompatible(argType, param.type, this.indexer)) {
+        this.pushTypeMismatchDiagnostic(arg, argType, param.type, lineIdx);
+      }
+    }
+  }
+
+  private pushBracketCallDiagnostic(
+    node: ArrayAccessExpression,
+    memberName: string,
+    lineIdx: number,
+  ): void {
+    const range = new vscode.Range(
+      lineIdx,
+      node.target.loc?.startChar ?? node.loc?.startChar ?? 0,
+      lineIdx,
+      node.target.loc?.endChar ?? node.loc?.endChar ?? 0,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `Chamada do mÃ©todo/funÃ§Ã£o "${memberName}" usou colchetes. MÃ©todos e funÃ§Ãµes aceitam apenas parÃªnteses.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.CallParenthesesMismatch;
+    this.diagnostics.push(diag);
+  }
+
+  private pushIndexedPropertyArityDiagnostic(
+    node: ArrayAccessExpression,
+    member: SymbolInfo,
+    arity: number,
+    lineIdx: number,
+  ): void {
+    const expected = member.parameters?.length ?? 0;
+    const range = new vscode.Range(
+      lineIdx,
+      node.target.loc?.startChar ?? node.loc?.startChar ?? 0,
+      lineIdx,
+      node.target.loc?.endChar ?? node.loc?.endChar ?? 0,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `Property indexada "${member.name}" espera ${expected} argumento(s), mas recebeu ${arity}.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.CallParenthesesMismatch;
+    this.diagnostics.push(diag);
+  }
+
+  private pushTypeMismatchDiagnostic(
+    expr: ArrayAccessExpression["index"],
+    actualType: string,
+    expectedType: string,
+    lineIdx: number,
+  ): void {
+    const range = new vscode.Range(
+      lineIdx,
+      expr.loc?.startChar ?? 0,
+      lineIdx,
+      expr.loc?.endChar ?? 0,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `Incompatibilidade de tipos: nÃ£o Ã© possÃ­vel usar "${actualType}" onde "${expectedType}" Ã© esperado.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.TypeMismatch;
+    this.diagnostics.push(diag);
   }
 
   private checkForEachStatement(node: ForEachStatement): void {

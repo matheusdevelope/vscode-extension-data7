@@ -48,6 +48,7 @@ export interface SymbolInfo {
   isConst?: boolean;
   isReadOnly?: boolean;
   parameters?: ParameterInfo[];
+  nativeArrayRank?: number;
   noParentheses?: boolean;
   /**
    * Overloads adicionais do mesmo método/property indexada — quando preenchido,
@@ -323,6 +324,9 @@ class SymbolIndexerWalker extends ASTWalker {
         containerName: this.activeClass ?? this.activeNamespace,
         description: node.comment?.trim() ?? undefined,
       };
+      if (node.nativeArrayDimensions !== undefined) {
+        varSymbol.nativeArrayRank = node.nativeArrayDimensions.length;
+      }
       this.symbols.push(varSymbol);
       return;
     }
@@ -395,6 +399,9 @@ class SymbolIndexerWalker extends ASTWalker {
           containerName: this.activeNamespace,
           description: node.comment?.trim() ?? undefined,
         };
+        if (node.nativeArrayDimensions !== undefined) {
+          varSymbol.nativeArrayRank = node.nativeArrayDimensions.length;
+        }
         this.symbols.push(varSymbol);
       }
       return;

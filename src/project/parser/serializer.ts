@@ -524,8 +524,10 @@ function emitExpressionRaw(expr: Expression): string {
     }
     case "MemberAccess":
       return `${emitExpression(expr.target)}.${expr.member}`;
-    case "ArrayAccessExpression":
-      return `${emitExpression(expr.target)}[${emitExpression(expr.index)}]`;
+    case "ArrayAccessExpression": {
+      const indices = expr.indices ?? [expr.index];
+      return `${emitExpression(expr.target)}[${indices.map(emitExpression).join(", ")}]`;
+    }
     case "BinaryExpression":
       return `${emitExpression(expr.left)} ${expr.operator} ${emitExpression(expr.right)}`;
     case "UnaryExpression": {

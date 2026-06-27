@@ -530,6 +530,95 @@ End Namespace`;
         `expected Align in suggestions, got ${JSON.stringify(payload?.suggestions)}`,
       );
     });
+
+    test("accepts indexed properties accessed with bracket arguments", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///grid_cells_brackets.bas";
+      const code = `Imports Forms
+Namespace mod_grid_cells
+   Class C
+      Public Sub Run()
+         Dim g As Grid
+         Dim value As String
+         value = g.Cells[0, 1]
+         g.Cells[0, 1] = "ok"
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      assert.ok(!diags.some((d) => d.code === "expected-token"), JSON.stringify(diags));
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("rejects bracket arguments on methods and validates indexed property argument types", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///method_bracket_calls.bas";
+      const code = `Namespace mod_method_brackets
+   Class Teste
+      Property MinhaProp(p1 As Integer, p2 As Integer) As Integer
+         Get
+            MinhaProp = p1 + p2
+         End Get
+      End Property
+
+      Function Teste3(p1 As String, p2 As Integer) As String
+         Teste3 = p1 + "-" + p2.ToString()
+      End Function
+   End Class
+
+   Class Parser
+      Public Shared Function stringToDouble(pValue As String) As Double
+         stringToDouble = 0.56
+      End Function
+   End Class
+
+   Class C
+      Public Sub Run()
+         Dim _class As Teste = New Teste()
+         Dim ok As Integer
+         Dim badText As String
+         Dim parsed As Double
+         ok = _class.MinhaProp[1, 3]
+         ok = _class.MinhaProp["Teste", 3]
+         badText = _class.Teste3["23", 34]
+         parsed = Parser.stringToDouble["0,56"]
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectDiagnostic(diags, DiagnosticCodes.TypeMismatch, "String");
+      const bracketCallDiags = diags.filter(
+        (d) => d.code === DiagnosticCodes.CallParenthesesMismatch,
+      );
+      assert.equal(bracketCallDiags.length, 2, JSON.stringify(diags));
+    });
+
+    test("accepts bracket access for native arrays and matrices", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///native_arrays_brackets.bas";
+      const code = `Namespace mod_native_arrays
+   Class C
+      Public Sub Run()
+         Dim values(10) As Integer
+         Dim matrix(10, 5) As Integer
+         Dim value As Integer
+         value = values[0]
+         value = matrix[0, 1]
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.DefaultIndexerMissing);
+      expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
   });
 
   // -------------------------------------------------------------------------

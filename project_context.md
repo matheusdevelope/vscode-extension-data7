@@ -1,5 +1,7 @@
 # Contexto e Arquitetura do Projeto: vscode-extension-data7
 
+O parser/linter aceita propriedades indexadas com multiplos argumentos em colchetes, como `Grid.Cells[0, 1]`. Essa forma e resolvida pela aridade e tipos da propriedade indexada, equivalente ao acesso com parenteses, e nao deve emitir erro sintatico ou `unknown-member`. Metodos e funcoes nao aceitam colchetes; alem de properties indexadas, apenas arrays e matrizes nativas podem usar `[]`.
+
 > **Contrato vigente de modularização:** consulte [`docs/sugar-architecture.md`](./docs/sugar-architecture.md) e [`AGENTS.md`](./AGENTS.md). O transpiler é apenas fachada/orquestração; cada sugar deve ser isolado em `src/project/sugars/plugins/<id>/`, com parser, transformação, diagnósticos, tipos e utilitários próprios. `SugarEngine` é a única autoridade de ativação, e sintaxe de sugar desabilitado deve ser preservada sem perda.
 
 Este documento consolida o contexto de negócio, regras conceituais, objetivos, arquitetura de software e definições técnicas da extensão VS Code para a linguagem/plataforma do ERP Data7. Ele serve como a **única fonte de verdade conceitual e arquitetural** da extensão para guiar desenvolvimentos futuros.

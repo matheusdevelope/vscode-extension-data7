@@ -7,6 +7,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+- Corrigido o parser/linter para aceitar propriedades indexadas com multiplos argumentos em colchetes, como `Grid.Cells[0, 1]`, preservando a sintaxe e resolvendo a aridade/tipos da propriedade indexada. Metodos/funcoes com colchetes agora sao rejeitados; arrays e matrizes nativas continuam aceitando `[]`.
 - Declarados `System.IOUtils.TFile` e `System.IOUtils.TPath` na System Library com os helpers estaticos iniciais usados por modulos Delphi, e adicionado alias qualificado para `IO.File.ZipFile`.
 - Corrigido falso `module-not-found` para classes da System Library usadas como chamadas estaticas, como `TFile.Exists(...)` e `File.ExtractName(...)`.
 - Corrigido falso `module-not-found` com nome vazio em acessos abreviados de bloco `With`, como `.Title` e `.Refresh()`, que nao devem ser tratados como referencias a namespaces/modulos.

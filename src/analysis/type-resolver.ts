@@ -256,7 +256,7 @@ export class TypeResolver {
         return TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
       }
       case "ArrayAccessExpression":
-        return TypeResolver.resolveIndexedElementType(expr.target, document, lineIdx, indexer);
+        return TypeResolver.resolveIndexedElementType(expr, document, lineIdx, indexer);
       case "MethodInvocation": {
         if (expr.methodName.toLowerCase() === "typeof" && !expr.callee) {
           return "Boolean";
@@ -371,18 +371,33 @@ export class TypeResolver {
   }
 
   private static resolveIndexedElementType(
-    target: Expression,
+    expr: Extract<Expression, { kind: "ArrayAccessExpression" }>,
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
-    const targetType = TypeResolver.resolveExpressionType(target, document, lineIdx, indexer);
+    const arity = (expr.indices ?? [expr.index]).length;
+    if (expr.target.kind === "MemberAccess") {
+      const receiverType = TypeResolver.resolveExpressionType(
+        expr.target.target,
+        document,
+        lineIdx,
+        indexer,
+      );
+      if (!receiverType) return undefined;
+      const member = TypeResolver.findMember(receiverType, expr.target.member, indexer, arity);
+      if (member?.kind === "indexed-property") return member.type;
+      if (member?.kind === "variable" && member.nativeArrayRank === arity) return member.type;
+      return undefined;
+    }
+
+    const targetType = TypeResolver.resolveExpressionType(expr.target, document, lineIdx, indexer);
     if (!targetType) return undefined;
-    return (
-      TypeResolver.findMember(targetType, "Item", indexer, 1)?.type ??
-      TypeResolver.findMember(targetType, "Take", indexer, 1)?.type ??
-      parseGenericTypeReference(targetType)?.args[0]
-    );
+    const item = TypeResolver.findMember(targetType, "Item", indexer, arity);
+    if (item?.kind === "indexed-property") return item.type;
+    const take = TypeResolver.findMember(targetType, "Take", indexer, arity);
+    if (take?.kind === "indexed-property") return take.type;
+    return parseGenericTypeReference(targetType)?.args[0];
   }
 
   private static resolveArrayLiteralType(
