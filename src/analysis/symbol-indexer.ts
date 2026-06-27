@@ -441,12 +441,57 @@ export class SymbolParser {
 
     return fileSymbols;
   }
+
+  public static parseFromAst(fileUri: string, content: string, unit: CompilationUnit): FileSymbols {
+    const lines = content.split(/\r?\n/);
+    const fileSymbols: FileSymbols = {
+      fileUri,
+      filePath: vscode.Uri.parse(fileUri).fsPath,
+      content,
+      imports: [],
+      symbols: [],
+    };
+
+    try {
+      // Extract imports from top-level ImportsDeclarations
+      for (const member of unit.members) {
+        if (member.kind === "ImportsDeclaration") {
+          fileSymbols.imports.push(member.target);
+        }
+      }
+
+      const walker = new SymbolIndexerWalker(fileUri, lines);
+      walker.run(unit);
+      fileSymbols.symbols = walker.symbols;
+    } catch (err: unknown) {
+      logger.error(`SymbolParser: AST walk failed for ${fileUri}.`, err);
+    }
+
+    return fileSymbols;
+  }
 }
 
 export class WorkspaceSymbolIndexer {
   private static instance: WorkspaceSymbolIndexer | undefined;
   private cache = new Map<string, FileSymbols>(); // fileUri -> FileSymbols
   public readonly changedNamespacesInLastUpdate = new Set<string>();
+
+  private allSymbolsCache: SymbolInfo[] | null = null;
+  private allFileSymbolsCache: FileSymbols[] | null = null;
+  private symbolsByNameMap: Map<string, SymbolInfo[]> | null = null;
+  private symbolsByContainerMap: Map<string, SymbolInfo[]> | null = null;
+
+  public readonly findMemberCache = new Map<string, SymbolInfo | undefined>();
+  public readonly allMembersForTypeCache = new Map<string, SymbolInfo[]>();
+
+  private invalidateLocalCaches(): void {
+    this.allSymbolsCache = null;
+    this.allFileSymbolsCache = null;
+    this.symbolsByNameMap = null;
+    this.symbolsByContainerMap = null;
+    this.findMemberCache.clear();
+    this.allMembersForTypeCache.clear();
+  }
 
   // Singleton — the private constructor prevents instantiation outside `getInstance`.
   private constructor() {
@@ -463,6 +508,7 @@ export class WorkspaceSymbolIndexer {
       const parsed = SymbolParser.parseBasFile(fileUri, content);
       this.cache.set(this.getCacheKey(fileUri), parsed);
     }
+    this.invalidateLocalCaches();
   }
 
   public static getInstance(): WorkspaceSymbolIndexer {
@@ -503,7 +549,10 @@ export class WorkspaceSymbolIndexer {
     if (fileUri.startsWith("system://")) {
       return true;
     }
-    if (fileUri.startsWith("file:///synthetic-build-dir/")) {
+    if (
+      fileUri.startsWith("file:///synthetic-build-dir/") ||
+      fileUri.startsWith("file:///proj/")
+    ) {
       return true;
     }
     try {
@@ -667,6 +716,7 @@ export class WorkspaceSymbolIndexer {
       } else {
         this.cache.delete(key);
       }
+      this.invalidateLocalCaches();
     } catch (err: unknown) {
       logger.error(`Erro ao indexar arquivo: ${fileUri}`, err);
     }
@@ -708,8 +758,64 @@ export class WorkspaceSymbolIndexer {
           this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
         }
       }
+      this.invalidateLocalCaches();
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);
+    }
+  }
+
+  /**
+   * Updates index caching directly using pre-parsed FileSymbols.
+   * Avoids parsing the file again when AST is already constructed.
+   */
+  public updateFileContentFromParsed(fileUri: string, content: string, parsed: FileSymbols): void {
+    try {
+      const key = this.getCacheKey(fileUri);
+      const oldParsed = this.cache.get(key);
+
+      const oldNamespaces = new Set<string>();
+      if (oldParsed) {
+        for (const sym of oldParsed.symbols) {
+          if (sym.kind === "namespace") {
+            oldNamespaces.add(sym.name.toLowerCase());
+          }
+        }
+      }
+
+      const newNamespaces = new Set<string>();
+      for (const sym of parsed.symbols) {
+        if (sym.kind === "namespace") {
+          newNamespaces.add(sym.name.toLowerCase());
+        }
+      }
+
+      let namespacesChanged = oldNamespaces.size !== newNamespaces.size;
+      if (!namespacesChanged) {
+        for (const ns of oldNamespaces) {
+          if (!newNamespaces.has(ns)) {
+            namespacesChanged = true;
+            break;
+          }
+        }
+      }
+
+      if (namespacesChanged) {
+        for (const ns of oldNamespaces) {
+          this.changedNamespacesInLastUpdate.add(ns);
+        }
+        for (const ns of newNamespaces) {
+          this.changedNamespacesInLastUpdate.add(ns);
+        }
+      }
+
+      if (readConfiguration().features.language.generics) {
+        appendGenericInstantiations(parsed, fileUri, content, this);
+      }
+      this.cache.set(key, parsed);
+
+      this.invalidateLocalCaches();
+    } catch (err: unknown) {
+      logger.error(`Erro ao atualizar indexação a partir de símbolos parsed para: ${fileUri}`, err);
     }
   }
 
@@ -727,6 +833,7 @@ export class WorkspaceSymbolIndexer {
       }
     }
     this.cache.delete(key);
+    this.invalidateLocalCaches();
   }
 
   /**
@@ -735,6 +842,7 @@ export class WorkspaceSymbolIndexer {
   public __resetForTests(): void {
     this.cache.clear();
     this.changedNamespacesInLastUpdate.clear();
+    this.invalidateLocalCaches();
   }
 
   /**
@@ -754,10 +862,14 @@ export class WorkspaceSymbolIndexer {
    * Get all symbols in the workspace
    */
   public getAllSymbols(): SymbolInfo[] {
+    if (this.allSymbolsCache) {
+      return this.allSymbolsCache;
+    }
     const all: SymbolInfo[] = [];
     for (const fileSym of this.cache.values()) {
       all.push(...fileSym.symbols);
     }
+    this.allSymbolsCache = all;
     return all;
   }
 
@@ -766,7 +878,53 @@ export class WorkspaceSymbolIndexer {
    * providers that need to scan the file bodies for whole-word matches.
    */
   public getAllFileSymbols(): FileSymbols[] {
-    return Array.from(this.cache.values());
+    if (this.allFileSymbolsCache) {
+      return this.allFileSymbolsCache;
+    }
+    const all = Array.from(this.cache.values());
+    this.allFileSymbolsCache = all;
+    return all;
+  }
+
+  private buildSearchMaps(): void {
+    if (this.symbolsByNameMap && this.symbolsByContainerMap) return;
+
+    const byName = new Map<string, SymbolInfo[]>();
+    const byContainer = new Map<string, SymbolInfo[]>();
+
+    const allSyms = this.getAllSymbols();
+    for (const sym of allSyms) {
+      const nameKey = sym.name.toLowerCase();
+      let nameList = byName.get(nameKey);
+      if (!nameList) {
+        nameList = [];
+        byName.set(nameKey, nameList);
+      }
+      nameList.push(sym);
+
+      if (sym.containerName) {
+        const containerKey = sym.containerName.toLowerCase();
+        let containerList = byContainer.get(containerKey);
+        if (!containerList) {
+          containerList = [];
+          byContainer.set(containerKey, containerList);
+        }
+        containerList.push(sym);
+      }
+    }
+
+    this.symbolsByNameMap = byName;
+    this.symbolsByContainerMap = byContainer;
+  }
+
+  public getSymbolsByName(name: string): SymbolInfo[] {
+    this.buildSearchMaps();
+    return this.symbolsByNameMap?.get(name.toLowerCase()) ?? [];
+  }
+
+  public getSymbolsByContainer(containerName: string): SymbolInfo[] {
+    this.buildSearchMaps();
+    return this.symbolsByContainerMap?.get(containerName.toLowerCase()) ?? [];
   }
 
   /**

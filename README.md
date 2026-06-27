@@ -21,6 +21,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio.
 - A System Library inclui aliases iniciais para `System.IOUtils.TFile`, `System.IOUtils.TPath` e `IO.File.ZipFile`; chamadas estaticas dessas classes nao sao tratadas como modulos externos.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
+- **Otimizações de Performance do Linter**: Cache global de herança de membros ($O(1)$) e detecção inteligente de delta de namespaces. Reavaliação de dependências em cascata movida exclusivamente para o evento de salvamento, otimizando a digitação. Diagnóstico de `return-unrecommended` ignora propriedades `Property Get` por não suportarem `Exit Property` nativamente.
 
 ### IntelliSense e validação
 

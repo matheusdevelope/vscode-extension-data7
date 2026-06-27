@@ -515,4 +515,108 @@ describe("DiagnosticService live lifecycle", () => {
       (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
     }
   });
+
+  test("automatically resolves and clears diagnostics in dependent closed files when a missing dependency is added", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    // X depends on Y: imports Y's namespace (ControleTitulos) and instantiates ControleTitulos.Titulo class
+    const fileX = path.join(srcDir, "frmConciliacao.bas");
+    const codeX = [
+      "Imports ControleTitulos",
+      "Namespace frmConciliacao",
+      "  Class Form",
+      "    Public Sub Free()",
+      "      MyBase.Free()",
+      "    End Sub",
+      "    Dim _controle As ControleTitulos.Titulo",
+      "  End Class",
+      "End Namespace",
+    ].join("\n");
+
+    // Y initially does NOT define ControleTitulos.Titulo class (empty namespace)
+    const fileY = path.join(srcDir, "ControleTitulos.bas");
+    const codeYEmpty = [
+      "Namespace ControleTitulos",
+      "End Namespace",
+    ].join("\n");
+
+    fs.writeFileSync(fileX, codeX, "utf8");
+    fs.writeFileSync(fileY, codeYEmpty, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    const originalGetWorkspaceFolder = vscode.workspace.getWorkspaceFolder;
+    (vscode.workspace as any).getWorkspaceFolder = (uri: vscode.Uri) => {
+      if (uri.fsPath.toLowerCase().startsWith(tmpDir.toLowerCase())) {
+        return { uri: vscode.Uri.file(tmpDir), name: "TmpWorkspace", index: 0 };
+      }
+      return undefined;
+    };
+
+    try {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(vscode.Uri.file(fileX).toString(), codeX);
+      indexer.updateFileContent(vscode.Uri.file(fileY).toString(), codeYEmpty);
+
+      DiagnosticService.initialize({ subscriptions: [] } as any);
+
+      // Run diagnostics on X. Since Titulo class is missing in Y, X must have an UnknownType error.
+      const docX = createMockDoc(vscode.Uri.file(fileX).toString(), codeX);
+      DiagnosticService.refreshDiagnostics(docX);
+      const initialDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
+      assert.ok(
+        initialDiagsX.some((diag) => diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType),
+        "Initially X should have type resolution errors",
+      );
+
+      // Now, simulate adding the missing ControleTitulos.Titulo class to Y
+      const codeYFixed = [
+        "Namespace ControleTitulos",
+        "  Class Titulo",
+        "    Public Sub Free()",
+        "      MyBase.Free()",
+        "    End Sub",
+        "  End Class",
+        "End Namespace",
+      ].join("\n");
+      fs.writeFileSync(fileY, codeYFixed, "utf8");
+      indexer.updateFileContent(vscode.Uri.file(fileY).toString(), codeYFixed);
+
+      // Run diagnostics on Y. It should trigger the asynchronous re-evaluation of its dependent X.
+      const docY = createMockDoc(vscode.Uri.file(fileY).toString(), codeYFixed);
+      DiagnosticService.refreshDiagnostics(docY);
+
+      // Wait for the reevaluation
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Now check if X has been updated and its type resolution error has been cleared!
+      const finalDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
+      const hasErrors = finalDiagsX.some(
+        (diag) => diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType
+      );
+      assert.equal(hasErrors, false, "Errors in X should be resolved and cleared after Y was fixed");
+    } finally {
+      (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
+    }
+  });
 });

@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import { WorkspaceSymbolIndexer } from "./analysis/symbol-indexer";
 import { LanguageProcessor } from "./analysis/language-processor";
 import { CONFIG_NAMESPACE, LANGUAGE_IDS } from "./infra/constants";
-import { readConfiguration } from "./infra/configuration";
+import { readConfiguration, isReadOnlyModuleFile } from "./infra/configuration";
 import { initLogger, logger } from "./infra/logger";
 import { registerCommands } from "./commands";
 import { registerLanguageProviders } from "./providers/registration";
@@ -80,17 +80,25 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     });
 
   const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
+  const isReadOnlyOrModule = (fsPath: string): boolean => {
+    const lower = fsPath.toLowerCase();
+    return lower.includes("data7_modules") || isReadOnlyModuleFile(fsPath);
+  };
+
   basWatcher.onDidChange((uri) => {
+    if (isReadOnlyOrModule(uri.fsPath)) return;
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidCreate((uri) => {
+    if (isReadOnlyOrModule(uri.fsPath)) return;
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidDelete((uri) => {
+    if (isReadOnlyOrModule(uri.fsPath)) return;
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.removeFile(uri.toString());
     DiagnosticService.clearDiagnostics(uri);

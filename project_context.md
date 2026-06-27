@@ -2,6 +2,14 @@
 
 Membros `Private` permanecem restritos a classe declarante, mesmo quando o compilador legado aceita acessos externos por erro. `private-member-access` deve destacar o token exato do membro acessado, inclusive em cadeias longas, e o autocomplete so deve listar membros privados dentro da classe que os declara. `redundant-terminal-exit` cobre `Exit Sub`/`Exit Function`/`Exit Property` e `Return` vazio no fim efetivo de uma rotina ou bloco terminal, oferecendo remocao sem reutilizar `missing-return-value`.
 
+O linter de `return-unrecommended` ignora blocos de propriedade (`Property Get`), visto que o compilador nativo do Data7 não suporta a palavra-chave `Exit Property` e exige o uso de `Return` para retorno de propriedades. Consequentemente, nenhum diagnóstico de aviso de `Return` é emitido em propriedades e nenhum QuickFix correspondente é oferecido.
+
+Para melhorar o desempenho da IDE e do linter, a extensão implementa:
+1. Um cache global de membros resolvidos por tipo (`allMembersForTypeCache` no `WorkspaceSymbolIndexer`) que acelera em $O(1)$ a análise de expressões e atribuições no linter.
+2. Uma comparação inteligente de alteração de namespaces (`updateFileContentFromParsed` no indexador) para quebrar o loop infinito de re-entrada do linter, invalidando o cache de dependentes apenas se os namespaces de fato mudarem.
+3. A exclusão da pasta gerenciada `data7_modules/` do FileSystemWatcher do VS Code para evitar auto-invalidações concorrentes.
+4. A limitação da reavaliação em cascata de arquivos dependentes do workspace exclusivamente ao salvamento de arquivos (`onDidSaveTextDocument`), mantendo o processo de digitação local, veloz e leve na CPU.
+
 `Forms.GridConfigs` inclui as flags booleanas legadas usadas para configurar linhas, sizing/moving, selecao e cliques de cabecalho do Grid. `Collections.TStrings` expoe `Item(Integer) As String` como indexed-property default, entao `TStringList` e descendentes aceitam acesso direto `lista[i]` no linter.
 
 O parser/linter aceita propriedades indexadas com multiplos argumentos em colchetes, como `Grid.Cells[0, 1]`. Essa forma e resolvida pela aridade e tipos da propriedade indexada, equivalente ao acesso com parenteses, e nao deve emitir erro sintatico ou `unknown-member`. Argumentos complexos tambem sao aceitos, como `Grid.Cells[1, (Grid.Row + 1_)]`; nesse caso, se `_` foi usado como marcador de continuacao sem uma quebra de linha efetiva, o linter emite `line-continuation-without-break` e o Quick Fix remove apenas o marcador. Metodos e funcoes nao aceitam colchetes; alem de properties indexadas, apenas arrays e matrizes nativas podem usar `[]`.

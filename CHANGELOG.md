@@ -7,6 +7,15 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado
+- Implementado cache de membros de herança de classes (`allMembersForTypeCache` no `WorkspaceSymbolIndexer`) que acelera em $O(1)$ a análise de expressões e atribuições complexas no linter, reduzindo tempos de resposta do walker.
+- Restrição de reavaliação de arquivos dependentes em cascata apenas para o momento do salvamento do arquivo (`onDidSaveTextDocument`), mantendo o editor sempre leve durante a digitação contínua.
+
+### Corrigido
+- Resolvido o loop infinito de re-entrada no indexador do linter: `updateFileContentFromParsed` agora compara inteligentemente se os namespaces declarados em um arquivo mudaram antes de marcá-los como alterados.
+- Configurado o watcher de arquivos `.bas` para ignorar a pasta controlada `data7_modules/`, evitando loops de indexação em cascata.
+- Desativado o aviso e quick-fix de `return-unrecommended` para blocos `Property Get`, dado que o compilador nativo do Data7 não suporta a instrução `Exit Property`.
+
 - Corrigidos falsos positivos do linter observados no projeto real `Conciliacao de Cartoes V4.8`: indexacao de `Variant`/`String`, chamada sem receiver que deve preferir `Function` importada antes de `Sub` homonima global, membro com o mesmo nome da classe, handlers atribuidos a eventos `On*`, `Imports Net` e constantes FTP `ftBinary`/`ftASCII`.
 - A System Library passou a modelar flags legadas de `Forms.GridConfigs` (`FixedVerLine`, `FixedHorzLine`, `VerLine`, `HorzLine`, sizing/moving/select/click/hot-track) e o indexador default `TStrings.Item(Integer) As String`, evitando falsos `unknown-member` e `default-indexer-missing` em projetos reais.
 - Mantida a validacao estrita de `Private` fora da classe declarante; o diagnostico `private-member-access` agora destaca exatamente o token do membro em cadeias longas e o autocomplete possui regressao para nao sugerir membros privados fora da classe. Adicionado `redundant-terminal-exit` com Quick Fix para remover `Exit Sub`/`Exit Function`/`Exit Property` ou `Return` vazio no fim efetivo da rotina, sem disparar `missing-return-value`.

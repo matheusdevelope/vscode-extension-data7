@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { D7AstContext } from "../analysis/ast-context";
+import { TimeTracker } from "../utils/performance";
 
 export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -12,7 +13,23 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Definition | vscode.LocationLink[]> {
     if (token.isCancellationRequested) return undefined;
+    const tracker = new TimeTracker(`Definition no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
 
+    try {
+      const result = this.provideDefinitionInternal(document, position, token);
+      tracker.stopAndLog();
+      return result;
+    } catch (err) {
+      tracker.stopAndLog();
+      throw err;
+    }
+  }
+
+  private provideDefinitionInternal(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken,
+  ): vscode.Definition | vscode.LocationLink[] | undefined {
     const ast = new D7AstContext(document, position, this.indexer);
     const word = ast.word;
     if (!word || !ast.wordRange) return undefined;

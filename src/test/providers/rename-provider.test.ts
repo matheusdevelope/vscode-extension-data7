@@ -215,6 +215,77 @@ End Namespace`;
       // Verify column of qualified type edit is on "ControleTitulos" part (starts at 18)
       assert.equal(sortedConsumerEdits[1]?.range.start.character, 18);
     });
+
+    test("renames a sub-namespace in a compound path, updating compound imports and qualified references correctly", async () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-rename-compound-"));
+      const file1 = path.join(tmpDir, "comp_helper.bas");
+      const file2 = path.join(tmpDir, "comp_caller.bas");
+
+      // File 1: defines Namespace Data7.Helpers
+      const text1 = `Namespace Data7.Helpers
+   Class FTP
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      
+      // File 2: imports Data7.Helpers and uses qualified access Data7.Helpers.FTP
+      const text2 = `Imports Data7.Helpers
+Namespace mod_caller
+   Class Caller
+      Public Sub Run()
+         Dim ftp As Data7.Helpers.FTP
+         Dim Helpers As Integer = 5 ' should NOT rename!
+      End Sub
+   End Class
+End Namespace`;
+
+      fs.writeFileSync(file1, text1, "utf8");
+      fs.writeFileSync(file2, text2, "utf8");
+
+      const uri1 = vscode.Uri.file(file1).toString();
+      const uri2 = vscode.Uri.file(file2).toString();
+
+      indexer.updateFileContent(uri1, text1);
+      indexer.updateFileContent(uri2, text2);
+      
+      const doc1 = createMockDoc(uri1, text1);
+      const provider = new D7BasicRenameProvider();
+      
+      // Renomear "Helpers" para "Utils" a partir da declaração em comp_helper.bas
+      // na linha 0 (onde está "Namespace Data7.Helpers"). "Helpers" começa no caractere 16
+      const edit = (await Promise.resolve(
+        provider.provideRenameEdits(doc1, pos(0, 16), "Utils", noopToken),
+      )) as unknown as { edits: { uri: { path: string }, range: { start: { line: number, character: number }, end: { line: number, character: number } }, text: string }[] };
+      
+      assert.ok(edit);
+      
+      // Esperamos edições:
+      // 1. Em comp_helper.bas, linha 0: Namespace Data7.Helpers -> Namespace Data7.Utils (1 edit, "Helpers" começa em 16)
+      const editsInHelper = edit.edits.filter(e => e.uri.path.toLowerCase().endsWith("comp_helper.bas"));
+      assert.equal(editsInHelper.length, 1);
+      assert.equal(editsInHelper[0]?.range.start.line, 0);
+      assert.equal(editsInHelper[0]?.range.start.character, 16);
+      
+      // 2. Em comp_caller.bas:
+      //   - linha 0: Imports Data7.Helpers -> Imports Data7.Utils (1 edit, "Helpers" começa em 14)
+      //   - line 4: Dim ftp As Data7.Helpers.FTP -> Dim ftp As Data7.Utils.FTP (1 edit, "Helpers" começa em 26)
+      //   - line 5: Dim Helpers As Integer = 5 (should NOT rename!)
+      const editsInCaller = edit.edits.filter(e => e.uri.path.toLowerCase().endsWith("comp_caller.bas"));
+      assert.equal(editsInCaller.length, 2);
+      
+      const sortedEdits = editsInCaller.slice().sort((a, b) => a.range.start.line - b.range.start.line);
+      assert.equal(sortedEdits[0]?.range.start.line, 0);
+      assert.equal(sortedEdits[0]?.range.start.character, 14);
+      assert.equal(sortedEdits[0]?.text, "Utils");
+
+      assert.equal(sortedEdits[1]?.range.start.line, 4);
+      assert.equal(sortedEdits[1]?.range.start.character, 26);
+      assert.equal(sortedEdits[1]?.text, "Utils");
+    });
   });
 });
 

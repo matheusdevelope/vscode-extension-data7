@@ -199,4 +199,55 @@ End Namespace
       assert.equal(indexer.getFileSymbols(staleUri), undefined, "stale file must be purged");
     });
   });
+
+  describe("O(1) search cache maps", () => {
+    test("returns indexed symbols by name and by container, invalidating correctly on updates", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const file = fakeAbsPath("dummy_project", "src", "search_maps.bas");
+      const uri = fileUriFor(file);
+      registerOpenDocument(uri, file);
+
+      indexer.updateFileContent(
+        uri,
+        `
+Namespace ns_search
+  Class TSearchClass
+    Public Sub Execute()
+    End Sub
+  End Class
+End Namespace
+        `,
+      );
+
+      // Search by name
+      const nameHits = indexer.getSymbolsByName("TSearchClass");
+      assert.equal(nameHits.length, 1);
+      assert.equal(nameHits[0]?.name, "TSearchClass");
+      assert.equal(nameHits[0]?.containerName, "ns_search");
+
+      // Search by container
+      const containerHits = indexer.getSymbolsByContainer("TSearchClass");
+      assert.equal(containerHits.length, 1);
+      assert.equal(containerHits[0]?.name, "Execute");
+      assert.equal(containerHits[0]?.containerName, "TSearchClass");
+
+      // Now update file to remove TSearchClass
+      indexer.updateFileContent(
+        uri,
+        `
+Namespace ns_search
+  Class TOtherClass
+  End Class
+End Namespace
+        `,
+      );
+
+      // Cache should be updated/invalidated
+      const oldNameHits = indexer.getSymbolsByName("TSearchClass");
+      assert.equal(oldNameHits.length, 0);
+
+      const newNameHits = indexer.getSymbolsByName("TOtherClass");
+      assert.equal(newNameHits.length, 1);
+    });
+  });
 });

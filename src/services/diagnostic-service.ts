@@ -3,8 +3,9 @@ import * as path from "path";
 import * as fs from "fs";
 import type { SharedModuleInfo } from "../analysis/dependency-scanner";
 import { DependencyScanner } from "../analysis/dependency-scanner";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { WorkspaceSymbolIndexer, SymbolParser } from "../analysis/symbol-indexer";
 import { LanguageProcessor } from "../analysis/language-processor";
+import type { CompilationUnit } from "../project/ast/ast";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
@@ -40,7 +41,7 @@ export class DiagnosticService {
 
   private static refreshDebounced = debounceKeyed(
     (document: vscode.TextDocument) => {
-      DiagnosticService.refreshDiagnosticsNow(document);
+      DiagnosticService.refreshDiagnosticsNow(document, false);
     },
     DiagnosticService.REFRESH_DELAY_MS,
     (document: vscode.TextDocument) => document.uri.toString(),
@@ -56,12 +57,12 @@ export class DiagnosticService {
           (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase(),
         );
         if (doc) {
-          this.refreshDiagnosticsNow(doc);
+          this.refreshDiagnosticsNow(doc, true);
         }
       }),
     );
 
-    const handleDocument = (doc: vscode.TextDocument): void => {
+    const handleDocument = (doc: vscode.TextDocument, reevaluateDependent = false): void => {
       // Skip debounced linting while a batch fix or batch lint is in progress.
       // The batch pipeline manages its own diagnostic lifecycle and triggers a
       // single refreshAllActive() at the end, so individual per-file debounces
@@ -77,29 +78,25 @@ export class DiagnosticService {
         this.clearDiagnostics(doc.uri);
         return;
       }
-      // Only feed the workspace indexer with documents that actually belong
-      // to the open workspace. Files opened from outside (e.g. inspecting a
-      // module in the private repository via "Explore Repository") would
-      // otherwise pollute the index with a second copy of the same namespace
-      // and randomly win over `data7_modules/` on go-to-definition / hover.
-      if (vscode.workspace.getWorkspaceFolder(doc.uri)) {
-        WorkspaceSymbolIndexer.getInstance().updateFileContent(doc.uri.toString(), doc.getText());
+      if (reevaluateDependent) {
+        this.refreshDiagnosticsNow(doc, true);
+      } else {
+        this.refreshDebounced(doc);
       }
-      this.refreshDebounced(doc);
     };
 
-    vscode.workspace.onDidOpenTextDocument(handleDocument, null, context.subscriptions);
+    vscode.workspace.onDidOpenTextDocument((doc) => handleDocument(doc, false), null, context.subscriptions);
     vscode.workspace.onDidSaveTextDocument(
       (doc) => {
         this.invalidateWorkspaceCacheFor(doc.fileName);
-        handleDocument(doc);
+        handleDocument(doc, true);
       },
       null,
       context.subscriptions,
     );
     vscode.workspace.onDidChangeTextDocument(
       (e) => {
-        handleDocument(e.document);
+        handleDocument(e.document, false);
       },
       null,
       context.subscriptions,
@@ -200,7 +197,7 @@ export class DiagnosticService {
     this.refreshDiagnosticsNow(document);
   }
 
-  private static refreshDiagnosticsNow(document: vscode.TextDocument): void {
+  private static refreshDiagnosticsNow(document: vscode.TextDocument, reevaluateDependent = true): void {
     if (!this.isLiveDiagnosticDocument(document)) {
       this.clearDiagnostics(document.uri);
       return;
@@ -228,6 +225,21 @@ export class DiagnosticService {
     const diagnostics: vscode.Diagnostic[] = [];
     const text = document.getText();
 
+    // 1. Unify parsing: parse the document once and obtain the AST
+    let cachedDoc: ReturnType<LanguageProcessor["getOrParse"]>;
+    try {
+      cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+    } catch (err) {
+      logger.error("Falha ao obter AST do LanguageProcessor.", err);
+      return;
+    }
+
+    // 2. Feed the indexer only at debounce time, using the pre-parsed AST to avoid double parses
+    if (vscode.workspace.getWorkspaceFolder(document.uri)) {
+      const parsedSymbols = SymbolParser.parseFromAst(document.uri.toString(), text, cachedDoc.unit);
+      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(document.uri.toString(), text, parsedSymbols);
+    }
+
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);
 
     try {
@@ -249,25 +261,21 @@ export class DiagnosticService {
       logger.error("Falha ao coletar referências de módulos via AST.", err);
     }
 
-    try {
-      const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
-      cachedDoc.errors.forEach((err) => {
-        const line = Math.max(0, err.loc.line - 1);
-        const col = Math.max(0, err.loc.column);
-        const range = new vscode.Range(line, col, line, col + 1);
-        const isMissingThen =
-          err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
-        const severity = isMissingThen
-          ? vscode.DiagnosticSeverity.Warning
-          : vscode.DiagnosticSeverity.Error;
-        const diag = new vscode.Diagnostic(range, err.message, severity);
-        diag.code = err.code;
-        diag.source = DIAGNOSTIC_SOURCE;
-        diagnostics.push(diag);
-      });
-    } catch (err: unknown) {
-      logger.error("Falha ao obter erros sintáticos do LanguageProcessor.", err);
-    }
+    // Process cached document syntactical parse errors
+    cachedDoc.errors.forEach((err) => {
+      const line = Math.max(0, err.loc.line - 1);
+      const col = Math.max(0, err.loc.column);
+      const range = new vscode.Range(line, col, line, col + 1);
+      const isMissingThen =
+        err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
+      const severity = isMissingThen
+        ? vscode.DiagnosticSeverity.Warning
+        : vscode.DiagnosticSeverity.Error;
+      const diag = new vscode.Diagnostic(range, err.message, severity);
+      diag.code = err.code;
+      diag.source = DIAGNOSTIC_SOURCE;
+      diagnostics.push(diag);
+    });
 
     try {
       const advanced = DiagnosticsLinter.runAdvancedDiagnostics(
@@ -284,7 +292,7 @@ export class DiagnosticService {
     this.workspaceDiagnosticUris.delete(document.uri.toString().toLowerCase());
 
     const docUriStr = document.uri.toString().toLowerCase();
-    if (!DiagnosticService.pendingDependentUris.has(docUriStr) && !WorkspaceFixService.isBatchFixInProgress) {
+    if (reevaluateDependent && !DiagnosticService.pendingDependentUris.has(docUriStr) && !WorkspaceFixService.isBatchFixInProgress) {
       DiagnosticService.reevaluateDependentFiles(document.uri);
     }
   }
@@ -324,6 +332,7 @@ export class DiagnosticService {
 
       try {
         const xUri = vscode.Uri.parse(xUriStr);
+        if (isExcluded(xUri.fsPath) || isReadOnlyModuleFile(xUri.fsPath)) continue;
         if (!vscode.workspace.getWorkspaceFolder(xUri)) continue;
 
         // Check if X shares any of its namespaces with Y
@@ -359,6 +368,8 @@ export class DiagnosticService {
 
     for (const uri of dependentUris) {
       this.pendingDependentUris.add(uri.toString().toLowerCase());
+      // Invalidate the cache of the dependent document to force type resolution update from disk
+      LanguageProcessor.getInstance().invalidate(uri.toString());
     }
 
     // Process dependent files asynchronously so we don't block typing or saving.
@@ -366,7 +377,7 @@ export class DiagnosticService {
       for (const uri of dependentUris) {
         const uriStr = uri.toString().toLowerCase();
         try {
-          this.lintFile(uri);
+          this.lintFile(uri, false);
         } catch (err) {
           logger.error(`Erro ao reavaliar dependente ${uri.fsPath}:`, err);
         } finally {
@@ -508,7 +519,7 @@ export class DiagnosticService {
     });
   }
 
-  public static lintFile(uri: vscode.Uri): vscode.Diagnostic[] {
+  public static lintFile(uri: vscode.Uri, reevaluateDependent = true): vscode.Diagnostic[] {
     if (uri.scheme !== "file") {
       this.clearDiagnostics(uri);
       return [];
@@ -518,7 +529,7 @@ export class DiagnosticService {
       (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
     );
     if (existingDoc) {
-      this.refreshDiagnosticsNow(existingDoc);
+      this.refreshDiagnosticsNow(existingDoc, reevaluateDependent);
       return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
     }
     // Otherwise lint from disk without opening an editor tab.
@@ -564,52 +575,50 @@ export class DiagnosticService {
           cancellable: true,
         },
         async (progress, token) => {
-          for (let i = 0; i < uris.length; i++) {
+          const BATCH_SIZE = 10;
+          for (let i = 0; i < uris.length; i += BATCH_SIZE) {
             if (token.isCancellationRequested) break;
-            const uri = uris[i];
-            if (!uri) continue;
 
-            // Yield the event loop so VS Code can repaint the progress
-            // notification between iterations. Without this, the synchronous
-            // fs.readFileSync + parse work monopolises the main thread and the
-            // progress bar freezes on the first rendered frame.
-            await new Promise<void>((resolve) => setImmediate(resolve));
-
+            const batch = uris.slice(i, i + BATCH_SIZE);
             progress.report({
-              message: `${i + 1}/${uris.length} — ${vscode.workspace.asRelativePath(uri)}`,
-              increment: 100 / uris.length,
+              message: `${i + 1}/${uris.length} — Processando lote de arquivos...`,
+              increment: (batch.length / uris.length) * 100,
             });
 
-            try {
-              // Lint the document without opening an editor tab.
-              // If the file is already open in an editor, use its live buffer.
-              const openDoc = vscode.workspace.textDocuments.find(
-                (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
-              );
-              let diags: vscode.Diagnostic[];
-              if (openDoc) {
-                this.refreshDiagnosticsNow(openDoc);
-                diags = this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
-              } else {
-                // Read from disk and publish to DiagnosticCollection without
-                // opening any editor — the Problems panel will show the results.
-                diags = this.lintFileFromDisk(uri);
-                this._collection?.set(uri, diags);
-                this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
-              }
+            // Process this batch concurrently (asynchronous files loading + parsing)
+            await Promise.all(
+              batch.map(async (uri) => {
+                try {
+                  const openDoc = vscode.workspace.textDocuments.find(
+                    (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+                  );
+                  let diags: vscode.Diagnostic[];
+                  if (openDoc) {
+                    this.refreshDiagnosticsNow(openDoc);
+                    diags = this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+                  } else {
+                    diags = await this.lintFileFromDiskAsync(uri);
+                    this._collection?.set(uri, diags);
+                    this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
+                  }
 
-              for (const diag of diags) {
-                if (diag.severity === vscode.DiagnosticSeverity.Error) {
-                  errorCount++;
-                } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
-                  warningCount++;
-                } else {
-                  infoCount++;
+                  for (const diag of diags) {
+                    if (diag.severity === vscode.DiagnosticSeverity.Error) {
+                      errorCount++;
+                    } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+                      warningCount++;
+                    } else {
+                      infoCount++;
+                    }
+                  }
+                } catch (err) {
+                  logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
                 }
-              }
-            } catch (err) {
-              logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
-            }
+              })
+            );
+
+            // Yield the event loop so VS Code repaints UI snappy
+            await new Promise<void>((resolve) => setImmediate(resolve));
           }
         },
       );
@@ -665,6 +674,24 @@ export class DiagnosticService {
     return this.collectDiagnosticsFromMockDocument(mockDoc);
   }
 
+  private static async lintFileFromDiskAsync(uri: vscode.Uri): Promise<vscode.Diagnostic[]> {
+    const fsPath = uri.fsPath;
+    let content: string;
+    try {
+      content = await fs.promises.readFile(fsPath, "utf-8");
+    } catch (err) {
+      logger.warn(
+        `Falha ao ler ${fsPath} para linting assíncrono: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return [];
+    }
+
+    const mockDoc = buildMockDocument(uri, content);
+    return this.collectDiagnosticsFromMockDocument(mockDoc);
+  }
+
   /**
    * Runs the full diagnostics pipeline on a mock (or real) document object.
    * Extracted from `refreshDiagnosticsNow` so both the live editor path and
@@ -677,6 +704,21 @@ export class DiagnosticService {
     const text = document.getText();
     const paths = ProjectService.findProjectPaths(document.fileName);
     if (!paths) return [];
+
+    // 1. Unify parsing: parse the document once and obtain the AST
+    let cachedDoc: ReturnType<LanguageProcessor["getOrParse"]>;
+    try {
+      cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+    } catch (err) {
+      logger.error("Falha ao obter AST do LanguageProcessor.", err);
+      return [];
+    }
+
+    // 2. Feed the indexer using the pre-parsed AST
+    if (vscode.workspace.getWorkspaceFolder(document.uri)) {
+      const parsedSymbols = SymbolParser.parseFromAst(document.uri.toString(), text, cachedDoc.unit);
+      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(document.uri.toString(), text, parsedSymbols);
+    }
 
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);
 
@@ -699,25 +741,21 @@ export class DiagnosticService {
       logger.error("Falha ao coletar referências de módulos via AST.", err);
     }
 
-    try {
-      const cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
-      cachedDoc.errors.forEach((err) => {
-        const line = Math.max(0, err.loc.line - 1);
-        const col = Math.max(0, err.loc.column);
-        const range = new vscode.Range(line, col, line, col + 1);
-        const isMissingThen =
-          err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
-        const severity = isMissingThen
-          ? vscode.DiagnosticSeverity.Warning
-          : vscode.DiagnosticSeverity.Error;
-        const diag = new vscode.Diagnostic(range, err.message, severity);
-        diag.code = err.code;
-        diag.source = DIAGNOSTIC_SOURCE;
-        diagnostics.push(diag);
-      });
-    } catch (err: unknown) {
-      logger.error("Falha ao obter erros sintáticos do LanguageProcessor.", err);
-    }
+    // Process cached document syntactical parse errors
+    cachedDoc.errors.forEach((err) => {
+      const line = Math.max(0, err.loc.line - 1);
+      const col = Math.max(0, err.loc.column);
+      const range = new vscode.Range(line, col, line, col + 1);
+      const isMissingThen =
+        err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
+      const severity = isMissingThen
+        ? vscode.DiagnosticSeverity.Warning
+        : vscode.DiagnosticSeverity.Error;
+      const diag = new vscode.Diagnostic(range, err.message, severity);
+      diag.code = err.code;
+      diag.source = DIAGNOSTIC_SOURCE;
+      diagnostics.push(diag);
+    });
 
     try {
       const advanced = DiagnosticsLinter.runAdvancedDiagnostics(

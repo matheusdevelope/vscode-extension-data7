@@ -3,6 +3,7 @@ import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { D7AstContext, type AstBindingScope } from "../analysis/ast-context";
 import { TypeResolver } from "../analysis/type-resolver";
+import { TimeTracker } from "../utils/performance";
 import {
   SYSTEM_SYMBOLS,
   lookupSystemByContainer,
@@ -113,7 +114,24 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     _context: vscode.CompletionContext,
   ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
     if (token.isCancellationRequested) return undefined;
+    const tracker = new TimeTracker(`Completion no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
 
+    try {
+      const result = this.provideCompletionItemsInternal(document, position, token, _context);
+      tracker.stopAndLog();
+      return result;
+    } catch (err) {
+      tracker.stopAndLog();
+      throw err;
+    }
+  }
+
+  private provideCompletionItemsInternal(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken,
+    _context: vscode.CompletionContext,
+  ): vscode.CompletionItem[] | vscode.CompletionList | undefined {
     const ast = new D7AstContext(document, position, this.indexer);
     const importsCtx = ast.getImportsCompletionContext();
     if (importsCtx !== undefined) {

@@ -46,15 +46,25 @@ export function validateDuplicateDeclarations(
     }
   });
 
-  indexer.getAllSymbols().forEach((s) => {
-    if (s.fileUri && s.fileUri === document.uri.toString()) return;
-    if (s.fileUri && /principal\.bas$/i.test(s.fileUri)) {
-      outerSymbols.set(s.name.toLowerCase(), {
-        kind: "símbolo global (Principal.bas)",
-        container: s.containerName,
+  // Localiza símbolos globais declarados em principal.bas sem percorrer todos os símbolos
+  let principalUri: string | undefined;
+  for (const fileSym of indexer.getAllFileSymbols()) {
+    if (/(?:^|[/\\])principal\.bas$/i.test(fileSym.fileUri)) {
+      principalUri = fileSym.fileUri;
+      break;
+    }
+  }
+  if (principalUri && principalUri !== document.uri.toString()) {
+    const fileSyms = indexer.getFileSymbols(principalUri);
+    if (fileSyms) {
+      fileSyms.symbols.forEach((s) => {
+        outerSymbols.set(s.name.toLowerCase(), {
+          kind: "símbolo global (Principal.bas)",
+          container: s.containerName,
+        });
       });
     }
-  });
+  }
 
   const checkTopLevel = (s: SymbolInfo): void => {
     if (s.kind === "namespace") return;
@@ -80,9 +90,15 @@ export function validateDuplicateDeclarations(
   SYSTEM_SYMBOLS.forEach((s) => {
     checkTopLevel(s);
   });
-  indexer.getAllSymbols().forEach((s) => {
-    checkTopLevel(s);
-  });
+
+  // Busca rápida apenas nos containers importados e ativo em O(1)
+  const namespacesToCollect = new Set<string>([...importedNs]);
+  if (activeNsLower) {
+    namespacesToCollect.add(activeNsLower);
+  }
+  for (const ns of namespacesToCollect) {
+    indexer.getSymbolsByContainer(ns).forEach(checkTopLevel);
+  }
 
   const createConflictDiag = (
     range: vscode.Range,
@@ -159,10 +175,9 @@ export function validateDuplicateDeclarations(
     fileTopLevel.set(nameLower, s);
 
     const otherFileSymbol = indexer
-      .getAllSymbols()
+      .getSymbolsByName(s.name)
       .find(
         (other) =>
-          other.name.toLowerCase() === nameLower &&
           other.kind === s.kind &&
           !other.isSyntheticGenericInstantiation &&
           other.containerName?.toLowerCase() === s.containerName?.toLowerCase() &&

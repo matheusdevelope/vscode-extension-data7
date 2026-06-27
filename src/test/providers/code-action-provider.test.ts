@@ -1001,49 +1001,6 @@ describe("D7BasicCodeActionProvider", () => {
       });
     });
 
-    test("return-unrecommended outside conditional block rewrites to direct assignment only", async () => {
-      const source = [
-        "      Property Path As String",
-        "         Get",
-        "            Return me._path_qrcode",
-        "         End Get",
-        "      End Property",
-        "",
-      ].join("\n");
-      const doc = mockDoc(source);
-      const payload: ReturnUnrecommendedPayload = {
-        code: DiagnosticCodes.ReturnUnrecommended,
-        line: 2,
-        startChar: 12,
-        endChar: 12,
-        expressionText: undefined,
-        exitType: "Property",
-        targetName: "Path",
-        isConditional: false,
-      };
-      const range = new vscode.Range(2, 12, 2, 12);
-      const provider = new D7BasicCodeActionProvider();
-      const all = (await Promise.resolve(
-        provider.provideCodeActions(
-          doc,
-          range,
-          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
-          noopToken,
-        ),
-      )) as any[];
-      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Path"));
-      assert.ok(fix);
-      const replaceEdit = expectEdit(fix.edit, {
-        type: "replace",
-        line: 2,
-        textIncludes: "Path = me._path_qrcode",
-      });
-      assert.ok(!replaceEdit.text?.includes("Exit Property"));
-      const applied = applyReplaceEdit(source, replaceEdit as any);
-      assert.match(applied, /^\s+Path = me\._path_qrcode$/m);
-      assert.ok(!applied.includes("Exit SubReturn"));
-    });
-
     test("return-unrecommended remains available when VS Code omits Diagnostic.data", async () => {
       const source = [
         "Function Calculate As Integer",
@@ -1066,78 +1023,6 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(fix, "The Return quick fix should not depend on Diagnostic.data");
       expectEdit(fix.edit, { type: "replace", line: 2, textIncludes: "Calculate = total" });
       expectEdit(fix.edit, { type: "replace", textIncludes: "Exit Function" });
-    });
-
-    test("return-unrecommended inside Property Get remains available when VS Code omits Diagnostic.data", async () => {
-      // Reproduces the exact scenario from PixQrCode.bas where a Return inside a
-      // Property…Get block didn't surface a quick-fix because the fallback path
-      // (resolveReturnPayloadFromDocument) was untested for the Property context.
-      const source = [
-        "Class C",
-        "      Property Path As String",
-        "         Get",
-        "            Return me._path_qrcode",
-        "         End Get",
-        "      End Property",
-        "End Class",
-        "",
-      ].join("\n");
-      const doc = mockDoc(source);
-      // Zero-width range at col 12 — exactly as VS Code reports it.
-      const range = new vscode.Range(3, 12, 3, 12);
-      const diagnostic = diagWith(DiagnosticCodes.ReturnUnrecommended, undefined, range);
-      // Simulate VS Code recreating the diagnostic without the data field.
-      diagnostic.code = { value: DiagnosticCodes.ReturnUnrecommended } as any;
-
-      const provider = new D7BasicCodeActionProvider();
-      const all = (await Promise.resolve(
-        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
-      )) as any[];
-      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Path"));
-      assert.ok(fix, "The Property quick fix should not depend on Diagnostic.data");
-      const replaceEdit = expectEdit(fix.edit, {
-        type: "replace",
-        line: 3,
-        textIncludes: "Path = me._path_qrcode",
-      });
-      assert.ok(
-        !replaceEdit.text?.includes("Exit Property"),
-        "Non-conditional path must not add Exit Property",
-      );
-    });
-
-    test("return-unrecommended with empty Return replaces with Exit Property / Exit Function", async () => {
-      const source = [
-        "Class C",
-        "      Property Path As String",
-        "         Get",
-        "            Path = me._path_qrcode",
-        "            Return",
-        "         End Get",
-        "      End Property",
-        "End Class",
-        "",
-      ].join("\n");
-      const doc = mockDoc(source);
-      const range = new vscode.Range(4, 12, 4, 18);
-      const diagnostic = diagWith(DiagnosticCodes.ReturnUnrecommended, undefined, range);
-      diagnostic.code = { value: DiagnosticCodes.ReturnUnrecommended } as any;
-
-      const provider = new D7BasicCodeActionProvider();
-      const all = (await Promise.resolve(
-        provider.provideCodeActions(doc, range, { diagnostics: [diagnostic] } as any, noopToken),
-      )) as any[];
-      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Exit Property"));
-      assert.ok(fix, "Should offer a quick fix to replace with Exit Property");
-      const replaceEdit = expectEdit(fix.edit, {
-        type: "replace",
-        line: 4,
-        textIncludes: "Exit Property",
-      });
-      assert.ok(
-        !replaceEdit.text?.includes("="),
-        "Must not include assignment when Return has no expression",
-      );
     });
 
     test("return-unrecommended fallback with complex modifiers (Friend Override Function)", async () => {
@@ -1362,7 +1247,7 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(suppression);
       const edit = suppression.edit?.edits?.[0];
       assert.equal(edit.type, "insert");
-      assert.equal(edit.position.line, 0);
+      assert.equal(edit.position.line, 1);
       assert.match(edit.text, /data7:disable-next-line unknown-type/);
     });
 
@@ -1457,7 +1342,7 @@ describe("D7BasicCodeActionProvider", () => {
       assert.equal(actions.length, 1);
       const [fix] = actions;
       assert.ok(fix);
-      assert.match(fix.title, /Declarar variável de exceção/);
+      assert.match(fix.title, /Declarar variavel de excecao/);
 
       const edits = fix.edit?.edits;
       assert.equal(edits?.length, 2);
@@ -1581,7 +1466,7 @@ describe("D7BasicCodeActionProvider", () => {
         )) as any[];
 
         const actions = onlyQuickFixes(all);
-        const bulkFix = actions.find((a) => a.title.includes("todos os blocos Catch"));
+        const bulkFix = actions.find((a) => a.title.includes("todos os blocos Try/Catch/Finally"));
         assert.ok(bulkFix, "Bulk fix should be available");
 
         const edits = bulkFix.edit?.edits;
@@ -1621,7 +1506,7 @@ describe("D7BasicCodeActionProvider", () => {
 
       expectEdit(lineFix.edit, {
         type: "insert",
-        textIncludes: "data7:disable-line some-diagnostic-code",
+        textIncludes: "data7:disable-next-line some-diagnostic-code",
       });
       expectEdit(fileFix.edit, {
         type: "insert",

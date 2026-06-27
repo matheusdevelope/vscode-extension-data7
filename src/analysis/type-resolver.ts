@@ -23,6 +23,11 @@ import type {
  * linter. Lives in its own module so providers do not import each other
  * (see governance.mdc).
  */
+const fileLocalsCache = new WeakMap<object, Map<number, Map<string, string>>>();
+const expressionTypeCache = new WeakMap<object, string | undefined>();
+const rawExpressionTypeCache = new WeakMap<object, string | undefined>();
+const genericParamsCache = new WeakMap<object, Map<string, Map<string, string>>>();
+
 export class TypeResolver {
   /**
    * Resolves the static type of a local variable, parameter, field or
@@ -63,7 +68,7 @@ export class TypeResolver {
     });
     if (currentFileSymbol) return currentFileSymbol;
 
-    const allSymbols = indexer.getAllSymbols();
+    const allSymbols = indexer.getSymbolsByName(varName);
 
     if (activeNamespace) {
       const namespaceSymbol = allSymbols.find(
@@ -105,8 +110,19 @@ export class TypeResolver {
       document.getText(),
     );
     const unit = cached.unit;
-    const locals = new Map<string, string>();
-    collectLocalDeclarations(unit, position, locals, indexer, document, position.line);
+
+    let fileCache = fileLocalsCache.get(unit);
+    if (!fileCache) {
+      fileCache = new Map();
+      fileLocalsCache.set(unit, fileCache);
+    }
+
+    let locals = fileCache.get(position.line);
+    if (!locals) {
+      locals = new Map<string, string>();
+      collectLocalDeclarations(unit, position, locals, indexer, document, position.line);
+      fileCache.set(position.line, locals);
+    }
 
     const localType = locals.get(varLower);
     if (localType) return localType;
@@ -149,7 +165,7 @@ export class TypeResolver {
         position.line <= s.range.endLine,
     );
     if (currentClass) {
-      const allWorkspaceSymbols = indexer.getAllSymbols();
+      const allWorkspaceSymbols = indexer.getSymbolsByName(varName);
       const visited = new Set<string>();
       let cls: SymbolInfo | undefined = currentClass;
 
@@ -264,11 +280,19 @@ export class TypeResolver {
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
   ): string | undefined {
+    const cached = expressionTypeCache.get(expr);
+    if (cached !== undefined) return cached;
+
     const rawType = TypeResolver.resolveExpressionTypeRaw(expr, document, lineIdx, indexer);
-    if (!rawType) return undefined;
+    if (!rawType) {
+      expressionTypeCache.set(expr, undefined);
+      return undefined;
+    }
     const position = { line: lineIdx, character: 0 } as vscode.Position;
     const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
-    return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+    const resolved = TypeResolver.resolveGenericParametersInType(rawType, genericParams);
+    expressionTypeCache.set(expr, resolved);
+    return resolved;
   }
 
   public static findUnqualifiedCallable(
@@ -310,7 +334,7 @@ export class TypeResolver {
     const localHit = select(fileCandidates);
     if (localHit) return localHit;
 
-    const allSymbols = indexer.getAllSymbols().filter(isCallable);
+    const allSymbols = indexer.getSymbolsByName(methodName).filter(isCallable);
     const imported = new Set((fileSyms?.imports ?? []).map((imp) => imp.toLowerCase()));
     const importedHit = select(
       allSymbols.filter(
@@ -328,6 +352,19 @@ export class TypeResolver {
   }
 
   private static resolveExpressionTypeRaw(
+    expr: Expression,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    const cached = rawExpressionTypeCache.get(expr);
+    if (cached !== undefined) return cached;
+    const result = TypeResolver.resolveExpressionTypeRawInternal(expr, document, lineIdx, indexer);
+    rawExpressionTypeCache.set(expr, result);
+    return result;
+  }
+
+  private static resolveExpressionTypeRawInternal(
     expr: Expression,
     document: vscode.TextDocument,
     lineIdx: number,
@@ -725,10 +762,12 @@ export class TypeResolver {
       };
 
       SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
-      indexer
-        .getAllSymbols()
-        .filter((s) => containerMatch(s.containerName))
-        .forEach(addSymbol);
+      // Coletamos candidatos apenas dos containers indexados
+      const candidates = [
+        ...indexer.getSymbolsByContainer(key),
+        ...(key !== shortName ? indexer.getSymbolsByContainer(shortName) : []),
+      ];
+      candidates.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
 
       const parent = TypeResolver.resolveParent(classSymbol);
       if (parent) collect(parent);
@@ -786,6 +825,22 @@ export class TypeResolver {
     indexer: WorkspaceSymbolIndexer,
     arity?: number,
   ): SymbolInfo | undefined {
+    const cacheKey = `${typeName.toLowerCase()}#${memberName.toLowerCase()}#${arity ?? "any"}`;
+    if (indexer.findMemberCache.has(cacheKey)) {
+      return indexer.findMemberCache.get(cacheKey);
+    }
+
+    const resolved = TypeResolver.findMemberInternal(typeName, memberName, indexer, arity);
+    indexer.findMemberCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
+  private static findMemberInternal(
+    typeName: string,
+    memberName: string,
+    indexer: WorkspaceSymbolIndexer,
+    arity?: number,
+  ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const visited = new Set<string>();
 
@@ -811,8 +866,8 @@ export class TypeResolver {
 
       // Workspace takes precedence over the System Library when both declare the same member.
       const allWsHits = indexer
-        .getAllSymbols()
-        .filter((s) => s.name.toLowerCase() === memberLower && containerMatch(s.containerName));
+        .getSymbolsByName(memberName)
+        .filter((s) => containerMatch(s.containerName));
 
       if (arity !== undefined) {
         const arityHit = allWsHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
@@ -919,6 +974,11 @@ export class TypeResolver {
     typeName: string,
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo[] {
+    const cacheKey = typeName.toLowerCase();
+    if (indexer.allMembersForTypeCache.has(cacheKey)) {
+      return indexer.allMembersForTypeCache.get(cacheKey)!;
+    }
+
     // Usamos um Map para evitar a duplicação na cadeia de herança.
     const membersMap = new Map<string, SymbolInfo>();
     const visited = new Set<string>();
@@ -962,10 +1022,12 @@ export class TypeResolver {
       };
 
       SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
-      indexer
-        .getAllSymbols()
-        .filter((s) => containerMatch(s.containerName))
-        .forEach(addSymbol);
+      // Coletamos candidatos apenas dos containers indexados
+      const candidates = [
+        ...indexer.getSymbolsByContainer(key),
+        ...(key !== shortName ? indexer.getSymbolsByContainer(shortName) : []),
+      ];
+      candidates.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
 
       getGenericTemplateMembersForType(currentTypeName, indexer).forEach(addSymbol);
 
@@ -977,7 +1039,9 @@ export class TypeResolver {
     };
 
     collect(typeName);
-    return Array.from(membersMap.values());
+    const resolved = Array.from(membersMap.values());
+    indexer.allMembersForTypeCache.set(cacheKey, resolved);
+    return resolved;
   }
 
   /**
@@ -1031,11 +1095,20 @@ export class TypeResolver {
     position: vscode.Position,
     indexer: WorkspaceSymbolIndexer,
   ): Map<string, string> {
-    const params = new Map<string, string>();
-    const fileSyms = indexer.getFileSymbols(document.uri.toString());
-    if (!fileSyms) return params;
+    const cached = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+    );
+    const unit = cached.unit;
 
-    const lines = document.getText().split(/\r?\n/);
+    let fileCache = genericParamsCache.get(unit);
+    if (!fileCache) {
+      fileCache = new Map();
+      genericParamsCache.set(unit, fileCache);
+    }
+
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    if (!fileSyms) return new Map();
 
     const currentMethod = fileSyms.symbols.find(
       (s) =>
@@ -1043,34 +1116,47 @@ export class TypeResolver {
         position.line >= s.range.startLine &&
         position.line <= s.range.endLine,
     );
-    if (currentMethod) {
-      const methodLine = lines[currentMethod.range.startLine];
-      if (methodLine) {
-        const parsed = TypeResolver.parseGenericDeclaration(methodLine);
-        for (const p of parsed) {
-          params.set(p.name.toLowerCase(), p.constraint);
-        }
-      }
-    }
-
     const currentClass = fileSyms.symbols.find(
       (s) =>
         s.kind === "class" &&
         position.line >= s.range.startLine &&
         position.line <= s.range.endLine,
     );
+
+    const scopeKey = `${currentClass?.name ?? ""}-${currentMethod?.name ?? ""}`;
+    const cachedParams = fileCache.get(scopeKey);
+    if (cachedParams) {
+      return cachedParams;
+    }
+
+    const params = new Map<string, string>();
+    if (currentMethod) {
+      try {
+        const methodLine = document.lineAt(currentMethod.range.startLine).text;
+        const parsed = TypeResolver.parseGenericDeclaration(methodLine);
+        for (const p of parsed) {
+          params.set(p.name.toLowerCase(), p.constraint);
+        }
+      } catch {
+        /* ignore line-range or empty text errors */
+      }
+    }
+
     if (currentClass) {
-      const classLine = lines[currentClass.range.startLine];
-      if (classLine) {
+      try {
+        const classLine = document.lineAt(currentClass.range.startLine).text;
         const parsed = TypeResolver.parseGenericDeclaration(classLine);
         for (const p of parsed) {
           if (!params.has(p.name.toLowerCase())) {
             params.set(p.name.toLowerCase(), p.constraint);
           }
         }
+      } catch {
+        /* ignore line-range or empty text errors */
       }
     }
 
+    fileCache.set(scopeKey, params);
     return params;
   }
 
@@ -1123,11 +1209,10 @@ function getGenericTemplateMembersForType(
   if (!parsed) return [];
 
   const template = indexer
-    .getAllSymbols()
+    .getSymbolsByName(parsed.base)
     .find(
       (s) =>
         (s.kind === "class" || s.kind === "delegate" || s.kind === "method") &&
-        s.name.toLowerCase() === parsed.base.toLowerCase() &&
         s.genericTypeParameters?.length === parsed.args.length,
     );
   if (!template?.genericTypeParameters) return [];
@@ -1143,8 +1228,7 @@ function getGenericTemplateMembersForType(
   const templateContainer = template.name.toLowerCase();
   const concreteContainer = normalizeGenericTypeName(typeName);
   return indexer
-    .getAllSymbols()
-    .filter((s) => s.containerName?.toLowerCase() === templateContainer)
+    .getSymbolsByContainer(templateContainer)
     .map((s) => {
       const clone: SymbolInfo = {
         ...s,
@@ -1177,11 +1261,10 @@ function getGenericTemplateParentForType(
   if (!parsed) return undefined;
 
   const template = indexer
-    .getAllSymbols()
+    .getSymbolsByName(parsed.base)
     .find(
       (s) =>
         s.kind === "class" &&
-        s.name.toLowerCase() === parsed.base.toLowerCase() &&
         s.genericTypeParameters?.length === parsed.args.length,
     );
   if (!template?.genericTypeParameters) return undefined;
@@ -1468,10 +1551,9 @@ function qualifiedTypeNameFromInvocation(
     (sym) => sym.containerName?.toLowerCase() === containerLower,
   );
   const workspaceMatch = indexer
-    .getAllSymbols()
+    .getSymbolsByName(expr.methodName)
     .some(
       (sym) =>
-        sym.name.toLowerCase() === nameLower &&
         (sym.kind === "class" || sym.kind === "structure") &&
         sym.containerName?.toLowerCase() === containerLower,
     );

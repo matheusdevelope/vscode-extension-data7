@@ -3,6 +3,7 @@ import type { SymbolInfo } from "../analysis/symbol-indexer";
 import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { lookupSystemByName } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
+import { TimeTracker } from "../utils/performance";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { formatParameterList } from "../utils/format-helpers";
 import { LANGUAGE_IDS } from "../infra/constants";
@@ -67,7 +68,23 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Hover> {
     if (token.isCancellationRequested) return undefined;
+    const tracker = new TimeTracker(`Hover no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
 
+    try {
+      const result = this.provideHoverInternal(document, position, token);
+      tracker.stopAndLog();
+      return result;
+    } catch (err) {
+      tracker.stopAndLog();
+      throw err;
+    }
+  }
+
+  private provideHoverInternal(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    token: vscode.CancellationToken,
+  ): vscode.Hover | undefined {
     const ast = new D7AstContext(document, position, this.indexer);
     const range = ast.wordRange;
     const word = ast.word;

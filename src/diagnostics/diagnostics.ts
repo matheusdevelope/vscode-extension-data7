@@ -7,6 +7,7 @@ import {
   SYSTEM_SYMBOLS,
 } from "../system-library";
 import { TypeResolver } from "../analysis/type-resolver";
+import { TimeTracker } from "../utils/performance";
 import { parseBasic } from "../project/parser";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { analyzeGenericsPass } from "../analysis/generics-analyzer";
@@ -97,8 +98,8 @@ export class DiagnosticsLinter {
     const names = new Set<string>();
     const pushMembers = (containerName: string): void => {
       for (const s of lookupSystemByContainer(containerName)) names.add(s.name);
-      for (const s of indexer.getAllSymbols()) {
-        if (s.containerName?.toLowerCase() === containerName.toLowerCase()) names.add(s.name);
+      for (const s of indexer.getSymbolsByContainer(containerName)) {
+        names.add(s.name);
       }
     };
     pushMembers(shortClassName);
@@ -184,15 +185,13 @@ export class DiagnosticsLinter {
       name = typeName;
     }
 
-    const nameLower = name.toLowerCase();
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     const activeNamespace = fileSyms?.symbols.find((s) => s.kind === "namespace")?.name;
 
     const workspaceMatches = indexer
-      .getAllSymbols()
+      .getSymbolsByName(name)
       .filter(
         (s) =>
-          s.name.toLowerCase() === nameLower &&
           (s.kind === "class" ||
             s.kind === "structure" ||
             s.kind === "delegate" ||
@@ -473,89 +472,106 @@ export class DiagnosticsLinter {
     if (document.uri.scheme === "data7-preview") {
       return [];
     }
-    const diagnostics: vscode.Diagnostic[] = [];
-    const text = document.getText();
+    const tracker = new TimeTracker(`Análise do Linter no arquivo ${vscode.workspace.asRelativePath(document.uri)}`);
+    try {
+      const diagnostics: vscode.Diagnostic[] = [];
+      const text = document.getText();
 
-    if (this.isStrict) {
-      const { errors } = parseBasic(text, { plugins: [] });
-      errors.forEach((err) => {
-        const line = Math.max(0, err.loc.line - 1);
-        const col = Math.max(0, err.loc.column);
-        const range = new vscode.Range(line, col, line, col + 1);
-        const diag = new vscode.Diagnostic(
-          range,
-          `[Strict Native] ${err.message}`,
-          vscode.DiagnosticSeverity.Error,
-        );
-        diag.code = err.code;
-        diag.source = "data7-strict";
-        diagnostics.push(diag);
-      });
-    }
-
-    const lines = text.split(/\r?\n/);
-    DiagnosticsLinter.collectLineContinuationWithoutBreakDiagnostics(lines, diagnostics);
-
-    const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
-    const unit = cached.unit;
-
-    // Run the AST-based linter walker
-    const walker = new DiagnosticsASTWalker(document, indexer, text, lines, diagnostics);
-    walker.run(unit);
-
-    // Validate duplicate declarations using AST structure
-    validateDuplicateDeclarations(unit, document, indexer, diagnostics);
-
-    // Validate that no type declaration shares its name with the enclosing namespace
-    validateNamespaceNameConflicts(document, indexer, diagnostics);
-
-    // Validate constructor calls (Sub New calls MyBase.New) using AST structure
-    validateMyBaseNewCalls(unit, diagnostics);
-
-    // Validate destructor resource cleanup (Sub Free calls MyBase.Free) using AST structure
-    validateMyBaseFreeCalls(unit, indexer.getFileSymbols(document.uri.toString()), diagnostics);
-
-    if (readConfiguration().features.language.generics) {
-      // The generic pre-pass is an optional language extension. Keeping this
-      // gate here also prevents generic-only diagnostics in native projects.
-      const genericWarnings = analyzeGenericsPass(text, {
-        externalTemplates: collectWorkspaceGenericTemplates(indexer, document.uri.toString()),
-      });
-      diagnostics.push(...collectGenericDiagnostics(genericWarnings, lines));
-    }
-
-    // Directives list is comments-based so it must remain textual scan
-    const directives = listSuppressionDirectives(text);
-    for (const directive of directives) {
-      if (!directive.codes) continue;
-      for (const rawCode of directive.codes) {
-        const codeLower = rawCode.toLowerCase();
-        if (DiagnosticsLinter.VALID_DIAGNOSTIC_CODES.has(codeLower)) continue;
-        const lineText = lines[directive.line] ?? "";
-        const codeStart = lineText.indexOf(rawCode, directive.codesColumn);
-        const start = codeStart >= 0 ? codeStart : directive.codesColumn;
-        const range = new vscode.Range(
-          directive.line,
-          start,
-          directive.line,
-          start + rawCode.length,
-        );
-        const diag = new vscode.Diagnostic(
-          range,
-          `Código "${rawCode}" inexistente em DiagnosticCodes. Diretiva de supressão ineficaz.`,
-          vscode.DiagnosticSeverity.Warning,
-        );
-        diag.code = DiagnosticCodes.UnknownSuppressionCode;
-        const payload: UnknownSuppressionCodePayload = {
-          code: DiagnosticCodes.UnknownSuppressionCode,
-          suppressedCode: rawCode,
-        };
-        setDiagnosticPayload(diag, payload);
-        diagnostics.push(diag);
+      if (this.isStrict) {
+        const { errors } = parseBasic(text, { plugins: [] });
+        errors.forEach((err) => {
+          const line = Math.max(0, err.loc.line - 1);
+          const col = Math.max(0, err.loc.column);
+          const range = new vscode.Range(line, col, line, col + 1);
+          const diag = new vscode.Diagnostic(
+            range,
+            `[Strict Native] ${err.message}`,
+            vscode.DiagnosticSeverity.Error,
+          );
+          diag.code = err.code;
+          diag.source = "data7-strict";
+          diagnostics.push(diag);
+        });
       }
-    }
 
-    return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+      const lines = text.split(/\r?\n/);
+      DiagnosticsLinter.collectLineContinuationWithoutBreakDiagnostics(lines, diagnostics);
+
+      const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+      const unit = cached.unit;
+
+      // Run the AST-based linter walker
+      const tWalker = new TimeTracker(" -> Walker do Linter");
+      const walker = new DiagnosticsASTWalker(document, indexer, text, lines, diagnostics);
+      walker.run(unit);
+      tWalker.stopAndLog();
+
+      // Validate duplicate declarations using AST structure
+      const tDup = new TimeTracker(" -> Declaracoes Duplicadas");
+      validateDuplicateDeclarations(unit, document, indexer, diagnostics);
+      tDup.stopAndLog();
+
+      // Validate that no type declaration shares its name with the enclosing namespace
+      const tNs = new TimeTracker(" -> Conflitos de Namespace");
+      validateNamespaceNameConflicts(document, indexer, diagnostics);
+      tNs.stopAndLog();
+
+      // Validate constructor calls (Sub New calls MyBase.New) using AST structure
+      const tCtor = new TimeTracker(" -> Validar Construtores");
+      validateMyBaseNewCalls(unit, diagnostics);
+      tCtor.stopAndLog();
+
+      // Validate destructor resource cleanup (Sub Free calls MyBase.Free) using AST structure
+      const tDtor = new TimeTracker(" -> Validar Destrutores");
+      validateMyBaseFreeCalls(unit, indexer.getFileSymbols(document.uri.toString()), diagnostics);
+      tDtor.stopAndLog();
+
+      if (readConfiguration().features.language.generics) {
+        // The generic pre-pass is an optional language extension. Keeping this
+        // gate here also prevents generic-only diagnostics in native projects.
+        const tGen = new TimeTracker(" -> Analise Generics");
+        const genericWarnings = analyzeGenericsPass(text, {
+          externalTemplates: collectWorkspaceGenericTemplates(indexer, document.uri.toString()),
+        });
+        diagnostics.push(...collectGenericDiagnostics(genericWarnings, lines));
+        tGen.stopAndLog();
+      }
+
+      // Directives list is comments-based so it must remain textual scan
+      const directives = listSuppressionDirectives(text);
+      for (const directive of directives) {
+        if (!directive.codes) continue;
+        for (const rawCode of directive.codes) {
+          const codeLower = rawCode.toLowerCase();
+          if (DiagnosticsLinter.VALID_DIAGNOSTIC_CODES.has(codeLower)) continue;
+          const lineText = lines[directive.line] ?? "";
+          const codeStart = lineText.indexOf(rawCode, directive.codesColumn);
+          const start = codeStart >= 0 ? codeStart : directive.codesColumn;
+          const range = new vscode.Range(
+            directive.line,
+            start,
+            directive.line,
+            start + rawCode.length,
+          );
+          const diag = new vscode.Diagnostic(
+            range,
+            `Código "${rawCode}" inexistente em DiagnosticCodes. Diretiva de supressão ineficaz.`,
+            vscode.DiagnosticSeverity.Warning,
+          );
+          diag.code = DiagnosticCodes.UnknownSuppressionCode;
+          const payload: UnknownSuppressionCodePayload = {
+            code: DiagnosticCodes.UnknownSuppressionCode,
+            suppressedCode: rawCode,
+          };
+          setDiagnosticPayload(diag, payload);
+          diagnostics.push(diag);
+        }
+      }
+
+      return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+    } finally {
+      tracker.stopAndLog();
+    }
   }
 
   private static collectLineContinuationWithoutBreakDiagnostics(
@@ -676,14 +692,25 @@ function isIdentifierChar(char: string | undefined): boolean {
   return char !== undefined && /[A-Za-z0-9_]/.test(char);
 }
 
-class DiagnosticsASTWalker extends ASTWalker {
+const SYSTEM_SYMBOL_NAMES = new Set(SYSTEM_SYMBOLS.map((s) => s.name.toLowerCase()));
+
+export class DiagnosticsASTWalker extends ASTWalker {
   // Developer Studio accepts Finally blocks; retain the legacy diagnostic implementation only
   // for backwards-compatible code-action payload handling from older extension versions.
   private static readonly LEGACY_FINALLY_WARNING_ENABLED: boolean = true;
   private activeClass: ClassDeclaration | undefined;
+  private activeClassInheritedNames: Set<string> | undefined;
   private activeMethod: MethodDeclaration | undefined;
   private activeProperty: PropertyDeclaration | undefined;
   private conditionalBlockDepth = 0;
+
+  private timeIdentifier = 0;
+  private timeMethodInvocation = 0;
+  private timeMemberAccess = 0;
+  private timeOtherChecks = 0;
+  private timeAstTraversal = 0;
+  private timeFlowAnalyzer = 0;
+  private timeCheckSelfRead = 0;
 
   private readonly parentStack: Node[] = [];
   private readonly scopes: Set<string>[] = [new Set()];
@@ -781,6 +808,14 @@ class DiagnosticsASTWalker extends ASTWalker {
         this.diagnostics.push(diag);
       }
     });
+
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> Identifier: ${this.timeIdentifier.toFixed(2)} ms`);
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> MethodInvocation: ${this.timeMethodInvocation.toFixed(2)} ms`);
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> MemberAccess: ${this.timeMemberAccess.toFixed(2)} ms`);
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> OtherChecks: ${this.timeOtherChecks.toFixed(2)} ms`);
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> AstTraversal: ${this.timeAstTraversal.toFixed(2)} ms`);
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> FlowAnalyzer: ${this.timeFlowAnalyzer.toFixed(2)} ms`);
+    // console.log(`[PERF ACCUM] ${vscode.workspace.asRelativePath(this.document.uri)} -> CheckSelfRead: ${this.timeCheckSelfRead.toFixed(2)} ms`);
   }
 
   private isImportDirectlyReferenced(name: string, wordCollector: ASTWordCollector): boolean {
@@ -792,7 +827,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     if (lastPart && wordCollector.usedWords.has(lastPart)) return true;
 
     const symbolsInNamespace = [
-      ...this.indexer.getAllSymbols().filter((s) => s.containerName?.toLowerCase() === key),
+      ...this.indexer.getSymbolsByContainer(key),
       ...lookupSystemByContainer(name),
     ];
     return symbolsInNamespace.some((symbol) =>
@@ -839,6 +874,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     }
 
     const prevClass = this.activeClass;
+    const prevClassInheritedNames = this.activeClassInheritedNames;
     const prevMethod = this.activeMethod;
     const prevProp = this.activeProperty;
 
@@ -847,6 +883,9 @@ class DiagnosticsASTWalker extends ASTWalker {
 
     if (node.kind === "ClassDeclaration") {
       this.activeClass = node;
+      this.activeClassInheritedNames = new Set(
+        TypeResolver.getInheritedMembers(node.name, this.indexer).map((m) => m.name.toLowerCase())
+      );
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (node.typeParameters && node.typeParameters.length > 0) {
         const set = new Set<string>();
@@ -932,10 +971,14 @@ class DiagnosticsASTWalker extends ASTWalker {
     // }
 
     // AST custom checks dispatcher
+    const t0Dispatch = performance.now();
     switch (node.kind) {
-      case "MemberAccess":
+      case "MemberAccess": {
+        const t0 = performance.now();
         this.checkMemberAccess(node);
+        this.timeMemberAccess += (performance.now() - t0);
         break;
+      }
       case "ArrayAccessExpression":
         this.checkArrayAccess(node);
         break;
@@ -973,9 +1016,14 @@ class DiagnosticsASTWalker extends ASTWalker {
         this.checkReturnStatement(node);
         break;
     }
+    const t1Dispatch = performance.now();
+    if (node.kind !== "MemberAccess") {
+      this.timeOtherChecks += (t1Dispatch - t0Dispatch);
+    }
 
     // Bare Identifier Unknown Symbol check
     if (node.kind === "Identifier" && node.name && node.loc) {
+      const t0Id = performance.now();
       const name = node.name;
       const nameLower = name.toLowerCase();
 
@@ -1042,22 +1090,13 @@ class DiagnosticsASTWalker extends ASTWalker {
           nameLower === this.activeProperty?.name.toLowerCase() ||
           this.isLocalDeclared(name) ||
           this.isGenericTypeParameter(name) ||
-          TypeResolver.findVariableSymbol(
-            name,
-            this.document,
-            new vscode.Position(node.loc.startLine - 1, node.loc.startChar),
-            this.indexer,
-          ) !== undefined ||
           !!(
             this.activeClass &&
-            (TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined ||
-              TypeResolver.getInheritedMembers(this.activeClass.name, this.indexer).some(
-                (m) => m.name.toLowerCase() === nameLower,
-              ))
+            (this.activeClassInheritedNames?.has(nameLower) ??
+              TypeResolver.findMember(this.activeClass.name, name, this.indexer) !== undefined)
           ) ||
-          this.indexer.findSymbolByName(name, this.document.uri.toString()) !== undefined ||
-          this.indexer.getAllSymbols().some((s) => s.name.toLowerCase() === nameLower) ||
-          SYSTEM_SYMBOLS.some((s) => s.name.toLowerCase() === nameLower);
+          this.indexer.getSymbolsByName(name).length > 0 ||
+          SYSTEM_SYMBOL_NAMES.has(nameLower);
 
         if (!isDeclared) {
           const range = new vscode.Range(
@@ -1075,10 +1114,13 @@ class DiagnosticsASTWalker extends ASTWalker {
           this.diagnostics.push(diag);
         }
       }
+      this.timeIdentifier += (performance.now() - t0Id);
     }
 
     this.parentStack.push(node);
+    const t0Super = performance.now();
     super.walk(node);
+    this.timeAstTraversal += (performance.now() - t0Super);
     this.parentStack.pop();
 
     if (isConditional) {
@@ -1094,6 +1136,7 @@ class DiagnosticsASTWalker extends ASTWalker {
     }
 
     this.activeClass = prevClass;
+    this.activeClassInheritedNames = prevClassInheritedNames;
     this.activeMethod = prevMethod;
     this.activeProperty = prevProp;
   }
@@ -1160,6 +1203,7 @@ class DiagnosticsASTWalker extends ASTWalker {
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
     if (!node.loc) return;
+    const t0 = performance.now();
     const lineIdx = node.loc.startLine - 1;
     const lineText = this.lines[lineIdx] ?? "";
     const dotIndex = lineText.indexOf(".", node.loc.startChar);
@@ -1311,6 +1355,7 @@ class DiagnosticsASTWalker extends ASTWalker {
       //   this.diagnostics.push(diag);
       // }
     }
+    this.timeMethodInvocation += (performance.now() - t0);
   }
 
   private checkMemberAccess(node: MemberAccess): void {
@@ -2087,13 +2132,17 @@ class DiagnosticsASTWalker extends ASTWalker {
         }
         private parentStack: Node[] = [];
       })(this.diagnostics);
+      const t0Self = performance.now();
       checkSelfRead.walk(node);
+      this.timeCheckSelfRead += (performance.now() - t0Self);
     }
 
     // Run the AST-based Flow Analysis on method bodies
     if (node.body.length > 0) {
+      const t0Flow = performance.now();
       const flowAnalyzer = new ASTFlowAnalyzer(node, this.lines, this.diagnostics);
       flowAnalyzer.run();
+      this.timeFlowAnalyzer += (performance.now() - t0Flow);
     }
 
     // DeclarationParenthesesMismatch checking

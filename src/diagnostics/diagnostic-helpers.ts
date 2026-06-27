@@ -132,10 +132,9 @@ export function isQualifiedTypeInvocation(
         symbol.containerName?.toLowerCase() === containerLower,
     ) ||
     indexer
-      .getAllSymbols()
+      .getSymbolsByName(expr.methodName)
       .some(
         (symbol) =>
-          symbol.name.toLowerCase() === nameLower &&
           (symbol.kind === "class" || symbol.kind === "structure") &&
           symbol.containerName?.toLowerCase() === containerLower,
       )
