@@ -27,7 +27,9 @@ export function addReturnUnrecommendedFix(
       diagnostic,
       DiagnosticCodes.ReturnUnrecommended,
     ) ?? resolveReturnPayloadFromDocument(document, diagnostic);
-  if (!payload) return;
+
+  // Adicionada a restrição para ignorar 'Property'
+  if (!payload || payload.exitType === "Property") return;
 
   const resolved = resolveReturnUnrecommendedReplacement(document, diagnostic, payload);
 
@@ -75,7 +77,9 @@ export function addReturnUnrecommendedBulkFix(
         match,
         DiagnosticCodes.ReturnUnrecommended,
       ) ?? resolveReturnPayloadFromDocument(document, match);
-    if (!payload) continue;
+
+    // Adicionada a restrição para pular 'Property' no bulk fix
+    if (!payload || payload.exitType === "Property") continue;
 
     const resolved = resolveReturnUnrecommendedReplacement(document, match, payload);
     if (!resolved) continue;
@@ -250,10 +254,10 @@ function resolveReturnUnrecommendedReplacement(
                 value: stmt.expression
                   ? deepClone(stmt.expression)
                   : {
-                      kind: "Literal",
-                      value: expressionText,
-                      loc: stmt.loc,
-                    },
+                    kind: "Literal",
+                    value: expressionText,
+                    loc: stmt.loc,
+                  },
                 loc: stmt.loc,
               });
             }

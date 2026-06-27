@@ -310,6 +310,18 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Retorna ou altera a string em uma posição indicada da lista.",
   },
   {
+    name: "Item",
+    kind: "indexed-property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TStrings",
+    description: "Default indexed property para acesso direto com colchetes: lista[i].",
+  },
+  {
     name: "Objects",
     kind: "method",
     type: "TObject",

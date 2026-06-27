@@ -173,6 +173,13 @@
         "detail": "Executa o linter Data7 em todo o workspace"
       },
       {
+        "command": "data7.linter.fixActiveFile",
+        "title": "04 - Linter - Corrigir Arquivo Atual",
+        "category": "Data7",
+        "icon": "$(wand)",
+        "detail": "Aplica as correcoes automaticas do linter no arquivo aberto"
+      },
+      {
         "command": "data7.linter.fixAllWorkspace",
         "title": "04 - Linter - Corrigir Workspace",
         "category": "Data7",
@@ -249,18 +256,6 @@
           "group": "navigation"
         }
       ],
-      "editor/title": [
-        {
-          "command": "data7.project.open",
-          "when": "resourceExtname == .7proj",
-          "group": "navigation"
-        },
-        {
-          "command": "data7.preview.transpiledCodeActive",
-          "when": "editorLangId == d7basic",
-          "group": "navigation"
-        }
-      ],
       "editor/context": [
         {
           "command": "data7.preview.transpiledCode",
@@ -271,6 +266,11 @@
           "command": "data7.preview.transpiledCodeActive",
           "when": "editorLangId == d7basic",
           "group": "navigation"
+        },
+        {
+          "command": "data7.linter.fixActiveFile",
+          "when": "editorLangId == d7basic",
+          "group": "1_modification"
         }
       ]
     },
@@ -330,6 +330,11 @@
       {
         "command": "data7.linter.run",
         "key": "ctrl+alt+l",
+        "when": "editorLangId == d7basic"
+      },
+      {
+        "command": "data7.linter.fixActiveFile",
+        "key": "ctrl+alt+shift+f",
         "when": "editorLangId == d7basic"
       },
       {

@@ -213,6 +213,8 @@ export const DiagnosticCodes = {
   InvalidAssignmentTarget: "invalid-assignment-target",
   /** The function can reach the end of its body or an Exit Function without setting a return value. */
   MissingReturnValue: "missing-return-value",
+  /** A final `Exit Sub`/`Exit Function`/`Exit Property` or empty `Return` is redundant. */
+  RedundantTerminalExit: "redundant-terminal-exit",
   /** Unreachable/dead code following a return/exit or inside always-false constant conditionals. */
   DeadCode: "dead-code",
   /** Incompatible types assigned to a variable or function return value. */
@@ -228,6 +230,13 @@ export const DiagnosticCodes = {
   /** Function/property return assignment was used inside Catch, which the native compiler rejects. */
   ReturnAssignmentInCatch: "return-assignment-in-catch",
   InlineIfThen: "inline-if-then",
+  /**
+   * A `Class`, `Structure`, or `Delegate` is declared inside a `Namespace`
+   * with the exact same name. The Data7 compiler cannot disambiguate the
+   * identifier when it is used unqualified — rename either the namespace or
+   * the type to resolve the conflict.
+   */
+  NamespaceNameConflict: "namespace-name-conflict",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -468,6 +477,9 @@ export interface FinallyBlockUnsupportedPayload {
   catchBodyEndLine: number;
   catchVarName?: string;
   isEmptyCatch?: boolean;
+  isEmptyFinally?: boolean;
+  finallyLine?: number;
+  finallyEndLine?: number;
 }
 
 export interface ElseIfWhitespacePayload {
@@ -500,6 +512,19 @@ export interface ReturnUnrecommendedPayload {
   isSingleLineIf?: boolean;
 }
 
+export interface RedundantTerminalExitPayload {
+  code: typeof DiagnosticCodes.RedundantTerminalExit;
+  line: number;
+  startChar: number;
+  endChar: number;
+}
+
+export interface DeadCodePayload {
+  code: typeof DiagnosticCodes.DeadCode;
+  startLine: number;
+  endLine: number;
+}
+
 export interface ReturnAssignmentInCatchPayload {
   code: typeof DiagnosticCodes.ReturnAssignmentInCatch;
   line: number;
@@ -511,6 +536,18 @@ export interface ReturnAssignmentInCatchPayload {
 export interface InlineIfThenPayload {
   code: typeof DiagnosticCodes.InlineIfThen;
   line: number;
+}
+
+/**
+ * Payload for `NamespaceNameConflict`: identifies the conflicting name and
+ * the kind of the declaration that shadows / collides with the namespace.
+ */
+export interface NamespaceNameConflictPayload {
+  code: typeof DiagnosticCodes.NamespaceNameConflict;
+  /** The name shared by the namespace and the conflicting member declaration. */
+  name: string;
+  /** Kind of the conflicting declaration: "class", "structure", or "delegate". */
+  memberKind: string;
 }
 
 export type DiagnosticPayload =
@@ -542,8 +579,11 @@ export type DiagnosticPayload =
   | LineContinuationWithoutBreakPayload
   | MissingThenPayload
   | ReturnUnrecommendedPayload
+  | RedundantTerminalExitPayload
+  | DeadCodePayload
   | ReturnAssignmentInCatchPayload
-  | InlineIfThenPayload;
+  | InlineIfThenPayload
+  | NamespaceNameConflictPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

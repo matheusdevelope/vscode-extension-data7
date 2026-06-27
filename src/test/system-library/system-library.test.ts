@@ -100,9 +100,41 @@ describe("System Library — inheritance chain", () => {
       assert.ok(findMember("IndexOf", "TStrings"));
     });
 
+    test("Collections.TStrings exposes Item as default indexed property", () => {
+      const item = findMember("Item", "TStrings");
+      assert.ok(item);
+      assert.equal(item.kind, "indexed-property");
+      assert.equal(item.type, "String");
+      assert.equal(item.parameters?.[0]?.type, "Integer");
+    });
+
     test("System.Classes.TPersistent uses the fully-qualified containerName for its members", () => {
       assert.ok(findMember("Assign", "System.Classes.TPersistent"));
       assert.ok(findMember("GetNamePath", "System.Classes.TPersistent"));
+    });
+  });
+
+  describe("Forms.GridConfigs", () => {
+    test("exposes visual option flags used by legacy Grid.Configs code", () => {
+      for (const name of [
+        "FixedVerLine",
+        "FixedHorzLine",
+        "VerLine",
+        "HorzLine",
+        "RowSizing",
+        "ColSizing",
+        "RowMoving",
+        "ColMoving",
+        "RowSelect",
+        "FixedColClick",
+        "FixedRowClick",
+        "FixedHotTrack",
+      ]) {
+        const member = findMember(name, "GridConfigs");
+        assert.ok(member, `GridConfigs.${name} must exist`);
+        assert.equal(member.kind, "property");
+        assert.equal(member.type, "Boolean");
+      }
     });
   });
 });

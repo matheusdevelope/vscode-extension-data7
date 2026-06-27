@@ -15,6 +15,9 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 - O linter reconhece dependencias transitivas entre `Imports`, promocao numerica sem perda e a API global de compatibilidade `dateUtils.toStringFormat(...)`.
 - O linter resolve variaveis globais declaradas no escopo superior, com prioridade para `Principal.bas`, e escolhe overloads por compatibilidade de tipos dos argumentos.
+- O linter aceita indexacao em `Variant`/`String`, resolve chamadas sem receiver respeitando imports antes de homonimos globais e reconhece `Net`/`ftBinary`/`ftASCII` como itens nativos da System Library.
+- A System Library cobre flags de `Forms.GridConfigs` usadas em projetos legados e `TStringList`/`TStrings` podem ser indexados diretamente com `lista[i]`.
+- `private-member-access` permanece estrito, destaca o token exato do membro privado em cadeias longas e o autocomplete nao sugere membros `Private` fora da classe declarante. `redundant-terminal-exit` remove `Exit`/`Return` vazio terminal sem confundir com `missing-return-value`.
 - A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio.
 - A System Library inclui aliases iniciais para `System.IOUtils.TFile`, `System.IOUtils.TPath` e `IO.File.ZipFile`; chamadas estaticas dessas classes nao sao tratadas como modulos externos.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
@@ -51,6 +54,7 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 - O sugar declarativo `Enun X` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções, sem conflitar com `Enum X` nativo.
 - Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
 - Sincronização automática para `data7_modules/` no workspace conforme `data7.json#dependencies`.
+- Dependencias locais recebidas de outro projeto sao preservadas em `data7_modules/` quando o modulo marcado com `'@Module`/`'@Module-Imported` ainda nao existe no repositorio local.
 
 ### Documentação da System Library
 

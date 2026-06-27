@@ -31,6 +31,7 @@ export const DiagnosticCodes = {
    ElseIfWhitespace: "elseif-whitespace",
    MissingThen: "missing-then",
    ReturnUnrecommended: "return-unrecommended",
+   RedundantTerminalExit: "redundant-terminal-exit",
    ReturnAssignmentInCatch: "return-assignment-in-catch",
    // Generics (Fase 1 do plano "Generics Hardening + AST Parser + Linter Integration")
    UnknownTemplate: "unknown-template",
@@ -440,6 +441,31 @@ Mais de **10.000** instanciações monomórficas distintas — geralmente um loo
 ---
 
 ## Códigos novos (Fases A-J, declarados em `DiagnosticCodes`)
+
+### `redundant-terminal-exit`
+
+`Exit Sub`, `Exit Function`, `Exit Property` ou `Return` vazio usado como ultimo comando efetivo de uma rotina ou de um bloco terminal da rotina. O comando nao altera o fluxo e pode ser removido.
+
+```basic
+Public Sub Run()
+   Work()
+   Exit Sub   ' <-- redundant-terminal-exit
+End Sub
+```
+
+**Payload** (`RedundantTerminalExitPayload`):
+
+```ts
+{ code: "redundant-terminal-exit", line: 2, startChar: 3, endChar: 11 }
+```
+
+**Code Action**: "Remover comando terminal redundante" remove a linha inteira.
+
+**Severidade**: `warning`.
+
+**Exemplos**: [`docs/example/diagnostics/redundant-terminal-exit/`](../example/diagnostics/redundant-terminal-exit).
+
+---
 
 Declarados em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts) e emitidos pelo `SugarTranspiler` em build-time. Cada um tem exemplo em [`docs/example/diagnostics/<code>/`](../example/README.md).
 

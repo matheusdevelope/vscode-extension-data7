@@ -19,7 +19,7 @@ export class Decompiler {
   public static decompileProject(
     filePath: string,
     outputDir: string,
-    _knownSharedModules?: Set<string>,
+    knownSharedModules?: Set<string>,
   ): ProjectMetadata {
     const xmlContent = fs.readFileSync(filePath, "utf-8");
     const parsed = parseProjectXml(xmlContent);
@@ -51,12 +51,12 @@ export class Decompiler {
           minify: {
             enabled: false,
             stripComments: false,
-            removeUnused: false
+            removeUnused: false,
           },
           uglify: {
-            enabled: false
-          }
-        }
+            enabled: false,
+          },
+        },
       },
       virtualFolders: [],
       modulesMetadata: {},
@@ -68,6 +68,7 @@ export class Decompiler {
       fs.rmSync(srcDir, { recursive: true, force: true });
     }
     fs.mkdirSync(srcDir, { recursive: true });
+    const data7ModulesDir = path.join(outputDir, "data7_modules");
 
     const mainCode = xmlText(root, "Codigo");
     fs.writeFileSync(path.join(srcDir, "Principal.bas"), mainCode, "utf-8");
@@ -135,6 +136,11 @@ export class Decompiler {
       if (isDependency) {
         const dependencyName = moduleNamespaces[0] ?? modName;
         detectedDeps[dependencyName] = "1.0.0.0";
+        if (!knownSharedModules?.has(dependencyName.toLowerCase())) {
+          fs.mkdirSync(data7ModulesDir, { recursive: true });
+          const destPath = safeJoinInside(data7ModulesDir, `${modName}.bas`);
+          fs.writeFileSync(destPath, modCode, "utf-8");
+        }
         continue;
       }
 

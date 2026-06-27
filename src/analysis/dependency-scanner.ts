@@ -85,6 +85,42 @@ export class DependencyScanner {
     return map;
   }
 
+  public static scanLocalModuleCopies(data7ModulesDir: string): Map<string, SharedModuleInfo> {
+    const map = new Map<string, SharedModuleInfo>();
+    if (!data7ModulesDir || !fs.existsSync(data7ModulesDir)) {
+      return map;
+    }
+
+    const files = this.getFilesRecursive(data7ModulesDir, [".bas"]);
+    for (const filePath of files) {
+      try {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const markedNamespaces = this.getModuleMarkedNamespaces(content);
+        const importedNamespaces = this.hasModuleImportedMarker(content)
+          ? this.getDeclaredNamespaces(content)
+          : [];
+        const moduleNames =
+          markedNamespaces.length > 0 || importedNamespaces.length > 0
+            ? [...markedNamespaces, ...importedNamespaces]
+            : [];
+
+        for (const modName of moduleNames) {
+          map.set(modName.toLowerCase(), {
+            moduleName: modName,
+            sourceFilePath: filePath,
+            isProj: false,
+            code: content,
+            version: "1.0.0.0",
+          });
+        }
+      } catch (err: unknown) {
+        logger.error(`Erro ao ler cÃ³pia local de mÃ³dulo: ${filePath}`, err);
+      }
+    }
+
+    return map;
+  }
+
   public static isIgnoredNamespace(name: string): boolean {
     const lower = name.toLowerCase();
     if (lower.startsWith("system.") || lower.startsWith("vcl.")) {
@@ -108,6 +144,7 @@ export class DependencyScanner {
       "dateutils",
       "datetime",
       "math",
+      "net",
       "convert",
       "application",
       "me",
@@ -177,6 +214,15 @@ export class DependencyScanner {
     });
     const names: string[] = [];
     collectDeclaredTypeNames(unit, names);
+    return names;
+  }
+
+  public static getDeclaredValueNames(content: string): string[] {
+    const { unit } = parseBasic(content, {
+      plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+    });
+    const names: string[] = [];
+    collectDeclaredValueNames(unit, names);
     return names;
   }
 
@@ -281,6 +327,27 @@ export class DependencyScanner {
     return localTypes;
   }
 
+  public static getLocalValueNames(srcDir: string): Set<string> {
+    const localValues = new Set<string>();
+    if (!fs.existsSync(srcDir)) {
+      return localValues;
+    }
+
+    const basFiles = this.getFilesRecursive(srcDir, [".bas"]);
+    basFiles.forEach((file) => {
+      try {
+        const content = fs.readFileSync(file, "utf-8");
+        for (const valueName of this.getDeclaredValueNames(content)) {
+          localValues.add(valueName.toLowerCase());
+        }
+      } catch {
+        /* file unreadable or unparsable - keep scanning the rest */
+      }
+    });
+
+    return localValues;
+  }
+
   // Scan local src/ files for any references to modules
   public static detectReferencedModules(
     srcDir: string,
@@ -323,6 +390,16 @@ export class DependencyScanner {
 
     // 1. Scan shared directory
     const sharedModules = this.scanSharedModules(sharedDir);
+    const alwaysModules = new Map<string, SharedModuleInfo>();
+    for (const alwaysSyncDir of options.alwaysSyncDirs ?? []) {
+      for (const [key, info] of this.scanSharedModules(alwaysSyncDir).entries()) {
+        alwaysModules.set(key, info);
+      }
+    }
+    const authoritativeModules = new Map(sharedModules);
+    for (const [key, info] of alwaysModules.entries()) {
+      authoritativeModules.set(key, info);
+    }
 
     // 2. Filter referenced modules based on explicit dependencies if provided
     const depsToSync = new Set<string>();
@@ -344,14 +421,19 @@ export class DependencyScanner {
         sourceFilePaths.add(info.sourceFilePath);
       }
     });
-    for (const alwaysSyncDir of options.alwaysSyncDirs ?? []) {
-      const alwaysModules = this.scanSharedModules(alwaysSyncDir);
-      for (const info of alwaysModules.values()) {
-        sourceFilePaths.add(info.sourceFilePath);
+    for (const info of alwaysModules.values()) {
+      sourceFilePaths.add(info.sourceFilePath);
+    }
+
+    const localCopies = this.scanLocalModuleCopies(data7ModulesDir);
+    const localCopyFilesToKeep = new Set<string>();
+    for (const [key, info] of localCopies.entries()) {
+      if (!authoritativeModules.has(key)) {
+        localCopyFilesToKeep.add(path.basename(info.sourceFilePath).toLowerCase());
       }
     }
 
-    if (sourceFilePaths.size === 0) {
+    if (sourceFilePaths.size === 0 && localCopyFilesToKeep.size === 0) {
       // Clean data7_modules folder if empty
       if (fs.existsSync(data7ModulesDir)) {
         const existingFiles = fs.readdirSync(data7ModulesDir);
@@ -373,6 +455,9 @@ export class DependencyScanner {
 
     // 5. Keep track of all files that should remain in data7_modules
     const filesToKeep = new Set<string>();
+    for (const file of localCopyFilesToKeep) {
+      filesToKeep.add(file);
+    }
 
     // 6. Process each unique source file
     sourceFilePaths.forEach((filePath) => {
@@ -676,6 +761,79 @@ function collectDeclaredTypeNames(node: Node | undefined, names: string[]): void
     case "DelegateDeclaration":
     case "EnumDeclaration":
       names.push(node.name);
+      break;
+    default:
+      break;
+  }
+}
+
+function collectDeclaredValueNames(node: Node | undefined, names: string[]): void {
+  if (!node) return;
+
+  switch (node.kind) {
+    case "CompilationUnit":
+      for (const member of node.members) collectDeclaredValueNames(member, names);
+      break;
+    case "NamespaceDeclaration":
+      for (const member of node.members) collectDeclaredValueNames(member, names);
+      break;
+    case "ClassDeclaration":
+      for (const member of node.members) collectDeclaredValueNames(member, names);
+      break;
+    case "MethodDeclaration":
+      names.push(node.name);
+      for (const parameter of node.parameters) collectDeclaredValueNames(parameter, names);
+      for (const statement of node.body) collectDeclaredValueNames(statement, names);
+      break;
+    case "FieldDeclaration":
+    case "PropertyDeclaration":
+    case "ParameterDeclaration":
+    case "VariableDeclaration":
+      names.push(node.name);
+      break;
+    case "DelegateDeclaration":
+      names.push(node.name);
+      break;
+    case "DestructuredVariableDeclaration":
+      for (const binding of node.bindings) names.push(binding.name);
+      break;
+    case "ForStatement":
+      names.push(node.counter.name);
+      for (const statement of node.body) collectDeclaredValueNames(statement, names);
+      break;
+    case "ForEachStatement":
+      names.push(node.elementVar.name);
+      for (const statement of node.body) collectDeclaredValueNames(statement, names);
+      break;
+    case "TryCatchStatement":
+      if (node.catchVar) names.push(node.catchVar.name);
+      for (const statement of node.tryBody) collectDeclaredValueNames(statement, names);
+      for (const statement of node.catchBody) collectDeclaredValueNames(statement, names);
+      for (const statement of node.finallyBody ?? []) collectDeclaredValueNames(statement, names);
+      break;
+    case "UsingStatement":
+      names.push(node.resourceVar.name);
+      for (const statement of node.body) collectDeclaredValueNames(statement, names);
+      break;
+    case "IfStatement":
+      for (const statement of node.thenBranch) collectDeclaredValueNames(statement, names);
+      for (const branch of node.elseIfBranches) {
+        for (const statement of branch.body) collectDeclaredValueNames(statement, names);
+      }
+      for (const statement of node.elseBranch ?? []) collectDeclaredValueNames(statement, names);
+      break;
+    case "WhileStatement":
+    case "Block":
+    case "WithStatement":
+      for (const statement of node.kind === "Block" ? node.statements : node.body) {
+        collectDeclaredValueNames(statement, names);
+      }
+      break;
+    case "SelectCaseStatement":
+      for (const branch of node.cases) collectDeclaredValueNames(branch, names);
+      break;
+    case "SelectCaseBranch":
+      for (const statement of node.body) collectDeclaredValueNames(statement, names);
       break;
     default:
       break;

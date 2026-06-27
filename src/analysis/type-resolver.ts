@@ -75,7 +75,8 @@ export class TypeResolver {
     const importedNamespaces = new Set(fileSyms?.imports.map((imp) => imp.toLowerCase()) ?? []);
     if (importedNamespaces.size > 0) {
       const importedSymbol = allSymbols.find(
-        (s) => isMatchingVariable(s) && importedNamespaces.has(s.containerName?.toLowerCase() ?? ""),
+        (s) =>
+          isMatchingVariable(s) && importedNamespaces.has(s.containerName?.toLowerCase() ?? ""),
       );
       if (importedSymbol) return importedSymbol;
     }
@@ -270,6 +271,62 @@ export class TypeResolver {
     return TypeResolver.resolveGenericParametersInType(rawType, genericParams);
   }
 
+  public static findUnqualifiedCallable(
+    methodName: string,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+    argumentTypes?: readonly (string | undefined)[],
+  ): SymbolInfo | undefined {
+    const nameLower = methodName.toLowerCase();
+    const arity = argumentTypes?.length;
+    const isCallable = (symbol: SymbolInfo): boolean =>
+      symbol.name.toLowerCase() === nameLower &&
+      (symbol.kind === "method" ||
+        symbol.kind === "declare_sub" ||
+        symbol.kind === "declare_function") &&
+      (arity === undefined || (symbol.parameters ? symbol.parameters.length : 0) === arity);
+    const select = (symbols: readonly SymbolInfo[]): SymbolInfo | undefined =>
+      argumentTypes
+        ? (symbols.find((symbol) =>
+            parametersAcceptArguments(symbol.parameters ?? [], argumentTypes, indexer),
+          ) ?? symbols[0])
+        : symbols[0];
+
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    const fileCandidates = fileSyms?.symbols.filter(isCallable) ?? [];
+    const activeClass = fileSyms?.symbols.find(
+      (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
+    );
+    if (activeClass) {
+      const classHit = select(
+        fileCandidates.filter(
+          (symbol) => symbol.containerName?.toLowerCase() === activeClass.name.toLowerCase(),
+        ),
+      );
+      if (classHit) return classHit;
+    }
+
+    const localHit = select(fileCandidates);
+    if (localHit) return localHit;
+
+    const allSymbols = indexer.getAllSymbols().filter(isCallable);
+    const imported = new Set((fileSyms?.imports ?? []).map((imp) => imp.toLowerCase()));
+    const importedHit = select(
+      allSymbols.filter(
+        (symbol) => symbol.containerName && imported.has(symbol.containerName.toLowerCase()),
+      ),
+    );
+    if (importedHit) return importedHit;
+
+    const systemHit = select(
+      SYSTEM_SYMBOLS.filter((symbol) => !symbol.containerName && isCallable(symbol)),
+    );
+    if (systemHit) return systemHit;
+
+    return select(allSymbols);
+  }
+
   private static resolveExpressionTypeRaw(
     expr: Expression,
     document: vscode.TextDocument,
@@ -334,7 +391,8 @@ export class TypeResolver {
               expr.methodName,
               indexer,
               argumentTypes,
-            ) ?? TypeResolver.findMember(targetType, expr.methodName, indexer, expr.arguments.length);
+            ) ??
+            TypeResolver.findMember(targetType, expr.methodName, indexer, expr.arguments.length);
           if (!member) return undefined;
           if (member.kind === "variable" || member.kind === "property") {
             const delegateSym =
@@ -359,9 +417,22 @@ export class TypeResolver {
             expr.arguments.length,
           );
         }
-        member ??=
-          indexer.findSymbolByName(expr.methodName, document.uri.toString()) ??
-          lookupSystemByName(expr.methodName).find((s) => !s.containerName);
+        const argumentTypes = expr.arguments.map((arg) =>
+          TypeResolver.resolveExpressionType(arg, document, lineIdx, indexer),
+        );
+        member ??= TypeResolver.findUnqualifiedCallable(
+          expr.methodName,
+          document,
+          lineIdx,
+          indexer,
+          argumentTypes,
+        );
+        if (!member) {
+          const castType =
+            TypeResolver.findClassSymbol(expr.methodName, indexer) ??
+            lookupSystemClassByName(expr.methodName)[0];
+          if (castType) return castType.name;
+        }
         if (member) {
           if (member.kind === "variable" || member.kind === "property") {
             const delegateSym =
@@ -440,6 +511,9 @@ export class TypeResolver {
 
     const targetType = TypeResolver.resolveExpressionType(expr.target, document, lineIdx, indexer);
     if (!targetType) return undefined;
+    const lowerTargetType = targetType.toLowerCase();
+    if (lowerTargetType === "variant") return "Variant";
+    if (lowerTargetType === "string") return "String";
     const item = TypeResolver.findMember(targetType, "Item", indexer, arity);
     if (item?.kind === "indexed-property") return item.type;
     const take = TypeResolver.findMember(targetType, "Take", indexer, arity);
@@ -790,8 +864,7 @@ export class TypeResolver {
     const arity = argumentTypes.length;
     const candidates = TypeResolver.getAllMembersForType(typeName, indexer).filter(
       (s) =>
-        s.name.toLowerCase() === memberLower &&
-        (s.parameters ? s.parameters.length : 0) === arity,
+        s.name.toLowerCase() === memberLower && (s.parameters ? s.parameters.length : 0) === arity,
     );
 
     return (
@@ -1278,9 +1351,7 @@ function findGenericBaseSymbol(
 
 function isVariableLikeSymbol(symbol: SymbolInfo): boolean {
   return (
-    symbol.kind === "variable" ||
-    symbol.kind === "property" ||
-    symbol.kind === "indexed-property"
+    symbol.kind === "variable" || symbol.kind === "property" || symbol.kind === "indexed-property"
   );
 }
 

@@ -51,8 +51,8 @@ describe("DependencyScanner", () => {
       assert.equal(DependencyScanner.isIgnoredNamespace("collections"), true);
     });
 
-    test("does NOT ignore Net (kept for user-facing diagnostics)", () => {
-      assert.equal(DependencyScanner.isIgnoredNamespace("net"), false);
+    test("ignores Net as a native System Library namespace", () => {
+      assert.equal(DependencyScanner.isIgnoredNamespace("net"), true);
     });
 
     test("does NOT ignore arbitrary user namespaces", () => {
@@ -190,6 +190,34 @@ End Namespace`);
 
         assert.deepEqual(synced, ["mod_core"]);
         assert.ok(fs.existsSync(path.join(data7ModulesDir, "mod_core.bas")));
+      });
+    });
+
+    test("keeps local module copies when the repository no longer has their @Module namespace", async () => {
+      await withTempDir(async (tmp) => {
+        const srcDir = path.join(tmp, "src");
+        const repoDir = path.join(tmp, "repo");
+        const data7ModulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(srcDir);
+        fs.mkdirSync(repoDir);
+        fs.mkdirSync(data7ModulesDir);
+
+        fs.writeFileSync(
+          path.join(data7ModulesDir, "mod_foreign.bas"),
+          "'@Module\nNamespace mod_foreign\nEnd Namespace\n",
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(data7ModulesDir, "stale.bas"),
+          "Namespace stale\nEnd Namespace\n",
+          "utf-8",
+        );
+
+        const synced = DependencyScanner.syncDependencies(srcDir, data7ModulesDir, repoDir, {});
+
+        assert.deepEqual(synced, []);
+        assert.equal(fs.existsSync(path.join(data7ModulesDir, "mod_foreign.bas")), true);
+        assert.equal(fs.existsSync(path.join(data7ModulesDir, "stale.bas")), false);
       });
     });
   });

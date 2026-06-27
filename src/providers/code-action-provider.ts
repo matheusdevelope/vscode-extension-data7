@@ -50,6 +50,10 @@ import {
   addReturnUnrecommendedBulkFix,
 } from "./quick-fixes/return-unrecommended";
 import {
+  addRedundantTerminalExitFix,
+  addRedundantTerminalExitBulkFix,
+} from "./quick-fixes/redundant-terminal-exit";
+import {
   addReturnAssignmentInCatchFix,
   addReturnAssignmentInCatchBulkFix,
 } from "./quick-fixes/return-assignment-in-catch";
@@ -58,6 +62,7 @@ import {
   addFinallyBlockUnsupportedFix,
   addFinallyBlockUnsupportedBulkFix,
 } from "./quick-fixes/finally-block-unsupported";
+import { addDeadCodeCommentFix, addDeadCodeCommentBulkFix } from "./quick-fixes/dead-code";
 
 // Source actions
 import { addOrganizeImportsAction } from "./source-actions/organize-imports";
@@ -70,6 +75,7 @@ import {
 import { logger } from "../infra/logger";
 
 const DIAGNOSTIC_PRIORITY: Record<string, number> = {
+  [DiagnosticCodes.RedundantTerminalExit]: 0,
   [DiagnosticCodes.ReturnUnrecommended]: 1,
   [DiagnosticCodes.ReturnAssignmentInCatch]: 1,
   [DiagnosticCodes.InlineIfThen]: 2,
@@ -112,11 +118,6 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
   ): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
     const codeStr = getDiagnosticCode(diagnostic);
-
-    if (codeStr) {
-      addLineSuppressionFix(actions, document, diagnostic, codeStr);
-      addFileSuppressionFix(actions, document, diagnostic, codeStr);
-    }
 
     switch (codeStr) {
       case DiagnosticCodes.MissingImport:
@@ -180,6 +181,14 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         addReturnUnrecommendedFix(actions, document, diagnostic);
         addReturnUnrecommendedBulkFix(actions, document, diagnostic);
         break;
+      case DiagnosticCodes.RedundantTerminalExit:
+        addRedundantTerminalExitFix(actions, document, diagnostic);
+        addRedundantTerminalExitBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.DeadCode:
+        addDeadCodeCommentFix(actions, document, diagnostic);
+        addDeadCodeCommentBulkFix(actions, document, diagnostic);
+        break;
       case DiagnosticCodes.ReturnAssignmentInCatch:
         addReturnAssignmentInCatchFix(actions, document, diagnostic);
         addReturnAssignmentInCatchBulkFix(actions, document, diagnostic);
@@ -200,6 +209,11 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         break;
       default:
         break;
+    }
+
+    if (codeStr) {
+      addLineSuppressionFix(actions, document, diagnostic, codeStr);
+      addFileSuppressionFix(actions, document, diagnostic, codeStr);
     }
     return actions;
   }

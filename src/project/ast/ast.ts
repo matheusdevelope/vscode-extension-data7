@@ -246,6 +246,7 @@ export interface MemberAccess extends BaseNode {
   readonly kind: "MemberAccess";
   target: Expression;
   member: string;
+  memberLoc?: SourceLocation;
 }
 
 export interface ArrayAccessExpression extends BaseNode {

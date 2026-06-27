@@ -16,27 +16,19 @@ export function addFinallyBlockUnsupportedFix(
   );
   if (!payload) return;
 
-  const { catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName, isEmptyCatch } = payload;
-  const varName = catchVarName ?? "_ex";
-  const label = catchVarName
-    ? `Encapsular bloco Catch com 'If Assigned(${varName}) Then'`
-    : `Declarar variável de exceção e encapsular bloco Catch`;
+  const varName = payload.catchVarName ?? "_ex";
+  const label = payload.isEmptyFinally
+    ? "Remover bloco Finally vazio"
+    : payload.catchVarName
+      ? `Encapsular bloco Catch com 'If Assigned(${varName}) Then'`
+      : "Declarar variavel de excecao e encapsular bloco Catch";
 
   const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
   action.isPreferred = true;
 
   const edit = new vscode.WorkspaceEdit();
-  applyFinallyBlockFix(
-    edit,
-    document,
-    catchLine,
-    catchBodyStartLine,
-    catchBodyEndLine,
-    catchVarName,
-    isEmptyCatch,
-    varName,
-  );
+  applyFinallyBlockFix(edit, document, payload, varName);
   action.edit = edit;
   actions.push(action);
 }
@@ -53,13 +45,12 @@ export function addFinallyBlockUnsupportedBulkFix(
   if (mismatches.length <= 1) return;
 
   const action = new vscode.CodeAction(
-    "Encapsular todos os blocos Catch com 'If Assigned' neste arquivo",
+    "Corrigir todos os blocos Try/Catch/Finally neste arquivo",
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
 
   const edit = new vscode.WorkspaceEdit();
-  // Sort descending to avoid offset shifts when editing multiple ranges.
   const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
 
   for (const match of sorted) {
@@ -68,71 +59,56 @@ export function addFinallyBlockUnsupportedBulkFix(
       LegacyDiagnosticCodes.FinallyBlockUnsupported,
     );
     if (!payload) continue;
-
-    const { catchLine, catchBodyStartLine, catchBodyEndLine, catchVarName, isEmptyCatch } = payload;
-    const varName = catchVarName ?? "_ex";
-    applyFinallyBlockFix(
-      edit,
-      document,
-      catchLine,
-      catchBodyStartLine,
-      catchBodyEndLine,
-      catchVarName,
-      isEmptyCatch,
-      varName,
-    );
+    applyFinallyBlockFix(edit, document, payload, payload.catchVarName ?? "_ex");
   }
 
   action.edit = edit;
   actions.push(action);
 }
 
-// ---------------------------------------------------------------------------
-// Internal helper — shared between single and bulk fix
-// ---------------------------------------------------------------------------
-
 function applyFinallyBlockFix(
   edit: vscode.WorkspaceEdit,
   document: vscode.TextDocument,
-  catchLine: number,
-  catchBodyStartLine: number,
-  catchBodyEndLine: number,
-  catchVarName: string | undefined,
-  isEmptyCatch: boolean | undefined,
+  payload: FinallyBlockUnsupportedPayload,
   varName: string,
 ): void {
-  if (!catchVarName) {
-    const catchLineText = document.lineAt(catchLine).text;
+  if (payload.isEmptyFinally && payload.finallyLine !== undefined) {
+    removeEmptyFinally(edit, document, payload);
+    return;
+  }
+
+  if (!payload.catchVarName) {
+    const catchLineText = document.lineAt(payload.catchLine).text;
     const newCatchLineText = catchLineText.replace(/\bCatch\b/i, `Catch ${varName} As Exception`);
     edit.replace(
       document.uri,
-      new vscode.Range(catchLine, 0, catchLine, catchLineText.length),
+      new vscode.Range(payload.catchLine, 0, payload.catchLine, catchLineText.length),
       newCatchLineText,
     );
   }
 
   const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
 
-  if (isEmptyCatch) {
-    const catchLineText = document.lineAt(catchLine).text;
+  if (payload.isEmptyCatch) {
+    const catchLineText = document.lineAt(payload.catchLine).text;
     const catchIndent = /^(\s*)/.exec(catchLineText)?.[1] ?? "";
     const bodyIndent = catchIndent + "   ";
     const wrappedLines = [
       `${bodyIndent}If Assigned(${varName}) Then`,
-      `${bodyIndent}   ' O conteúdo do tratamento de erro deve ser escrito aqui`,
+      `${bodyIndent}   ' O conteudo do tratamento de erro deve ser escrito aqui`,
       `${bodyIndent}End If`,
     ];
     edit.insert(
       document.uri,
-      new vscode.Position(catchLine, catchLineText.length),
+      new vscode.Position(payload.catchLine, catchLineText.length),
       eol + wrappedLines.join(eol),
     );
   } else {
-    const firstStmtLineText = document.lineAt(catchBodyStartLine).text;
+    const firstStmtLineText = document.lineAt(payload.catchBodyStartLine).text;
     const bodyIndent = /^(\s*)/.exec(firstStmtLineText)?.[1] ?? "";
     const wrappedLines: string[] = [`${bodyIndent}If Assigned(${varName}) Then`];
 
-    for (let i = catchBodyStartLine; i <= catchBodyEndLine; i++) {
+    for (let i = payload.catchBodyStartLine; i <= payload.catchBodyEndLine; i++) {
       const lineText = document.lineAt(i).text;
       wrappedLines.push(lineText.trim() === "" ? "" : `${bodyIndent}  ${lineText.trimStart()}`);
     }
@@ -141,10 +117,25 @@ function applyFinallyBlockFix(
     edit.replace(
       document.uri,
       new vscode.Range(
-        new vscode.Position(catchBodyStartLine, 0),
-        document.lineAt(catchBodyEndLine).range.end,
+        new vscode.Position(payload.catchBodyStartLine, 0),
+        document.lineAt(payload.catchBodyEndLine).range.end,
       ),
       wrappedLines.join(eol),
     );
   }
+}
+
+function removeEmptyFinally(
+  edit: vscode.WorkspaceEdit,
+  document: vscode.TextDocument,
+  payload: FinallyBlockUnsupportedPayload,
+): void {
+  const startLine = payload.finallyLine ?? 0;
+  const endLine = Math.max(startLine, payload.finallyEndLine ?? startLine);
+  const nextLine = endLine + 1;
+  const endPosition =
+    nextLine < document.lineCount
+      ? new vscode.Position(nextLine, 0)
+      : document.lineAt(endLine).range.end;
+  edit.delete(document.uri, new vscode.Range(new vscode.Position(startLine, 0), endPosition));
 }

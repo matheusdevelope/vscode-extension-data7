@@ -287,6 +287,59 @@ End Namespace`;
   });
 
   describe("AST-backed local scope", () => {
+    test("shows Private members only inside the declaring class", async () => {
+      const code = `Namespace mod_private_completion
+   Class Vault
+      Private secret As String
+      Public visible As String
+
+      Public Sub Inside()
+         Me.
+      End Sub
+   End Class
+
+   Class User
+      Public Sub Run()
+         Dim v As Vault
+         v.
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///cp_private_visibility.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const provider = new D7BasicCompletionProvider();
+
+      const insideItems = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "Me."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+      const insideLabels = insideItems.map(labelOf);
+      assert.ok(insideLabels.includes("secret"), "Me. inside Vault should include Private member");
+      assert.ok(insideLabels.includes("visible"), "Me. inside Vault should include Public member");
+
+      const outsideItems = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "v."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+      const outsideLabels = outsideItems.map(labelOf);
+      assert.ok(
+        !outsideLabels.includes("secret"),
+        "v. outside Vault must not include Private member",
+      );
+      assert.ok(outsideLabels.includes("visible"), "v. outside Vault should include Public member");
+    });
+
     test("lists method parameters and local variables from the parsed AST", async () => {
       const code = `Namespace mod_scope
    Class C

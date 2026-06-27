@@ -230,4 +230,91 @@ describe("DependencyService", () => {
       assert.deepEqual(result.missing, ["database"]);
     });
   });
+
+  test("preserves a referenced local data7_modules copy when the repository is missing it", async () => {
+    await withTempDir(async (tmp) => {
+      const workspaceDir = path.join(tmp, "workspace");
+      const srcDir = path.join(workspaceDir, "src");
+      const repoDir = path.join(tmp, "repo");
+      const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.mkdirSync(repoDir, { recursive: true });
+      fs.mkdirSync(data7ModulesDir, { recursive: true });
+
+      fs.writeFileSync(
+        path.join(workspaceDir, "data7.json"),
+        JSON.stringify({ nome: "TmpProject", dependencies: { mod_foreign: "1.0.0.0" } }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "Principal.bas"),
+        "Imports mod_foreign\nNamespace app\nEnd Namespace\n",
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(data7ModulesDir, "mod_foreign.bas"),
+        "'@Module\nNamespace mod_foreign\nEnd Namespace\n",
+        "utf8",
+      );
+
+      RepositoryService.getRepoBasPath = () => repoDir;
+
+      const result = await DependencyService.refreshWorkspaceDependencies(workspaceDir);
+
+      const data7Json = JSON.parse(
+        fs.readFileSync(path.join(workspaceDir, "data7.json"), "utf8"),
+      ) as { dependencies: Record<string, string> };
+      assert.deepEqual(data7Json.dependencies, { mod_foreign: "1.0.0.0" });
+      assert.deepEqual(result.missing, []);
+      assert.equal(fs.existsSync(path.join(data7ModulesDir, "mod_foreign.bas")), true);
+    });
+  });
+
+  test("does not report project global variables as missing modules", async () => {
+    await withTempDir(async (tmp) => {
+      const workspaceDir = path.join(tmp, "workspace");
+      const srcDir = path.join(workspaceDir, "src");
+      const repoDir = path.join(tmp, "repo");
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.mkdirSync(repoDir, { recursive: true });
+
+      fs.writeFileSync(
+        path.join(workspaceDir, "data7.json"),
+        JSON.stringify({ nome: "TmpProject", dependencies: {} }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "Principal.bas"),
+        [
+          "Namespace app",
+          "Dim _usuario As TObject",
+          'Const shCodigoTitulo As String = "A"',
+          "End Namespace",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(srcDir, "Screen.bas"),
+        [
+          "Namespace app",
+          "Class Screen",
+          "  Public Sub Run()",
+          "    _usuario.Free()",
+          "    shCodigoTitulo.ToString()",
+          "  End Sub",
+          "End Class",
+          "End Namespace",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      RepositoryService.getRepoBasPath = () => repoDir;
+
+      const result = await DependencyService.refreshWorkspaceDependencies(workspaceDir);
+
+      assert.deepEqual(result.missing, []);
+    });
+  });
 });

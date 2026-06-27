@@ -33,6 +33,7 @@ export class DiagnosticService {
   private static readonly REFRESH_DELAY_MS = 250;
   private static readonly liveDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly workspaceDiagnosticUris = new Map<string, vscode.Uri>();
+  private static readonly pendingDependentUris = new Set<string>();
 
   /** Cache of expensive workspace-level data, keyed by workspaceDir. */
   private static workspaceCache = new Map<string, WorkspaceDiagnosticCache>();
@@ -105,7 +106,10 @@ export class DiagnosticService {
     );
     vscode.workspace.onDidCloseTextDocument(
       (doc) => {
-        this.clearDiagnostics(doc.uri);
+        // Workspace file diagnostics must remain visible even after the file is closed
+        if (!vscode.workspace.getWorkspaceFolder(doc.uri)) {
+          this.clearDiagnostics(doc.uri);
+        }
       },
       null,
       context.subscriptions,
@@ -179,8 +183,11 @@ export class DiagnosticService {
     for (const uriKey of Array.from(this.liveDiagnosticUris.keys())) {
       if (!openUris.has(uriKey)) {
         const uri = this.liveDiagnosticUris.get(uriKey);
-        this.liveDiagnosticUris.delete(uriKey);
-        if (uri) this._collection?.delete(uri);
+        // Do not prune diagnostics for workspace files
+        if (uri && !vscode.workspace.getWorkspaceFolder(uri)) {
+          this.liveDiagnosticUris.delete(uriKey);
+          this._collection?.delete(uri);
+        }
       }
     }
   }
@@ -275,6 +282,98 @@ export class DiagnosticService {
     this._collection?.set(document.uri, diagnostics);
     this.liveDiagnosticUris.set(document.uri.toString().toLowerCase(), document.uri);
     this.workspaceDiagnosticUris.delete(document.uri.toString().toLowerCase());
+
+    const docUriStr = document.uri.toString().toLowerCase();
+    if (!DiagnosticService.pendingDependentUris.has(docUriStr) && !WorkspaceFixService.isBatchFixInProgress) {
+      DiagnosticService.reevaluateDependentFiles(document.uri);
+    }
+  }
+
+  /**
+   * Reevaluates all workspace files that import any of the namespaces declared in the
+   * triggered file, or share the same namespace. This propagates linter corrections
+   * and errors across dependencies automatically.
+   */
+  private static reevaluateDependentFiles(triggerUri: vscode.Uri): void {
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const triggerUriStr = triggerUri.toString();
+    const triggerFileSyms = indexer.getFileSymbols(triggerUriStr);
+
+    const triggerNamespaces = new Set<string>();
+    if (triggerFileSyms) {
+      for (const sym of triggerFileSyms.symbols) {
+        if (sym.kind === "namespace") {
+          triggerNamespaces.add(sym.name.toLowerCase());
+        }
+      }
+    }
+
+    // Combine currently declared namespaces and recently changed/removed ones from the indexer
+    const targetNamespaces = new Set<string>([
+      ...triggerNamespaces,
+      ...indexer.changedNamespacesInLastUpdate,
+    ]);
+
+    // Clear the indexer's changed tracking for the next update cycle
+    indexer.changedNamespacesInLastUpdate.clear();
+
+    const dependentUris: vscode.Uri[] = [];
+    for (const fileSyms of indexer.getAllFileSymbols()) {
+      const xUriStr = fileSyms.fileUri;
+      if (xUriStr.toLowerCase() === triggerUriStr.toLowerCase()) continue;
+
+      try {
+        const xUri = vscode.Uri.parse(xUriStr);
+        if (!vscode.workspace.getWorkspaceFolder(xUri)) continue;
+
+        // Check if X shares any of its namespaces with Y
+        const xNamespaces = fileSyms.symbols
+          .filter((s) => s.kind === "namespace")
+          .map((s) => s.name.toLowerCase());
+
+        let sharesNamespace = false;
+        for (const xNs of xNamespaces) {
+          if (triggerNamespaces.has(xNs)) {
+            sharesNamespace = true;
+            break;
+          }
+        }
+
+        let importsTargetNamespace = false;
+        for (const imp of fileSyms.imports) {
+          if (targetNamespaces.has(imp.toLowerCase())) {
+            importsTargetNamespace = true;
+            break;
+          }
+        }
+
+        if (sharesNamespace || importsTargetNamespace) {
+          dependentUris.push(xUri);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (dependentUris.length === 0) return;
+
+    for (const uri of dependentUris) {
+      this.pendingDependentUris.add(uri.toString().toLowerCase());
+    }
+
+    // Process dependent files asynchronously so we don't block typing or saving.
+    setTimeout(() => {
+      for (const uri of dependentUris) {
+        const uriStr = uri.toString().toLowerCase();
+        try {
+          this.lintFile(uri);
+        } catch (err) {
+          logger.error(`Erro ao reavaliar dependente ${uri.fsPath}:`, err);
+        } finally {
+          this.pendingDependentUris.delete(uriStr);
+        }
+      }
+    }, 50);
   }
 
   private static validateModuleReference(
@@ -638,6 +737,7 @@ export class DiagnosticService {
     this.workspaceCache.clear();
     this.liveDiagnosticUris.clear();
     this.workspaceDiagnosticUris.clear();
+    this.pendingDependentUris.clear();
   }
 
   private static isEnabled(): boolean {

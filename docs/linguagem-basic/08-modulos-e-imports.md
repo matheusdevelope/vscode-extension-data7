@@ -124,6 +124,12 @@ Cada entrada de `dependencies` é o nome de um módulo `@Module` que vive no **r
 3. Marca o `.bas` copiado com `'@Module-Imported`.
 4. Adiciona `data7_modules/` ao `.gitignore` (não é versionado).
 
+Quando um projeto recebido de terceiros ja contem uma copia local em `data7_modules/`
+marcada com `'@Module` ou `'@Module-Imported`, mas o namespace ainda nao existe no
+repositorio/core local, a extensao preserva essa copia e a entrada correspondente em
+`data7.json#dependencies`. Ao decompor um `.7Proj`, modulos de dependencia
+desconhecidos tambem sao materializados em `data7_modules/` para evitar perda de codigo.
+
 ## Repositório privado de módulos
 
 Pasta isolada gerenciada pela extensão:

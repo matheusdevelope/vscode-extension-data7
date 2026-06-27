@@ -119,14 +119,14 @@ export class MCPService {
     context: vscode.ExtensionContext,
     workspacePath?: string,
   ): Record<string, unknown> {
-    const serverPath = MCPService.getServerPath(context);
-    const docsRoot = path.join(context.extensionUri.fsPath, "docs");
-    const args: string[] = [serverPath];
-    if (workspacePath) args.push(`--workspace=${workspacePath}`);
+    const serverPath = toMcpConfigPath(MCPService.getServerPath(context));
+    const docsRoot = toMcpConfigPath(path.join(context.extensionUri.fsPath, "docs"));
+    const workspaceArg = workspacePath ? toMcpConfigPath(workspacePath) : "${workspaceFolder}";
+    const args: string[] = [serverPath, `--workspace=${workspaceArg}`];
     args.push(`--docs-root=${docsRoot}`);
 
     const entry = {
-      command: process.execPath,
+      command: "node",
       args,
       env: { DATA7_DOCS_ROOT: docsRoot },
     };
@@ -176,4 +176,8 @@ export class MCPService {
       logger.show();
     }
   }
+}
+
+function toMcpConfigPath(value: string): string {
+  return value.replace(/\\/g, "/");
 }

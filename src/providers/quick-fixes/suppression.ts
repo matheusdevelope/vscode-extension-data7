@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 /**
- * Inserts `' data7:disable-line <code>` at the end of the diagnostic line,
+ * Inserts `' data7:disable-next-line <code>` above the diagnostic line,
  * suppressing the warning only for that specific occurrence.
  */
 export function addLineSuppressionFix(
@@ -12,6 +12,8 @@ export function addLineSuppressionFix(
 ): void {
   const line = diagnostic.range.start.line;
   const lineText = document.lineAt(line).text;
+  const indent = /^(\s*)/.exec(lineText)?.[1] ?? "";
+  const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
 
   const action = new vscode.CodeAction(
     `Desabilitar erro "${code}" nesta linha`,
@@ -19,10 +21,12 @@ export function addLineSuppressionFix(
   );
   action.diagnostics = [diagnostic];
 
-  const insertPos = new vscode.Position(line, lineText.length);
-  const trailing = lineText.endsWith(" ") ? "" : " ";
   const edit = new vscode.WorkspaceEdit();
-  edit.insert(document.uri, insertPos, `${trailing}' data7:disable-line ${code}`);
+  edit.insert(
+    document.uri,
+    new vscode.Position(line, 0),
+    `${indent}' data7:disable-next-line ${code}${eol}`,
+  );
   action.edit = edit;
   actions.push(action);
 }

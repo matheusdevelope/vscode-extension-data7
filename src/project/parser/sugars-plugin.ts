@@ -491,6 +491,7 @@ export class SugarsParserPlugin implements ParserPlugin {
           kind: "MemberAccess",
           target: { kind: "Identifier", name: "", loc: left.loc },
           member,
+          memberLoc: memberToken ? locOf(memberToken.loc) : undefined,
           loc: locOf(memberToken?.loc ?? token.loc),
         };
       }

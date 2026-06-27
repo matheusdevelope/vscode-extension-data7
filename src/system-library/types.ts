@@ -156,6 +156,7 @@ export type SystemContainer =
   | "CustomControl"
   | "ControlGroup"
   | "Grid"
+  | "GridConfigs"
   | "Imagem"
   | "Rectangle"
   | "Ellipse"

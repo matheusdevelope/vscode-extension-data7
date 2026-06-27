@@ -881,7 +881,8 @@ export class Builder {
       }
     });
 
-    const xml = this.assembleXml(metadata, mainCode, orderedFolders, modulesToCompile);
+    const sortedModulesToCompile = this.topologicalSortModules(modulesToCompile, onWarning);
+    const xml = this.assembleXml(metadata, mainCode, orderedFolders, sortedModulesToCompile);
 
     const outputDir = path.dirname(outputFilePath);
     if (!fs.existsSync(outputDir)) {
@@ -926,6 +927,115 @@ export class Builder {
     return (
       metadata.build?.optimization?.minify === undefined && metadata.opcoes.stripComments === true
     );
+  }
+
+  /**
+   * Extracts namespace names imported via `Imports <Name>` statements from
+   * already-transpiled Data7 code. This is intentionally a lightweight regex
+   * over trivia-level import directives — at this stage the code is transpiled
+   * output and `Imports` is structurally unambiguous at the file level.
+   */
+  private static extractImportsFromCode(code: string): string[] {
+    const imports: string[] = [];
+    for (const line of code.split(/\r?\n/)) {
+      const match = /^\s*Imports\s+(\S+)/i.exec(line);
+      if (match?.[1]) {
+        imports.push(match[1].trim());
+      }
+    }
+    return imports;
+  }
+
+  /**
+   * Extracts namespace names declared via `Namespace <Name>` at the top level
+   * of already-transpiled Data7 code.
+   */
+  private static extractDeclaredNamespacesFromCode(code: string): string[] {
+    const namespaces: string[] = [];
+    for (const line of code.split(/\r?\n/)) {
+      const match = /^\s*Namespace\s+(\S+)/i.exec(line);
+      if (match?.[1]) {
+        namespaces.push(match[1].trim());
+      }
+    }
+    return namespaces;
+  }
+
+  /**
+   * Sorts modules in dependency order using Kahn's topological sort algorithm.
+   *
+   * A module that declares namespace X must appear **before** any module that
+   * imports X — the Data7 compiler processes `<Modulos>` linearly and fails
+   * when it encounters a reference to a namespace not yet declared.
+   *
+   * Modules without mutual dependencies retain their original relative order.
+   * If a cycle is detected (indicates invalid source code), the remaining
+   * modules are appended in their original order and a warning is emitted.
+   */
+  private static topologicalSortModules<T extends { name: string; code: string }>(
+    modules: readonly T[],
+    onWarning: (message: string) => void,
+  ): T[] {
+    if (modules.length <= 1) return [...modules];
+
+    // Build map: namespace_lower → index in modules array
+    const namespaceDeclaredByIndex = new Map<string, number>();
+    for (let i = 0; i < modules.length; i++) {
+      const m = modules[i]!;
+      for (const ns of this.extractDeclaredNamespacesFromCode(m.code)) {
+        namespaceDeclaredByIndex.set(ns.toLowerCase(), i);
+      }
+    }
+
+    // edges[i] = set of indices that depend on modules[i] (i must come first)
+    const inDegree = new Array<number>(modules.length).fill(0);
+    const edges: Set<number>[] = Array.from({ length: modules.length }, () => new Set<number>());
+
+    for (let i = 0; i < modules.length; i++) {
+      const m = modules[i]!;
+      for (const importedName of this.extractImportsFromCode(m.code)) {
+        const depIdx = namespaceDeclaredByIndex.get(importedName.toLowerCase());
+        if (depIdx !== undefined && depIdx !== i) {
+          // modules[depIdx] declares what modules[i] imports → depIdx must precede i
+          if (!edges[depIdx]!.has(i)) {
+            edges[depIdx]!.add(i);
+            const cur = inDegree[i];
+            if (cur !== undefined) inDegree[i] = cur + 1;
+          }
+        }
+      }
+    }
+
+    // Kahn's BFS — seed with all zero-in-degree nodes in original order
+    const queue: number[] = [];
+    for (let i = 0; i < modules.length; i++) {
+      if ((inDegree[i] ?? 0) === 0) queue.push(i);
+    }
+
+    const result: T[] = [];
+    while (queue.length > 0) {
+      const idx = queue.shift()!;
+      result.push(modules[idx]!);
+      for (const neighbor of edges[idx]!) {
+        const cur = inDegree[neighbor];
+        const next = cur !== undefined ? cur - 1 : 0;
+        inDegree[neighbor] = next;
+        if (next === 0) queue.push(neighbor);
+      }
+    }
+
+    if (result.length < modules.length) {
+      // Cycle detected — append remaining in original order to avoid a hang
+      const remaining = modules.filter((_, i) => (inDegree[i] ?? 0) > 0);
+      onWarning(
+        `Ordenação de módulos: ciclo de dependência detectado entre [${remaining
+          .map((m) => m.name)
+          .join(", ")}]. A ordem de compilação pode estar incorreta para esses módulos.`,
+      );
+      result.push(...remaining);
+    }
+
+    return result;
   }
 
   /**

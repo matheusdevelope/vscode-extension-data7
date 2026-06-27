@@ -350,4 +350,169 @@ describe("DiagnosticService live lifecycle", () => {
       false,
     );
   });
+
+  test("does not clear workspace file diagnostics when closed", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_workspace.bas");
+    fs.writeFileSync(basPath, "Namespace mod_workspace\nEnd Namespace\n", "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    const deleted: string[] = [];
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        deleted.push(uri.toString().toLowerCase());
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    const originalGetWorkspaceFolder = vscode.workspace.getWorkspaceFolder;
+    (vscode.workspace as any).getWorkspaceFolder = (uri: vscode.Uri) => {
+      if (uri.fsPath.toLowerCase().startsWith(tmpDir.toLowerCase())) {
+        return { uri: vscode.Uri.file(tmpDir), name: "TmpWorkspace", index: 0 };
+      }
+      return undefined;
+    };
+
+    try {
+      DiagnosticService.initialize({ subscriptions: [] } as any);
+      const uri = vscode.Uri.file(basPath);
+      const doc = createMockDoc(uri.toString(), fs.readFileSync(basPath, "utf8"));
+
+      DiagnosticService.refreshDiagnostics(doc);
+      assert.ok(entries.has(uri.toString().toLowerCase()));
+
+      // Simulate closing the text document. Since it is inside the workspace,
+      // it should NOT clear or prune its diagnostics.
+      // Trigger pruneClosedDiagnostics while the document is no longer "open" (mockTextDocuments empty)
+      mockTextDocuments.length = 0;
+      DiagnosticService.pruneClosedDiagnostics();
+
+      assert.ok(entries.has(uri.toString().toLowerCase()), "workspace diagnostics should persist after pruning closed files");
+      assert.equal(deleted.includes(uri.toString().toLowerCase()), false, "should not delete from diagnostic collection");
+    } finally {
+      (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
+    }
+  });
+
+  test("automatically reevaluates dependent files when a dependency is updated", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    // X depends on Y: imports Y's namespace (ControleTitulos)
+    const fileX = path.join(srcDir, "frmConciliacao.bas");
+    const codeX = [
+      "Imports ControleTitulos",
+      "Namespace frmConciliacao",
+      "  Class Form",
+      "    Public Sub Free()",
+      "      MyBase.Free()",
+      "    End Sub",
+      "    Dim _controle As ControleTitulos",
+      "  End Class",
+      "End Namespace",
+    ].join("\n");
+
+    // Y defines ControleTitulos
+    const fileY = path.join(srcDir, "ControleTitulos.bas");
+    const codeY = [
+      "Namespace ControleTitulos",
+      "  Class ControleTitulos",
+      "    Public Sub Free()",
+      "      MyBase.Free()",
+      "    End Sub",
+      "  End Class",
+      "End Namespace",
+    ].join("\n");
+
+    fs.writeFileSync(fileX, codeX, "utf8");
+    fs.writeFileSync(fileY, codeY, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    const originalGetWorkspaceFolder = vscode.workspace.getWorkspaceFolder;
+    (vscode.workspace as any).getWorkspaceFolder = (uri: vscode.Uri) => {
+      if (uri.fsPath.toLowerCase().startsWith(tmpDir.toLowerCase())) {
+        return { uri: vscode.Uri.file(tmpDir), name: "TmpWorkspace", index: 0 };
+      }
+      return undefined;
+    };
+
+    try {
+      // Index both files
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(vscode.Uri.file(fileX).toString(), codeX);
+      indexer.updateFileContent(vscode.Uri.file(fileY).toString(), codeY);
+
+      DiagnosticService.initialize({ subscriptions: [] } as any);
+
+      // Initially run diagnostics on X. It imports ControleTitulos, which is present, so there should be no errors.
+      const docX = createMockDoc(vscode.Uri.file(fileX).toString(), codeX);
+      DiagnosticService.refreshDiagnostics(docX);
+      const initialDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
+      assert.equal(initialDiagsX.length, 0, "Initially X should be error-free");
+
+      // Now, simulate a change in Y: we rename the namespace of Y to "OutroNome", so X's import becomes unresolved
+      const codeYChanged = [
+        "Namespace OutroNome",
+        "  Class OutroNome",
+        "    Public Sub Free()",
+        "      MyBase.Free()",
+        "    End Sub",
+        "  End Class",
+        "End Namespace",
+      ].join("\n");
+      fs.writeFileSync(fileY, codeYChanged, "utf8");
+      indexer.updateFileContent(vscode.Uri.file(fileY).toString(), codeYChanged);
+
+      // Trigger diagnostics on Y. It should trigger the asynchronous re-evaluation of its dependent X!
+      const docY = createMockDoc(vscode.Uri.file(fileY).toString(), codeYChanged);
+      DiagnosticService.refreshDiagnostics(docY);
+
+      // Wait for the reevaluation (which is set to 50ms asynchronously)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Now check if X has been updated and now has a diagnostic (e.g. missing-import or similar)
+      const finalDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
+      assert.ok(
+        finalDiagsX.some((diag) => diag.code === DiagnosticCodes.MissingImport || diag.code === DiagnosticCodes.UnknownType),
+        "X should automatically receive diagnostics because Y was changed and no longer declares ControleTitulos",
+      );
+    } finally {
+      (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
+    }
+  });
 });

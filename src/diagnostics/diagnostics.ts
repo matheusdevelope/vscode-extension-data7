@@ -43,6 +43,7 @@ import {
   validateDuplicateDeclarations,
   validateMyBaseFreeCalls,
   validateMyBaseNewCalls,
+  validateNamespaceNameConflicts,
 } from "./structural-diagnostics";
 import {
   areResolvedTypeNamesEquivalent,
@@ -434,6 +435,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.FunctionReadSelf]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InvalidAssignmentTarget]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.MissingReturnValue]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.RedundantTerminalExit]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.DeadCode]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.MissingMyBaseFree]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.TypeMismatch]: vscode.DiagnosticSeverity.Error,
@@ -503,6 +505,9 @@ export class DiagnosticsLinter {
 
     // Validate duplicate declarations using AST structure
     validateDuplicateDeclarations(unit, document, indexer, diagnostics);
+
+    // Validate that no type declaration shares its name with the enclosing namespace
+    validateNamespaceNameConflicts(document, indexer, diagnostics);
 
     // Validate constructor calls (Sub New calls MyBase.New) using AST structure
     validateMyBaseNewCalls(unit, diagnostics);
@@ -597,7 +602,10 @@ export class DiagnosticsLinter {
     const previous = tokens[tokenIdx - 1];
     const next = tokens[tokenIdx + 1];
     if (!previous || !next) return false;
-    if (previous.kind === "keyword" && ["dim", "const", "as"].includes(previous.value.toLowerCase())) {
+    if (
+      previous.kind === "keyword" &&
+      ["dim", "const", "as"].includes(previous.value.toLowerCase())
+    ) {
       return false;
     }
     if (next.kind === "keyword" && next.value.toLowerCase() === "as") return false;
@@ -662,6 +670,10 @@ export class DiagnosticsLinter {
 
     return output;
   }
+}
+
+function isIdentifierChar(char: string | undefined): boolean {
+  return char !== undefined && /[A-Za-z0-9_]/.test(char);
 }
 
 class DiagnosticsASTWalker extends ASTWalker {
@@ -1223,27 +1235,16 @@ class DiagnosticsASTWalker extends ASTWalker {
         }
       }
     } else {
-      const nameLower = node.methodName.toLowerCase();
-      const fileSyms = this.indexer.getFileSymbols(this.document.uri.toString());
-      const localSym = fileSyms?.symbols.find(
-        (s) =>
-          s.name.toLowerCase() === nameLower &&
-          (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
+      const argumentTypes = node.arguments.map((arg) =>
+        TypeResolver.resolveExpressionType(arg, this.document, lineIdx, this.indexer),
       );
-      resolvedMethod =
-        localSym ??
-        SYSTEM_SYMBOLS.find(
-          (s) =>
-            s.name.toLowerCase() === nameLower &&
-            (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
-        ) ??
-        this.indexer
-          .getAllSymbols()
-          .find(
-            (s) =>
-              s.name.toLowerCase() === nameLower &&
-              (s.kind === "method" || s.kind === "declare_sub" || s.kind === "declare_function"),
-          );
+      resolvedMethod = TypeResolver.findUnqualifiedCallable(
+        node.methodName,
+        this.document,
+        lineIdx,
+        this.indexer,
+        argumentTypes,
+      );
     }
 
     if (resolvedMethod) {
@@ -1316,8 +1317,8 @@ class DiagnosticsASTWalker extends ASTWalker {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
     const lineText = this.lines[lineIdx] ?? "";
-    const dotIndex = lineText.indexOf(".", node.loc.startChar);
-    const startChar = dotIndex !== -1 ? dotIndex + 1 : node.loc.startChar;
+    const memberRange = this.getMemberAccessMemberRange(node, lineIdx, lineText);
+    const startChar = memberRange.start.character;
 
     const prefixLower = exprToString(node.target)?.toLowerCase() ?? "";
 
@@ -1330,14 +1331,8 @@ class DiagnosticsASTWalker extends ASTWalker {
         const resolved = TypeResolver.findMember(typeName, node.member, this.indexer);
 
         if (!resolved && !(node.member.toLowerCase() === "new" && prefixLower === "mybase")) {
-          const range = new vscode.Range(
-            lineIdx,
-            startChar,
-            lineIdx,
-            startChar + node.member.length,
-          );
           const diag = new vscode.Diagnostic(
-            range,
+            memberRange,
             `Membro "${node.member}" não encontrado na classe "${this.activeClass.name}".`,
             vscode.DiagnosticSeverity.Error,
           );
@@ -1351,7 +1346,7 @@ class DiagnosticsASTWalker extends ASTWalker {
         } else if (resolved?.isUnsupported) {
           DiagnosticsLinter.pushUnsupportedMemberDiagnostic(
             this.diagnostics,
-            lineIdx,
+            memberRange.start.line,
             startChar,
             node.member,
             this.activeClass.name,
@@ -1401,6 +1396,7 @@ class DiagnosticsASTWalker extends ASTWalker {
       const resolved = TypeResolver.findMember(typeName, node.member, this.indexer);
       if (
         !resolved &&
+        !this.isAssignedEventHandlerReference(node) &&
         typeName.toLowerCase() !== "variant" &&
         typeName.toLowerCase() !== "tobject" &&
         typeName.toLowerCase() !== "void"
@@ -1476,6 +1472,55 @@ class DiagnosticsASTWalker extends ASTWalker {
     }
   }
 
+  private getMemberAccessMemberRange(
+    node: MemberAccess,
+    fallbackLineIdx: number,
+    fallbackLineText: string,
+  ): vscode.Range {
+    if (node.memberLoc) {
+      const lineIdx = Math.max(0, node.memberLoc.startLine - 1);
+      const endChar =
+        node.memberLoc.endChar > node.memberLoc.startChar
+          ? node.memberLoc.endChar
+          : node.memberLoc.startChar + node.member.length;
+      return new vscode.Range(lineIdx, node.memberLoc.startChar, lineIdx, endChar);
+    }
+
+    const startChar = this.findMemberTokenStart(fallbackLineText, node);
+    return new vscode.Range(
+      fallbackLineIdx,
+      startChar,
+      fallbackLineIdx,
+      startChar + node.member.length,
+    );
+  }
+
+  private findMemberTokenStart(lineText: string, node: MemberAccess): number {
+    const member = node.member;
+    if (member.length === 0) return node.loc?.startChar ?? 0;
+
+    const lineLower = lineText.toLowerCase();
+    const needle = `.${member.toLowerCase()}`;
+    const startAt = Math.max(0, node.loc?.startChar ?? 0);
+    let searchAt = startAt;
+    let lastMatch = -1;
+
+    while (searchAt < lineLower.length) {
+      const match = lineLower.indexOf(needle, searchAt);
+      if (match === -1) break;
+      const afterMember = match + needle.length;
+      if (!isIdentifierChar(lineText[afterMember])) {
+        lastMatch = match + 1;
+      }
+      searchAt = match + 1;
+    }
+
+    if (lastMatch !== -1) return lastMatch;
+
+    const dotIndex = lineText.indexOf(".", startAt);
+    return dotIndex !== -1 ? dotIndex + 1 : startAt;
+  }
+
   private checkArrayAccess(node: ArrayAccessExpression): void {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
@@ -1536,6 +1581,8 @@ class DiagnosticsASTWalker extends ASTWalker {
       this.indexer,
     );
     if (!targetType) return;
+    const lowerTargetType = targetType.toLowerCase();
+    if (lowerTargetType === "variant" || lowerTargetType === "string") return;
 
     const defaultIndexer = TypeResolver.findMember(targetType, "Item", this.indexer, arity);
     if (defaultIndexer?.kind === "indexed-property") {
@@ -1556,6 +1603,30 @@ class DiagnosticsASTWalker extends ASTWalker {
     );
     diag.code = DiagnosticCodes.DefaultIndexerMissing;
     this.diagnostics.push(diag);
+  }
+
+  private isAssignedEventHandlerReference(node: MemberAccess): boolean {
+    const parent = this.parentStack[this.parentStack.length - 1];
+    if (parent?.kind !== "Assignment" || parent.value !== node) return false;
+    const target = parent.target;
+    if (target.kind !== "MemberAccess") return false;
+    if (target.member.toLowerCase().startsWith("on")) return true;
+
+    if (!target.loc) return false;
+    const lineIdx = target.loc.startLine - 1;
+    const targetType = TypeResolver.resolveExpressionType(
+      target.target,
+      this.document,
+      lineIdx,
+      this.indexer,
+    );
+    if (!targetType) return false;
+    const eventMember = TypeResolver.findMember(targetType, target.member, this.indexer);
+    if (!eventMember) return false;
+    return (
+      this.indexer.findSymbolByName(eventMember.type)?.kind === "delegate" ||
+      lookupSystemByName(eventMember.type).some((symbol) => symbol.kind === "delegate")
+    );
   }
 
   private isNativeArrayIdentifier(name: string, arity: number, lineIdx: number): boolean {
@@ -2199,6 +2270,12 @@ class DiagnosticsASTWalker extends ASTWalker {
       }
 
       if (catchLine !== -1) {
+        const finallyLine = this.findTryCatchKeywordLine("Finally", catchLine + 1, nodeLoc.endLine);
+        const endTryLine = this.findTryCatchKeywordLine(
+          "End\\s+Try",
+          finallyLine !== -1 ? finallyLine + 1 : catchLine + 1,
+          nodeLoc.endLine,
+        );
         const payload: FinallyBlockUnsupportedPayload = {
           code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
           catchLine,
@@ -2206,12 +2283,28 @@ class DiagnosticsASTWalker extends ASTWalker {
           catchBodyEndLine: lastStmt?.loc ? lastStmt.loc.endLine - 1 : -1,
           catchVarName: node.catchVar?.name,
           isEmptyCatch: catchBody.length === 0,
+          isEmptyFinally: node.finallyBody.length === 0,
+          finallyLine: finallyLine !== -1 ? finallyLine : undefined,
+          finallyEndLine: endTryLine !== -1 ? endTryLine - 1 : undefined,
         };
         setDiagnosticPayload(diag, payload);
       }
 
       this.diagnostics.push(diag);
     }
+  }
+
+  private findTryCatchKeywordLine(
+    keywordPattern: string,
+    startLine: number,
+    endLine: number,
+  ): number {
+    const regex = new RegExp(`^\\s*${keywordPattern}\\b`, "i");
+    const last = Math.min(this.lines.length, endLine);
+    for (let i = Math.max(0, startLine); i < last; i++) {
+      if (regex.test(this.lines[i] ?? "")) return i;
+    }
+    return -1;
   }
 
   private checkIfStatement(node: IfStatement): void {
@@ -2323,6 +2416,8 @@ class DiagnosticsASTWalker extends ASTWalker {
   private checkReturnStatement(node: ReturnStatement): void {
     if (!node.loc) return;
 
+    if (this.activeProperty) return;
+
     let isSingleLineIf = false;
     for (let i = this.parentStack.length - 1; i >= 0; i--) {
       const parentNode = this.parentStack[i];
@@ -2334,16 +2429,20 @@ class DiagnosticsASTWalker extends ASTWalker {
       }
     }
 
-    const inProperty = !!this.activeProperty;
+    // const inProperty = !!this.activeProperty;
     const inSub = !!this.activeMethod && !this.activeMethod.returnType;
     const inFunction = !!this.activeMethod && !!this.activeMethod.returnType;
 
-    const targetName = inProperty
-      ? this.activeProperty?.name
-      : inFunction
+    const targetName =
+      // inProperty
+      //   ? this.activeProperty?.name
+      //   :
+      inFunction
         ? this.activeMethod?.name
         : undefined;
-    const exitType = inProperty ? "Property" : inFunction ? "Function" : "Sub";
+    const exitType =
+      // inProperty ? "Property" :
+      inFunction ? "Function" : "Sub";
     if (targetName && this.isInsideCatchBlock(node)) return;
 
     let msg = "O uso de 'Return' não é recomendado devido a lentidão gerada no compilador.";

@@ -48,6 +48,23 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Remove todos os objetos da lista.",
   },
   {
+    name: "Insert",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }, {
+      name: "pItem",
+      type: "TObject",
+      isByRef: false,
+      isOptional: false,
+    }],
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "TObjectList",
+    description: "Insere um objeto na posição especificada.",
+  },
+  {
     name: "Delete",
     kind: "method",
     type: "Void",

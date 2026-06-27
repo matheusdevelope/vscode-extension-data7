@@ -65,9 +65,10 @@ export function parsePrefix(parser: Parser): Expression | null {
   if (token.kind === "number") {
     parser.advance();
     const normalized = token.value.replace(/_/g, "");
-    const value = normalized.includes(".") || /e/i.test(normalized)
-      ? Number.parseFloat(normalized)
-      : Number.parseInt(normalized, 10);
+    const value =
+      normalized.includes(".") || /e/i.test(normalized)
+        ? Number.parseFloat(normalized)
+        : Number.parseInt(normalized, 10);
     return { kind: "Literal", value: isNaN(value) ? token.value : value, loc: locOf(token.loc) };
   }
   if (token.kind === "string") {
@@ -168,6 +169,7 @@ export function parsePrefix(parser: Parser): Expression | null {
       kind: "MemberAccess",
       target: { kind: "Identifier", name: "", loc: locOf(token.loc) },
       member: memberToken?.value ?? "",
+      memberLoc: memberToken ? locOf(memberToken.loc) : undefined,
       loc: locOf(token.loc),
     };
   }
@@ -251,7 +253,13 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
         loc: left.loc,
       };
     }
-    return { kind: "MemberAccess", target: left, member, loc: left.loc };
+    return {
+      kind: "MemberAccess",
+      target: left,
+      member,
+      memberLoc: memberToken ? locOf(memberToken.loc) : undefined,
+      loc: left.loc,
+    };
   }
   const precedence = PRECEDENCES[token.value.toLowerCase()] ?? Precedence.None;
   if (precedence === 0) return null;

@@ -410,6 +410,10 @@ End Namespace</Codigo>
           !fs.existsSync(path.join(dest, "src", "mod_logger.bas")),
           "mod_logger must NOT be decompiled to src/ because it has @Module marker",
         );
+        assert.ok(
+          fs.existsSync(path.join(dest, "data7_modules", "mod_logger.bas")),
+          "mod_logger must be preserved in data7_modules/ when it is not known in the repository",
+        );
 
         assert.ok(
           meta.dependencies?.mod_logger !== undefined,
@@ -419,6 +423,39 @@ End Namespace</Codigo>
           meta.dependencies?.mod_strings_helper === undefined,
           "mod_strings_helper must NOT be detected as a dependency",
         );
+      });
+    });
+
+    test("does not materialize known shared XML modules into data7_modules", async () => {
+      await withTempDir(async (tmp) => {
+        const xml = `<?xml version="1.0" encoding="utf-8"?>
+<Projeto_Data7 _Language="Basic" _Version="1.0">
+  <Opcoes>
+    <Versao>1.0.0.0</Versao>
+  </Opcoes>
+  <Codigo>' Principal code</Codigo>
+  <Pastas/>
+  <Modulos>
+    <mod_logger>
+      <Codigo>'@Module
+Namespace mod_logger
+End Namespace</Codigo>
+      <PastaID></PastaID>
+      <Aberto>True</Aberto>
+      <OrdemAbertura>0</OrdemAbertura>
+    </mod_logger>
+  </Modulos>
+</Projeto_Data7>`;
+
+        const projPath = path.join(tmp, "TestProj.7Proj");
+        fs.writeFileSync(projPath, xml, "utf-8");
+
+        const dest = path.join(tmp, "decompiled");
+        fs.mkdirSync(dest);
+
+        Decompiler.decompileProject(projPath, dest, new Set(["mod_logger"]));
+
+        assert.equal(fs.existsSync(path.join(dest, "data7_modules", "mod_logger.bas")), false);
       });
     });
   });

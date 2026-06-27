@@ -16,6 +16,8 @@ import {
   type ElseIfWhitespacePayload,
   type LineContinuationWithoutBreakPayload,
   type MissingThenPayload,
+  type RedundantTerminalExitPayload,
+  type DeadCodePayload,
   type ReturnUnrecommendedPayload,
   type ReturnAssignmentInCatchPayload,
   type InlineIfThenPayload,
@@ -836,6 +838,41 @@ describe("D7BasicCodeActionProvider", () => {
       expectEdit(fix.edit, { type: "replace", textIncludes: "Exit Function" });
     });
 
+    test("redundant-terminal-exit removes the whole terminal line", async () => {
+      const source = [
+        "      Public Sub Run()",
+        "         Work()",
+        "         Exit Sub",
+        "      End Sub",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const payload: RedundantTerminalExitPayload = {
+        code: DiagnosticCodes.RedundantTerminalExit,
+        line: 2,
+        startChar: 9,
+        endChar: 17,
+      };
+      const range = new vscode.Range(2, 9, 2, 17);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.RedundantTerminalExit, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.title.includes("terminal redundante"),
+      );
+      assert.ok(fix);
+      const deleteEdit = expectEdit(fix.edit, { type: "delete", line: 2 });
+      const applied = applyDeleteEdit(source, deleteEdit);
+      assert.ok(!applied.includes("Exit Sub"));
+      assert.match(applied, /Work\(\)\n {6}End Sub/);
+    });
+
     test("return-assignment-in-catch rewrites assignment to Return", async () => {
       const doc = mockDoc("            Calc = fallback ' keep\n");
       const payload: ReturnAssignmentInCatchPayload = {
@@ -1210,9 +1247,7 @@ describe("D7BasicCodeActionProvider", () => {
           doc,
           range,
           {
-            diagnostics: [
-              diagWith(DiagnosticCodes.LineContinuationWithoutBreak, payload, range),
-            ],
+            diagnostics: [diagWith(DiagnosticCodes.LineContinuationWithoutBreak, payload, range)],
           } as any,
           noopToken,
         ),
@@ -1299,6 +1334,38 @@ describe("D7BasicCodeActionProvider", () => {
   });
 
   describe("finally-block-unsupported", () => {
+    test("line suppression is inserted above the diagnostic line", async () => {
+      const doc = mockDoc(["Namespace app", "  Dim x As MissingType", "End Namespace"].join("\n"));
+      const diag = diagWith(
+        DiagnosticCodes.UnknownType,
+        {
+          code: DiagnosticCodes.UnknownType,
+          typeName: "MissingType",
+          suggestions: [],
+        },
+        new vscode.Range(1, 11, 1, 22),
+      );
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(1, 11, 1, 22),
+          { diagnostics: [diag] } as any,
+          noopToken,
+        ),
+      )) as any[];
+
+      const suppression = all.find((action) =>
+        String(action.title).includes(`Desabilitar erro "${DiagnosticCodes.UnknownType}"`),
+      );
+      assert.ok(suppression);
+      const edit = suppression.edit?.edits?.[0];
+      assert.equal(edit.type, "insert");
+      assert.equal(edit.position.line, 0);
+      assert.match(edit.text, /data7:disable-next-line unknown-type/);
+    });
+
     test("finally-block-unsupported with declared catch variable wraps body", async () => {
       const codeText = [
         "Namespace mod_demo",
@@ -1404,6 +1471,52 @@ describe("D7BasicCodeActionProvider", () => {
       const bodyEdit = edits.find((e: any) => e.text.includes("If Assigned(_ex) Then"));
       assert.ok(bodyEdit);
       assert.equal(bodyEdit.type, "replace");
+    });
+
+    test("finally-block-unsupported removes an empty Finally block", async () => {
+      const codeText = [
+        "Namespace mod_demo",
+        "  Sub Run()",
+        "    Try",
+        '      Print("Try")',
+        "    Catch ex As Exception",
+        "      Print(ex.Message)",
+        "    Finally",
+        "    End Try",
+        "  End Sub",
+        "End Namespace",
+      ].join("\n");
+
+      const doc = mockDoc(codeText);
+      const payload: FinallyBlockUnsupportedPayload = {
+        code: LegacyDiagnosticCodes.FinallyBlockUnsupported,
+        catchLine: 4,
+        catchBodyStartLine: 5,
+        catchBodyEndLine: 5,
+        catchVarName: "ex",
+        isEmptyFinally: true,
+        finallyLine: 6,
+        finallyEndLine: 6,
+      };
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(2, 4, 7, 11),
+          {
+            diagnostics: [diagWith(LegacyDiagnosticCodes.FinallyBlockUnsupported, payload)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Finally vazio"));
+      assert.ok(fix);
+      const edit = fix.edit?.edits?.[0];
+      assert.equal(edit.type, "delete");
+      assert.equal(edit.range.start.line, 6);
+      assert.equal(edit.range.end.line, 7);
     });
 
     test("finally-block-unsupported bulk fix applies to all occurrences", async () => {
@@ -1688,6 +1801,58 @@ describe("D7BasicCodeActionProvider", () => {
       assert.equal(result.count, 1);
       const edit = (result.edit as any).edits[0];
       assert.equal(applyInsertEdit(source, edit), "If ready Then    ' Edit\n");
+    });
+  });
+
+  describe("dead-code", () => {
+    test("comments every line in the dead block", async () => {
+      const codeText = [
+        "Namespace app",
+        "  Sub Run()",
+        "    If False Then",
+        "      Sql.Connection.StartTransaction()",
+        "      Sql.Connection.Commit()",
+        "    End If",
+        "  End Sub",
+        "End Namespace",
+      ].join("\n");
+      const doc = mockDoc(codeText);
+      const payload: DeadCodePayload = {
+        code: DiagnosticCodes.DeadCode,
+        startLine: 3,
+        endLine: 4,
+      };
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(3, 6, 4, 29),
+          {
+            diagnostics: [
+              diagWith(DiagnosticCodes.DeadCode, payload, new vscode.Range(3, 6, 4, 29)),
+            ],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Comentar bloco"));
+      assert.ok(fix);
+      const edits = fix.edit?.edits ?? [];
+      assert.equal(edits.length, 2);
+      assert.deepEqual(
+        edits.map((edit: any) => [
+          edit.type,
+          edit.position.line,
+          edit.position.character,
+          edit.text,
+        ]),
+        [
+          ["insert", 3, 6, "' "],
+          ["insert", 4, 6, "' "],
+        ],
+      );
     });
   });
 });

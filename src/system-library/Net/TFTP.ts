@@ -19,6 +19,7 @@ import { buildClassSymbols } from "../symbol-helpers";
  */
 export const symbols: SystemSymbolInfo[] = buildClassSymbols({
   className: "TFTP",
+  inheritsFrom: "TObject",
   namespaceContainer: "Net",
   description: "Cliente FTP. Possui métodos e propriedades para conectar-se a um servidor FTP.",
   properties: [

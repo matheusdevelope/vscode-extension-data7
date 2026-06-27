@@ -1,6 +1,10 @@
 import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import * as vscode from "vscode";
 import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
 import { D7BasicRenameProvider } from "../../providers/rename-provider";
 import { createMockDoc, noopToken, pos } from "../_helpers/mock-doc";
@@ -136,5 +140,81 @@ End Namespace`;
         `expected 0 edits on the line with "" escapes, got ${editsOnEscapeLine.length}`,
       );
     });
+
+    test("renames a namespace, updating declaration, imports and qualified type references, while ignoring local variables with the same name", async () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-rename-"));
+      const file1 = path.join(tmpDir, "titulos.bas");
+      const file2 = path.join(tmpDir, "consumer.bas");
+
+      // File 1: defines Namespace ControleTitulos
+      const text1 = `Namespace ControleTitulos
+   Class Titulo
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      
+      // File 2: imports ControleTitulos, uses it qualifications, and has a local variable also named ControleTitulos
+      const text2 = `Imports ControleTitulos
+Namespace mod_consumer
+   Class Consumer
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+      Public Sub Run()
+         Dim x As ControleTitulos.Titulo
+         Dim ControleTitulos As Integer = 10
+         Dim y As Integer = ControleTitulos
+      End Sub
+   End Class
+End Namespace`;
+
+      fs.writeFileSync(file1, text1, "utf8");
+      fs.writeFileSync(file2, text2, "utf8");
+
+      const uri1 = vscode.Uri.file(file1).toString();
+      const uri2 = vscode.Uri.file(file2).toString();
+
+      indexer.updateFileContent(uri1, text1);
+      indexer.updateFileContent(uri2, text2);
+
+      const doc1 = createMockDoc(uri1, text1);
+      const provider = new D7BasicRenameProvider();
+      
+      // Rename namespace ControleTitulos (pos 0, 10 is on the namespace declaration word "ControleTitulos")
+      const edit = (await Promise.resolve(
+        provider.provideRenameEdits(doc1, pos(0, 10), "NovoNome", noopToken),
+      )) as unknown as { edits: { uri: { path: string }, range: { start: { line: number, character: number }, end: { line: number, character: number } } }[] };
+      
+      assert.ok(edit);
+      
+      // We expect edits:
+      // 1. In titulos.bas, line 0: Namespace ControleTitulos -> NovoNome (1 edit)
+      const editsInTitulos = edit.edits.filter(e => e.uri.path.toLowerCase().endsWith("titulos.bas"));
+      assert.equal(editsInTitulos.length, 1);
+      assert.equal(editsInTitulos[0]?.range.start.line, 0);
+
+      // 2. In consumer.bas:
+      //   - line 0: Imports ControleTitulos -> Imports NovoNome (1 edit)
+      //   - line 7: Dim x As ControleTitulos.Titulo -> Dim x As NovoNome.Titulo (1 edit)
+      //   - line 8: Dim ControleTitulos As Integer (should NOT be renamed!)
+      //   - line 9: Dim y As Integer = ControleTitulos (should NOT be renamed!)
+      const editsInConsumer = edit.edits.filter(e => e.uri.path.toLowerCase().endsWith("consumer.bas"));
+      
+      // Let's assert we only rename the imports and qualified type prefix
+      assert.equal(editsInConsumer.length, 2);
+      
+      // Check lines
+      const sortedConsumerEdits = editsInConsumer.slice().sort((a, b) => a.range.start.line - b.range.start.line);
+      assert.equal(sortedConsumerEdits[0]?.range.start.line, 0, "Imports line should be edited");
+      assert.equal(sortedConsumerEdits[1]?.range.start.line, 7, "Qualified type line should be edited");
+      
+      // Verify column of qualified type edit is on "ControleTitulos" part (starts at 18)
+      assert.equal(sortedConsumerEdits[1]?.range.start.character, 18);
+    });
   });
 });
+

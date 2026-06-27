@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes } from "./diagnostic-codes";
+import {
+  DiagnosticCodes,
+  setDiagnosticPayload,
+  type DeadCodePayload,
+  type RedundantTerminalExitPayload,
+} from "./diagnostic-codes";
 import { typeRefToString } from "./diagnostic-helpers";
 import {
   ASTWalker,
@@ -23,6 +28,7 @@ type StaticValue = string | number | boolean | null | typeof STATIC_NON_NULL;
 export class ASTFlowAnalyzer {
   private readonly isFunction: boolean;
   private readonly reachableNodes = new Set<Node>();
+  private readonly deadCodeCoveredLines = new Set<number>();
   private hasMissingReturnPath = false;
 
   constructor(
@@ -36,11 +42,15 @@ export class ASTFlowAnalyzer {
   }
 
   public run(): void {
-    this.checkStatements(this.methodNode.body, {
-      reachable: true,
-      retValSet: false,
-      nullFacts: new Map(),
-    });
+    this.checkStatements(
+      this.methodNode.body,
+      {
+        reachable: true,
+        retValSet: false,
+        nullFacts: new Map(),
+      },
+      true,
+    );
     this.collectUnreachableStatements();
     if (this.isFunction && this.hasMissingReturnPath && this.methodNode.loc) {
       this.pushMissingReturnDiagnostic();
@@ -66,6 +76,9 @@ export class ASTFlowAnalyzer {
 
   private isUnreachableStatement(node: Node): boolean {
     if (node.kind === "OpaqueStatement" && isCommentOnlyOpaqueStatement(node.text)) {
+      return false;
+    }
+    if (node.loc && this.isLineCoveredByDeadCodeBlock(node.loc.startLine - 1)) {
       return false;
     }
     const statementKinds = new Set([
@@ -107,7 +120,52 @@ export class ASTFlowAnalyzer {
     );
     diagnostic.code = DiagnosticCodes.DeadCode;
     diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
+    const payload: DeadCodePayload = {
+      code: DiagnosticCodes.DeadCode,
+      startLine: lineIndex,
+      endLine: lineIndex,
+    };
+    setDiagnosticPayload(diagnostic, payload);
     this.diagnostics.push(diagnostic);
+  }
+
+  private pushDeadCodeBlockDiagnostic(statements: readonly Statement[]): void {
+    const locs = statements
+      .map((statement) => statement.loc)
+      .filter((loc): loc is NonNullable<Statement["loc"]> => loc !== undefined);
+    if (locs.length === 0) return;
+
+    const startLine = Math.min(...locs.map((loc) => loc.startLine)) - 1;
+    const endLine = Math.max(...locs.map((loc) => loc.endLine)) - 1;
+    const startText = this.lines[startLine] ?? "";
+    const endText = this.lines[endLine] ?? "";
+    const range = new vscode.Range(
+      startLine,
+      startText.length - startText.trimStart().length,
+      endLine,
+      endText.trimEnd().length,
+    );
+    const diagnostic = new vscode.Diagnostic(
+      range,
+      "Bloco de código inalcançável detectado (dead-code).",
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diagnostic.code = DiagnosticCodes.DeadCode;
+    diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
+    const payload: DeadCodePayload = {
+      code: DiagnosticCodes.DeadCode,
+      startLine,
+      endLine,
+    };
+    for (let line = startLine; line <= endLine; line++) {
+      this.deadCodeCoveredLines.add(line);
+    }
+    setDiagnosticPayload(diagnostic, payload);
+    this.diagnostics.push(diagnostic);
+  }
+
+  private isLineCoveredByDeadCodeBlock(line: number): boolean {
+    return this.deadCodeCoveredLines.has(line);
   }
 
   private pushMissingReturnDiagnostic(): void {
@@ -129,19 +187,38 @@ export class ASTFlowAnalyzer {
     this.diagnostics.push(diagnostic);
   }
 
-  private checkStatements(statements: Statement[], state: FlowState): FlowState {
+  private checkStatements(
+    statements: Statement[],
+    state: FlowState,
+    methodTail = false,
+  ): FlowState {
     let current = this.cloneState(state);
-    for (const statement of statements) {
+    const lastExecutableIndex = methodTail ? findLastExecutableStatementIndex(statements) : -1;
+    for (let index = 0; index < statements.length; index++) {
+      const statement = statements[index];
+      if (!statement) continue;
       if (!current.reachable) continue;
       this.reachableNodes.add(statement);
-      current = this.checkStatement(statement, current);
+      current = this.checkStatement(
+        statement,
+        current,
+        methodTail && index === lastExecutableIndex,
+      );
     }
     return current;
   }
 
-  private checkStatement(statement: Statement, state: FlowState): FlowState {
+  private checkStatement(
+    statement: Statement,
+    state: FlowState,
+    isMethodTailStatement: boolean,
+  ): FlowState {
     switch (statement.kind) {
       case "ReturnStatement":
+        if (isMethodTailStatement && !statement.expression) {
+          this.pushRedundantTerminalExitDiagnostic(statement);
+        }
+        return { ...state, reachable: false, retValSet: true };
       case "ThrowStatement":
         return { ...state, reachable: false, retValSet: true };
       case "ContinueStatement":
@@ -152,7 +229,11 @@ export class ASTFlowAnalyzer {
           statement.target === "Function" ||
           statement.target === "Property"
         ) {
-          if (this.isFunction && !state.retValSet) this.hasMissingReturnPath = true;
+          if (isMethodTailStatement) {
+            this.pushRedundantTerminalExitDiagnostic(statement);
+          } else if (this.isFunction && !state.retValSet) {
+            this.hasMissingReturnPath = true;
+          }
           return { ...state, reachable: false };
         }
         return state;
@@ -167,10 +248,10 @@ export class ASTFlowAnalyzer {
         } else state.nullFacts.delete(statement.name.toLowerCase());
         return state;
       case "Block":
-        return this.checkStatements(statement.statements, state);
+        return this.checkStatements(statement.statements, state, isMethodTailStatement);
       case "WithStatement":
       case "UsingStatement":
-        return this.checkStatements(statement.body, state);
+        return this.checkStatements(statement.body, state, isMethodTailStatement);
       case "IfStatement":
         return this.checkIfStatement(statement, state);
       case "SelectCaseStatement":
@@ -181,7 +262,7 @@ export class ASTFlowAnalyzer {
         this.checkStatements(statement.body, state);
         return state;
       case "TryCatchStatement":
-        return this.checkTryCatchStatement(statement, state);
+        return this.checkTryCatchStatement(statement, state, isMethodTailStatement);
       default:
         return state;
     }
@@ -229,21 +310,7 @@ export class ASTFlowAnalyzer {
   }
 
   private collectUnreachableBranch(statements: Statement[]): void {
-    const walker = new (class extends ASTWalker {
-      constructor(private readonly analyzer: ASTFlowAnalyzer) {
-        super();
-      }
-      public override walk(node: Node): void {
-        if (node.loc) {
-          this.analyzer.pushDeadCodeDiagnostic(node);
-          return;
-        }
-        super.walk(node);
-      }
-    })(this);
-    statements.forEach((statement) => {
-      walker.walk(statement);
-    });
+    this.pushDeadCodeBlockDiagnostic(statements);
   }
 
   private checkSelectCaseStatement(
@@ -267,15 +334,44 @@ export class ASTFlowAnalyzer {
   private checkTryCatchStatement(
     statement: Extract<Statement, { kind: "TryCatchStatement" }>,
     state: FlowState,
+    isMethodTailStatement: boolean,
   ): FlowState {
-    const tryState = this.checkStatements(statement.tryBody, state);
-    const catchState = this.checkStatements(statement.catchBody, state);
+    const canBranchEndMethod = isMethodTailStatement && !statement.finallyBody;
+    const tryState = this.checkStatements(statement.tryBody, state, canBranchEndMethod);
+    const catchState = this.checkStatements(statement.catchBody, state, canBranchEndMethod);
     const combined = {
       reachable: tryState.reachable || catchState.reachable,
       retValSet: tryState.retValSet && catchState.retValSet,
       nullFacts: new Map(state.nullFacts),
     };
-    return statement.finallyBody ? this.checkStatements(statement.finallyBody, combined) : combined;
+    return statement.finallyBody
+      ? this.checkStatements(statement.finallyBody, combined, isMethodTailStatement)
+      : combined;
+  }
+
+  private pushRedundantTerminalExitDiagnostic(
+    node: Extract<Statement, { kind: "ExitStatement" | "ReturnStatement" }>,
+  ): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const line = this.lines[lineIdx] ?? "";
+    const startChar = line.length - line.trimStart().length;
+    const endChar = line.trimEnd().length;
+    const diagnostic = new vscode.Diagnostic(
+      new vscode.Range(lineIdx, startChar, lineIdx, endChar),
+      "Comando terminal redundante no fim da rotina. Remova esta linha.",
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diagnostic.code = DiagnosticCodes.RedundantTerminalExit;
+    diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
+    const payload: RedundantTerminalExitPayload = {
+      code: DiagnosticCodes.RedundantTerminalExit,
+      line: lineIdx,
+      startChar,
+      endChar,
+    };
+    setDiagnosticPayload(diagnostic, payload);
+    this.diagnostics.push(diagnostic);
   }
 
   private isAssignmentToReturnValue(node: Assignment): boolean {
@@ -385,4 +481,16 @@ export class ASTFlowAnalyzer {
 
 function isCommentOnlyOpaqueStatement(text: string): boolean {
   return /^\s*(?:'|rem\b)/i.test(text);
+}
+
+function findLastExecutableStatementIndex(statements: readonly Statement[]): number {
+  for (let index = statements.length - 1; index >= 0; index--) {
+    const statement = statements[index];
+    if (!statement) continue;
+    if (statement.kind === "OpaqueStatement" && isCommentOnlyOpaqueStatement(statement.text)) {
+      continue;
+    }
+    return index;
+  }
+  return -1;
 }

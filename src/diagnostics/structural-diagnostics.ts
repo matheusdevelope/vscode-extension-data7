@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { ParameterInfo, SymbolInfo, WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { SYSTEM_SYMBOLS } from "../system-library";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
-import type { DuplicateDeclarationPayload } from "./diagnostic-codes";
+import type { DuplicateDeclarationPayload, NamespaceNameConflictPayload } from "./diagnostic-codes";
 import { LocalDeclarationCollector } from "./ast-collectors";
 import {
   ASTWalker,
@@ -63,8 +63,7 @@ export function validateDuplicateDeclarations(
     if (s.fileUri && s.fileUri === document.uri.toString()) return;
 
     const containerLower = s.containerName.toLowerCase();
-    const isImportedType =
-      s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
+    const isImportedType = s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
     if (importedNs.has(containerLower) && isImportedType) {
       outerSymbols.set(s.name.toLowerCase(), {
         kind: `tipo importado de ${s.containerName}`,
@@ -115,12 +114,22 @@ export function validateDuplicateDeclarations(
     new vscode.Range(loc.startLine - 1, loc.startChar, loc.endLine - 1, loc.endChar);
 
   const fileTopLevel = new Map<string, SymbolInfo>();
+  const fileTypeNames = new Set(
+    fileSyms.symbols
+      .filter((s) => s.kind === "class" || s.kind === "structure")
+      .map((s) => s.name.toLowerCase()),
+  );
 
   // Namespace level checks
   fileSyms.symbols.forEach((s) => {
     if (s.kind === "namespace") return;
     if (s.isSyntheticGenericInstantiation) return;
-    const isTopLevel = !s.containerName || (activeNamespace && s.containerName === activeNamespace);
+    const isTypeDeclaration = s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
+    const isClassMember =
+      !!s.containerName && fileTypeNames.has(s.containerName.toLowerCase()) && !isTypeDeclaration;
+    const isTopLevel =
+      !isClassMember &&
+      (!s.containerName || (activeNamespace && s.containerName === activeNamespace));
     if (!isTopLevel) return;
 
     const nameLower = s.name.toLowerCase();
@@ -212,25 +221,6 @@ export function validateDuplicateDeclarations(
 
       group.forEach((m) => {
         const nameLower = m.name.toLowerCase();
-
-        if (nameLower === C.name.toLowerCase() && nameLower !== "new") {
-          createConflictDiag(
-            new vscode.Range(
-              m.range.startLine,
-              m.range.startChar,
-              m.range.startLine,
-              m.range.endChar,
-            ),
-            `O membro '${m.name}' conflita com o nome da classe/estrutura '${C.name}'.`,
-            {
-              code: DiagnosticCodes.DuplicateDeclaration,
-              name: m.name,
-              scope: "class",
-              conflictingWithName: C.name,
-            },
-          );
-          return;
-        }
 
         const existingList = declaredInGroup.get(nameLower);
         if (existingList) {
@@ -521,4 +511,73 @@ export function validateMyBaseFreeCalls(
     }
   })();
   walker.walk(unit);
+}
+
+/**
+ * Validates that no `Class`, `Structure`, or `Delegate` at the top level of a
+ * `Namespace` shares the namespace's name.
+ *
+ * When the same identifier refers to both the namespace and a type inside it,
+ * the Data7 compiler cannot resolve unqualified references (e.g.
+ * `Dim x As ControleTitulos = New ControleTitulos()`) and emits a
+ * "tipo não declarado" error even when module ordering is correct.
+ *
+ * Only top-level type declarations are checked here. Local variables and
+ * method parameters may legitimately use a type imported from another
+ * namespace that happens to share the current namespace's name.
+ */
+export function validateNamespaceNameConflicts(
+  document: vscode.TextDocument,
+  indexer: WorkspaceSymbolIndexer,
+  diagnostics: vscode.Diagnostic[],
+): void {
+  const fileSyms = indexer.getFileSymbols(document.uri.toString());
+  if (!fileSyms) return;
+
+  const namespaceSym = fileSyms.symbols.find((s) => s.kind === "namespace");
+  if (!namespaceSym) return;
+
+  const nsNameLower = namespaceSym.name.toLowerCase();
+
+  for (const sym of fileSyms.symbols) {
+    if (
+      sym.kind !== "class" &&
+      sym.kind !== "structure" &&
+      sym.kind !== "delegate"
+    ) {
+      continue;
+    }
+    if (sym.isSyntheticGenericInstantiation) continue;
+    // Only top-level declarations inside this namespace
+    if (sym.containerName?.toLowerCase() !== nsNameLower) continue;
+    // Conflict: the type shares its name with the enclosing namespace
+    if (sym.name.toLowerCase() !== nsNameLower) continue;
+
+    const range = new vscode.Range(
+      sym.range.startLine,
+      sym.range.startChar,
+      sym.range.startLine,
+      sym.range.endChar,
+    );
+    const payload: NamespaceNameConflictPayload = {
+      code: DiagnosticCodes.NamespaceNameConflict,
+      name: sym.name,
+      memberKind: sym.kind,
+    };
+    const diag = new vscode.Diagnostic(
+      range,
+      `O ${sym.kind} '${sym.name}' tem o mesmo nome que o namespace '${namespaceSym.name}' que o contém. ` +
+        `Renomeie o ${sym.kind} ou o namespace para evitar ambiguidade no compilador.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.NamespaceNameConflict;
+    diag.relatedInformation = [
+      {
+        location: new vscode.Location(document.uri, range),
+        message: `Namespace '${namespaceSym.name}' declarado aqui.`,
+      },
+    ];
+    setDiagnosticPayload(diag, payload);
+    diagnostics.push(diag);
+  }
 }

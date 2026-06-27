@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (125 arquivos)
+## Índice de exemplos (127 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -193,7 +193,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (56)
+### diagnostics (58)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -222,6 +222,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/invalid-assignment-target/trigger.bas`](./diagnostics/invalid-assignment-target/trigger.bas) | assigning to another function name | `invalid-assignment-target@13` | `linter implementation for invalid assignment target` |
 | [`diagnostics/invalid-interpolation/trigger.bas`](./diagnostics/invalid-interpolation/trigger.bas) | string interpolada com `{}` vazio — parser não consegue produzir expansão | `invalid-interpolation@8` | — |
 | [`diagnostics/lambda-capture-unsupported/trigger.bas`](./diagnostics/lambda-capture-unsupported/trigger.bas) | lambda referencia variável local — captura não suportada em Data7 | `lambda-capture-unsupported@7` | `emissão futura do linter quando lambdas inline forem implementados (H3)` |
+| [`diagnostics/line-continuation-without-break/trigger.bas`](./diagnostics/line-continuation-without-break/trigger.bas) | marcador de continuacao de linha sem quebra efetiva | `line-continuation-without-break@16` | — |
 | [`diagnostics/loose-type-statement/trigger.bas`](./diagnostics/loose-type-statement/trigger.bas) | loose type statement | `loose-type-statement@8` | `linter implementation for loose types` |
 | [`diagnostics/missing-import/after-quickfix.bas`](./diagnostics/missing-import/after-quickfix.bas) | resultado de aplicar o Quick Fix "Importar mod_resources" sobre diagnostics/missing-import/trigger | `none` | — |
 | [`diagnostics/missing-import/trigger.bas`](./diagnostics/missing-import/trigger.bas) | tipo de outro módulo do workspace usado sem o Imports correspondente | `missing-import@9` | `módulo "mod_resources" exportando "TResourceLoader" no workspace` |
@@ -239,6 +240,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/optional-chain-too-deep/trigger.bas`](./diagnostics/optional-chain-too-deep/trigger.bas) | cadeia ?. com mais de 3 níveis — refator manual exigido | `optional-chain-too-deep@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/private-member-access/trigger.bas`](./diagnostics/private-member-access/trigger.bas) | acesso a membro Private de uma classe a partir de outra classe | `private-member-access@13` | `módulo "mod_vault" exportando a classe Vault com campo Private "secret"` |
 | [`diagnostics/readonly-assignment/trigger.bas`](./diagnostics/readonly-assignment/trigger.bas) | atribuição a campo ReadOnly fora do construtor | `readonly-assignment@11` | `emissão futura do linter quando a checagem ReadOnly for implementada (I3)` |
+| [`diagnostics/redundant-terminal-exit/trigger.bas`](./diagnostics/redundant-terminal-exit/trigger.bas) | Exit Sub terminal redundante no fim exato da rotina | `redundant-terminal-exit@9` | — |
 | [`diagnostics/return-assignment-in-catch/trigger.bas`](./diagnostics/return-assignment-in-catch/trigger.bas) | retorno por atribuicao dentro de Catch rejeitado pelo compilador nativo | `return-assignment-in-catch@11` | — |
 | [`diagnostics/return-unrecommended/trigger.bas`](./diagnostics/return-unrecommended/trigger.bas) | uso de Return em função onde a forma preferida é atribuição ao nome da rotina | `return-unrecommended@4` | — |
 | [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |

@@ -446,6 +446,7 @@ export class SymbolParser {
 export class WorkspaceSymbolIndexer {
   private static instance: WorkspaceSymbolIndexer | undefined;
   private cache = new Map<string, FileSymbols>(); // fileUri -> FileSymbols
+  public readonly changedNamespacesInLastUpdate = new Set<string>();
 
   // Singleton — the private constructor prevents instantiation outside `getInstance`.
   private constructor() {
@@ -640,6 +641,16 @@ export class WorkspaceSymbolIndexer {
       const filePath = vscode.Uri.parse(fileUri).fsPath;
       if (isExcluded(filePath)) return;
       const key = this.getCacheKey(fileUri);
+
+      const oldParsed = this.cache.get(key);
+      if (oldParsed) {
+        for (const sym of oldParsed.symbols) {
+          if (sym.kind === "namespace") {
+            this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
+          }
+        }
+      }
+
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, "utf-8");
         const parsed = SymbolParser.parseBasFile(fileUri, content);
@@ -647,6 +658,12 @@ export class WorkspaceSymbolIndexer {
           appendGenericInstantiations(parsed, fileUri, content, this);
         }
         this.cache.set(key, parsed);
+
+        for (const sym of parsed.symbols) {
+          if (sym.kind === "namespace") {
+            this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
+          }
+        }
       } else {
         this.cache.delete(key);
       }
@@ -670,11 +687,27 @@ export class WorkspaceSymbolIndexer {
    */
   public updateFileContent(fileUri: string, content: string): void {
     try {
+      const key = this.getCacheKey(fileUri);
+      const oldParsed = this.cache.get(key);
+      if (oldParsed) {
+        for (const sym of oldParsed.symbols) {
+          if (sym.kind === "namespace") {
+            this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
+          }
+        }
+      }
+
       const parsed = SymbolParser.parseBasFile(fileUri, content);
       if (readConfiguration().features.language.generics) {
         appendGenericInstantiations(parsed, fileUri, content, this);
       }
-      this.cache.set(this.getCacheKey(fileUri), parsed);
+      this.cache.set(key, parsed);
+
+      for (const sym of parsed.symbols) {
+        if (sym.kind === "namespace") {
+          this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
+        }
+      }
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);
     }
@@ -684,7 +717,16 @@ export class WorkspaceSymbolIndexer {
    * Remove a file from index
    */
   public removeFile(fileUri: string): void {
-    this.cache.delete(this.getCacheKey(fileUri));
+    const key = this.getCacheKey(fileUri);
+    const oldParsed = this.cache.get(key);
+    if (oldParsed) {
+      for (const sym of oldParsed.symbols) {
+        if (sym.kind === "namespace") {
+          this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
+        }
+      }
+    }
+    this.cache.delete(key);
   }
 
   /**
@@ -692,6 +734,7 @@ export class WorkspaceSymbolIndexer {
    */
   public __resetForTests(): void {
     this.cache.clear();
+    this.changedNamespacesInLastUpdate.clear();
   }
 
   /**

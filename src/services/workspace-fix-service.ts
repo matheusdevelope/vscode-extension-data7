@@ -78,6 +78,58 @@ export class WorkspaceFixService {
     vscode.window.showInformationMessage(message);
   }
 
+  public static async fixActiveEditor(): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    const document = editor?.document;
+    if (!document || document.languageId !== "d7basic" || document.uri.scheme !== "file") {
+      vscode.window.showInformationMessage("Abra um arquivo Data7 Basic para aplicar correcoes.");
+      return;
+    }
+
+    const provider = new D7BasicCodeActionProvider();
+    const existingDiagnostics = vscode.languages
+      .getDiagnostics(document.uri)
+      .filter(
+        (diagnostic) => diagnostic.source === DIAGNOSTIC_SOURCE || diagnostic.source === undefined,
+      );
+    const diagnostics =
+      existingDiagnostics.length > 0
+        ? existingDiagnostics
+        : this.collectDiagnosticsFromDocument(document);
+    if (diagnostics.length === 0) {
+      vscode.window.showInformationMessage(
+        "Nenhum diagnostico aplicavel encontrado no arquivo ativo.",
+      );
+      return;
+    }
+
+    const fixEdit = provider.buildFixAllWorkspaceEdit(document, diagnostics);
+    if (!fixEdit) {
+      vscode.window.showInformationMessage(
+        "Nenhuma correcao automatica aplicavel no arquivo ativo.",
+      );
+      return;
+    }
+
+    const applied = await vscode.workspace.applyEdit(fixEdit.edit);
+    if (!applied) {
+      vscode.window.showWarningMessage("Nao foi possivel aplicar as correcoes no arquivo ativo.");
+      return;
+    }
+    await document.save();
+
+    try {
+      const { DiagnosticService } = await import("./diagnostic-service");
+      DiagnosticService.refreshAllActive();
+    } catch {
+      // Avoid circular-dependency crash if import fails.
+    }
+
+    vscode.window.showInformationMessage(
+      `Correcao do arquivo ativo concluida: ${fixEdit.count} edicao(oes).`,
+    );
+  }
+
   public static async fixWorkspaceForBuild(
     workspaceDir: string,
     options: BuildWorkspaceFixOptions = {},
@@ -243,7 +295,9 @@ export class WorkspaceFixService {
    * Collects diagnostics for a document (real or mock). Used by both the
    * batch pipeline (mock docs) and `buildWillSaveTextEdits` (real docs).
    */
-  private static collectDiagnosticsFromDocument(document: vscode.TextDocument): vscode.Diagnostic[] {
+  private static collectDiagnosticsFromDocument(
+    document: vscode.TextDocument,
+  ): vscode.Diagnostic[] {
     const diagnostics: vscode.Diagnostic[] = [];
     const text = document.getText();
 
@@ -356,9 +410,7 @@ export class WorkspaceFixService {
     try {
       return fs.readFileSync(fsPath, "utf-8");
     } catch (err) {
-      logger.warn(
-        `Falha ao ler ${fsPath}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      logger.warn(`Falha ao ler ${fsPath}: ${err instanceof Error ? err.message : String(err)}`);
       return undefined;
     }
   }

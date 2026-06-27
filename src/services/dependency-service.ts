@@ -95,9 +95,14 @@ export class DependencyService {
 
     const repoBasPath = RepositoryService.getRepoBasPath();
     const coreModulesPath = getCoreModulesPath();
+    const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+    const localCopiedModules = DependencyScanner.scanLocalModuleCopies(data7ModulesDir);
     const sharedModules = DependencyScanner.scanSharedModules(repoBasPath);
     const coreModules = DependencyScanner.scanSharedModules(coreModulesPath);
-    const availableModules = new Map(sharedModules);
+    const availableModules = new Map(localCopiedModules);
+    for (const [key, info] of sharedModules.entries()) {
+      availableModules.set(key, info);
+    }
     for (const [key, info] of coreModules.entries()) {
       availableModules.set(key, info);
     }
@@ -105,6 +110,7 @@ export class DependencyService {
     const basFiles = DependencyScanner.getFilesRecursive(srcDir, [".bas"]);
     const localModules = DependencyScanner.getLocalModuleNames(srcDir);
     const knownTypes = DependencyScanner.getLocalTypeNames(srcDir);
+    const knownValues = DependencyScanner.getLocalValueNames(srcDir);
     for (const info of availableModules.values()) {
       if (!info.code) continue;
       try {
@@ -126,6 +132,7 @@ export class DependencyService {
       const lowerModName = rawModName.toLowerCase();
       if (localModules.has(lowerModName)) return;
       if (!isExplicit && knownTypes.has(lowerModName)) return;
+      if (!isExplicit && knownValues.has(lowerModName)) return;
       // Mirror the guard from DiagnosticService.validateModuleReference: names
       // that resolve to a System Library namespace or class are always available
       // built-in and should never be flagged as missing user modules.
@@ -181,7 +188,16 @@ export class DependencyService {
     }
 
     for (const existingKey of Object.keys(existingDeps)) {
-      if (!newDeps[existingKey.toLowerCase()]) {
+      const lowerExistingKey = existingKey.toLowerCase();
+      if (!newDeps[lowerExistingKey]) {
+        if (
+          localCopiedModules.has(lowerExistingKey) &&
+          !sharedModules.has(lowerExistingKey) &&
+          !coreModules.has(lowerExistingKey)
+        ) {
+          newDeps[lowerExistingKey] = existingDeps[existingKey] ?? "1.0.0.0";
+          continue;
+        }
         dependenciesUpdated = true;
         logger.info(`Removendo dependência não referenciada: ${existingKey}`);
       }

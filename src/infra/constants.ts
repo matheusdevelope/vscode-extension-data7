@@ -56,6 +56,7 @@ export const COMMAND_IDS = {
 
   // Linter/Fixer commands
   runLinter: "data7.linter.run",
+  fixActiveFile: "data7.linter.fixActiveFile",
   fixAllWorkspace: "data7.linter.fixAllWorkspace",
 
   // Preview commands
