@@ -1,8 +1,7 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { LanguageProcessor } from "../analysis/language-processor";
+import { LanguageProcessor, WorkspaceSymbolIndexer } from "@data7/core";
+import type { SymbolInfo } from "@data7/core";
 
 const VALID_NEW_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 

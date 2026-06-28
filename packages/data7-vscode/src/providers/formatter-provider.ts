@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
-import { tokenizeLine } from "../project/parser/lexer";
-import { LANGUAGE_KEYWORD_CASING } from "../project/language/keywords";
+import { LANGUAGE_KEYWORD_CASING, tokenizeLine } from "@data7/core";
 
 const keywordCasingMap = new Map<string, string>(LANGUAGE_KEYWORD_CASING);
 keywordCasingMap.set("me", "me");

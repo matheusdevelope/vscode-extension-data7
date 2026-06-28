@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { LanguageProcessor } from "../analysis/language-processor";
-import type { Node } from "../project/ast/ast";
+import { LanguageProcessor } from "@data7/core";
+import type { Node } from "@data7/core";
 
 /**
  * Provides semantic folding ranges for Data7 Basic: namespaces, classes,

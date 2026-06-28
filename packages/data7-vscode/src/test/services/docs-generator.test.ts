@@ -1,7 +1,7 @@
 import "../_setup/global-hooks";
+import { DocsGenerator } from "@data7/core";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { DocsGenerator } from "../../system-library/docs-generator";
 
 describe("DocsGenerator", () => {
   describe("getNamespaceNames", () => {

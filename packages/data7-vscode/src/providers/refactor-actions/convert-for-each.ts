@@ -1,8 +1,5 @@
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
-import { TypeResolver } from "../../analysis/type-resolver";
-import { detectEnumerable } from "../../analysis/enumerable-detector";
-import { SugarTranspiler } from "../../project/transpiler";
+import { SugarTranspiler, TypeResolver, WorkspaceSymbolIndexer, detectEnumerable } from "@data7/core";
 
 /**
  * `Converter For Each em For clássico`: replaces the sugar header at the

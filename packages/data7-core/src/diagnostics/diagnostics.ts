@@ -167,6 +167,19 @@ export class DiagnosticsLinter {
     return false;
   }
 
+  public static isKnownMemberContainer(
+    containerName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): boolean {
+    if (DiagnosticsLinter.isKnownType(containerName, indexer)) return true;
+
+    const systemSymbol = lookupSystemByName(containerName).find((s) => s.kind === "namespace");
+    if (systemSymbol) return true;
+
+    const workspaceSymbol = indexer.findSymbolByName(containerName);
+    return workspaceSymbol?.kind === "namespace";
+  }
+
   public static validateTypeReference(
     typeName: string,
     lineIdx: number,
@@ -1228,6 +1241,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
 
     if (node.callee) {
       const prefixLower = exprToString(node.callee)?.toLowerCase() ?? "";
+      let isStaticAccess = false;
       let typeName: string | undefined;
       if (prefixLower === "me") {
         typeName = this.activeClass?.name;
@@ -1240,6 +1254,11 @@ export class DiagnosticsASTWalker extends ASTWalker {
           lineIdx,
           this.indexer,
         );
+        if (!typeName) {
+          const staticAccess = this.resolveStaticReceiverAccess(node.callee);
+          typeName = staticAccess.typeName;
+          isStaticAccess = staticAccess.isStaticAccess;
+        }
       }
 
       if (typeName) {
@@ -1256,7 +1275,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
 
         // Check UnknownMember for method call
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (node.callee && DiagnosticsLinter.isKnownType(typeName, this.indexer)) {
+        if (node.callee && DiagnosticsLinter.isKnownMemberContainer(typeName, this.indexer)) {
           const exists =
             resolvedMethod ?? TypeResolver.findMember(typeName, node.methodName, this.indexer);
           if (
@@ -1282,6 +1301,27 @@ export class DiagnosticsASTWalker extends ASTWalker {
               node.methodName,
               DiagnosticsLinter.collectMemberNames(typeName, this.indexer),
             );
+            this.diagnostics.push(diag);
+          } else if (
+            exists &&
+            isStaticAccess &&
+            !exists.isShared &&
+            exists.kind !== "class" &&
+            exists.kind !== "structure" &&
+            exists.kind !== "delegate"
+          ) {
+            const range = new vscode.Range(
+              lineIdx,
+              startChar,
+              lineIdx,
+              startChar + node.methodName.length,
+            );
+            const diag = new vscode.Diagnostic(
+              range,
+              `Acesso a membro de instância "${node.methodName}" diretamente no tipo "${typeName}".`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.InstanceMemberAccessOnType;
             this.diagnostics.push(diag);
           }
         }
@@ -1366,6 +1406,42 @@ export class DiagnosticsASTWalker extends ASTWalker {
     this.timeMethodInvocation += performance.now() - t0;
   }
 
+  private resolveStaticReceiverAccess(
+    receiver: Expression,
+  ): { readonly typeName: string | undefined; readonly isStaticAccess: boolean } {
+    if (receiver.kind !== "Identifier") {
+      return { typeName: undefined, isStaticAccess: false };
+    }
+
+    const workspaceSymbol = this.indexer.findSymbolByName(
+      receiver.name,
+      this.document.uri.toString(),
+    );
+    if (
+      workspaceSymbol &&
+      (workspaceSymbol.kind === "class" ||
+        workspaceSymbol.kind === "structure" ||
+        workspaceSymbol.kind === "namespace")
+    ) {
+      return {
+        typeName: workspaceSymbol.name,
+        isStaticAccess: workspaceSymbol.kind === "class" || workspaceSymbol.kind === "structure",
+      };
+    }
+
+    const systemSymbol = lookupSystemByName(receiver.name).find(
+      (s) => s.kind === "namespace" || s.kind === "class" || s.kind === "structure",
+    );
+    if (!systemSymbol) {
+      return { typeName: undefined, isStaticAccess: false };
+    }
+
+    return {
+      typeName: systemSymbol.name,
+      isStaticAccess: systemSymbol.kind === "class" || systemSymbol.kind === "structure",
+    };
+  }
+
   private checkMemberAccess(node: MemberAccess): void {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
@@ -1421,31 +1497,13 @@ export class DiagnosticsASTWalker extends ASTWalker {
     );
     let isStaticAccess = false;
 
-    if (!typeName && node.target.kind === "Identifier") {
-      const staticSymbol = this.indexer.findSymbolByName(
-        node.target.name,
-        this.document.uri.toString(),
-      );
-      if (
-        staticSymbol &&
-        (staticSymbol.kind === "class" ||
-          staticSymbol.kind === "structure" ||
-          staticSymbol.kind === "namespace")
-      ) {
-        typeName = staticSymbol.name;
-        isStaticAccess = staticSymbol.kind === "class" || staticSymbol.kind === "structure";
-      } else {
-        const sysStaticSymbol = lookupSystemByName(node.target.name).find(
-          (s) => s.kind === "namespace" || s.kind === "class" || s.kind === "structure",
-        );
-        if (sysStaticSymbol) {
-          typeName = sysStaticSymbol.name;
-          isStaticAccess = sysStaticSymbol.kind === "class" || sysStaticSymbol.kind === "structure";
-        }
-      }
+    if (!typeName) {
+      const staticAccess = this.resolveStaticReceiverAccess(node.target);
+      typeName = staticAccess.typeName;
+      isStaticAccess = staticAccess.isStaticAccess;
     }
 
-    if (typeName && DiagnosticsLinter.isKnownType(typeName, this.indexer)) {
+    if (typeName && DiagnosticsLinter.isKnownMemberContainer(typeName, this.indexer)) {
       const resolved = TypeResolver.findMember(typeName, node.member, this.indexer);
       if (
         !resolved &&
@@ -2138,45 +2196,8 @@ export class DiagnosticsASTWalker extends ASTWalker {
           return expr.target;
         }
         return this.findChainedGlobalFunctionRoot(expr.target, lineIdx);
-      case "BinaryExpression":
-        return (
-          this.findChainedGlobalFunctionRoot(expr.left, lineIdx) ??
-          this.findChainedGlobalFunctionRoot(expr.right, lineIdx)
-        );
-      case "UnaryExpression":
-        return this.findChainedGlobalFunctionRoot(expr.argument, lineIdx);
-      case "TernaryExpression":
-        return (
-          this.findChainedGlobalFunctionRoot(expr.condition, lineIdx) ??
-          this.findChainedGlobalFunctionRoot(expr.trueExpr, lineIdx) ??
-          this.findChainedGlobalFunctionRoot(expr.falseExpr, lineIdx)
-        );
-      case "NullCoalescingExpression":
-        return (
-          this.findChainedGlobalFunctionRoot(expr.left, lineIdx) ??
-          this.findChainedGlobalFunctionRoot(expr.right, lineIdx)
-        );
       case "OptionalChainingExpression":
         return this.findChainedGlobalFunctionRoot(expr.target, lineIdx);
-      case "PipeExpression":
-        return (
-          this.findChainedGlobalFunctionRoot(expr.left, lineIdx) ??
-          this.findChainedGlobalFunctionRoot(expr.right, lineIdx)
-        );
-      case "ObjectInitializerExpression":
-        for (const assignment of expr.assignments) {
-          const root = this.findChainedGlobalFunctionRoot(assignment.value, lineIdx);
-          if (root) return root;
-        }
-        return undefined;
-      case "ArrayLiteralExpression":
-        for (const element of expr.elements) {
-          const root = this.findChainedGlobalFunctionRoot(element, lineIdx);
-          if (root) return root;
-        }
-        return undefined;
-      case "SpreadExpression":
-        return this.findChainedGlobalFunctionRoot(expr.expression, lineIdx);
       default:
         return undefined;
     }

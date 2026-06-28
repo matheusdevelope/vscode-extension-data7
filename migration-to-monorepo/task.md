@@ -1,0 +1,33 @@
+# Task List - Monorepo Migration & Module Manager
+
+- `[x]` Git branch creation and checkout (`feature/migration-to-super-monorepo`)
+- `[x]` Root configuration and directory structure
+  - `[x]` Root `package.json` with Node workspaces
+  - `[x]` Create directories: `packages/data7-core`, `packages/data7-vscode`, `packages/data7-cli`, `modules`
+- `[x]` Reorganize package files
+  - `[x]` Move core code to `packages/data7-core`
+  - `[x]` Move extension-only code to `packages/data7-vscode`
+  - `[x]` Update relative imports to `@data7/core` in `packages/data7-vscode`
+- `[x]` Implement Module Manager in `@data7/core`
+  - `[x]` `ManifestRegistry` (reading, writing, validating `data7.json`)
+  - `[x]` `RepositoryQueryService` (unifying local, local-private, and online repositories)
+  - `[x]` `DependencySynchronizer` (handles physical copying and dependency injection)
+  - `[x]` `ModuleOrchestrator` (lifecycle hooks and active development namespace protection)
+- `[x]` Initialize CLI package (`packages/data7-cli`)
+  - `[x]` Base configuration and CLI runner using core
+- `[x]` Setup automation scripts & workflows
+  - `[x]` PR Validation Workflow and script (`scripts/modules-validate-pr.js`)
+  - `[x]` Release Processor Workflow and script (`scripts/modules-release-processor.js`)
+- `[x]` Integrate Modules Sidebar view in `packages/data7-vscode`
+- `[x]` Run verification, linting, tests, and build checks
+- `[x]` Agnostic Local Repository & Local Publishing
+  - `[x]` Update path of local private repository to `~/.data7/local_modules`
+  - `[x]` Implement local publishing method `publishModuleLocally` with manifest, path, and syntax validations in `@data7/core`
+  - `[x]` Add `publish-local` command in `@data7/cli`
+- `[x]` VS Code Sidebar View Restructuring
+  - `[x]` Define multi-view container in VS Code package configurations
+  - `[x]` Implement `QuickActionsProvider` displaying common workflows
+  - `[x]` Register local publishing command `data7.modules.publishLocal` in extension UI and commands registry
+- `[x]` Verify and Test
+  - `[x]` Write automated tests for local publishing validation and behavior
+  - `[x]` Ensure all 178+ tests compile and pass successfully

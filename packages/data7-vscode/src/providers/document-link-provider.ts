@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { resolveNamespaceFile } from "../analysis/module-resolver";
+import { WorkspaceSymbolIndexer, resolveNamespaceFile } from "@data7/core";
 
 /**
  * Makes `Imports MyModule` clickable — Ctrl+click opens the file where the

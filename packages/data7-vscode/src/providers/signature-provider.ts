@@ -1,9 +1,6 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { lookupSystemByName, lookupSystemNamespaceOrClassByName } from "../system-library";
-import { TypeResolver } from "../analysis/type-resolver";
-import { getChainPrefix } from "../utils/chain-prefix";
+import { TypeResolver, WorkspaceSymbolIndexer, getChainPrefix, lookupSystemByName, lookupSystemNamespaceOrClassByName } from "@data7/core";
+import type { SymbolInfo } from "@data7/core";
 
 export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();

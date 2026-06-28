@@ -1,12 +1,6 @@
 import * as vscode from "vscode";
-import { SugarTranspiler } from "../project/transpiler";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { TypeResolver } from "../analysis/type-resolver";
-import { detectEnumerable } from "../analysis/enumerable-detector";
-import { lookupSystemByName } from "../system-library";
-import { collectGenericsContext } from "../analysis/generics-analyzer";
-import { readConfiguration } from "../infra/configuration";
-import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "../project/generics";
+import { SugarTranspiler, TypeResolver, WorkspaceSymbolIndexer, collectGenericsContext, detectEnumerable, lookupSystemByName, readConfiguration } from "@data7/core";
+import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "@data7/core";
 
 const PREVIEW_PRIMITIVE_TYPE_NAMES = new Set([
   "boolean",

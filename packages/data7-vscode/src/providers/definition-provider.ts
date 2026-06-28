@@ -1,8 +1,6 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { D7AstContext } from "../analysis/ast-context";
-import { TimeTracker } from "../utils/performance";
+import { D7AstContext, TimeTracker, WorkspaceSymbolIndexer } from "@data7/core";
+import type { SymbolInfo } from "@data7/core";
 
 export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();

@@ -1,19 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { CONFIG_NAMESPACE, DiagnosticCodes, PROJECT_CONFIG_FILENAME, findLegacyDataModulesExcludePattern, getRawConfiguration, logger, readConfiguration, readProjectConfig } from "@data7/core";
 
-import { logger } from "../infra/logger";
-import { CONFIG_NAMESPACE, PROJECT_CONFIG_FILENAME } from "../infra/constants";
-import { readProjectConfig } from "../project/project-config";
-import {
-  findLegacyDataModulesExcludePattern,
-  getRawConfiguration,
-  readConfiguration,
-} from "../infra/configuration";
 import { BuildService } from "./build-service";
 import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
-import { DiagnosticCodes } from "../diagnostics/diagnostic-codes";
 
 /**
  * Encapsulates one-shot bootstrap work that runs during extension activation:
@@ -48,6 +40,22 @@ export class ActivationService {
     DependencyService.detectAndSyncProjectDependencies(workspaceDir).catch((err) => {
       logger.error("Erro na detecção de dependências na inicialização.", err);
     });
+
+    // Auto-scan and suggest dependencies is temporarily disabled because namespaces
+    // do not map 1-to-1 to module packages (a single module can contain multiple namespaces).
+    /*
+    const suggestMarker = path.join(workspaceDir, ".data7_suggest_deps");
+    if (fs.existsSync(suggestMarker)) {
+      try {
+        fs.unlinkSync(suggestMarker);
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        void DependencyService.suggestAndInstallDetectedDependencies(workspaceDir, { silent: true });
+      }, 2000);
+    }
+    */
 
     const projectFilePath = this.resolveProjectFilePath(workspaceDir, configPath);
 

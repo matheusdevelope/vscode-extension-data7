@@ -2,23 +2,38 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { BuildCache, type EnsureProjectBuiltResult } from "../project/build-cache";
-import type { BuildProjectOptions } from "../project/builder";
+import {
+  BuildCache,
+  PROJECT_CONFIG_FILENAME,
+  getRawConfiguration,
+  logger,
+  readConfiguration,
+  readProjectConfig,
+} from "@data7/core";
+import type { BuildProjectOptions, EnsureProjectBuiltResult } from "@data7/core";
+
 import { DependencyService } from "./dependency-service";
 import { ProjectService } from "./project-service";
-import { logger } from "../infra/logger";
-import { readConfiguration, getRawConfiguration } from "../infra/configuration";
-import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
-import { readProjectConfig } from "../project/project-config";
+
 import { WorkspaceTrustService } from "./workspace-trust-service";
 import { WorkspaceFixService } from "./workspace-fix-service";
+import { DiagnosticService } from "./diagnostic-service";
 
 interface ExecutorLogSession {
   readonly filePath: string;
-  readonly channel: vscode.OutputChannel;
+}
+
+interface RunProjectFileOptions {
+  readonly connectionId?: string;
+  readonly companyCode?: number;
+  readonly branchCode?: number;
+  readonly userName?: string;
 }
 
 let executorLogSession: ExecutorLogSession | undefined;
+let executorLogChannel: vscode.OutputChannel | undefined;
+
+const EXECUTOR_LOG_CHANNEL_NAME = "Data7 Logs";
 
 export class BuildService {
   public static _spawn = spawn;
@@ -34,6 +49,14 @@ export class BuildService {
     options?: BuildProjectOptions,
   ): EnsureProjectBuiltResult =>
     BuildCache.ensureProjectBuilt(workspaceDir, outputFilePath, options);
+  public static _resetExecutorLogState(): void {
+    if (executorLogSession) {
+      fs.unwatchFile(executorLogSession.filePath);
+      executorLogSession = undefined;
+    }
+    executorLogChannel?.dispose();
+    executorLogChannel = undefined;
+  }
 
   /** Builds the active project's `.7Proj`. */
   public static async build(): Promise<void> {
@@ -108,13 +131,20 @@ export class BuildService {
       return;
     }
 
-    let dbIdFromProject = "";
+    await ProjectService.verifyProjectConnection(project.workspaceDir, project.projectFilePath);
+
+    let runOptions: RunProjectFileOptions = {};
     let dependencies: Record<string, string> = {};
     const configJsonPath = path.join(project.workspaceDir, PROJECT_CONFIG_FILENAME);
     try {
       const cfg = readProjectConfig(configJsonPath);
       if (cfg) {
-        dbIdFromProject = cfg.databaseConnectionId;
+        runOptions = {
+          connectionId: cfg.databaseConnectionId,
+          companyCode: cfg.opcoes.codEmpresa,
+          branchCode: cfg.opcoes.codFilial,
+          userName: cfg.opcoes.nomeUsuario,
+        };
         dependencies = { ...cfg.dependencies };
       }
     } catch (err) {
@@ -123,28 +153,17 @@ export class BuildService {
       );
     }
 
-    let { databaseConnectionId: connectionId } = readConfiguration();
-    if (!connectionId) connectionId = dbIdFromProject;
+    let connectionId = runOptions.connectionId?.trim() ?? "";
     if (!connectionId) {
-      const input = await vscode.window.showInputBox({
-        prompt: "Informe o ID de conexão com o banco de dados (UUID-CONEXAO):",
-        placeHolder: "Ex: 05B54E6D-D75B-4A7F-9943-5521A91747C9",
-        ignoreFocusOut: true,
-      });
-      if (input) {
-        connectionId = input;
-        await cfg.update(
-          "databaseConnectionId",
-          connectionId,
-          vscode.ConfigurationTarget.Workspace,
-        );
-      } else {
-        vscode.window.showErrorMessage(
-          "ID de conexão do banco de dados é obrigatório para execução.",
-        );
-        return;
-      }
+      connectionId = readConfiguration().databaseConnectionId.trim();
     }
+    if (!connectionId) {
+      vscode.window.showErrorMessage(
+        "ID de conexão do banco de dados é obrigatório para execução. Atualize o campo opcoes.identificacaoBancoDados em data7.json.",
+      );
+      return;
+    }
+    runOptions = { ...runOptions, connectionId };
 
     const vscodeLoggerFilePath = this.prepareVSCodeLoggerFile(project.workspaceDir);
     const runProjectFilePath = this.getRunProjectFilePath(
@@ -155,6 +174,13 @@ export class BuildService {
     try {
       await this.applyAutoFixBeforeBuild(project.workspaceDir);
       DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+      const lintSummary = await DiagnosticService.lintWorkspaceForRun(project.workspaceDir);
+      if (lintSummary.errorCount > 0) {
+        vscode.window.showErrorMessage(
+          `Execução cancelada. O linter encontrou ${lintSummary.errorCount} erro(s) no projeto.`,
+        );
+        return;
+      }
       this._ensureProjectBuilt(project.workspaceDir, runProjectFilePath, {
         vscodeLoggerFilePath,
       });
@@ -166,11 +192,14 @@ export class BuildService {
     }
 
     this.startVSCodeLoggerMirror(vscodeLoggerFilePath);
-    await this.runProjectFileDirectly(runProjectFilePath);
+    await this.runProjectFileDirectly(runProjectFilePath, runOptions);
   }
 
   /** Runs the Executor against a specific `.7Proj` file path. */
-  public static async runProjectFileDirectly(projectFilePath: string): Promise<void> {
+  public static async runProjectFileDirectly(
+    projectFilePath: string,
+    options: RunProjectFileOptions = {},
+  ): Promise<void> {
     if (
       !WorkspaceTrustService.ensureTrusted(
         "Executar um projeto Data7 requer um workspace confiável.",
@@ -195,7 +224,7 @@ export class BuildService {
     }
 
     const config = readConfiguration();
-    let connectionId = config.databaseConnectionId;
+    let connectionId = options.connectionId?.trim() ?? config.databaseConnectionId.trim();
     if (!connectionId) {
       const input = await vscode.window.showInputBox({
         prompt: "Informe o ID de conexão com o banco de dados (UUID-CONEXAO):",
@@ -221,11 +250,11 @@ export class BuildService {
       "-c",
       connectionId,
       "-e",
-      String(config.companyCode),
+      String(options.companyCode ?? config.companyCode),
       "-f",
-      String(config.branchCode),
+      String(options.branchCode ?? config.branchCode),
       "-u",
-      config.userName,
+      options.userName ?? config.userName,
       "-p",
       projectFilePath,
     ];
@@ -236,26 +265,24 @@ export class BuildService {
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    this.appendExecutorLogLine(`Executor iniciado para "${path.basename(projectFilePath)}".`);
     child.stdout.on("data", (chunk: Buffer) => {
-      logger.info(`[Executor] ${chunk.toString("utf-8").trimEnd()}`);
+      this.appendExecutorLog(chunk.toString("utf-8"));
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      logger.error(`[Executor] ${chunk.toString("utf-8").trimEnd()}`);
+      this.appendExecutorLog(chunk.toString("utf-8"));
     });
     child.once("error", (err: Error) => {
-      logger.error("Falha ao iniciar o Executor Data7.", err);
+      this.appendExecutorLogLine(`Falha ao iniciar o Executor Data7: ${err.message}`);
       void vscode.window.showErrorMessage("Falha ao executar o projeto Data7.");
     });
     child.once("close", (code: number | null) => {
       if (code === 0) {
-        logger.info(`Executor concluído para "${path.basename(projectFilePath)}".`);
+        this.appendExecutorLogLine(`Executor concluído para "${path.basename(projectFilePath)}".`);
       } else {
-        logger.warn(`Executor terminou com código ${code ?? "desconhecido"}.`);
+        this.appendExecutorLogLine(`Executor terminou com código ${code ?? "desconhecido"}.`);
       }
     });
-
-    logger.info(`Executor iniciado para "${path.basename(projectFilePath)}".`);
-    logger.show();
   }
 
   /** Opens the active project in the Data7 Developer Studio. */
@@ -385,13 +412,13 @@ export class BuildService {
   private static startVSCodeLoggerMirror(logFilePath: string): void {
     if (executorLogSession) {
       fs.unwatchFile(executorLogSession.filePath);
-      executorLogSession.channel.dispose();
     }
 
-    const channel = vscode.window.createOutputChannel("Data7 Executor Logs");
-    channel.clear();
+    const channel = this.getExecutorLogChannel();
+    this.appendExecutorLogLine("");
+    this.appendExecutorLogLine(`===== Execução iniciada em ${new Date().toLocaleString()} =====`);
     channel.show(true);
-    executorLogSession = { filePath: logFilePath, channel };
+    executorLogSession = { filePath: logFilePath };
 
     let offset = 0;
     const readNewContent = (): void => {
@@ -407,7 +434,7 @@ export class BuildService {
           fs.readSync(fd, buffer, 0, buffer.length, offset);
           offset = stat.size;
           const text = buffer.toString("utf-8");
-          if (text.length > 0) channel.append(text);
+          if (text.length > 0) this.appendExecutorLog(text);
         } finally {
           fs.closeSync(fd);
         }
@@ -421,6 +448,24 @@ export class BuildService {
     };
 
     fs.watchFile(logFilePath, { interval: 250 }, readNewContent);
+  }
+
+  private static getExecutorLogChannel(): vscode.OutputChannel {
+    executorLogChannel ??= vscode.window.createOutputChannel(EXECUTOR_LOG_CHANNEL_NAME);
+    return executorLogChannel;
+  }
+
+  private static appendExecutorLog(text: string): void {
+    if (!text) return;
+    const channel = this.getExecutorLogChannel();
+    channel.append(text);
+    channel.show(true);
+  }
+
+  private static appendExecutorLogLine(text: string): void {
+    const channel = this.getExecutorLogChannel();
+    channel.appendLine(text);
+    channel.show(true);
   }
 
   private static createExecutorEnvironment(executorPath: string): NodeJS.ProcessEnv {

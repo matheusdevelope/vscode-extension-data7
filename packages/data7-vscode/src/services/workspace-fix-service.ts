@@ -1,14 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { LanguageProcessor } from "../analysis/language-processor";
-import { DiagnosticsLinter } from "../diagnostics/diagnostics";
-import { isExcluded, isReadOnlyModuleFile } from "../infra/configuration";
-import { DIAGNOSTIC_SOURCE } from "../infra/constants";
+import { DIAGNOSTIC_SOURCE, DiagnosticsLinter, LanguageProcessor, WorkspaceSymbolIndexer, applyTextEditsToContent, buildMockDocument, isExcluded, isReadOnlyModuleFile, logger } from "@data7/core";
+
 import { D7BasicCodeActionProvider } from "../providers/code-action-provider";
-import { logger } from "../infra/logger";
-import { buildMockDocument, applyTextEditsToContent } from "../utils/text-edit-utils";
 
 interface WorkspaceFixResult {
   readonly filesScanned: number;

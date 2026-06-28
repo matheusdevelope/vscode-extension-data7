@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getCommentStartIndex } from "../utils/suppression-comments";
+import { getCommentStartIndex } from "@data7/core";
 
 /** Normalizes the diagnostic code shape exposed by VS Code. */
 export function getDiagnosticCode(diagnostic: vscode.Diagnostic): string | undefined {

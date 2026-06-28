@@ -1,18 +1,13 @@
 import * as vscode from "vscode";
+import { Builder, DependencyScanner, PROJECT_CONFIG_FILENAME, WorkspaceSymbolIndexer, getCoreModulesPath, logger, lookupSystemNamespaceOrClassByName, readProjectConfig } from "@data7/core";
+import type { SharedModuleInfo } from "@data7/core";
+
 import * as path from "path";
 import * as fs from "fs";
-import type { SharedModuleInfo } from "../analysis/dependency-scanner";
-import { DependencyScanner } from "../analysis/dependency-scanner";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { Builder } from "../project/builder";
+
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
 import { DiagnosticService } from "./diagnostic-service";
-import { logger } from "../infra/logger";
-import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
-import { getCoreModulesPath } from "../infra/extension-paths";
-import { readProjectConfig } from "../project/project-config";
-import { lookupSystemNamespaceOrClassByName } from "../system-library";
 
 interface ProjectMetadataJson {
   dependencies?: Record<string, string>;
@@ -190,10 +185,14 @@ export class DependencyService {
     for (const existingKey of Object.keys(existingDeps)) {
       const lowerExistingKey = existingKey.toLowerCase();
       if (!newDeps[lowerExistingKey]) {
+        const isReferencedAsMissing = Array.from(missingModules).some(
+          (m) => m.toLowerCase() === lowerExistingKey
+        );
         if (
-          localCopiedModules.has(lowerExistingKey) &&
-          !sharedModules.has(lowerExistingKey) &&
-          !coreModules.has(lowerExistingKey)
+          isReferencedAsMissing ||
+          (localCopiedModules.has(lowerExistingKey) &&
+            !sharedModules.has(lowerExistingKey) &&
+            !coreModules.has(lowerExistingKey))
         ) {
           newDeps[lowerExistingKey] = existingDeps[existingKey] ?? "1.0.0.0";
           continue;
@@ -509,5 +508,122 @@ export class DependencyService {
         }
       },
     );
+  }
+
+  /**
+   * Scans the project for external namespace/class references that are not declared
+   * in data7.json dependencies, and prompts the user to add/install them.
+   */
+  public static async suggestAndInstallDetectedDependencies(
+    workspaceDir: string,
+    opts: { silent?: boolean } = {}
+  ): Promise<void> {
+    // Auto-scan and suggest dependencies is temporarily disabled.
+    // Namespaces do not map 1-to-1 to module packages (a single module can contain multiple namespaces),
+    // so scanning and mapping every external namespace to a module package version creates incorrect suggestions.
+    if (!opts.silent) {
+      vscode.window.showInformationMessage("A varredura automática de dependências sugeridas está temporariamente desativada.");
+    }
+    return;
+    /*
+    const srcDir = path.join(workspaceDir, "src");
+    if (!fs.existsSync(srcDir)) return;
+
+    const basFiles = DependencyScanner.getFilesRecursive(srcDir, [".bas"]);
+    const localModules = DependencyScanner.getLocalModuleNames(srcDir);
+    const knownTypes = DependencyScanner.getLocalTypeNames(srcDir);
+    const knownValues = DependencyScanner.getLocalValueNames(srcDir);
+
+    const detectedExternalNamespaces = new Set<string>();
+
+    for (const currentFilePath of basFiles) {
+      try {
+        const fileContent = fs.readFileSync(currentFilePath, "utf-8");
+        for (const reference of DependencyScanner.collectModuleReferences(fileContent)) {
+          const namespace = reference.isExplicit
+            ? (reference.name.split(".")[0] ?? reference.name)
+            : reference.name;
+
+          if (DependencyScanner.isIgnoredNamespace(namespace)) continue;
+          const lowerNS = namespace.toLowerCase();
+          if (localModules.has(lowerNS)) continue;
+          if (!reference.isExplicit && knownTypes.has(lowerNS)) continue;
+          if (!reference.isExplicit && knownValues.has(lowerNS)) continue;
+          if (!reference.isExplicit && lookupSystemNamespaceOrClassByName(namespace).length > 0) continue;
+
+          detectedExternalNamespaces.add(namespace);
+        }
+      } catch (err) {
+        logger.error(`Erro ao escanear ${currentFilePath} para dependências sugeridas.`, err);
+      }
+    }
+
+    const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
+    const projectMeta = readProjectMeta(configJsonPath) ?? { dependencies: {} };
+    projectMeta.dependencies ??= {};
+    const projectDeps = projectMeta.dependencies;
+
+    const missingDeclarations = Array.from(detectedExternalNamespaces).filter(
+      ns => !projectDeps[ns.toLowerCase()]
+    );
+
+    if (missingDeclarations.length === 0) {
+      if (!opts.silent) {
+        vscode.window.showInformationMessage("Todas as dependências externas usadas no código já estão declaradas.");
+      }
+      return;
+    }
+
+    const runQuickPick = async () => {
+      const selected = await vscode.window.showQuickPick(
+        missingDeclarations.map(ns => ({
+          label: ns,
+          picked: true,
+          description: "Adicionar como dependência do projeto",
+        })),
+        {
+          placeHolder: "Selecione os namespaces externos para adicionar como dependências de módulo",
+          canPickMany: true,
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!selected || selected.length === 0) return;
+
+      for (const item of selected) {
+        projectDeps[item.label.toLowerCase()] = "latest";
+      }
+
+      fs.writeFileSync(configJsonPath, JSON.stringify(projectMeta, null, 2), "utf-8");
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Adicionando e sincronizando novas dependências...",
+          cancellable: false,
+        },
+        async () => {
+          await this.refreshWorkspaceDependencies(workspaceDir);
+        }
+      );
+
+      vscode.window.showInformationMessage(
+        `Dependências adicionadas e sincronizadas com sucesso: ${selected.map(item => item.label).join(", ")}`
+      );
+    };
+
+    if (opts.silent) {
+      const action = await vscode.window.showWarningMessage(
+        `Detectamos namespaces externos usados no código que não estão em data7.json: ${missingDeclarations.join(", ")}.`,
+        "Adicionar como Dependências",
+        "Ignorar"
+      );
+      if (action === "Adicionar como Dependências") {
+        await runQuickPick();
+      }
+    } else {
+      await runQuickPick();
+    }
+    */
   }
 }

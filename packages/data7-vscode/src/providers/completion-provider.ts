@@ -1,15 +1,6 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { D7AstContext, type AstBindingScope } from "../analysis/ast-context";
-import { TypeResolver } from "../analysis/type-resolver";
-import { TimeTracker } from "../utils/performance";
-import {
-  SYSTEM_SYMBOLS,
-  lookupSystemByContainer,
-  lookupSystemNamespaceOrClassByName,
-} from "../system-library";
-import { LANGUAGE_KEYWORD_CANONICALS } from "../project/language/keywords";
+import { D7AstContext, LANGUAGE_KEYWORD_CANONICALS, SYSTEM_SYMBOLS, TimeTracker, TypeResolver, WorkspaceSymbolIndexer, lookupSystemByContainer, lookupSystemNamespaceOrClassByName } from "@data7/core";
+import type { AstBindingScope, SymbolInfo } from "@data7/core";
 
 // Re-export for backwards compatibility with code that imports `TypeResolver`
 // from `./completion-provider`. New code should import directly from `../analysis/type-resolver`.

@@ -1,13 +1,20 @@
 import * as path from "path";
 import * as vscode from "vscode";
 
-import { WorkspaceSymbolIndexer } from "./analysis/symbol-indexer";
-import { LanguageProcessor } from "./analysis/language-processor";
-import { CONFIG_NAMESPACE, LANGUAGE_IDS } from "./infra/constants";
-import { readConfiguration, isReadOnlyModuleFile } from "./infra/configuration";
-import { initLogger, logger } from "./infra/logger";
+import {
+  WorkspaceSymbolIndexer,
+  LanguageProcessor,
+  CONFIG_NAMESPACE,
+  LANGUAGE_IDS,
+  readConfiguration,
+  isReadOnlyModuleFile,
+  initLogger,
+  logger
+} from "@data7/core";
 import { registerCommands } from "./commands";
 import { registerLanguageProviders } from "./providers/registration";
+import { ModulesSidebarProvider } from "./providers/modules-sidebar-provider";
+import { QuickActionsProvider } from "./providers/quick-actions-provider";
 
 import { ActivationService } from "./services/activation-service";
 import { DiagnosticService } from "./services/diagnostic-service";
@@ -27,6 +34,15 @@ export function activate(context: vscode.ExtensionContext): void {
   registerWorkspaceListeners(context);
   registerCommands(context);
   registerLanguageProviders(context);
+
+  const quickActionsProvider = new QuickActionsProvider();
+  vscode.window.registerTreeDataProvider("data7.quickActionsView", quickActionsProvider);
+
+  const modulesSidebarProvider = new ModulesSidebarProvider(context);
+  vscode.window.registerTreeDataProvider("data7.modulesView", modulesSidebarProvider);
+  vscode.commands.registerCommand("data7.modules.refreshView", () => {
+    modulesSidebarProvider.refresh();
+  });
 
   ActivationService.initializeWorkspace(context);
   const features = readConfiguration().features;

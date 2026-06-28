@@ -569,6 +569,33 @@ End Namespace`;
       );
     });
 
+    test("emits unknown-member for undeclared methods on a namespace receiver", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const consoleUri = "file:///console.bas";
+      const consoleCode = `Namespace console
+   Public Sub log(value As String)
+   End Sub
+End Namespace`;
+      indexer.updateFileContent(consoleUri, consoleCode);
+      createMockDoc(consoleUri, consoleCode);
+
+      const uri = "file:///principal_console.bas";
+      const code = `Imports console
+Namespace principal
+   Class Principal
+      Public Sub Run()
+         console.log("ok")
+         console.clear()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectDiagnostic(diags, DiagnosticCodes.UnknownMember, "clear");
+    });
+
     test("accepts indexed properties accessed with bracket arguments", () => {
       const indexer = WorkspaceSymbolIndexer.createDetached();
       const uri = "file:///grid_cells_brackets.bas";
@@ -777,6 +804,34 @@ End Namespace`;
         DiagnosticCodes.DuplicateDeclaration,
         "Declaração duplicada: o identificador 'x'",
       );
+    });
+
+    test("does NOT emit error for same Catch variable name in distinct Try blocks", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Sub Run()
+         Try
+            Work()
+         Catch ex As Exception
+            Throw New Exception(ex._GetMessage())
+         End Try
+
+         Try
+            Work()
+         Catch ex As Exception
+            Throw New Exception(ex._GetMessage())
+         End Try
+      End Sub
+
+      Private Sub Work()
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///dup_catch_vars.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
     test("does NOT emit error for local variable with same name as class member in the same context (shadowing is allowed)", () => {
@@ -1117,6 +1172,20 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
     });
 
+    test("does NOT emit for Structure Sub New", () => {
+      const diags = runLinter(`Namespace mod_ctor_structure
+   Private Structure TIdentificacao
+      Codigo As Integer
+      Nome As String
+
+      Sub New(pCodigo As Integer)
+         Codigo = pCodigo
+      End Sub
+   End Structure
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+    });
+
     test("emits for inheriting class Sub New without MyBase.New(args)", () => {
       const diags = runLinter(`Namespace mod_ctor_inherit
    Class TAnimal
@@ -1192,6 +1261,16 @@ End Namespace`);
          MyBase.Free()
       End Sub
    End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
+    });
+
+    test("does not emit warning when Structure has no Sub Free", () => {
+      const diags = runLinter(`Namespace mod_free_structure
+   Private Structure TIdentificacao
+      Codigo As Integer
+      Nome As String
+   End Structure
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
     });
@@ -1376,7 +1455,7 @@ End Namespace`;
       assert.ok(payload, "payload should be present");
       // "      me.doWork" — 'doWork' is 6 chars, starts at col 9, so insertColumn should be 15
       assert.ok(
-        (payload.insertColumn ?? 0) > (diag.range.start.character),
+        (payload.insertColumn ?? 0) > diag.range.start.character,
         `insertColumn (${payload.insertColumn}) must be greater than the member start column (${diag.range.start.character})`,
       );
       assert.equal(
@@ -1474,6 +1553,22 @@ End Namespace`);
 End Namespace`);
 
       expectDiagnostic(diags, DiagnosticCodes.ChainedGlobalFunctionAssignment, "CreateItem");
+    });
+
+    test("does not warn when a global function chain is only an operand in a composed expression", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Private Function timeDiff() As TDateTime
+         Dim hours As Integer = 1
+         Dim mins As Integer = 2
+         Dim secs As Integer = 3
+         Dim millisecs As Integer = 4
+         timeDiff = DateTime() - DateTime().EncodeTime(hours, mins, secs, millisecs)
+      End Function
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.ChainedGlobalFunctionAssignment);
     });
 
     test("does not emit type-mismatch when a local variable with the same name as a global method is called with empty parens (regression)", () => {
@@ -3234,6 +3329,26 @@ End Namespace`;
       (d: any) => d.code === DiagnosticCodes.MissingReturnValue,
     );
     assert.deepEqual(missingReturnDiags, []);
+  });
+
+  test("does not report missing-return-value for legacy Exit Sub guard inside Function", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///function_exit_sub_guard.bas";
+    const code = `Namespace ns
+   Class C
+      Public Function MigrateKeyField(pValid As Boolean) As Boolean
+         If Not pValid Then
+            Exit Sub
+         End If
+
+         MigrateKeyField = True
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+    expectNoDiagnostic(diags, DiagnosticCodes.MissingReturnValue);
   });
 
   test("flags terminal Exit Sub as redundant", () => {

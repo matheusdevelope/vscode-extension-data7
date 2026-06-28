@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
+import * as path from "path";
 
-import { COMMAND_IDS } from "./infra/constants";
-import { logger } from "./infra/logger";
+import { COMMAND_IDS, logger } from "@data7/core";
 
 import { ActivationService } from "./services/activation-service";
 import { BuildService } from "./services/build-service";
@@ -36,18 +36,31 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     // Module commands
     [
       COMMAND_IDS.installModule,
-      (moduleName?: string) => DependencyService.installModule(moduleName),
+      async (moduleName?: string) => {
+        await DependencyService.installModule(moduleName);
+        await vscode.commands.executeCommand("data7.modules.refreshView");
+      },
     ],
     [
       COMMAND_IDS.installModulesBulk,
-      (moduleNames: string[]) => DependencyService.installModules(moduleNames),
+      async (moduleNames: string[]) => {
+        await DependencyService.installModules(moduleNames);
+        await vscode.commands.executeCommand("data7.modules.refreshView");
+      },
     ],
-    [COMMAND_IDS.updateDependencies, () => DependencyService.updateDependencies()],
+    [
+      COMMAND_IDS.updateDependencies,
+      async () => {
+        await DependencyService.updateDependencies();
+        await vscode.commands.executeCommand("data7.modules.refreshView");
+      },
+    ],
     [
       COMMAND_IDS.importModuleToRepository,
       async () => {
         await RepositoryService.importModuleToRepository();
         await DependencyService.refreshActiveProject();
+        await vscode.commands.executeCommand("data7.modules.refreshView");
       },
     ],
     [
@@ -55,9 +68,50 @@ export function registerCommands(context: vscode.ExtensionContext): void {
       async () => {
         await RepositoryService.bulkImportToRepository();
         await DependencyService.refreshActiveProject();
+        await vscode.commands.executeCommand("data7.modules.refreshView");
       },
     ],
     [COMMAND_IDS.exploreRepository, () => RepositoryService.exploreRepository()],
+    [
+      COMMAND_IDS.publishLocal,
+      async () => {
+        const activeProject = ProjectService.getActiveProject();
+        if (!activeProject) {
+          vscode.window.showWarningMessage("Nenhum projeto ativo encontrado no workspace para publicação.");
+          return;
+        }
+        const projectName = path.basename(activeProject.workspaceDir);
+        try {
+          const { ModuleOrchestrator } = await import("@data7/core");
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Publicando módulo '${projectName}' localmente...`,
+              cancellable: false
+            },
+            async () => {
+              await ModuleOrchestrator.publishModuleLocally(activeProject.workspaceDir);
+            }
+          );
+          vscode.window.showInformationMessage(`Módulo '${projectName}' publicado localmente com sucesso!`);
+          await vscode.commands.executeCommand("data7.modules.refreshView");
+        } catch (err: any) {
+          vscode.window.showErrorMessage(`Falha ao publicar módulo localmente: ${err.message}`);
+        }
+      }
+    ],
+    [
+      COMMAND_IDS.suggestDependencies,
+      async () => {
+        const activeProject = ProjectService.getActiveProject();
+        if (!activeProject) {
+          vscode.window.showWarningMessage("Nenhum projeto ativo encontrado no workspace para escanear dependências.");
+          return;
+        }
+        await DependencyService.suggestAndInstallDetectedDependencies(activeProject.workspaceDir, { silent: false });
+        await vscode.commands.executeCommand("data7.modules.refreshView");
+      }
+    ],
 
     // Linter/Fixer commands
     [COMMAND_IDS.runLinter, () => DiagnosticService.lintWorkspace(true)],

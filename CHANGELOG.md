@@ -7,6 +7,14 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Arquitetura (Monorepo)
+- **Refatoração para Monorepo:** O projeto foi convertido para uma estrutura de monorepo utilizando NPM Workspaces, isolando responsabilidades em pacotes independentes:
+  - `@data7/core`: Kernel da linguagem contendo parser, linter, transpiler, CLI-agnostic analyzer e system library.
+  - `@data7/cli`: Interface de linha de comando para uso standalone e em CIs.
+  - `vscode-extension-data7`: Extensão do VS Code que consome o `@data7/core`.
+- **Novo Gerenciador de Dependências:** O tratamento de dependências foi desacoplado da flag legada `@Module`. Dependências (módulos de terceiros) agora são declaradas explicitamente em `data7.json` e baixadas sob demanda, sendo tratadas pelo construtor via injecao de `@Module-Imported`. Módulos locais decompilados do próprio projeto agora vivem nativamente em `src/`.
+- **Desativação Temporária do Auto-scan:** O auto-scan de dependências e Quick Picks foram temporariamente suspensos (desativados) até uma nova modelagem que comporte projetos onde múltiplos namespaces são exportados por um único módulo.
+
 ### Adicionado
 - Adicionado o comando `data7.linter.fixActiveFile` para aplicar `source.fixAll.data7` no arquivo `.bas` ativo, disponivel por command palette, menu de contexto do editor e atalho `Ctrl+Alt+Shift+F`.
 - Adicionado Quick Fix para comentar blocos inteiros de `dead-code`, incluindo acao em lote por arquivo.
@@ -17,6 +25,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - Restrição de reavaliação de arquivos dependentes em cascata apenas para o momento do salvamento do arquivo (`onDidSaveTextDocument`), mantendo o editor sempre leve durante a digitação contínua.
 
 ### Corrigido
+- Corrigido o fluxo de debug/watch do monorepo: o `npm run watch` raiz agora inicia os watches dos packages em paralelo, e `npm run compile` compila `@data7/core` antes dos consumidores.
 - Quick Fixes especificos agora aparecem antes das supressoes, e a supressao de linha gerada pela extensao usa `data7:disable-next-line` na linha anterior ao diagnostico, incluindo `unsupported-member`.
 - Correcoes em massa do workspace agora publicam os diagnosticos recalculados do conteudo final diretamente na colecao Problems, evitando um `refreshAllActive()` redundante apos o batch.
 - `dead-code` agora agrupa branches estaticamente inalcancaveis em um unico diagnostico por bloco, em vez de marcar cada statement interno.
@@ -26,6 +35,11 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - Resolvido o loop infinito de re-entrada no indexador do linter: `updateFileContentFromParsed` agora compara inteligentemente se os namespaces declarados em um arquivo mudaram antes de marcá-los como alterados.
 - Configurado o watcher de arquivos `.bas` para ignorar a pasta controlada `data7_modules/`, evitando loops de indexação em cascata.
 - Desativado o aviso e quick-fix de `return-unrecommended` para blocos `Property Get`, dado que o compilador nativo do Data7 não suporta a instrução `Exit Property`.
+- `missing-mybase-new` e `missing-mybase-free` agora se aplicam somente a classes; `Structure` e seus membros não recebem construtor/destrutor nem quick fix de `Free`.
+- Corrigidos falsos positivos de `duplicate-declaration` para variáveis `Catch ex` em blocos distintos, de `missing-return-value` para guardas legados com `Exit Sub` dentro de `Function`, e de `chained-global-function-assignment` quando a cadeia de função global aparece apenas como operando de uma expressão composta.
+- A execução via F5 agora usa o ID de conexão e os parâmetros do projeto em `data7.json#opcoes` como fonte principal, evitando novo prompt quando `opcoes.identificacaoBancoDados` já foi validado. A configuração global `data7.databaseConnectionId` fica apenas como fallback para execução direta de `.7Proj`.
+- Logs de execução do projeto agora são acumulados em uma aba dedicada `Data7 Logs`, sem misturar com o output geral da extensão e sem limpeza automática entre execuções.
+- O linter agora valida chamadas qualificadas em namespaces/tipos, emitindo `unknown-member` para métodos inexistentes como `console.clear()`. A execução via F5 reanalisa o projeto antes de build/run e é cancelada quando restam erros de parser/linter.
 
 - Corrigidos falsos positivos do linter observados no projeto real `Conciliacao de Cartoes V4.8`: indexacao de `Variant`/`String`, chamada sem receiver que deve preferir `Function` importada antes de `Sub` homonima global, membro com o mesmo nome da classe, handlers atribuidos a eventos `On*`, `Imports Net` e constantes FTP `ftBinary`/`ftASCII`.
 - A System Library passou a modelar flags legadas de `Forms.GridConfigs` (`FixedVerLine`, `FixedHorzLine`, `VerLine`, `HorzLine`, sizing/moving/select/click/hot-track) e o indexador default `TStrings.Item(Integer) As String`, evitando falsos `unknown-member` e `default-indexer-missing` em projetos reais.
@@ -56,6 +70,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Alterado
 
+- O empacotamento da extensão agora prepara um bundle único com `esbuild`, copia apenas os assets runtime necessários (`docs/`, `core_modules/`, MCP bundled, README/CHANGELOG/LICENSE) para `packages/data7-vscode` e executa `vsce package --no-dependencies`, evitando que links de workspace incluam o monorepo inteiro ou VSIX antigos no pacote final.
 - Build, execução e abertura no Developer Studio não executam mais a varredura completa de auto-fix por padrão. A nova flag `data7.features.build.autoFixBeforeBuild` reativa esse comportamento de forma incremental: apenas arquivos `.bas` alterados desde o último build da sessão são reavaliados. O comando explícito `data7.fixAllWorkspace` continua corrigindo todo o projeto.
 
 ### Adicionado

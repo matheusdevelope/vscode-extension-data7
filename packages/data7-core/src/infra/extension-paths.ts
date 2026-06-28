@@ -24,7 +24,17 @@ let initializedRepoBasPath: string | undefined;
 let initializedExtensionRootPath: string | undefined;
 
 const FALLBACK_REPO_DIR = path.join(os.homedir(), ".data7_extension", "repository");
-const FALLBACK_CORE_MODULES_DIR = path.resolve(__dirname, "..", "..", "core_modules");
+function findFallbackCoreModulesDir(): string {
+  const candidates = [
+    path.resolve(__dirname, "..", "..", "core_modules"),
+    path.resolve(__dirname, "..", "..", "..", "..", "core_modules"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0]!;
+}
+const FALLBACK_CORE_MODULES_DIR = findFallbackCoreModulesDir();
 
 /**
  * Computes and caches the per-extension repository path. Should be called once

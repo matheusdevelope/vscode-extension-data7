@@ -5,9 +5,10 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+import { DiagnosticCodes, WorkspaceSymbolIndexer } from "@data7/core";
+
 import { DiagnosticService } from "../../services/diagnostic-service";
-import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
+
 import { createMockDoc, mockTextDocuments, resetMockWorkspace } from "../_helpers/mock-doc";
 
 describe("DiagnosticService live lifecycle", () => {

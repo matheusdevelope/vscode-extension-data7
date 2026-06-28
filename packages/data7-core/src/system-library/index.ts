@@ -152,6 +152,9 @@ import { symbols as sym_Globals_CDbl } from "./Globals/CDbl";
 import { symbols as sym_Globals_Char } from "./Globals/Char";
 import { symbols as sym_Globals_CInt } from "./Globals/CInt";
 import { symbols as sym_Globals_CStr } from "./Globals/CStr";
+import { symbols as sym_Globals_dbASA } from "./Globals/dbASA";
+import { symbols as sym_Globals_dbMSSQL } from "./Globals/dbMSSQL";
+import { symbols as sym_Globals_dbPostgreSQL } from "./Globals/dbPostgreSQL";
 import { symbols as sym_Globals_DateTime } from "./Globals/DateTime";
 import { symbols as sym_Globals_dateUtils } from "./Globals/dateUtils";
 import { symbols as sym_Globals_FileToBase64 } from "./Globals/FileToBase64";
@@ -160,6 +163,7 @@ import { symbols as sym_Globals_LCase } from "./Globals/LCase";
 import { symbols as sym_Globals_Len } from "./Globals/Len";
 import { symbols as sym_Globals_Left } from "./Globals/Left";
 import { symbols as sym_Globals_Mid } from "./Globals/Mid";
+import { symbols as sym_Globals_Print } from "./Globals/Print";
 import { symbols as sym_Globals_RGB } from "./Globals/RGB";
 import { symbols as sym_Globals_Space } from "./Globals/Space";
 import { symbols as sym_Globals_taCenter } from "./Globals/taCenter";
@@ -389,6 +393,9 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_Char,
   ...sym_Globals_CInt,
   ...sym_Globals_CStr,
+  ...sym_Globals_dbASA,
+  ...sym_Globals_dbMSSQL,
+  ...sym_Globals_dbPostgreSQL,
   ...sym_Globals_DateTime,
   ...sym_Globals_dateUtils,
   ...sym_Globals_FileToBase64,
@@ -397,6 +404,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_Len,
   ...sym_Globals_Left,
   ...sym_Globals_Mid,
+  ...sym_Globals_Print,
   ...sym_Globals_RGB,
   ...sym_Globals_Space,
   ...sym_Globals_taCenter,

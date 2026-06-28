@@ -83,6 +83,22 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Obtém ou define o valor do parâmetro como Boolean.",
   },
   {
+    name: "Value",
+    kind: "property",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "TFDParam",
+    description: "Obtém ou define o valor do parâmetro como Variant.",
+  },
+  {
     name: "AsDateTime",
     kind: "property",
     type: "TDateTime",

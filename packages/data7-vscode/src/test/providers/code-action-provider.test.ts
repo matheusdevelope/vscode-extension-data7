@@ -2,28 +2,11 @@ import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as vscode from "vscode";
+import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "@data7/core";
+import type { CallParenthesesMismatchPayload, DeadCodePayload, ElseIfWhitespacePayload, FinallyBlockUnsupportedPayload, InlineIfThenPayload, LineContinuationWithoutBreakPayload, MissingImportPayload, MissingThenPayload, ModuleNotDeclaredPayload, ModuleNotFoundPayload, RedundantTerminalExitPayload, ReturnAssignmentInCatchPayload, ReturnUnrecommendedPayload, UnknownMemberPayload, UnsupportedMemberPayload, UnusedImportPayload } from "@data7/core";
+
 import { D7BasicCodeActionProvider } from "../../providers/code-action-provider";
-import {
-  DiagnosticCodes,
-  LegacyDiagnosticCodes,
-  type MissingImportPayload,
-  type ModuleNotDeclaredPayload,
-  type ModuleNotFoundPayload,
-  type UnknownMemberPayload,
-  type UnsupportedMemberPayload,
-  type UnusedImportPayload,
-  type FinallyBlockUnsupportedPayload,
-  type ElseIfWhitespacePayload,
-  type LineContinuationWithoutBreakPayload,
-  type MissingThenPayload,
-  type RedundantTerminalExitPayload,
-  type DeadCodePayload,
-  type ReturnUnrecommendedPayload,
-  type ReturnAssignmentInCatchPayload,
-  type InlineIfThenPayload,
-  type CallParenthesesMismatchPayload,
-  setDiagnosticPayload,
-} from "../../diagnostics/diagnostic-codes";
+
 import { createMockDoc, noopToken } from "../_helpers/mock-doc";
 import { expectEdit } from "../_helpers/assertions";
 

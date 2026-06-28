@@ -38,6 +38,13 @@ coverage/
 # VS Code Extension package output
 *.vsix
 
+# Generated VSIX staging assets copied into the extension package.
+packages/data7-vscode/CHANGELOG.md
+packages/data7-vscode/LICENSE
+packages/data7-vscode/README.md
+packages/data7-vscode/core_modules/
+packages/data7-vscode/docs/
+
 # Logs
 *.log
 

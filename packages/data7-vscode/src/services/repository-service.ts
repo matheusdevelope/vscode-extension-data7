@@ -1,12 +1,9 @@
 import * as vscode from "vscode";
+import { DependencyScanner, getRawConfiguration, getRepoBasPath, initializeExtensionPaths, isSafeSegment, logger, parseProjectXml, readConfiguration, safeJoinInside, xmlRecord, xmlText } from "@data7/core";
+
 import * as path from "path";
 import * as fs from "fs";
-import { DependencyScanner } from "../analysis/dependency-scanner";
-import { logger } from "../infra/logger";
-import { readConfiguration, getRawConfiguration } from "../infra/configuration";
-import { getRepoBasPath, initializeExtensionPaths } from "../infra/extension-paths";
-import { parseProjectXml, xmlText, xmlRecord } from "../utils/xml-helpers";
-import { safeJoinInside, isSafeSegment } from "../utils/path-safety";
+
 import { WorkspaceTrustService } from "./workspace-trust-service";
 
 /**

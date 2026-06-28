@@ -2,7 +2,8 @@ import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+import { WorkspaceSymbolIndexer } from "@data7/core";
+
 import { D7BasicDocumentSymbolProvider } from "../../providers/document-symbol-provider";
 import { createMockDoc, noopToken } from "../_helpers/mock-doc";
 

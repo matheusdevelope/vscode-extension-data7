@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes, LegacyDiagnosticCodes } from "../diagnostics/diagnostic-codes";
+import { DiagnosticCodes, LegacyDiagnosticCodes, logger } from "@data7/core";
+
 import { getDiagnosticCode } from "./code-action-helpers";
 
 // Quick-fixes
@@ -73,7 +74,6 @@ import {
   addConvertForEachToClassicAction,
   addConvertClassicForToForEachAction,
 } from "./refactor-actions/convert-for-each";
-import { logger } from "../infra/logger";
 
 const DIAGNOSTIC_PRIORITY: Record<string, number> = {
   [DiagnosticCodes.RedundantTerminalExit]: 0,

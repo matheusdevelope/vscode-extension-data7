@@ -48,6 +48,7 @@ export function loadExample(relativePath: string): string {
   const candidates = [
     path.join(__dirname, "..", "..", "..", "docs", "example", relativePath), // out/test/_helpers → repo root
     path.join(__dirname, "..", "..", "..", "..", "docs", "example", relativePath), // src/test/_helpers (4 hops via out/)
+    path.join(__dirname, "..", "..", "..", "..", "..", "docs", "example", relativePath), // monorepo path
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return fs.readFileSync(candidate, "utf-8");

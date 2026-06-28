@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
-import {
-  DiagnosticCodes,
-  type CallParenthesesMismatchPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes } from "@data7/core";
+import type { CallParenthesesMismatchPayload } from "@data7/core";
+
 import { readDiagnosticPayload } from "../code-action-helpers";
 
 export function addCallParenthesesMismatchFix(

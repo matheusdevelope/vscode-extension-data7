@@ -1,10 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-
-import { logger } from "../infra/logger";
-import { isSafeSegment, safeJoinInside } from "../utils/path-safety";
-import { DocsGenerator } from "../system-library/docs-generator";
+import { DocsGenerator, isSafeSegment, logger, safeJoinInside } from "@data7/core";
 
 const ALL_LABEL = "$(globe) Todos os namespaces";
 const AGENTS_BLOCK_START = "<!-- data7:system-library:start -->";

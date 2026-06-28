@@ -14,7 +14,11 @@ test("enum sugar depends on mod_tenum without materializing a virtual wrapper", 
 });
 
 test("core enum and logger use TTObject without the legacy console module", () => {
-  const coreModulesDir = path.resolve(__dirname, "../../..", "core_modules");
+  const coreModulesDirCandidates = [
+    path.resolve(__dirname, "../../..", "core_modules"),
+    path.resolve(__dirname, "../../../../..", "core_modules"),
+  ];
+  const coreModulesDir = coreModulesDirCandidates.find(fs.existsSync) ?? coreModulesDirCandidates[0]!;
   const enumSource = fs.readFileSync(path.join(coreModulesDir, "mod_tenum.bas"), "utf8");
   const loggerSource = fs.readFileSync(path.join(coreModulesDir, "mod_logger.bas"), "utf8");
 

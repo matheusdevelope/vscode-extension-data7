@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes, type ModuleNotFoundPayload } from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes } from "@data7/core";
+import type { ModuleNotFoundPayload } from "@data7/core";
+
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 
 export function addInstallModuleFix(

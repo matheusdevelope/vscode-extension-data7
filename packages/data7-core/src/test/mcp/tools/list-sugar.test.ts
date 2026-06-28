@@ -12,7 +12,11 @@ import { describe, test } from "node:test";
 
 import { listExamples } from "../../../mcp/resources/examples";
 
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRootCandidates = [
+  path.resolve(__dirname, "..", "..", "..", ".."), // legacy
+  path.resolve(__dirname, "..", "..", "..", "..", "..", ".."), // monorepo
+];
+const REPO_ROOT = repoRootCandidates.find(p => fs.existsSync(path.join(p, "docs"))) ?? repoRootCandidates[0]!;
 const SUGAR_ROOT = path.join(REPO_ROOT, "docs", "example", "sugar");
 
 describe("data7_list_sugar — discovery", () => {

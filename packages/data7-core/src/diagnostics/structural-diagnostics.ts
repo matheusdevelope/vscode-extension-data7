@@ -13,6 +13,10 @@ import {
   type SourceLocation,
 } from "../project/ast/ast";
 
+function isStructureDeclaration(node: { readonly modifiers?: readonly string[] }): boolean {
+  return node.modifiers?.some((modifier) => modifier.toLowerCase() === "structure") ?? false;
+}
+
 export function validateDuplicateDeclarations(
   unit: CompilationUnit,
   document: vscode.TextDocument,
@@ -318,6 +322,8 @@ export function validateDuplicateDeclarations(
 
         const declaredInMethod = new Map<string, SourceLocation>();
         collector.declarations.forEach((v) => {
+          if (v.isCatchVariable) return;
+
           const nameLower = v.name.toLowerCase();
           const range = new vscode.Range(
             v.loc.startLine - 1,
@@ -395,18 +401,22 @@ export function validateMyBaseNewCalls(
 ): void {
   const walker = new (class extends ASTWalker {
     private currentClassName = "";
+    private currentClassIsStructure = false;
 
     public override walk(node: Node): void {
       if (node.kind === "ClassDeclaration") {
         const prev = this.currentClassName;
+        const prevIsStructure = this.currentClassIsStructure;
         this.currentClassName = node.name;
+        this.currentClassIsStructure = isStructureDeclaration(node);
         super.walk(node);
         this.currentClassName = prev;
+        this.currentClassIsStructure = prevIsStructure;
         return;
       }
 
       if (node.kind === "MethodDeclaration") {
-        if (node.isConstructor) {
+        if (node.isConstructor && !this.currentClassIsStructure) {
           let hasMyBaseNew = false;
           const checkCalls = new (class extends ASTWalker {
             protected override visitMethodInvocation(call: MethodInvocation): void {
@@ -461,6 +471,11 @@ export function validateMyBaseFreeCalls(
   const walker = new (class extends ASTWalker {
     public override walk(node: Node): void {
       if (node.kind === "ClassDeclaration") {
+        if (isStructureDeclaration(node)) {
+          super.walk(node);
+          return;
+        }
+
         const baseNameLower = node.baseType?.name.toLowerCase();
         if (baseNameLower === "TEnum") {
           return;

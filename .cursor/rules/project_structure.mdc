@@ -7,24 +7,30 @@ alwaysApply: true
 # Project Structure
 
 - This is a project-specific rule file. It defines where code lives in this repository based on its current architectural state.
-- All TypeScript source lives under `src/` and is compiled to `out/` via `tsc -p ./`.
+- This project is a **monorepo** managed via npm workspaces. All TypeScript source code lives inside packages under `packages/` and is compiled to `dist/` or `out/` within each package.
 - The Domain Data7, Tests/Quality, Governance/Git, and Security/Performance rules remain integral and must be respected alongside this structure.
 
-## Top-level `src/` layout
+## Monorepo Layout
 
-- **Root Files:** Only `src/extension.ts` and `src/commands.ts` are allowed at the root of `src/`. Introducing a new root file requires updating this rule.
-- `src/project/` — Build, decompile, transpile, project config, and the current language kernel:
-  - `parser/` and `ast/`: The core syntax definitions and parsers.
-  - `generics/` and `sugars/`: Implement pure transformations over the AST and canonical code. Every sugar lives in `sugars/plugins/<sugar-id>/`; keep its parser, transformer, diagnostics, types and utility generation together there.
-  - `transpiler.ts` is a compatibility facade and `transpiler-orchestrator.ts` coordinates the pipeline. Neither is a home for sugar implementations. `parser.ts` coordinates parser components; expression and statement grammars belong in dedicated parser modules.
-- `src/analysis/` — Semantic reading, workspace indexing, type resolution, control flow, and dependency discovery. It may consume the parser/AST kernel.
-- `src/diagnostics/` — Diagnostic codes, severity definitions, and AST-driven diagnostic assembly.
-- `src/providers/` — VS Code UI adapters. Providers consume AST/context/indexer; they never implement semantic parsing through raw text or regex.
-- `src/services/` — Command implementations, VS Code integration, workspace trust, and IO orchestration.
-- `src/system-library/` — Native Data7 symbol catalog. `docs/system-library/` is derived from this source.
-- `src/mcp/` — Isolated MCP adapter that reuses the existing runtime via shims.
-- `src/infra/` — Configuration, constants, and logging.
-- `src/utils/` — Pure domain-agnostic helpers; do not place language semantics here.
+- `packages/data7-core/` — The core language kernel, compiler, transpiler, syntax parser, AST, semantics, analyzer, builder, and language services. It is environment-agnostic and reusable.
+- `packages/data7-cli/` — The Command Line Interface wrapper around the core. Handles standard I/O for standalone compilations.
+- `packages/data7-vscode/` — The VS Code extension. Contains VS Code UI adapters, providers, tree views, commands, and workspace integration. It imports `@data7/core`.
+
+## Core Package (`packages/data7-core/src/`)
+
+- `project/parser/` and `project/ast/`: The core syntax definitions and parsers.
+- `project/generics/` and `project/sugars/`: Implement pure transformations over the AST and canonical code. Every sugar lives in `sugars/plugins/<sugar-id>/`.
+- `analysis/` — Semantic reading, workspace indexing, type resolution, control flow, and dependency discovery.
+- `diagnostics/` — Diagnostic codes, severity definitions, and AST-driven diagnostic assembly.
+- `system-library/` — Native Data7 symbol catalog.
+- `mcp/` — Isolated MCP adapter that reuses the existing runtime via shims.
+- `infra/` — Configuration, constants, and logging.
+- `utils/` — Pure domain-agnostic helpers.
+
+## VS Code Package (`packages/data7-vscode/src/`)
+
+- `providers/` — VS Code UI adapters. Providers consume AST/context/indexer from core.
+- `services/` — Command implementations, VS Code integration, workspace trust, and IO orchestration.
 
 ## Files outside `src/`
 

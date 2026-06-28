@@ -132,7 +132,7 @@ export class Decompiler {
       const ordemAbertura = parseIntSafe(xmlRawText(mod, "OrdemAbertura"), 0);
 
       const moduleNamespaces = getModuleMarkedNamespaces(modCode);
-      const isDependency = hasModuleImportedMarker(modCode) || moduleNamespaces.length > 0;
+      const isDependency = hasModuleImportedMarker(modCode);
 
       if (isDependency) {
         const dependencyName = moduleNamespaces[0] ?? modName;

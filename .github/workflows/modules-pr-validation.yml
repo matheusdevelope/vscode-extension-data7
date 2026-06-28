@@ -1,0 +1,29 @@
+name: Modules PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'modules/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history so we can run git diff against origin/main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate PR
+        run: node scripts/modules-validate-pr.js

@@ -19,11 +19,11 @@
  *  - `getServerPath(context)` — absolute path to the installed binary.
  */
 import * as vscode from "vscode";
+import { logger } from "@data7/core";
+
 import * as fs from "fs";
 import * as path from "path";
 import { createHash } from "crypto";
-
-import { logger } from "../infra/logger";
 
 const MCP_SUBFOLDER = "mcp";
 const BUNDLED_NAME = "server.bundled.js";

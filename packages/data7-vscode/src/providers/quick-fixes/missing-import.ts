@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes, type MissingImportPayload } from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes } from "@data7/core";
+import type { MissingImportPayload } from "@data7/core";
+
 import {
   extractNamespaceFromMessage,
   findImportInsertLine,

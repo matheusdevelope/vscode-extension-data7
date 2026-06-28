@@ -1,6 +1,6 @@
-# Guia operacional para agentes — vscode-extension-data7
+# Guia operacional para agentes — vscode-extension-data7 (Monorepo)
 
-Este arquivo resume as regras vigentes em `.cursor/rules/`. Em conflito, siga esta ordem: **segurança → arquitetura → domínio Data7 → VS Code → estrutura → TypeScript → testes → performance → padrões de código**. `git_workflow.mdc` é procedimental e sempre se aplica. Consulte também `project_context.md` e `docs/sugar-architecture.md` antes de mudanças arquiteturais.
+Este arquivo resume as regras vigentes em `.cursor/rules/`. Este projeto é um monorepo estruturado com `packages/data7-core`, `packages/data7-cli` e `packages/data7-vscode`. Em conflito, siga esta ordem: **segurança → arquitetura → domínio Data7 → VS Code → estrutura → TypeScript → testes → performance → padrões de código**. `git_workflow.mdc` é procedimental e sempre se aplica. Consulte também `project_context.md` e `docs/sugar-architecture.md` antes de mudanças arquiteturais.
 
 ## Decisão de delegação e subagentes
 

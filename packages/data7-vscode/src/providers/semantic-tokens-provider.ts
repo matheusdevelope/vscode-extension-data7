@@ -1,9 +1,6 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { TypeResolver } from "../analysis/type-resolver";
-import { SYSTEM_SYMBOLS } from "../system-library";
-import { LanguageProcessor } from "../analysis/language-processor";
+import { LanguageProcessor, SYSTEM_SYMBOLS, TypeResolver, WorkspaceSymbolIndexer } from "@data7/core";
+import type { SymbolInfo } from "@data7/core";
 
 /**
  * Token types we declare to VS Code. Order matters — index = `legend.tokenTypes.indexOf(type)`.

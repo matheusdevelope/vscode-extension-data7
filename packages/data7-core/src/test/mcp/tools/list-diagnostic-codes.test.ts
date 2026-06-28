@@ -12,7 +12,11 @@ import { describe, test } from "node:test";
 
 import { DiagnosticCodes } from "../../../diagnostics/diagnostic-codes";
 
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRootCandidates = [
+  path.resolve(__dirname, "..", "..", "..", ".."), // legacy
+  path.resolve(__dirname, "..", "..", "..", "..", "..", ".."), // monorepo
+];
+const REPO_ROOT = repoRootCandidates.find(p => fs.existsSync(path.join(p, "docs"))) ?? repoRootCandidates[0]!;
 const DIAG_EXAMPLES_DIR = path.join(REPO_ROOT, "docs", "example", "diagnostics");
 
 describe("data7_list_diagnostic_codes — DiagnosticCodes catalog", () => {

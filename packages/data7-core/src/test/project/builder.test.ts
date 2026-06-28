@@ -5,7 +5,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { Builder } from "../../project/builder";
 import { Decompiler } from "../../project/decompiler";
-import { DependencyService } from "../../services/dependency-service";
+import { DependencyScanner } from "../../analysis/dependency-scanner";
+import { getRepoBasPath, getCoreModulesPath } from "../../infra/extension-paths";
 import { withTempDir } from "../_helpers/temp-dir";
 
 /** Fabricates a minimal valid Data7 project on disk inside `dir`. */
@@ -98,7 +99,13 @@ End Namespace
       await withTempDir(async (tmp) => {
         seedProject(tmp);
         fs.writeFileSync(path.join(tmp, "src", "Principal.bas"), `Print("hello")`, "utf-8");
-        DependencyService.syncProjectData7Modules(tmp, {});
+        DependencyScanner.syncDependencies(
+          path.join(tmp, "src"),
+          path.join(tmp, "data7_modules"),
+          getRepoBasPath(),
+          {},
+          { alwaysSyncDirs: [getCoreModulesPath()] }
+        );
 
         const destXml = path.join(tmp, "TestProject.7Proj");
         const logFilePath = path.join(tmp, ".data7", "logs", "vscode-executor.log");
@@ -364,7 +371,7 @@ describe("Decompiler", () => {
       });
     });
 
-    test("extracts only namespaces marked with @Module as dependencies", async () => {
+    test("extracts only namespaces marked with @Module-Imported as dependencies", async () => {
       await withTempDir(async (tmp) => {
         const xml = `<?xml version="1.0" encoding="utf-8"?>
 <Projeto_Data7 _Language="Basic" _Version="1.0">
@@ -383,7 +390,7 @@ End Namespace</Codigo>
       <OrdemAbertura>0</OrdemAbertura>
     </mod_strings_helper>
     <mod_logger>
-      <Codigo>'@Module
+      <Codigo>'@Module-Imported
 Namespace mod_logger
     ' some logger logic
 End Namespace</Codigo>
@@ -404,11 +411,11 @@ End Namespace</Codigo>
 
         assert.ok(
           fs.existsSync(path.join(dest, "src", "mod_strings_helper.bas")),
-          "mod_strings_helper must be decompiled to src/ because it has no @Module marker",
+          "mod_strings_helper must be decompiled to src/ because it has no @Module-Imported marker",
         );
         assert.ok(
           !fs.existsSync(path.join(dest, "src", "mod_logger.bas")),
-          "mod_logger must NOT be decompiled to src/ because it has @Module marker",
+          "mod_logger must NOT be decompiled to src/ because it has @Module-Imported marker",
         );
         assert.ok(
           fs.existsSync(path.join(dest, "data7_modules", "mod_logger.bas")),

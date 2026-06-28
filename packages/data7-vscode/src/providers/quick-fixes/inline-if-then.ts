@@ -1,16 +1,8 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
+import { ASTWalker, DiagnosticCodes, LanguageProcessor, deepClone, getCommentStartIndex, serializeUnit } from "@data7/core";
+import type { CompilationUnit, IfStatement, Node } from "@data7/core";
+
 import { dedupeDiagnostics, hasDiagnosticCode } from "../code-action-helpers";
-import { LanguageProcessor } from "../../analysis/language-processor";
-import {
-  ASTWalker,
-  type Node,
-  type IfStatement,
-  type CompilationUnit,
-} from "../../project/ast/ast";
-import { deepClone } from "../../project/ast/clone";
-import { serializeUnit } from "../../project/parser/serializer";
-import { getCommentStartIndex } from "../../utils/suppression-comments";
 
 export function addInlineIfThenFix(
   actions: vscode.CodeAction[],

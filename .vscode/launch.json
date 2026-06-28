@@ -6,9 +6,13 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"],
-      "preLaunchTask": "${defaultBuildTask}"
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/data7-vscode"],
+      "outFiles": [
+        "${workspaceFolder}/packages/data7-vscode/out/**/*.js",
+        "${workspaceFolder}/packages/data7-core/dist/**/*.js",
+        "${workspaceFolder}/packages/data7-cli/dist/**/*.js"
+      ],
+      "preLaunchTask": "npm: watch"
     }
   ]
 }

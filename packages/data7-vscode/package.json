@@ -1,6 +1,6 @@
 {
   "name": "vscode-extension-data7",
-  "displayName": "Data7 Dev Studio integration",
+  "displayName": "Data7 DevStudio",
   "description": "Ferramentas para desenvolvimento, sincronização e execução de projetos Data7 (.7Proj) no VS Code.",
   "version": "0.1.2",
   "publisher": "matheusdevelope",
@@ -8,6 +8,27 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/matheusdevelope/vscode-extension-data7.git"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package:prepare",
+    "compile": "tsc -p ./",
+    "bundle": "esbuild src/extension.ts --bundle --minify --platform=node --format=cjs --target=node20 --external:vscode --outfile=out/extension.js",
+    "package:assets": "node ../../scripts/prepare-vscode-package.js",
+    "package:prepare": "npm run compile -w @data7/core && npm run compile && npm run bundle && npm run package:assets",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \".\"",
+    "format:check": "prettier --check \".\"",
+    "test": "npm run compile && node --test out/test/**/*.test.js",
+    "test:watch": "tsc -watch -p ./ & node --test --watch out/test/**/*.test.js",
+    "test:coverage": "npm run compile && node --test --experimental-test-coverage out/test/**/*.test.js",
+    "audit:system-library": "npm run compile && node ../../scripts/audit-system-library.js",
+    "docs:system-library": "npm run compile && node ../../scripts/generate-system-library-docs.js",
+    "docs:examples": "node ../../scripts/generate-examples-index.js",
+    "docs:examples:check": "node ../../scripts/generate-examples-index.js --check",
+    "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node ../../scripts/audit-system-library.js && node ../../scripts/generate-examples-index.js --check",
+    "build:extension": "npx @vscode/vsce package --no-dependencies"
   },
   "bugs": {
     "url": "https://github.com/matheusdevelope/vscode-extension-data7/issues"
@@ -91,6 +112,29 @@
         "path": "./syntaxes/d7project.tmLanguage.json"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "data7-explorer",
+          "title": "Data7 Dev Studio",
+          "icon": "$(package)"
+        }
+      ]
+    },
+    "views": {
+      "data7-explorer": [
+        {
+          "id": "data7.quickActionsView",
+          "name": "Ações Rápidas",
+          "type": "tree"
+        },
+        {
+          "id": "data7.modulesView",
+          "name": "Gerenciador de Módulos",
+          "type": "tree"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "data7.project.open",
@@ -130,6 +174,12 @@
         "detail": "Decompõe um projeto .7proj em arquivos .bas individuais"
       },
       {
+        "command": "data7.modules.publishLocal",
+        "title": "01 - Projeto - Publicar Módulo Localmente",
+        "category": "Data7",
+        "detail": "Valida e publica o módulo ativo no repositório privado local"
+      },
+      {
         "command": "data7.modules.install",
         "title": "01 - Projeto - Instalar Módulo",
         "category": "Data7",
@@ -146,6 +196,12 @@
         "title": "01 - Projeto - Atualizar Módulos",
         "category": "Data7",
         "detail": "Atualiza as dependências do projeto Data7 ativo"
+      },
+      {
+        "command": "data7.modules.suggestDependencies",
+        "title": "01 - Projeto - Sugerir Dependências (Auto-Scan)",
+        "category": "Data7",
+        "detail": "Escaneia o código do projeto e sugere a inclusão de dependências ausentes"
       },
       {
         "command": "data7.modules.importToRepository",
@@ -528,7 +584,7 @@
         "data7.databaseConnectionId": {
           "type": "string",
           "default": "",
-          "description": "UUID de Conexão com o Banco de Dados (-C). Se vazio, a extensão tentará ler do projeto data7.json."
+          "description": "UUID de Conexão com o Banco de Dados (-C) usado apenas como fallback ao executar um .7Proj diretamente. Projetos com data7.json usam opcoes.identificacaoBancoDados."
         },
         "data7.exclude": {
           "type": "array",
@@ -714,26 +770,6 @@
       "description": "Em workspaces não confiáveis, recursos que executam o Executor Data7, escrevem no repositório privado ou modificam o projeto ficam desabilitados; o IntelliSense de leitura continua funcionando."
     }
   },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && npm run mcp:articles && npm run mcp:bundle",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \".\"",
-    "format:check": "prettier --check \".\"",
-    "test": "npm run compile && node --test out/test/**/*.test.js",
-    "test:watch": "tsc -watch -p ./ & node --test --watch out/test/**/*.test.js",
-    "test:coverage": "npm run compile && node --test --experimental-test-coverage out/test/**/*.test.js",
-    "audit:system-library": "npm run compile && node scripts/audit-system-library.js",
-    "docs:system-library": "npm run compile && node scripts/generate-system-library-docs.js",
-    "docs:examples": "node scripts/generate-examples-index.js",
-    "docs:examples:check": "node scripts/generate-examples-index.js --check",
-    "mcp:articles": "node scripts/extract-official-articles.js",
-    "mcp:bundle": "esbuild out/mcp/server.js --bundle --minify --platform=node --target=node22 --outfile=out/mcp/server.bundled.js --external:vscode",
-    "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node scripts/audit-system-library.js && node scripts/generate-examples-index.js --check",
-    "build:extension": "npx @vscode/vsce package"
-  },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^22.19.19",
@@ -746,6 +782,7 @@
     "typescript-eslint": "^8.60.0"
   },
   "dependencies": {
+    "@data7/core": "*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "fast-xml-parser": "^5.8.0",
     "zod": "^3.25.0 || ^4.0.0"

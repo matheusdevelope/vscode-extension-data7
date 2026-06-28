@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes } from "@data7/core";
+
 import { dedupeDiagnostics, hasDiagnosticCode } from "../code-action-helpers";
 
 export function addElseIfWhitespaceFix(

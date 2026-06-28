@@ -3,6 +3,7 @@ import { afterEach, describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as vscode from "vscode";
 import { DependencyService } from "../../services/dependency-service";
 import { RepositoryService } from "../../services/repository-service";
 import { withTempDir } from "../_helpers/temp-dir";
@@ -317,4 +318,5 @@ describe("DependencyService", () => {
       assert.deepEqual(result.missing, []);
     });
   });
+
 });

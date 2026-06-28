@@ -1,7 +1,8 @@
 import "../_setup/global-hooks";
+import { WorkspaceSymbolIndexer } from "@data7/core";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+
 import {
   D7BasicSemanticTokensLegend,
   D7BasicSemanticTokensProvider,

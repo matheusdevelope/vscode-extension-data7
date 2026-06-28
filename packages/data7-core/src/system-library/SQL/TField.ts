@@ -114,6 +114,22 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Valor do campo convertido em TDateTime (data e hora).",
   },
   {
+    name: "AsVariant",
+    kind: "property",
+    type: "Variant",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "TField",
+    description: "Valor do campo em Variant.",
+  },
+  {
     name: "SaveToFile",
     kind: "method",
     type: "Void",

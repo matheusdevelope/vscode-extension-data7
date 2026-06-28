@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { mapSystemKindToVsCode } from "../utils/symbol-kind";
+import { WorkspaceSymbolIndexer, mapSystemKindToVsCode } from "@data7/core";
+import type { SymbolInfo } from "@data7/core";
 
 /**
  * Provides workspace-wide symbol search for `Ctrl+T` ("Go to Symbol in Workspace…").

@@ -4,8 +4,10 @@ import { strict as assert } from "node:assert";
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { DocsGenerator } from "@data7/core";
+
 import { DocsService } from "../../services/docs-service";
-import { DocsGenerator } from "../../system-library/docs-generator";
+
 import { withTempDir } from "../_helpers/temp-dir";
 
 const AGENTS_START = "<!-- data7:system-library:start -->";

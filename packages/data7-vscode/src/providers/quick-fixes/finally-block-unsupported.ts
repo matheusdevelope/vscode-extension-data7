@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
-import {
-  LegacyDiagnosticCodes,
-  type FinallyBlockUnsupportedPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { LegacyDiagnosticCodes } from "@data7/core";
+import type { FinallyBlockUnsupportedPayload } from "@data7/core";
+
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 
 export function addFinallyBlockUnsupportedFix(

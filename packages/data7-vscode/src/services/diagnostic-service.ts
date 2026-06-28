@@ -1,23 +1,21 @@
 import * as vscode from "vscode";
+import { DIAGNOSTIC_SOURCE, DependencyScanner, DiagnosticCodes, DiagnosticsLinter, LANGUAGE_IDS, LanguageProcessor, PROJECT_CONFIG_FILENAME, SymbolParser, WorkspaceSymbolIndexer, buildMockDocument, debounceKeyed, getCoreModulesPath, isExcluded, isReadOnlyModuleFile, logger, lookupSystemNamespaceOrClassByName, readConfiguration, readProjectConfig, setDiagnosticPayload } from "@data7/core";
+import type { SharedModuleInfo } from "@data7/core";
+
 import * as path from "path";
 import * as fs from "fs";
-import type { SharedModuleInfo } from "../analysis/dependency-scanner";
-import { DependencyScanner } from "../analysis/dependency-scanner";
-import { WorkspaceSymbolIndexer, SymbolParser } from "../analysis/symbol-indexer";
-import { LanguageProcessor } from "../analysis/language-processor";
-import { DiagnosticsLinter } from "../diagnostics/diagnostics";
+
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
-import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostics/diagnostic-codes";
-import { lookupSystemNamespaceOrClassByName } from "../system-library";
-import { debounceKeyed } from "../utils/debounce";
-import { isExcluded, isReadOnlyModuleFile, readConfiguration } from "../infra/configuration";
-import { logger } from "../infra/logger";
-import { DIAGNOSTIC_SOURCE, LANGUAGE_IDS, PROJECT_CONFIG_FILENAME } from "../infra/constants";
-import { getCoreModulesPath } from "../infra/extension-paths";
-import { readProjectConfig } from "../project/project-config";
-import { buildMockDocument } from "../utils/text-edit-utils";
+
 import { WorkspaceFixService } from "./workspace-fix-service";
+
+export interface WorkspaceLintSummary {
+  readonly errorCount: number;
+  readonly warningCount: number;
+  readonly infoCount: number;
+  readonly fileCount: number;
+}
 
 /**
  * Runs validation diagnostics against `.bas` documents. Refresh is debounced
@@ -554,14 +552,19 @@ export class DiagnosticService {
     }
   }
 
-  public static async findWorkspaceBasFiles(): Promise<vscode.Uri[]> {
+  public static async findWorkspaceBasFiles(workspaceDir?: string): Promise<vscode.Uri[]> {
     if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
       return [];
     }
     const uris = await vscode.workspace.findFiles("**/*.{bas,d7b}");
     return uris.filter((uri) => {
       const fsPath = uri.fsPath;
-      return uri.scheme === "file" && !isExcluded(fsPath) && !isReadOnlyModuleFile(fsPath);
+      return (
+        uri.scheme === "file" &&
+        !isExcluded(fsPath) &&
+        !isReadOnlyModuleFile(fsPath) &&
+        (!workspaceDir || this.isPathInsideWorkspace(fsPath, workspaceDir))
+      );
     });
   }
 
@@ -605,80 +608,15 @@ export class DiagnosticService {
       return;
     }
 
-    let errorCount = 0;
-    let warningCount = 0;
-    let infoCount = 0;
-
-    this.clearWorkspaceDiagnostics();
-
-    // Suppress per-document debounced linting during the batch pass.
-    WorkspaceFixService.isBatchFixInProgress = true;
-    try {
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: "Analisando projeto com o linter...",
-          cancellable: true,
-        },
-        async (progress, token) => {
-          const BATCH_SIZE = 10;
-          for (let i = 0; i < uris.length; i += BATCH_SIZE) {
-            if (token.isCancellationRequested) break;
-
-            const batch = uris.slice(i, i + BATCH_SIZE);
-            progress.report({
-              message: `${i + 1}/${uris.length} — Processando lote de arquivos...`,
-              increment: (batch.length / uris.length) * 100,
-            });
-
-            // Process this batch concurrently (asynchronous files loading + parsing)
-            await Promise.all(
-              batch.map(async (uri) => {
-                try {
-                  const openDoc = vscode.workspace.textDocuments.find(
-                    (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
-                  );
-                  let diags: vscode.Diagnostic[];
-                  if (openDoc) {
-                    this.refreshDiagnosticsNow(openDoc);
-                    diags = this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
-                  } else {
-                    diags = await this.lintFileFromDiskAsync(uri);
-                    this._collection?.set(uri, diags);
-                    this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
-                  }
-
-                  for (const diag of diags) {
-                    if (diag.severity === vscode.DiagnosticSeverity.Error) {
-                      errorCount++;
-                    } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
-                      warningCount++;
-                    } else {
-                      infoCount++;
-                    }
-                  }
-                } catch (err) {
-                  logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
-                }
-              }),
-            );
-
-            // Yield the event loop so VS Code repaints UI snappy
-            await new Promise<void>((resolve) => setImmediate(resolve));
-          }
-        },
-      );
-    } finally {
-      WorkspaceFixService.isBatchFixInProgress = false;
-    }
+    const summary = await this.lintWorkspaceUris(uris, true);
 
     if (showNotification) {
-      const totalIssues = errorCount + warningCount + infoCount;
+      const totalIssues = summary.errorCount + summary.warningCount + summary.infoCount;
       let msg = "";
       if (totalIssues === 0) {
         msg = "Linter concluído: Nenhum problema encontrado no projeto.";
       } else {
-        msg = `Linter concluído: ${errorCount} erro(s), ${warningCount} aviso(s) e ${infoCount} informação(ões) no projeto.`;
+        msg = `Linter concluído: ${summary.errorCount} erro(s), ${summary.warningCount} aviso(s) e ${summary.infoCount} informação(ões) no projeto.`;
       }
 
       const actions =
@@ -693,6 +631,104 @@ export class DiagnosticService {
         }
       });
     }
+  }
+
+  public static async lintWorkspaceForRun(workspaceDir: string): Promise<WorkspaceLintSummary> {
+    if (!this.isEnabled()) {
+      return { errorCount: 0, warningCount: 0, infoCount: 0, fileCount: 0 };
+    }
+
+    const uris = await this.findWorkspaceBasFiles(workspaceDir);
+    if (uris.length === 0) {
+      return { errorCount: 0, warningCount: 0, infoCount: 0, fileCount: 0 };
+    }
+
+    return this.lintWorkspaceUris(uris, false);
+  }
+
+  private static async lintWorkspaceUris(
+    uris: readonly vscode.Uri[],
+    showProgress: boolean,
+  ): Promise<WorkspaceLintSummary> {
+    let errorCount = 0;
+    let warningCount = 0;
+    let infoCount = 0;
+
+    this.clearWorkspaceDiagnostics();
+
+    const run = async (
+      progress?: { report(value: { message?: string; increment?: number }): void },
+      token?: { readonly isCancellationRequested: boolean },
+    ): Promise<void> => {
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < uris.length; i += BATCH_SIZE) {
+        if (token?.isCancellationRequested) break;
+
+        const batch = uris.slice(i, i + BATCH_SIZE);
+        progress?.report({
+          message: `${i + 1}/${uris.length} — Processando lote de arquivos...`,
+          increment: (batch.length / uris.length) * 100,
+        });
+
+        await Promise.all(
+          batch.map(async (uri) => {
+            try {
+              const diags = await this.lintUriForBatch(uri);
+              for (const diag of diags) {
+                if (diag.severity === vscode.DiagnosticSeverity.Error) {
+                  errorCount++;
+                } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+                  warningCount++;
+                } else {
+                  infoCount++;
+                }
+              }
+            } catch (err) {
+              logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
+            }
+          }),
+        );
+
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+    };
+
+    WorkspaceFixService.isBatchFixInProgress = true;
+    try {
+      if (showProgress) {
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: "Analisando projeto com o linter...",
+            cancellable: true,
+          },
+          async (progress, token) => {
+            await run(progress, token);
+          },
+        );
+      } else {
+        await run();
+      }
+    } finally {
+      WorkspaceFixService.isBatchFixInProgress = false;
+    }
+
+    return { errorCount, warningCount, infoCount, fileCount: uris.length };
+  }
+
+  private static async lintUriForBatch(uri: vscode.Uri): Promise<vscode.Diagnostic[]> {
+    const openDoc = vscode.workspace.textDocuments.find(
+      (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+    );
+    if (openDoc) {
+      this.refreshDiagnosticsNow(openDoc);
+      return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+    }
+
+    const diags = await this.lintFileFromDiskAsync(uri);
+    this._collection?.set(uri, diags);
+    this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
+    return diags;
   }
 
   /**
@@ -839,6 +875,15 @@ export class DiagnosticService {
       document.uri.scheme === "file" &&
       (document.languageId === LANGUAGE_IDS.d7basic || document.fileName.endsWith(".bas")) &&
       fs.existsSync(document.uri.fsPath)
+    );
+  }
+
+  private static isPathInsideWorkspace(fsPath: string, workspaceDir: string): boolean {
+    const resolvedPath = path.resolve(fsPath).toLowerCase();
+    const resolvedWorkspace = path.resolve(workspaceDir).toLowerCase();
+    return (
+      resolvedPath === resolvedWorkspace ||
+      resolvedPath.startsWith(resolvedWorkspace + path.sep.toLowerCase())
     );
   }
 

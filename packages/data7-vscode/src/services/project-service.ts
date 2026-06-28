@@ -1,15 +1,12 @@
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { Builder, Decompiler, DependencyScanner, PROJECT_CONFIG_FILENAME, WorkspaceSymbolIndexer, generateProjectGuid, getCoreModulesPath, isRecord, isXmlRecord, logger, parseProjectXml, readConfiguration, readProjectConfig, xmlRecord } from "@data7/core";
+
 import { DiagnosticService } from "./diagnostic-service";
 import * as path from "path";
 import * as fs from "fs";
-import { Builder } from "../project/builder";
-import { Decompiler } from "../project/decompiler";
-import { DependencyScanner } from "../analysis/dependency-scanner";
+
 import { RepositoryService } from "./repository-service";
 import { DependencyService } from "./dependency-service";
-import { generateProjectGuid } from "../utils/guid";
-import { isXmlRecord, parseProjectXml, xmlRecord } from "../utils/xml-helpers";
 
 /**
  * Returns the first non-empty record under one of the candidate keys.
@@ -25,11 +22,7 @@ function pickFirstRecord(
   }
   return undefined;
 }
-import { logger } from "../infra/logger";
-import { readConfiguration } from "../infra/configuration";
-import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
-import { getCoreModulesPath } from "../infra/extension-paths";
-import { readProjectConfig, isRecord } from "../project/project-config";
+
 import { WorkspaceTrustService } from "./workspace-trust-service";
 
 export interface DbConnection {
@@ -561,6 +554,15 @@ export class ProjectService {
               (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
           );
 
+          // Auto-scan dependencies disabled temporarily
+          /*
+          try {
+            fs.writeFileSync(path.join(workspaceDir, ".data7_suggest_deps"), "", "utf8");
+          } catch {
+            // ignore
+          }
+          */
+
           await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(workspaceDir), {
             forceNewWindow: false,
           });
@@ -681,6 +683,8 @@ export class ProjectService {
           DiagnosticService.refreshAllActive();
           logger.info(`Projeto '${projectName}' decomposto com sucesso em: ${targetWorkspace}`);
           vscode.window.showInformationMessage(`Projeto '${projectName}' decomposto com sucesso!`);
+          // Auto-scan dependencies disabled temporarily
+          // void DependencyService.suggestAndInstallDetectedDependencies(targetWorkspace, { silent: true });
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
           logger.error("Erro ao decompor o projeto.", err);

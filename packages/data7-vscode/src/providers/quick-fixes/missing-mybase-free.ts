@@ -1,14 +1,8 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
+import { ASTWalker, DiagnosticCodes, LanguageProcessor, logger } from "@data7/core";
+import type { ClassDeclaration, MethodDeclaration, Node } from "@data7/core";
+
 import { dedupeDiagnostics, hasDiagnosticCode } from "../code-action-helpers";
-import { LanguageProcessor } from "../../analysis/language-processor";
-import {
-  ASTWalker,
-  type Node,
-  type ClassDeclaration,
-  type MethodDeclaration,
-} from "../../project/ast/ast";
-import { logger } from "../../infra/logger";
 
 export function addMissingMyBaseFreeFix(
   actions: vscode.CodeAction[],

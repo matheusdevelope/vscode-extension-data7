@@ -1,21 +1,8 @@
 import * as vscode from "vscode";
-import {
-  DiagnosticCodes,
-  type ReturnUnrecommendedPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { ASTWalker, DiagnosticCodes, LanguageProcessor, deepClone, serializeUnit } from "@data7/core";
+import type { CompilationUnit, IfStatement, MethodDeclaration, Node, PropertyDeclaration, ReturnUnrecommendedPayload, Statement } from "@data7/core";
+
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
-import { LanguageProcessor } from "../../analysis/language-processor";
-import {
-  ASTWalker,
-  type Node,
-  type MethodDeclaration,
-  type PropertyDeclaration,
-  type IfStatement,
-  type Statement,
-  type CompilationUnit,
-} from "../../project/ast/ast";
-import { deepClone } from "../../project/ast/clone";
-import { serializeUnit } from "../../project/parser/serializer";
 
 export function addReturnUnrecommendedFix(
   actions: vscode.CodeAction[],

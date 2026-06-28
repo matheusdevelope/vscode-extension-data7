@@ -2,8 +2,10 @@ import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as vscode from "vscode";
+import { WorkspaceSymbolIndexer } from "@data7/core";
+
 import { D7BasicCompletionProvider } from "../../providers/completion-provider";
-import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+
 import { createMockDoc, noopToken, pos } from "../_helpers/mock-doc";
 
 interface MockCompletionItem {

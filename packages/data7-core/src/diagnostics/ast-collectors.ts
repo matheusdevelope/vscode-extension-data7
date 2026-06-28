@@ -12,6 +12,7 @@ export interface LocalDeclaration {
   name: string;
   loc: SourceLocation;
   isParameter: boolean;
+  isCatchVariable?: boolean;
 }
 
 /** Collects declarations in a method, including parameters and scoped bindings. */
@@ -54,6 +55,7 @@ export class LocalDeclarationCollector extends ASTWalker {
         name: node.catchVar.name,
         loc: node.catchVar.loc,
         isParameter: false,
+        isCatchVariable: true,
       });
     }
     super.walk(node);

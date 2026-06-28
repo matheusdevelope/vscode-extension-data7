@@ -19,6 +19,11 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - A System Library cobre flags de `Forms.GridConfigs` usadas em projetos legados e `TStringList`/`TStrings` podem ser indexados diretamente com `lista[i]`.
 - `private-member-access` permanece estrito, destaca o token exato do membro privado em cadeias longas e o autocomplete nao sugere membros `Private` fora da classe declarante. `redundant-terminal-exit` remove `Exit`/`Return` vazio terminal sem confundir com `missing-return-value`.
 - Quick Fixes corretivos aparecem antes das supressoes, supressoes de linha sao emitidas com `data7:disable-next-line`, `dead-code` agrupa blocos inalcançaveis e o arquivo `.bas` ativo pode ser corrigido pelo comando `Data7: Linter - Corrigir Arquivo Atual`.
+- Diagnosticos `missing-mybase-new` e `missing-mybase-free` valem apenas para `Class`; `Structure` e tratada como estatica e nao recebe `Sub New`, `Sub Free` ou quick fix de destrutor.
+- O linter respeita escopo de variavel de `Catch`, aceita guardas legados `Exit Sub` em `Function` e limita `chained-global-function-assignment` a atribuicoes cujo RHS e diretamente a cadeia de funcao global.
+- A execução via F5 usa `data7.json#opcoes` como fonte principal para conexão, empresa, filial e usuário; `data7.databaseConnectionId` e apenas fallback para execução direta de `.7Proj` fora de um projeto decomposto.
+- Antes de iniciar o Executor no F5, o projeto é reanalisado pelo parser/linter e a execução é cancelada se houver erro. Chamadas qualificadas em namespaces/tipos, como `console.clear()`, também são validadas como `unknown-member` quando o membro não existe.
+- Logs de execuções ficam acumulados no canal dedicado `Data7 Logs`, separado do output interno da extensão.
 - A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio.
 - A System Library inclui aliases iniciais para `System.IOUtils.TFile`, `System.IOUtils.TPath` e `IO.File.ZipFile`; chamadas estaticas dessas classes nao sao tratadas como modulos externos.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
@@ -50,13 +55,19 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 
 ### Repositório de módulos compartilhados
 
+- **Gerenciamento de Dependências Explícito**: Dependências e módulos compartilhados agora são declarados explicitamente no arquivo `data7.json` (seção `dependencies`).
+- **Sincronização**: A extensão baixa e sincroniza automaticamente dependências ausentes para a pasta `data7_modules/`. O construtor injeta automaticamente a flag `@Module-Imported` em arquivos de dependência externa para evitar conflitos na decomposição.
 - Repositório privado de módulos isolado (`globalStoragePath`) que evita poluir o disco.
-- Importação manual ou em lote de `.bas`/`.7Proj` externos.
+- Módulos locais do próprio projeto vivem nativamente em `src/`, sem a obrigatoriedade da flag `@Module`.
 - Módulos orientados a objeto usam `TTObject` para permitir armazenamento seguro em `TTList` e descarte determinístico de recursos.
 - O sugar declarativo `Enun X` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções, sem conflitar com `Enum X` nativo.
 - Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
-- Sincronização automática para `data7_modules/` no workspace conforme `data7.json#dependencies`.
-- Dependencias locais recebidas de outro projeto sao preservadas em `data7_modules/` quando o modulo marcado com `'@Module`/`'@Module-Imported` ainda nao existe no repositorio local.
+
+### Arquitetura (Monorepo)
+O projeto é estruturado como um monorepo via NPM Workspaces, contendo:
+- `@data7/core`: Kernel da linguagem (parser, linter, builder, indexador) independente do VS Code.
+- `@data7/cli`: Interface CLI para integração contínua (CI) e uso standalone.
+- `vscode-extension-data7`: A extensão gráfica do VS Code.
 
 ### Documentação da System Library
 
@@ -69,6 +80,10 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 2. Abra uma pasta contendo um arquivo `.7Proj` — a extensão oferecerá decompor para edição no VS Code.
 3. Configure o caminho do Executor em **Settings** → `data7.executorPath` (a extensão também perguntará na 1ª execução).
 4. Use `F5` para rodar o projeto, `Ctrl+Shift+B` para compilar.
+
+## Empacotamento VSIX
+
+Use `npm run build:extension -w vscode-extension-data7` ou rode o mesmo comando dentro de `packages/data7-vscode`. O prepublish compila `@data7/core`, gera o bundle minificado da extensão com `esbuild`, copia os assets runtime para a pasta do pacote e chama `vsce package --no-dependencies` para não seguir os links dos workspaces do monorepo.
 
 ## Comandos principais
 
@@ -96,7 +111,7 @@ Veja `Settings` → busca por `data7.`:
 | `data7.executorPath`                            | string   | —                                                   | Caminho do `Executor.exe` ou `D7MG.exe`                                                                                                                                    |
 | `data7.sharedModulesPath`                       | string   | —                                                   | Pasta global de módulos compartilhados                                                                                                                                     |
 | `data7.userName` / `companyCode` / `branchCode` | int      | `1`                                                 | Códigos passados ao Executor (`-U` / `-E` / `-F`)                                                                                                                          |
-| `data7.databaseConnectionId`                    | string   | —                                                   | UUID da conexão de banco (`-C`); se vazio, lê do `data7.json`                                                                                                              |
+| `data7.databaseConnectionId`                    | string   | —                                                   | Fallback de conexão (`-C`) apenas para executar `.7Proj` diretamente; projetos com `data7.json` usam `opcoes.identificacaoBancoDados`                                      |
 | `data7.exclude`                                 | string[] | `["**/node_modules/**", "**/.git/**", "**/out/**"]` | Globs ignorados pelo indexador e pelo linter. `data7_modules/**` é tratado separadamente: indexado para resolução de tipos, mas o linter não emite diagnósticos sobre eles |
 | `data7.diagnosticSeverity`                      | object   | `{}`                                                | Sobrescreve a severidade por código (`{"unused-import": "info"}`)                                                                                                          |
 | `data7.autoFormatOnSave`                        | bool     | `false`                                             | Formata arquivos `.bas` automaticamente ao salvar                                                                                                                          |
@@ -120,7 +135,7 @@ Veja `Settings` → busca por `data7.`:
 }
 ```
 
-`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. Com `features.diagnostics.enabled: true`, o linter live acompanha arquivos `.bas` físicos abertos; o comando **Data7: Reiniciar/Rodar Linter no Projeto** analisa o workspace inteiro e mantém os resultados no painel Problems até nova análise, limpeza ou alteração do arquivo. `features.diagnostics.lintWorkspaceOnStartup` executa essa varredura completa ao abrir a IDE quando habilitado, mas fica desligado por padrão para evitar custo inicial em projetos grandes. `features.build.autoFixBeforeBuild` fica desligado por padrão para não bloquear F5, build ou Developer Studio com uma análise completa do workspace; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção explícita no editor atual, use **Data7: Linter - Corrigir Arquivo Atual**; para o workspace inteiro, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
+`data7.sugars` continua selecionando IDs individuais quando `features.language.sugars` está ativo. Com `features.diagnostics.enabled: true`, o linter live acompanha arquivos `.bas` físicos abertos; o comando **Data7: Reiniciar/Rodar Linter no Projeto** analisa o workspace inteiro e mantém os resultados no painel Problems até nova análise, limpeza ou alteração do arquivo. `features.diagnostics.lintWorkspaceOnStartup` executa essa varredura completa ao abrir a IDE quando habilitado, mas fica desligado por padrão para evitar custo inicial em projetos grandes. `features.build.autoFixBeforeBuild` fica desligado por padrão para evitar correções automáticas antes de F5, build ou Developer Studio; quando ligado, processa somente os `.bas` alterados desde o último build da sessão. Mesmo com auto-fix desligado, o F5 reanalisa o projeto e não inicia o Executor enquanto houver erros de parser/linter. Build, execução e abertura no Developer Studio mantêm snapshots em `.data7/build-cache/`: se `src/`, `data7_modules/`, `data7.json` e o `.7Proj` de saída não mudaram, a extensão pula o empacotamento e abre/executa imediatamente; quando há mudança, o Builder reutiliza transpilações cacheadas dos arquivos inalterados. O F5 gera sua variante com logger em `.data7/run/*.run.7Proj`, preservando o `.7Proj` standard usado pelo Developer Studio. Para uma correção explícita no editor atual, use **Data7: Linter - Corrigir Arquivo Atual**; para o workspace inteiro, use **Data7: Corrigir Erros de Sintaxe/Estilo no Projeto Completo**. A flag legada `data7.autoFormatOnSave` continua sendo aceita; prefira `data7.features.save.autoFormatOnSave` para instalações novas. Recursos registrados na ativação (detecção de projeto e prévia) passam a valer após recarregar a janela.
 
 O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `minify.removeUnused`, `minify.mergeNamespaces`, `uglify.enabled` e `sourceMap`. As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
 
@@ -169,12 +184,12 @@ Também preserva `Throw` inline e usa as declarações de tipo do código para e
 
 ```bash
 npm install
-npm run compile      # compila uma vez
-npm run watch        # compila em modo incremental
+npm run compile      # compila os workspaces em ordem: core -> vscode -> cli
+npm run watch        # recompila core, vscode e cli em modo incremental
 npm test             # roda toda a suíte de testes (node --test)
 ```
 
-Para depurar a extensão, abra este repositório no VS Code e pressione `F5` para iniciar a Extension Host.
+Para depurar a extensão, abra este repositório no VS Code e pressione `F5` para iniciar a Extension Host. O pre-launch task `npm: watch` espera a primeira compilação de todos os workspaces; depois, alterações em `packages/data7-core`, `packages/data7-vscode` e `packages/data7-cli` são recompiladas em background. Use `Ctrl+R` na Extension Host para recarregar a IDE com os artefatos recém-gerados.
 
 ## Licença
 

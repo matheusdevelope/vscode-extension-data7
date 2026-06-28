@@ -1,14 +1,6 @@
 import * as vscode from "vscode";
-import type { SymbolInfo } from "../analysis/symbol-indexer";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { lookupSystemByName } from "../system-library";
-import { TypeResolver } from "../analysis/type-resolver";
-import { TimeTracker } from "../utils/performance";
-import { detectEnumerable } from "../analysis/enumerable-detector";
-import { formatParameterList } from "../utils/format-helpers";
-import { LANGUAGE_IDS } from "../infra/constants";
-import { inferLiteralType } from "../utils/literal-type-infer";
-import { D7AstContext, astLocalToSymbol, typeRefToString } from "../analysis/ast-context";
+import { D7AstContext, LANGUAGE_IDS, TimeTracker, TypeResolver, WorkspaceSymbolIndexer, astLocalToSymbol, detectEnumerable, formatParameterList, inferLiteralType, lookupSystemByName, typeRefToString } from "@data7/core";
+import type { SymbolInfo } from "@data7/core";
 
 export class D7BasicHoverProvider implements vscode.HoverProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();

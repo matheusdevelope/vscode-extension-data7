@@ -4,6 +4,16 @@ Membros `Private` permanecem restritos a classe declarante, mesmo quando o compi
 
 O linter de `return-unrecommended` ignora blocos de propriedade (`Property Get`), visto que o compilador nativo do Data7 não suporta a palavra-chave `Exit Property` e exige o uso de `Return` para retorno de propriedades. Consequentemente, nenhum diagnóstico de aviso de `Return` é emitido em propriedades e nenhum QuickFix correspondente é oferecido.
 
+Os diagnosticos estruturais de ciclo de vida (`missing-mybase-new` e `missing-mybase-free`) se aplicam somente a `Class`. `Structure` e estatica implicitamente no Data7 Basic e nao deve receber exigencia de construtor, destrutor, `MyBase.New()` ou `MyBase.Free()`.
+
+No escopo local, variaveis declaradas por `Catch` pertencem ao bloco de captura e podem repetir nomes como `ex` em outros `Try/Catch` do mesmo metodo. O analisador de fluxo tambem aceita o padrao legado `Exit Sub` dentro de `Function` como saida antecipada com retorno padrao, sem emitir `missing-return-value`. `chained-global-function-assignment` deve ser emitido apenas quando o RHS da atribuicao e diretamente uma cadeia iniciada por funcao global; quando essa cadeia aparece como operando de expressao composta, como `DateTime() - DateTime().EncodeTime(...)`, nao ha diagnostico.
+
+A execucao de projeto via F5 deve usar `data7.json#opcoes` como fonte de verdade para `identificacaoBancoDados`, `codEmpresa`, `codFilial` e `nomeUsuario`. Antes de executar, o servico reutiliza a validacao de conexao do projeto; se o ID ja e valido no `data7.json`, nenhum prompt adicional deve aparecer. A configuracao global `data7.databaseConnectionId` existe apenas como fallback para execucao direta de um `.7Proj` sem contexto de projeto decomposto.
+
+Antes de iniciar o Executor no F5, a extensão deve reexecutar o pipeline de diagnosticos do projeto ativo e cancelar a execucao se houver qualquer erro de parser/linter restante. Avisos nao bloqueiam a execucao. Chamadas qualificadas contra namespaces ou tipos conhecidos tambem fazem parte dessa validacao: `Namespace.Metodo()` deve emitir `unknown-member` quando o metodo nao estiver declarado no container, como em `console.clear()` quando o namespace `console` nao possui `clear`.
+
+Logs produzidos por execucoes do projeto pertencem ao canal dedicado `Data7 Logs`, separado do logger interno `Data7` da extensao. Esse canal nao deve ser limpo nem descartado automaticamente entre execucoes; apenas o usuario deve limpar seu conteudo.
+
 Para melhorar o desempenho da IDE e do linter, a extensão implementa:
 
 1. Um cache global de membros resolvidos por tipo (`allMembersForTypeCache` no `WorkspaceSymbolIndexer`) que acelera em $O(1)$ a análise de expressões e atribuições no linter.
@@ -11,6 +21,8 @@ Para melhorar o desempenho da IDE e do linter, a extensão implementa:
 3. A exclusão da pasta gerenciada `data7_modules/` do FileSystemWatcher do VS Code para evitar auto-invalidações concorrentes.
 4. A limitação da reavaliação em cascata de arquivos dependentes do workspace exclusivamente ao salvamento de arquivos (`onDidSaveTextDocument`), mantendo o processo de digitação local, veloz e leve na CPU.
 5. Um cache compartilhado de parse em `LanguageProcessor.getOrParse`, usado por diagnostics, hover, completion, definition, references, rename, semantic tokens e quick fixes. Providers nao devem reparsear texto por conta propria quando esse cache atende ao caso; escritas feitas por correcoes devem chamar `LanguageProcessor.invalidate(uri)` para forcar uma leitura consistente na proxima interacao.
+
+O pacote VSIX deve ser montado a partir de `packages/data7-vscode` como artefato fechado: o prepublish compila `@data7/core`, empacota `src/extension.ts` em `out/extension.js` com `esbuild` e copia para staging apenas `docs/`, `core_modules/`, `out/mcp/server.bundled.js`, README, CHANGELOG e LICENSE. O comando de pacote usa `vsce package --no-dependencies` para evitar que symlinks/junctions de workspaces (`node_modules/@data7/*`) façam o VSIX incluir o monorepo inteiro ou artefatos antigos.
 
 `Forms.GridConfigs` inclui as flags booleanas legadas usadas para configurar linhas, sizing/moving, selecao e cliques de cabecalho do Grid. `Collections.TStrings` expoe `Item(Integer) As String` como indexed-property default, entao `TStringList` e descendentes aceitam acesso direto `lista[i]` no linter.
 
@@ -52,8 +64,7 @@ O linter live acompanha arquivos físicos locais com esquema `file` que estejam 
 
 O `DependencyService` mantém `data7.json#dependencies` e `data7_modules/` sincronizados com o grafo atual do projeto. Saves, criação, deleção e rename de arquivos `.bas` agendam uma reavaliação debounced: se um namespace antes suprido por `src/` desaparece ou muda, a dependência global equivalente passa a ser declarada e copiada; se uma dependência deixa de ser referenciada, ela é removida da lista e da pasta gerada. A excecao e para copias locais em `data7_modules/` marcadas com `'@Module` ou `'@Module-Imported` cujo namespace nao existe no repositorio/core local: elas continuam em `data7.json#dependencies` e no disco para preservar projetos recebidos de terceiros. Esse refresh reindexa apenas `data7_modules/` e atualiza diagnósticos abertos, sem rebuild completo.
 
-A deteccao de dependencias deve consumir a AST do parser para `Imports`, tipos qualificados e acessos `Namespace.Membro`; strings, comentarios, `OpaqueStatement` e nomes declarados no proprio arquivo nao podem promover modulos em `data7.json`. Modulo nao segue convencao `mod_*`: o identificador e o namespace exato, e um namespace so vira modulo de repositorio quando estiver marcado com o comentario `'@Module` imediatamente antes do `Namespace`.
-
+A deteccao de dependencias foi refatorada. O antigo comportamento de varredura automática baseada na tag `@Module` foi desativado temporariamente devido à modelagem onde módulos podem possuir múltiplos namespaces. Agora, as dependências externas são declaradas explicitamente em `data7.json` (via comando de instalação). Módulos locais decompilados do próprio projeto vivem nativamente em `src/`, sendo tratados como código local do usuário, sem necessidade da flag `@Module`. O construtor encarrega-se de adicionar a tag `@Module-Imported` para diferenciar dependências externas durante o processo de build e decompilação.
 Na mesma coleta AST, acessos abreviados de `With` representados como `.Membro` nao produzem referencia de modulo: o alvo vazio gerado pelo parser e descartado antes de alimentar `module-not-found`.
 
 Classes e namespaces da System Library tambem devem encerrar a validacao de modulo implicito: `TFile.Exists(...)`, `TPath.GetTempPath(...)` e `File.ExtractName(...)` sao chamadas estaticas nativas, nao dependencias de repositorio. `System.IOUtils.TFile`, `System.IOUtils.TPath` e o alias qualificado `IO.File.ZipFile` estao modelados como simbolos de sistema para manter hover, autocomplete e linter no mesmo caminho de resolucao.
@@ -507,7 +518,8 @@ npm run verify
 Para iterar mais rápido durante o desenvolvimento, use os scripts individuais:
 
 ```bash
-npm run compile        # tsc -p ./
+npm run compile        # compila workspaces em ordem: @data7/core -> vscode-extension-data7 -> @data7/cli
+npm run watch          # watch incremental dos tres workspaces; usado pelo F5 da Extension Host
 npm run lint           # ESLint (inclui fences arquiteturais)
 npm run format:check   # Prettier --check
 npm run test           # compile + node --test out/test/**/*.test.js

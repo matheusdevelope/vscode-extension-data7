@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
-import { LanguageProcessor } from "../analysis/language-processor";
+import { LanguageProcessor, WorkspaceSymbolIndexer } from "@data7/core";
 
 /**
  * Provides "Find All References" (Shift+F12) for Data7 Basic identifiers.

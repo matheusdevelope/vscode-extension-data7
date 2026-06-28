@@ -2,9 +2,32 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "npm",
-      "script": "watch",
-      "problemMatcher": "$tsc-watch",
+      "label": "npm: watch",
+      "type": "shell",
+      "command": "npm run watch",
+      "problemMatcher": {
+        "owner": "typescript",
+        "source": "tsc",
+        "applyTo": "closedDocuments",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^\\[[^\\]]+\\]\\s+(.*)\\((\\d+),(\\d+)\\):\\s+(error|warning)\\s+(TS\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\[watch\\] starting workspace watchers$",
+          "endsPattern": "^\\[watch\\] all workspaces ready$"
+        }
+      },
       "isBackground": true,
       "presentation": {
         "reveal": "never"

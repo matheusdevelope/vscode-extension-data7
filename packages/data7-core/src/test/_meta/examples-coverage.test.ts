@@ -32,6 +32,7 @@ function resolveExamplesRoot(): string {
   const candidates = [
     path.resolve(__dirname, "..", "..", "..", "docs", "example"), // out/test/_meta → repo root
     path.resolve(__dirname, "..", "..", "..", "..", "docs", "example"), // src/test/_meta → repo root
+    path.resolve(__dirname, "..", "..", "..", "..", "..", "docs", "example"), // monorepo path
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;

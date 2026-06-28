@@ -229,12 +229,17 @@ export class ASTFlowAnalyzer {
           statement.target === "Function" ||
           statement.target === "Property"
         ) {
+          const isLegacyFunctionExitSub = this.isFunction && statement.target === "Sub";
           if (isMethodTailStatement) {
             this.pushRedundantTerminalExitDiagnostic(statement);
-          } else if (this.isFunction && !state.retValSet) {
+          } else if (this.isFunction && !state.retValSet && !isLegacyFunctionExitSub) {
             this.hasMissingReturnPath = true;
           }
-          return { ...state, reachable: false };
+          return {
+            ...state,
+            reachable: false,
+            retValSet: state.retValSet || isLegacyFunctionExitSub,
+          };
         }
         return state;
       case "Assignment": {

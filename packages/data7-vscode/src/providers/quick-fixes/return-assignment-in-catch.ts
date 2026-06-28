@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
-import {
-  DiagnosticCodes,
-  type ReturnAssignmentInCatchPayload,
-} from "../../diagnostics/diagnostic-codes";
+import { DiagnosticCodes } from "@data7/core";
+import type { ReturnAssignmentInCatchPayload } from "@data7/core";
+
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 
 export function addReturnAssignmentInCatchFix(

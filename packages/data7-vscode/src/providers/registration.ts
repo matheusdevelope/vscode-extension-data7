@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
-
-import { LANGUAGE_IDS } from "../infra/constants";
+import { LANGUAGE_IDS } from "@data7/core";
 
 import { D7BasicCodeActionProvider } from "./code-action-provider";
 import { D7BasicCompletionProvider } from "./completion-provider";

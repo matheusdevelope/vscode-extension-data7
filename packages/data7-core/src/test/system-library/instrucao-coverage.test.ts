@@ -31,9 +31,10 @@ interface InstrucaoTarget {
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
 const REPO_ROOT_FALLBACK = path.resolve(__dirname, "..", "..", "..");
+const REPO_ROOT_MONOREPO = path.resolve(__dirname, "..", "..", "..", "..", "..");
 
 function resolveRepoFile(relative: string): string {
-  for (const root of [REPO_ROOT, REPO_ROOT_FALLBACK]) {
+  for (const root of [REPO_ROOT, REPO_ROOT_FALLBACK, REPO_ROOT_MONOREPO]) {
     const candidate = path.join(root, relative);
     if (fs.existsSync(candidate)) return candidate;
   }

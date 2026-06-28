@@ -9,7 +9,8 @@
 import { parse, parseExpr } from "./parser";
 import type { ParseResult, ParseOptions } from "./parser";
 
-export { tokenize } from "./lexer";
+export { tokenize, tokenizeLine } from "./lexer";
+export type { LineToken } from "./lexer";
 export { parse, parseExpr };
 export type { ParseResult, ParseOptions };
 export { makeError } from "./parser-errors";

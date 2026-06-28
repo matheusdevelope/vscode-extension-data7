@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { LanguageProcessor } from "../analysis/language-processor";
-import type { TopLevelMember, ClassMember, SourceLocation } from "../project/ast/ast";
+import { LanguageProcessor } from "@data7/core";
+import type { ClassMember, SourceLocation, TopLevelMember } from "@data7/core";
 
 /**
  * Provides hierarchical symbols (Namespace > Class > Method/Property/Field)
