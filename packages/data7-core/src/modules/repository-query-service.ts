@@ -12,7 +12,9 @@ export interface ModuleManifest {
 }
 
 export class RepositoryQueryService {
-  private static readonly GITHUB_REPO = "matheusdevelope/vscode-extension-data7";
+  private static get GITHUB_REPO(): string {
+    return process.env.DATA7_GITHUB_REPO || "matheusdevelope/data7-modules";
+  }
   private static readonly USER_AGENT = "data7-ecosystem-agent";
   private static rateLimitResetTime = 0;
 

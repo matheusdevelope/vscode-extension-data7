@@ -43,7 +43,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "Items",
     kind: "property",
-    type: "TStringList",
+    type: "TStrings",
     isShared: false,
     isPrivate: false,
     range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
@@ -88,12 +88,12 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "SelectedItem",
     kind: "property",
-    type: "String",
+    type: "Integer",
     isShared: false,
     isPrivate: false,
     range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
     fileUri: "system://library",
     containerName: "HComboBox",
-    description: "Texto do item atualmente selecionado na lista.",
+    description: "Index do item atualmente selecionado na lista.",
   },
 ];

@@ -274,19 +274,26 @@ export class TypeResolver {
       const byName = lookupSystemClassByName(namePart)[0];
       if (byName) return byName;
 
-      return (
-        indexer.findSymbolByName(namePart) ??
-        (isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer))
+      const wsMatches = indexer.getSymbolsByName(namePart).filter(
+        (s) =>
+          (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") &&
+          (s.containerName?.toLowerCase() === nsPart.toLowerCase() ||
+           nsPart.toLowerCase().endsWith("." + s.containerName?.toLowerCase()))
       );
+      if (wsMatches.length > 0) {
+        return wsMatches[0];
+      }
+      return isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer);
     }
 
     const sys = lookupSystemClassByName(qualifiedOrSimpleName)[0];
     if (sys) return sys;
 
-    return (
-      indexer.findSymbolByName(qualifiedOrSimpleName) ??
-      (isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer))
-    );
+    const wsSym = indexer.findSymbolByName(qualifiedOrSimpleName);
+    if (wsSym && (wsSym.kind === "class" || wsSym.kind === "structure" || wsSym.kind === "delegate")) {
+      return wsSym;
+    }
+    return isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer);
   }
 
   /**
@@ -353,7 +360,7 @@ export class TypeResolver {
       (symbol.kind === "method" ||
         symbol.kind === "declare_sub" ||
         symbol.kind === "declare_function") &&
-      (arity === undefined || (symbol.parameters ? symbol.parameters.length : 0) === arity);
+      (arity === undefined || isArityMatch(symbol.parameters, arity));
     const select = (symbols: readonly SymbolInfo[]): SymbolInfo | undefined =>
       argumentTypes
         ? (symbols.find((symbol) =>
@@ -929,7 +936,7 @@ export class TypeResolver {
         .filter((s) => containerMatch(s.containerName));
 
       if (arity !== undefined) {
-        const arityHit = allWsHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
+        const arityHit = allWsHits.find((s) => isArityMatch(s.parameters, arity));
         if (arityHit) return arityHit;
       }
 
@@ -938,7 +945,7 @@ export class TypeResolver {
       );
 
       if (arity !== undefined) {
-        const arityHit = allSysHits.find((s) => (s.parameters ? s.parameters.length : 0) === arity);
+        const arityHit = allSysHits.find((s) => isArityMatch(s.parameters, arity));
         if (arityHit) return arityHit;
       }
 
@@ -978,7 +985,7 @@ export class TypeResolver {
     const arity = argumentTypes.length;
     const candidates = TypeResolver.getAllMembersForType(typeName, indexer).filter(
       (s) =>
-        s.name.toLowerCase() === memberLower && (s.parameters ? s.parameters.length : 0) === arity,
+        s.name.toLowerCase() === memberLower && isArityMatch(s.parameters, arity),
     );
 
     return (
@@ -1243,21 +1250,53 @@ export class TypeResolver {
     baseClassName: string,
     indexer: WorkspaceSymbolIndexer,
   ): boolean {
-    let current = subClassName.toLowerCase();
-    const target = baseClassName.toLowerCase();
-    if (current === target) return true;
+    let current = normalizeGenericTypeName(subClassName);
+    const targetSymbol =
+      TypeResolver.findClassSymbol(baseClassName, indexer) ??
+      findGenericBaseSymbol(genericBaseNameOf(baseClassName), indexer);
+    const targetKeys = buildClassComparisonKeys(baseClassName, targetSymbol);
+
     const visited = new Set<string>();
-    while (current && current !== target && !visited.has(current)) {
-      visited.add(current);
+    while (current) {
       const cls =
         TypeResolver.findClassSymbol(current, indexer) ??
         findGenericBaseSymbol(genericBaseNameOf(current), indexer);
       if (!cls) break;
+
+      const visitKey = classSymbolKey(cls);
+      if (visited.has(visitKey)) break;
+      visited.add(visitKey);
+
+      if (setsIntersect(buildClassComparisonKeys(current, cls), targetKeys)) return true;
       const parent = TypeResolver.resolveParent(cls);
-      current = parent ? parent.toLowerCase() : "";
+      current = parent ? normalizeGenericTypeName(parent) : "";
     }
-    return current === target;
+    return false;
   }
+}
+
+function classSymbolKey(symbol: SymbolInfo): string {
+  const name = symbol.name.toLowerCase();
+  const container = symbol.containerName?.toLowerCase();
+  return container ? `${container}.${name}` : name;
+}
+
+function buildClassComparisonKeys(
+  requestedTypeName: string,
+  resolvedSymbol: SymbolInfo | undefined,
+): Set<string> {
+  const keys = new Set<string>();
+  const normalized = normalizeGenericTypeName(requestedTypeName).toLowerCase();
+  if (normalized.length > 0) keys.add(normalized);
+  if (resolvedSymbol) keys.add(classSymbolKey(resolvedSymbol));
+  return keys;
+}
+
+function setsIntersect(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  for (const value of left) {
+    if (right.has(value)) return true;
+  }
+  return false;
 }
 
 function getGenericTemplateMembersForType(
@@ -1472,17 +1511,22 @@ function findGenericBaseSymbol(
   indexer: WorkspaceSymbolIndexer,
 ): SymbolInfo | undefined {
   if (!genericBaseName) return undefined;
+  let symbol: SymbolInfo | undefined;
   if (genericBaseName.includes(".")) {
     const lastDot = genericBaseName.lastIndexOf(".");
     const namePart = genericBaseName.substring(lastDot + 1);
     const nsPart = genericBaseName.substring(0, lastDot);
-    return (
+    symbol =
       lookupSystemClassByName(namePart).find(
         (s) => s.containerName?.toLowerCase() === nsPart.toLowerCase(),
-      ) ?? indexer.findSymbolByName(namePart)
-    );
+      ) ?? indexer.findSymbolByName(namePart);
+  } else {
+    symbol = lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
   }
-  return lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
+  if (symbol && (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate")) {
+    return symbol;
+  }
+  return undefined;
 }
 
 function isVariableLikeSymbol(symbol: SymbolInfo): boolean {
@@ -1505,17 +1549,46 @@ function isPrincipalFileUri(fileUri: string): boolean {
   return /(?:^|[/\\])principal\.bas$/i.test(fileUri);
 }
 
+
+function isArityMatch(
+  parameters: readonly { readonly isOptional?: boolean; readonly defaultValue?: string }[] | undefined,
+  arity: number,
+): boolean {
+  if (!parameters || parameters.length === 0) {
+    return arity === 0;
+  }
+  let minParams = 0;
+  for (const p of parameters) {
+    if (!p.isOptional && p.defaultValue === undefined) {
+      minParams++;
+    }
+  }
+  const maxParams = parameters.length;
+  return arity >= minParams && arity <= maxParams;
+}
+
 function parametersAcceptArguments(
-  parameters: readonly { readonly type: string }[],
+  parameters: readonly { readonly type: string; readonly isOptional?: boolean; readonly defaultValue?: string }[],
   argumentTypes: readonly (string | undefined)[],
   indexer: WorkspaceSymbolIndexer,
 ): boolean {
-  if (parameters.length !== argumentTypes.length) return false;
-  return parameters.every((parameter, index) => {
-    const argumentType = argumentTypes[index];
-    if (!argumentType) return true;
-    return isArgumentAssignableToParameter(argumentType, parameter.type, indexer);
-  });
+  if (argumentTypes.length > parameters.length) return false;
+  for (let i = 0; i < argumentTypes.length; i++) {
+    const argumentType = argumentTypes[i];
+    if (!argumentType) continue;
+    const parameter = parameters[i];
+    if (!parameter) return false;
+    if (!isArgumentAssignableToParameter(argumentType, parameter.type, indexer)) {
+      return false;
+    }
+  }
+  for (let i = argumentTypes.length; i < parameters.length; i++) {
+    const parameter = parameters[i];
+    if (parameter && !parameter.isOptional && parameter.defaultValue === undefined) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function isArgumentAssignableToParameter(

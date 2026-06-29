@@ -26,6 +26,15 @@ import { DependencyService } from "./services/dependency-service";
 import { ProjectService } from "./services/project-service";
 
 export function activate(context: vscode.ExtensionContext): void {
+  // Load .env configurations
+  const { loadDotEnv } = require("@data7/core");
+  loadDotEnv(context.extensionUri.fsPath);
+  if (vscode.workspace.workspaceFolders) {
+    for (const folder of vscode.workspace.workspaceFolders) {
+      loadDotEnv(folder.uri.fsPath);
+    }
+  }
+
   initLogger(context);
   RepositoryService.initialize(context);
   logger.info("Extensão Data7 Dev Studio ativada.");

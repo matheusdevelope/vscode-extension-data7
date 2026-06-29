@@ -164,7 +164,7 @@ class SymbolIndexerWalker extends ASTWalker {
           endChar: loc.endChar,
         },
         fileUri: this.fileUri,
-        containerName: this.activeNamespace,
+        containerName: prevClass ?? this.activeNamespace,
         description: node.comment?.trim() ?? undefined,
       };
       if (node.typeParameters.length > 0) {

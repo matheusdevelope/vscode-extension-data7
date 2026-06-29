@@ -240,11 +240,11 @@ const aliases: readonly AliasSpec[] = [
     inheritsFrom: "TcxButtonEdit",
     description: "Editor de pesquisa padrão Data7 — ancestral de SearchTextBox.",
   },
-  {
-    name: "TMemoEditor",
-    inheritsFrom: "TcxMemo",
-    description: "Memo multilinha Data7 — ancestral de MemoTextBox.",
-  },
+  // {
+  //   name: "TMemoEditor",
+  //   inheritsFrom: "TcxMemo",
+  //   description: "Memo multilinha Data7 — ancestral de MemoTextBox.",
+  // },
   {
     name: "TValorEditor",
     inheritsFrom: "TcxCurrencyEdit",

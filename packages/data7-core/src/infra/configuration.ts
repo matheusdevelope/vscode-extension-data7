@@ -1,7 +1,42 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
 import { CONFIG_NAMESPACE } from "./constants";
 
 const SECTION = CONFIG_NAMESPACE;
+
+/**
+ * Loads a .env file from the given directory path.
+ * Parses lines like KEY=VALUE and sets process.env.KEY.
+ */
+export function loadDotEnv(dir: string): void {
+  const envPath = path.join(dir, ".env");
+  if (fs.existsSync(envPath)) {
+    try {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          let val = trimmed.slice(eqIdx + 1).trim();
+          // Remove surrounding quotes if any
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (!process.env[key]) {
+            process.env[key] = val;
+          }
+        }
+      }
+    } catch (err) {
+      // Ignore errors silently
+    }
+  }
+}
+
 
 export type DiagnosticSeverityOverride = "error" | "warning" | "info" | "hint" | "off";
 

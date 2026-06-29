@@ -91,7 +91,7 @@ describe("ModuleOrchestrator - publishModuleLocally", () => {
 
     await assert.rejects(
       ModuleOrchestrator.publishModuleLocally(tempWorkspace),
-      /deve conter pelo menos um arquivo de código '\.bas'/
+      /deve conter pelo menos um arquivo de código/
     );
   });
 
@@ -139,3 +139,5 @@ describe("ModuleOrchestrator - publishModuleLocally", () => {
     assert.ok(copiedContent.includes("Class TClient"));
   });
 });
+
+

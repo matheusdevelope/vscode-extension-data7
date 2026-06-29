@@ -16,6 +16,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Desativação Temporária do Auto-scan:** O auto-scan de dependências e Quick Picks foram temporariamente suspensos (desativados) até uma nova modelagem que comporte projetos onde múltiplos namespaces são exportados por um único módulo.
 
 ### Adicionado
+- Estendida a validação de parênteses faltantes (`call-parentheses-mismatch`) para abranger métodos com todos os argumentos opcionais (parâmetros default) e cadeias de membros internas/intermediárias de uma expressão.
 - Adicionado o comando `data7.linter.fixActiveFile` para aplicar `source.fixAll.data7` no arquivo `.bas` ativo, disponivel por command palette, menu de contexto do editor e atalho `Ctrl+Alt+Shift+F`.
 - Adicionado Quick Fix para comentar blocos inteiros de `dead-code`, incluindo acao em lote por arquivo.
 - Adicionado o diagnostico `chained-global-function-assignment` para alertar atribuicoes diretas a partir de cadeias iniciadas por funcoes globais que o compilador Data7 pode rejeitar.
@@ -25,6 +26,14 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - Restrição de reavaliação de arquivos dependentes em cascata apenas para o momento do salvamento do arquivo (`onDidSaveTextDocument`), mantendo o editor sempre leve durante a digitação contínua.
 
 ### Corrigido
+- Corrigido o processo de empacotamento de dependências (`data7_modules/`) no `Builder.buildProject` para buscar arquivos `.bas` recursivamente, ignorar unidades de escopo global (como `Principal.bas` de sub-módulos e qualquer outra unidade sem declaração de `Namespace`), remover o nível de diretório `src` de cada dependência promovendo subpastas e arquivos um nível acima na estrutura virtual, e recriar corretamente a estrutura física de subpastas como pastas virtuais no arquivo `.7Proj` XML e no `data7.json` de saída, resolvendo erros de falta de dependências e caminhos inválidos ao compilar.
+- Corrigido erro `TypeError: Cannot read properties of undefined (reading 'find')` em `Builder.buildProject` durante o processo de compilação (F5/CTRL+ALT+D) se as propriedades `virtualFolders` ou `modulesMetadata` estiverem ausentes no arquivo `data7.json` do projeto.
+- Corrigida a lógica do formatador de código (`CodeFormatter`) no VS Code Extension para suportar a sintaxe `Select <expressão>` (sem a palavra-chave opcional `Case`), evitando que blocos do tipo `Select/End Select` quebrassem e causassem desindentação prematura das funções e linhas subsequentes.
+- Corrigido falso positivo de `unknown-member` ao acessar classes aninhadas (nested classes) estaticamente (ex.: `WinAPI.Window.GetForeground()`). O indexador de símbolos agora associa a classe interna ao seu container correto (`activeClass`) e o resolver de tipos localiza a classe aninhada e seus membros estáticos corretamente.
+- Corrigido falso positivo de `chained-global-function-assignment` para cadeias de métodos iniciadas por funções nativas da biblioteca do sistema (ex.: `Mid(me.ContentType, pos + 8).Trim()`), restringindo o aviso apenas para funções globais customizadas.
+- Corrigida a lógica de resolução de tipo para chamadas a funções/métodos com argumentos opcionais omitidos (parâmetros com valor default) que resultava em falsos positivos de `type-mismatch` (ex.: `Incompatibilidade de tipos: não é possível atribuir 'FormatJson' para 'String'`).
+- Corrigido o método `findClassSymbol` no `TypeResolver` para retornar apenas símbolos de tipos reais (`class`, `structure`, `delegate`), impedindo que chamadas de método com mesmo nome fossem falsamente inferidas como conversões de cast.
+- Corrigidos falsos positivos de `unknown-member` para chamadas ao método `Append` do tipo primitivo `String` (adicionado `String.Append(pValue: String) As String` à biblioteca nativa do sistema).
 - Corrigido o fluxo de debug/watch do monorepo: o `npm run watch` raiz agora inicia os watches dos packages em paralelo, e `npm run compile` compila `@data7/core` antes dos consumidores.
 - Quick Fixes especificos agora aparecem antes das supressoes, e a supressao de linha gerada pela extensao usa `data7:disable-next-line` na linha anterior ao diagnostico, incluindo `unsupported-member`.
 - Correcoes em massa do workspace agora publicam os diagnosticos recalculados do conteudo final diretamente na colecao Problems, evitando um `refreshAllActive()` redundante apos o batch.

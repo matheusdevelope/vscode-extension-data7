@@ -122,5 +122,24 @@ End enun`;
 End Enun`,
       );
     });
+
+    test("indents Select blocks without Case keyword", () => {
+      const code = `Select value
+Case 1
+Return "one"
+Case Else
+Return "other"
+End Select`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Select value
+    Case 1
+        Return "one"
+    Case Else
+        Return "other"
+End Select`,
+      );
+    });
   });
 });

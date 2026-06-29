@@ -180,6 +180,12 @@
         "detail": "Valida e publica o módulo ativo no repositório privado local"
       },
       {
+        "command": "data7.modules.publishOnline",
+        "title": "01 - Projeto - Publicar Módulo Online",
+        "category": "Data7",
+        "detail": "Valida e publica o módulo ativo no repositório remoto público"
+      },
+      {
         "command": "data7.modules.install",
         "title": "01 - Projeto - Instalar Módulo",
         "category": "Data7",

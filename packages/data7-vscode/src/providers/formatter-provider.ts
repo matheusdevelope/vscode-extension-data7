@@ -154,7 +154,7 @@ function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
     }
     return "if";
   }
-  if (lowerClean.startsWith("select case ")) return "select";
+  if (lowerClean.startsWith("select ")) return "select";
   if (lowerClean.startsWith("for ")) return "for";
   if (lowerClean === "do" || lowerClean.startsWith("do ")) return "do";
   if (lowerClean.startsWith("while ")) return "while";

@@ -85,6 +85,12 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<QuickAction
         "Valida e publica o módulo ativo no repositório privado local."
       ),
       new QuickActionItem(
+        "Publicar Módulo Online",
+        COMMAND_IDS.publishOnline,
+        "cloud",
+        "Valida e publica o módulo ativo no repositório remoto público."
+      ),
+      new QuickActionItem(
         "Sugerir Dependências (Auto-Scan)",
         COMMAND_IDS.suggestDependencies,
         "question",

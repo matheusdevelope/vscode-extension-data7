@@ -462,6 +462,12 @@ export class Builder {
     // raw record for those fields — `narrow()` already validated the root
     // shape and basic fields above, so this cast is safe.
     const metadata = projectConfig.raw as unknown as ProjectMetadata;
+    if (!metadata.virtualFolders) {
+      metadata.virtualFolders = [];
+    }
+    if (!metadata.modulesMetadata) {
+      metadata.modulesMetadata = {};
+    }
     const srcDir = path.join(workspaceDir, "src");
     const data7ModulesDir = path.join(workspaceDir, "data7_modules");
 
@@ -507,6 +513,38 @@ export class Builder {
       return results;
     };
 
+    const getVirtualRelPath = (relPath: string): string => {
+      if (!relPath || relPath === "." || relPath === "") {
+        return "";
+      }
+      const segments = relPath.split(/[/\\]/);
+      if (segments.length >= 2 && segments[1] === "src") {
+        segments.splice(1, 1);
+      }
+      return segments.join("/");
+    };
+
+    const getPhysicalPath = (virtualRelPath: string, wsDir: string): string => {
+      const srcFolder = path.join(wsDir, "src");
+      if (virtualRelPath.startsWith("data7_modules") || virtualRelPath === "data7_modules") {
+        const segments = virtualRelPath.split(/[/\\]/);
+        if (segments.length >= 2) {
+          const moduleName = segments[1] ?? "";
+          const rest = segments.slice(2);
+          const physicalModuleDir = path.join(wsDir, "data7_modules", moduleName);
+          if (rest.length > 0) {
+            const srcPath = path.join(physicalModuleDir, "src");
+            if (fs.existsSync(srcPath) && fs.statSync(srcPath).isDirectory()) {
+              return path.join(physicalModuleDir, "src", ...rest);
+            }
+          }
+          return physicalModuleDir;
+        }
+        return path.join(wsDir, virtualRelPath);
+      }
+      return path.join(srcFolder, virtualRelPath);
+    };
+
     const srcFiles = getFilesRecursive(srcDir, ".bas");
     const localModulesCount = srcFiles.filter(
       (filePath) => path.basename(filePath, ".bas") !== "Principal",
@@ -514,9 +552,10 @@ export class Builder {
 
     let dependencyModulesCount = 0;
     if (fs.existsSync(data7ModulesDir)) {
-      dependencyModulesCount = fs
-        .readdirSync(data7ModulesDir)
-        .filter((f) => f.endsWith(".bas")).length;
+      dependencyModulesCount = getFilesRecursive(data7ModulesDir, ".bas").filter((filePath) => {
+        const rawCode = fs.readFileSync(filePath, "utf-8");
+        return this.extractDeclaredNamespacesFromCode(rawCode).length > 0;
+      }).length;
     }
     const totalModulesCount = localModulesCount + dependencyModulesCount;
 
@@ -545,7 +584,7 @@ export class Builder {
         return fs.existsSync(data7ModulesDir);
       }
       const relPath = getVirtualFolderRelPath(folder.id);
-      const physicalPath = path.join(srcDir, relPath);
+      const physicalPath = getPhysicalPath(relPath, workspaceDir);
       return fs.existsSync(physicalPath) && fs.statSync(physicalPath).isDirectory();
     });
 
@@ -566,6 +605,23 @@ export class Builder {
       } else {
         rootFolder.nome = `Unidades (${totalModulesCount})`;
         virtualFolders.push(rootFolder);
+      }
+    }
+
+    let data7ModulesFolderId: string | undefined;
+    if (fs.existsSync(data7ModulesDir)) {
+      const data7ModulesFolder = virtualFolders.find(
+        (f) => f.nome === "data7_modules" && f.pastaId === rootFolderId,
+      );
+      data7ModulesFolderId = data7ModulesFolder?.id;
+      if (!data7ModulesFolderId) {
+        data7ModulesFolderId = generateProjectGuid();
+        virtualFolders.push({
+          nome: "data7_modules",
+          id: data7ModulesFolderId,
+          pastaId: rootFolderId,
+          aberta: "Nao",
+        });
       }
     }
 
@@ -602,6 +658,27 @@ export class Builder {
       virtualFolders.push({ nome: folderName, id: newId, pastaId: parentId, aberta: "Sim" });
       foldersByPath.set(relPath, newId);
     });
+
+    if (fs.existsSync(data7ModulesDir) && data7ModulesFolderId) {
+      const depDirs = this.getDirsRecursive(data7ModulesDir);
+      depDirs.forEach((dir) => {
+        const relPath = path.relative(data7ModulesDir, dir);
+        const virtualRelPath = getVirtualRelPath(relPath);
+        const fullRelPath = path.join("data7_modules", virtualRelPath);
+        if (foldersByPath.has(fullRelPath)) return;
+
+        const parentDir = path.dirname(fullRelPath);
+        let parentId = data7ModulesFolderId;
+        if (parentDir !== "data7_modules" && parentDir !== "") {
+          parentId = foldersByPath.get(parentDir) ?? data7ModulesFolderId;
+        }
+
+        const newId = generateProjectGuid();
+        const folderName = path.basename(virtualRelPath);
+        virtualFolders.push({ nome: folderName, id: newId, pastaId: parentId, aberta: "Nao" });
+        foldersByPath.set(fullRelPath, newId);
+      });
+    }
 
     // 1. Transpile all code to collect used sugars
     const mainCodeRaw = fs.readFileSync(mainCodePath, "utf-8");
@@ -677,29 +754,24 @@ export class Builder {
       diagnostics: readonly SugarDiagnostic[];
       folderId: string;
     }[] = [];
-    let data7ModulesFolderId: string | undefined;
 
-    if (fs.existsSync(data7ModulesDir)) {
-      const dependencyFiles = fs.readdirSync(data7ModulesDir).filter((f) => f.endsWith(".bas"));
+    if (fs.existsSync(data7ModulesDir) && data7ModulesFolderId) {
+      const dependencyFiles = getFilesRecursive(data7ModulesDir, ".bas");
       if (dependencyFiles.length > 0) {
-        const data7ModulesFolder = virtualFolders.find(
-          (f) => f.nome === "data7_modules" && f.pastaId === rootFolderId,
-        );
-        data7ModulesFolderId = data7ModulesFolder?.id;
-        if (!data7ModulesFolderId) {
-          data7ModulesFolderId = generateProjectGuid();
-          virtualFolders.push({
-            nome: "data7_modules",
-            id: data7ModulesFolderId,
-            pastaId: rootFolderId,
-            aberta: "Nao",
-          });
-        }
+        dependencyFiles.forEach((filePath) => {
+          const filename = path.basename(filePath, ".bas");
+          const fileDir = path.dirname(filePath);
+          const relFileDir = path.relative(data7ModulesDir, fileDir);
+          const virtualRelDir = getVirtualRelPath(relFileDir);
+          const virtualPath = virtualRelDir ? path.join("data7_modules", virtualRelDir) : "data7_modules";
+          const folderId = foldersByPath.get(virtualPath) ?? data7ModulesFolderId!;
 
-        dependencyFiles.forEach((file) => {
-          const filename = path.basename(file, ".bas");
-          const filePath = path.join(data7ModulesDir, file);
           let rawCode = fs.readFileSync(filePath, "utf-8");
+
+          const declaredNamespaces = this.extractDeclaredNamespacesFromCode(rawCode);
+          if (declaredNamespaces.length === 0) {
+            return;
+          }
 
           if (!rawCode.toLowerCase().includes("@module-imported")) {
             if (rawCode.toLowerCase().includes("@module")) {
@@ -724,7 +796,7 @@ export class Builder {
             fileUri,
             code: transpiled.code,
             diagnostics: transpiled.diagnostics,
-            folderId: data7ModulesFolderId!,
+            folderId,
           });
         });
       }

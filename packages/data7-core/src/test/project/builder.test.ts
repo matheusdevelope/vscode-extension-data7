@@ -64,6 +64,24 @@ describe("Builder", () => {
       });
     });
 
+    test("does not crash if virtualFolders is missing from data7.json", async () => {
+      await withTempDir(async (tmp) => {
+        const { destXml } = seedProject(tmp);
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        delete config.virtualFolders;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+        const result = Builder.buildProject(tmp, destXml);
+        assert.ok(fs.existsSync(destXml), "output .7Proj must exist on disk");
+        assert.equal(result, destXml, "must return the output path");
+
+        // Verify that virtualFolders has been written back/initialized as an array
+        const updatedConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        assert.ok(Array.isArray(updatedConfig.virtualFolders), "virtualFolders must be initialized to an array");
+      });
+    });
+
     test("transpiles `For Each` sugar over StringList into the classic For form", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);
@@ -99,13 +117,7 @@ End Namespace
       await withTempDir(async (tmp) => {
         seedProject(tmp);
         fs.writeFileSync(path.join(tmp, "src", "Principal.bas"), `Print("hello")`, "utf-8");
-        DependencyScanner.syncDependencies(
-          path.join(tmp, "src"),
-          path.join(tmp, "data7_modules"),
-          getRepoBasPath(),
-          {},
-          { alwaysSyncDirs: [getCoreModulesPath()] }
-        );
+
 
         const destXml = path.join(tmp, "TestProject.7Proj");
         const logFilePath = path.join(tmp, ".data7", "logs", "vscode-executor.log");
@@ -157,6 +169,77 @@ End Namespace
         assert.match(xml, /Class Box_Integer/);
         assert.match(xml, /Dim box As Box_Integer = New Box_Integer\(\)/);
         assert.doesNotMatch(xml, /Class Box&lt;T&gt;/);
+      });
+    });
+
+    test("recursively scans data7_modules, removes src path segment, and structures nested virtual folders", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_nested
+Namespace mod_principal
+   Class TPrincipalClass
+      Public Sub Main()
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        const subfolderDir = path.join(modulesDir, "helpers", "src", "helpers");
+        fs.mkdirSync(subfolderDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(subfolderDir, "mod_nested.bas"),
+          `'@Module
+Namespace mod_nested
+   Public Sub Test()
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+
+        fs.writeFileSync(
+          path.join(subfolderDir, "Principal.bas"),
+          `' This is a dependency Principal.bas without namespace
+Print("Hello global dependency")
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+
+        // Verify the module mod_nested was added
+        assert.match(xml, /<mod_nested>/);
+        assert.match(xml, /Namespace mod_nested/);
+
+        // Verify that Principal.bas (without namespace) was NOT added
+        assert.doesNotMatch(xml, /<Principal>/);
+        assert.doesNotMatch(xml, /Hello global dependency/);
+
+        // Verify that virtualFolders has data7_modules, helpers, and nested helpers folders (no 'src' folder)
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+        const folders: { nome: string; id: string; pastaId: string }[] = config.virtualFolders;
+
+        const d7ModulesFolder = folders.find((f) => f.nome === "data7_modules");
+        assert.ok(d7ModulesFolder, "data7_modules virtual folder must exist");
+
+        const helpersModuleFolder = folders.find((f) => f.nome === "helpers" && f.pastaId === d7ModulesFolder.id);
+        assert.ok(helpersModuleFolder, "helpers module virtual folder must exist");
+
+        // 'src' folder must not exist
+        const srcFolder = folders.find((f) => f.nome === "src");
+        assert.ok(!srcFolder, "src virtual folder must NOT exist");
+
+        const nestedHelpersFolder = folders.find((f) => f.nome === "helpers" && f.pastaId === helpersModuleFolder.id);
+        assert.ok(nestedHelpersFolder, "nested helpers folder (promoted) must exist under helpersModuleFolder");
       });
     });
 

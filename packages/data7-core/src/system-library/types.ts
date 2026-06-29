@@ -31,6 +31,7 @@ export type SystemContainer =
   | "TPrimitive"
   | "String"
   | "Integer"
+  | "Cardinal"
   | "Double"
   | "Boolean"
   | "TDateTime"
@@ -51,6 +52,7 @@ export type SystemContainer =
   | "dateUtils"
   | "Math"
   | "Clipboard"
+  | "TMsg"
 
   // ───────── Globals — delegates / event types VCL ─────────
   | "TMethod"
@@ -178,6 +180,8 @@ export type SystemContainer =
   | "ButtonTextBox"
   | "HComboBox"
   | "CheckBox"
+  | "MaskTextBox"
+
 
   // ───────── Forms — qualified aliases (compat) ─────────
   | "Forms.Form"

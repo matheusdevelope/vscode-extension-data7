@@ -1581,6 +1581,20 @@ export class DiagnosticsASTWalker extends ASTWalker {
         }
       }
     }
+    if (node.member.toLowerCase() === "dowork") {
+      const parameterlessCallable = this.resolveParameterlessFinalCall(node, lineIdx);
+      console.log("FROM MEMBER ACCESS: parameterlessCallable=", !!parameterlessCallable);
+    }
+    const parent = this.parentStack[this.parentStack.length - 1];
+    const isAddressOf = parent && parent.kind === "UnaryExpression" && parent.operator.toLowerCase() === "addressof";
+    const isAssignmentTarget = parent && parent.kind === "Assignment" && parent.target === node;
+    
+    if (parent && !(parent.kind === "MethodInvocation" && parent.callee === node) && !isAddressOf && !isAssignmentTarget) {
+      const parameterlessCallable = this.resolveParameterlessFinalCall(node, lineIdx);
+      if (parameterlessCallable) {
+        this.pushFinalCallParenthesesDiagnostic(node, parameterlessCallable, lineIdx);
+      }
+    }
   }
 
   private getMemberAccessMemberRange(
@@ -2273,6 +2287,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     if (!resolved) return undefined;
     if (resolved.kind !== "method" && resolved.kind !== "declare_function") return undefined;
     if (resolved.type.toLowerCase() === "void") return undefined;
+    if (resolved.fileUri === "system://library") return undefined;
     const ownerLower = resolved.containerName?.toLowerCase();
     if (!ownerLower) return resolved;
     if (ownerLower === this.activeClass?.name.toLowerCase()) return undefined;
@@ -2541,7 +2556,10 @@ export class DiagnosticsASTWalker extends ASTWalker {
     ) {
       return false;
     }
-    return (symbol.parameters?.length ?? 0) === 0;
+    return (
+      (symbol.parameters?.length ?? 0) === 0 ||
+      symbol.parameters!.every((p) => p.isOptional)
+    );
   }
 
   private pushFinalCallParenthesesDiagnostic(
@@ -2593,6 +2611,9 @@ export class DiagnosticsASTWalker extends ASTWalker {
     // Loose Type Statement
     const expr = node.expression;
     const parameterlessCallable = this.resolveParameterlessFinalCall(expr, lineIdx);
+    if (expr.kind === "MemberAccess" && expr.member.toLowerCase() === "dowork") {
+      console.log("FROM EXPRESSION STATEMENT! parameterlessCallable:", !!parameterlessCallable);
+    }
     if (parameterlessCallable) {
       this.pushFinalCallParenthesesDiagnostic(expr, parameterlessCallable, lineIdx);
       return;

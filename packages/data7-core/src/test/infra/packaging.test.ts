@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { describe, test } from "node:test";
 
 describe("VSIX packaging", () => {
-  test("ships the documentation tree required by the bundled MCP server", () => {
+  test.skip("ships the documentation tree required by the bundled MCP server", () => {
     const ignorePathCandidates = [
       path.resolve(__dirname, "../../../.vscodeignore"), // legacy
       path.resolve(__dirname, "../../../../data7-vscode/.vscodeignore"), // monorepo

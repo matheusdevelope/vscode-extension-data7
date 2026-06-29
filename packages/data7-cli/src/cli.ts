@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-import { installVscodeShim } from "@data7/core";
+import "@data7/core/dist/mcp/runtime/install-shim";
+import { loadDotEnv, ModuleOrchestrator, Builder, DiagnosticsLinter, WorkspaceSymbolIndexer } from "@data7/core";
 
-// Initialize VS Code shim for running outside the extension host
-installVscodeShim();
-
-import { ModuleOrchestrator, Builder, DiagnosticsLinter, WorkspaceSymbolIndexer } from "@data7/core";
+// Load .env configuration in the current working directory
+loadDotEnv(process.cwd());
 import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
@@ -44,6 +43,26 @@ async function run() {
         console.log(`[data7-cli] Módulo publicado localmente com sucesso!`);
       } catch (err: any) {
         console.error(`[data7-cli] Erro ao publicar módulo localmente: ${err.message}`);
+        process.exit(1);
+      }
+      break;
+
+    case "publish-online":
+      console.log(`[data7-cli] Iniciando publicação online a partir de: ${workspaceDir}...`);
+      try {
+        const prUrl = await ModuleOrchestrator.publishModuleOnline(workspaceDir, (userCode, verificationUri) => {
+          console.log(`\n=============================================================`);
+          console.log(`AUTENTICAÇÃO NECESSÁRIA COM O GITHUB`);
+          console.log(`Por favor, acesse o link no seu navegador:`);
+          console.log(`  ${verificationUri}`);
+          console.log(`E insira o seguinte código de ativação:`);
+          console.log(`  ${userCode}`);
+          console.log(`=============================================================\n`);
+        });
+        console.log(`\n[data7-cli] Módulo publicado e Pull Request criado com sucesso!`);
+        console.log(`[data7-cli] Link do PR: ${prUrl}`);
+      } catch (err: any) {
+        console.error(`[data7-cli] Erro ao publicar módulo online: ${err.message}`);
         process.exit(1);
       }
       break;
@@ -142,11 +161,12 @@ function printHelp() {
 Uso: data7 <comando> [opções]
 
 Comandos disponíveis:
-  sync           Sincroniza e instala as dependências declaradas no data7.json.
-  build          Compila o projeto Data7 (.7proj) ativo no workspace.
-  lint           Executa o linter estático em todos os arquivos .bas no diretório src/.
-  publish-local  Publica o módulo atual localmente de forma privada.
-  help           Exibe este menu de ajuda.
+  sync            Sincroniza e instala as dependências declaradas no data7.json.
+  build           Compila o projeto Data7 (.7proj) ativo no workspace.
+  lint            Executa o linter estático em todos os arquivos .bas no diretório src/.
+  publish-local   Publica o módulo atual localmente de forma privada.
+  publish-online  Publica o módulo online criando Fork e Pull Request no GitHub.
+  help            Exibe este menu de ajuda.
 `);
 }
 

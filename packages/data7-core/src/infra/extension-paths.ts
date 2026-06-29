@@ -71,6 +71,27 @@ export function getCoreModulesPath(): string {
 }
 
 /**
+ * Returns the path of the 'modules' folder inside the extension root directory.
+ * If running outside the extension context (e.g. tests), falls back to scanning parent directories.
+ */
+export function getOnlineModulesLocalPath(): string | undefined {
+  if (initializedExtensionRootPath) {
+    const p = path.join(initializedExtensionRootPath, "modules");
+    if (fs.existsSync(p)) return p;
+  }
+  // Fallback: look for "modules" directory relative to __dirname
+  const candidates = [
+    path.resolve(__dirname, "..", "..", "modules"),
+    path.resolve(__dirname, "..", "..", "..", "modules"),
+    path.resolve(__dirname, "..", "..", "..", "..", "modules"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return undefined;
+}
+
+/**
  * Test-only hook: clears the cached path so the next call recomputes the
  * fallback. Production code never calls this.
  */
@@ -84,3 +105,4 @@ function ensureDirectory(dir: string): void {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
+

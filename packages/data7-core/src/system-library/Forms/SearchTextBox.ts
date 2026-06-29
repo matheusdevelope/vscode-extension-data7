@@ -36,7 +36,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "EditorDescricao",
     kind: "property",
-    type: "TcxCustomEdit",
+    type: "MemoTextBox",
     isShared: false,
     isPrivate: false,
     range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },

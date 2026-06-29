@@ -1,10 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
+import { execSync } from "child_process";
 import { ManifestRegistry } from "./manifest-registry";
 import { DependencySynchronizer } from "./dependency-synchronizer";
 import { RepositoryQueryService } from "./repository-query-service";
 import { parseBasic } from "../project/parser";
+import { DependencyScanner } from "../analysis/dependency-scanner";
 import { logger } from "../infra/logger";
+import { getOnlineModulesLocalPath } from "../infra/extension-paths";
+import { GitHubPublisher } from "./github-publisher";
+
 
 export class ModuleOrchestrator {
   /**
@@ -71,19 +76,20 @@ export class ModuleOrchestrator {
       throw new Error("A pasta 'src' é obrigatória na raiz do módulo.");
     }
 
-    const files = fs.readdirSync(srcDir);
-    const basFiles = files.filter(f => f.toLowerCase().endsWith(".bas"));
-    if (basFiles.length === 0) {
-      throw new Error("A pasta 'src' deve conter pelo menos um arquivo de código '.bas'.");
+    const srcFiles = DependencyScanner.getFilesRecursive(srcDir, [".bas", ".d7form"]);
+    if (srcFiles.length === 0) {
+      throw new Error("A pasta 'src' deve conter pelo menos um arquivo de código.");
     }
 
-    for (const file of basFiles) {
-      const filePath = path.join(srcDir, file);
-      const code = fs.readFileSync(filePath, "utf-8");
-      const result = parseBasic(code);
-      if (result.errors && result.errors.length > 0) {
-        const errMsgs = result.errors.map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`).join("; ");
-        throw new Error(`Erro de compilação/sintaxe em '${file}': ${errMsgs}`);
+    // Check syntax for all .bas files before publishing
+    for (const filePath of srcFiles) {
+      if (filePath.toLowerCase().endsWith(".bas")) {
+        const code = fs.readFileSync(filePath, "utf-8");
+        const result = parseBasic(code);
+        if (result.errors && result.errors.length > 0) {
+          const errMsgs = result.errors.map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`).join("; ");
+          throw new Error(`Erro de compilação/sintaxe em '${path.basename(filePath)}': ${errMsgs}`);
+        }
       }
     }
 
@@ -96,14 +102,32 @@ export class ModuleOrchestrator {
     fs.mkdirSync(targetModuleDir, { recursive: true });
 
     fs.copyFileSync(manifestPath, path.join(targetModuleDir, ManifestRegistry.FILENAME));
-    
+
     const targetSrcDir = path.join(targetModuleDir, "src");
     fs.mkdirSync(targetSrcDir, { recursive: true });
 
-    for (const file of basFiles) {
-      fs.copyFileSync(path.join(srcDir, file), path.join(targetSrcDir, file));
+    for (const srcFilePath of srcFiles) {
+      const relPath = path.relative(srcDir, srcFilePath);
+      const destPath = path.join(targetSrcDir, relPath);
+      const destDir = path.dirname(destPath);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+      fs.copyFileSync(srcFilePath, destPath);
     }
 
     logger.info(`Módulo '${moduleName}' publicado localmente com sucesso em: ${targetModuleDir}`);
   }
+
+  /**
+   * Publishes the module under workspaceDir online to the public remote repository.
+   * Performs validation, forks the repo, pushes to the fork and opens a Pull Request.
+   */
+  public static async publishModuleOnline(
+    workspaceDir: string,
+    onAuthPrompt: (userCode: string, verificationUri: string) => void
+  ): Promise<string> {
+    return GitHubPublisher.publish(workspaceDir, onAuthPrompt);
+  }
 }
+

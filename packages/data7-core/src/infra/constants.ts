@@ -54,6 +54,7 @@ export const COMMAND_IDS = {
   bulkImportToRepository: "data7.modules.bulkImportToRepository",
   exploreRepository: "data7.modules.exploreRepository",
   publishLocal: "data7.modules.publishLocal",
+  publishOnline: "data7.modules.publishOnline",
   suggestDependencies: "data7.modules.suggestDependencies",
 
   // Linter/Fixer commands

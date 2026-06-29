@@ -5,7 +5,7 @@ import { PROJECT_CONFIG_FILENAME } from "./project-config";
 import type { BuildOptimizationOptions, BuildOptimizationOverride } from "./optimizer";
 import type { SugarEngineOptions } from "./sugar-registry";
 
-export const BUILD_SNAPSHOT_SCHEMA_VERSION = 1;
+export const BUILD_SNAPSHOT_SCHEMA_VERSION = 3;
 
 export interface BuildSnapshotOptions {
   readonly vscodeLoggerFilePath?: string;

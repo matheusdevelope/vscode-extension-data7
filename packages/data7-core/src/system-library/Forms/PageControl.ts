@@ -66,4 +66,15 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "PageControl",
     description: "Índice da aba ativa.",
   },
+  {
+    name: "ShowCardFrame",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    fileUri: "system://library",
+    containerName: "PageControl",
+    description: "Exibe ou oculta a moldura do card.",
+  },
 ];

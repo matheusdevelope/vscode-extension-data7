@@ -1595,6 +1595,19 @@ End Namespace`);
 
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
+
+    test("does not warn on assignment from a chain starting with a system library function", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Public Sub Run()
+         Dim value As String
+         value = Mid("abc", 2).Trim()
+      End Sub
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.ChainedGlobalFunctionAssignment);
+    });
   });
 
   describe("scope and type compatibility regressions", () => {
@@ -1604,6 +1617,25 @@ End Namespace`);
       const doc = createMockDoc(uri, code);
       return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
     };
+
+    test("accepts qualified Forms visual controls assigned to qualified TControl", () => {
+      const diags = runLinter(
+        "file:///forms_qualified_tcontrol.bas",
+        `Namespace mod_forms_controls
+   Class C
+      Public Sub Run()
+         Dim control As Forms.TControl
+         Dim button As Forms.FlatButton
+         Dim line As Forms.Line
+         control = button
+         control = line
+      End Sub
+   End Class
+End Namespace`,
+      );
+
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
 
     test("keeps every variable from a multi-variable Dim declaration in the current scope", () => {
       const diags = runLinter(
@@ -3508,6 +3540,29 @@ End Namespace`;
       };
       assert.equal(payload?.name?.toLowerCase(), "foons");
       assert.equal(payload?.memberKind, "class");
+    });
+
+    test("does not emit unknown-member when accessing static members of nested classes", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///nested_class_test.bas";
+      const code = `Namespace FooNs
+   Class WinAPI
+      Class Window
+         Shared Function GetForeground() As Long
+            GetForeground = 0
+         End Function
+      End Class
+   End Class
+
+   Class Screen
+      Shared Function CurrentWindow() As Long
+         CurrentWindow = WinAPI.Window.GetForeground()
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
   });
 });
