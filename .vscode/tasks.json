@@ -9,10 +9,7 @@
         "owner": "typescript",
         "source": "tsc",
         "applyTo": "closedDocuments",
-        "fileLocation": [
-          "relative",
-          "${workspaceFolder}"
-        ],
+        "fileLocation": ["relative", "${workspaceFolder}"],
         "pattern": {
           "regexp": "^\\[[^\\]]+\\]\\s+(.*)\\((\\d+),(\\d+)\\):\\s+(error|warning)\\s+(TS\\d+):\\s+(.*)$",
           "file": 1,

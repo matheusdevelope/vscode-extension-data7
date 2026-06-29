@@ -18,10 +18,7 @@ const copies = [
 ];
 
 const optionalCopies = [
-  [
-    path.join(coreRoot, "dist", "mcp", "data"),
-    path.join(extensionRoot, "out", "mcp", "data"),
-  ],
+  [path.join(coreRoot, "dist", "mcp", "data"), path.join(extensionRoot, "out", "mcp", "data")],
 ];
 
 for (const [source, target] of copies) {
@@ -46,7 +43,9 @@ function copy(source, target) {
   fs.rmSync(target, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.cpSync(source, target, { recursive: true });
-  console.log(`[prepare-vscode-package] ${path.relative(repoRoot, source)} -> ${path.relative(repoRoot, target)}`);
+  console.log(
+    `[prepare-vscode-package] ${path.relative(repoRoot, source)} -> ${path.relative(repoRoot, target)}`,
+  );
 }
 
 function assertInside(root, target) {

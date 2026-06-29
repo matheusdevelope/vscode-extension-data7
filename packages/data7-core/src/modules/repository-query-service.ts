@@ -32,7 +32,9 @@ export class RepositoryQueryService {
   /**
    * Checks if a module exists in the local private repository and returns its files if found.
    */
-  public static findLocalPrivateModule(moduleName: string): { dirPath: string; manifest: ModuleManifest } | undefined {
+  public static findLocalPrivateModule(
+    moduleName: string,
+  ): { dirPath: string; manifest: ModuleManifest } | undefined {
     const localDir = this.getLocalPrivateModulesPath();
     const moduleDir = path.join(localDir, moduleName);
     const manifestPath = path.join(moduleDir, "data7.json");
@@ -66,38 +68,42 @@ export class RepositoryQueryService {
         method: "GET",
         headers: {
           "User-Agent": this.USER_AGENT,
-          "Accept": "application/vnd.github.v3+json"
-        }
+          Accept: "application/vnd.github.v3+json",
+        },
       };
 
-      https.get(options, (res) => {
-        let data = "";
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(data);
-          } else {
-            if (res.statusCode === 403 && data.includes("rate limit exceeded")) {
-              // 5-minute cooldown
-              RepositoryQueryService.rateLimitResetTime = Date.now() + 5 * 60 * 1000;
+      https
+        .get(options, (res) => {
+          let data = "";
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(data);
+            } else {
+              if (res.statusCode === 403 && data.includes("rate limit exceeded")) {
+                // 5-minute cooldown
+                RepositoryQueryService.rateLimitResetTime = Date.now() + 5 * 60 * 1000;
+              }
+              const err = new Error(`GitHub API retornou status ${res.statusCode}: ${data}`);
+              (err as any).statusCode = res.statusCode;
+              reject(err);
             }
-            const err = new Error(`GitHub API retornou status ${res.statusCode}: ${data}`);
-            (err as any).statusCode = res.statusCode;
-            reject(err);
-          }
+          });
+        })
+        .on("error", (err) => {
+          reject(err);
         });
-      }).on("error", (err) => {
-        reject(err);
-      });
     });
   }
 
   /**
    * Fetches the manifest file of an online module from GitHub.
    */
-  public static async fetchOnlineModuleManifest(moduleName: string): Promise<ModuleManifest | undefined> {
+  public static async fetchOnlineModuleManifest(
+    moduleName: string,
+  ): Promise<ModuleManifest | undefined> {
     const apiPath = `/repos/${this.GITHUB_REPO}/contents/modules/${moduleName}/data7.json`;
     try {
       const response = await this.githubApiGet(apiPath);
@@ -110,7 +116,9 @@ export class RepositoryQueryService {
       if (err.statusCode === 404) {
         logger.info(`Módulo online '${moduleName}' não encontrado (404).`);
       } else if (err.statusCode === 403) {
-        logger.warn(`GitHub API limite de requisições excedido. Busca do módulo '${moduleName}' ignorada (403).`);
+        logger.warn(
+          `GitHub API limite de requisições excedido. Busca do módulo '${moduleName}' ignorada (403).`,
+        );
       } else {
         logger.error(`Erro ao buscar manifesto online do módulo: ${moduleName}`, err);
       }
@@ -126,12 +134,14 @@ export class RepositoryQueryService {
     try {
       const response = await this.githubApiGet(apiPath);
       const items = JSON.parse(response) as Array<{ name: string; type: string }>;
-      return items.filter(item => item.type === "dir").map(item => item.name);
+      return items.filter((item) => item.type === "dir").map((item) => item.name);
     } catch (err: any) {
       if (err.statusCode === 404) {
         logger.info("Nenhum módulo público online encontrado no repositório remoto (404).");
       } else if (err.statusCode === 403) {
-        logger.warn("GitHub API limite de requisições excedido. Listagem de módulos online ignorada (403).");
+        logger.warn(
+          "GitHub API limite de requisições excedido. Listagem de módulos online ignorada (403).",
+        );
       } else {
         logger.error("Erro ao listar módulos públicos online.", err);
       }
@@ -142,12 +152,18 @@ export class RepositoryQueryService {
   /**
    * Fetches all files for an online module.
    */
-  public static async fetchOnlineModuleFiles(moduleName: string): Promise<Array<{ path: string; content: string }> | undefined> {
+  public static async fetchOnlineModuleFiles(
+    moduleName: string,
+  ): Promise<Array<{ path: string; content: string }> | undefined> {
     const apiPath = `/repos/${this.GITHUB_REPO}/contents/modules/${moduleName}`;
     try {
       const response = await this.githubApiGet(apiPath);
-      const items = JSON.parse(response) as Array<{ name: string; type: string; download_url: string }>;
-      
+      const items = JSON.parse(response) as Array<{
+        name: string;
+        type: string;
+        download_url: string;
+      }>;
+
       const files: Array<{ path: string; content: string }> = [];
       for (const item of items) {
         if (item.type === "file" && item.download_url) {
@@ -160,7 +176,9 @@ export class RepositoryQueryService {
       if (err.statusCode === 404) {
         logger.info(`Arquivos do módulo online '${moduleName}' não encontrados (404).`);
       } else if (err.statusCode === 403) {
-        logger.warn(`GitHub API limite de requisições excedido. Busca de arquivos do módulo '${moduleName}' ignorada (403).`);
+        logger.warn(
+          `GitHub API limite de requisições excedido. Busca de arquivos do módulo '${moduleName}' ignorada (403).`,
+        );
       } else {
         logger.error(`Erro ao buscar arquivos do módulo online: ${moduleName}`, err);
       }
@@ -170,21 +188,23 @@ export class RepositoryQueryService {
 
   private static downloadRawFile(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      https.get(url, { headers: { "User-Agent": this.USER_AGENT } }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => {
-          data += chunk;
+      https
+        .get(url, { headers: { "User-Agent": this.USER_AGENT } }, (res) => {
+          let data = "";
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(data);
+            } else {
+              reject(new Error(`Erro ao baixar arquivo: status ${res.statusCode}`));
+            }
+          });
+        })
+        .on("error", (err) => {
+          reject(err);
         });
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(data);
-          } else {
-            reject(new Error(`Erro ao baixar arquivo: status ${res.statusCode}`));
-          }
-        });
-      }).on("error", (err) => {
-        reject(err);
-      });
     });
   }
 }

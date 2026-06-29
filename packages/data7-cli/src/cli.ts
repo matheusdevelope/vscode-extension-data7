@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import "@data7/core/dist/mcp/runtime/install-shim";
-import { loadDotEnv, ModuleOrchestrator, Builder, DiagnosticsLinter, WorkspaceSymbolIndexer } from "@data7/core";
+import {
+  loadDotEnv,
+  ModuleOrchestrator,
+  Builder,
+  DiagnosticsLinter,
+  WorkspaceSymbolIndexer,
+} from "@data7/core";
 
 // Load .env configuration in the current working directory
 loadDotEnv(process.cwd());
@@ -26,7 +32,7 @@ async function run() {
         const synced = await ModuleOrchestrator.syncDependencies(workspaceDir);
         if (synced.length > 0) {
           console.log(`[data7-cli] Sincronização concluída com sucesso:`);
-          synced.forEach(s => console.log(`  - ${s}`));
+          synced.forEach((s) => console.log(`  - ${s}`));
         } else {
           console.log(`[data7-cli] Todas as dependências já estão sincronizadas.`);
         }
@@ -50,15 +56,18 @@ async function run() {
     case "publish-online":
       console.log(`[data7-cli] Iniciando publicação online a partir de: ${workspaceDir}...`);
       try {
-        const prUrl = await ModuleOrchestrator.publishModuleOnline(workspaceDir, (userCode, verificationUri) => {
-          console.log(`\n=============================================================`);
-          console.log(`AUTENTICAÇÃO NECESSÁRIA COM O GITHUB`);
-          console.log(`Por favor, acesse o link no seu navegador:`);
-          console.log(`  ${verificationUri}`);
-          console.log(`E insira o seguinte código de ativação:`);
-          console.log(`  ${userCode}`);
-          console.log(`=============================================================\n`);
-        });
+        const prUrl = await ModuleOrchestrator.publishModuleOnline(
+          workspaceDir,
+          (userCode, verificationUri) => {
+            console.log(`\n=============================================================`);
+            console.log(`AUTENTICAÇÃO NECESSÁRIA COM O GITHUB`);
+            console.log(`Por favor, acesse o link no seu navegador:`);
+            console.log(`  ${verificationUri}`);
+            console.log(`E insira o seguinte código de ativação:`);
+            console.log(`  ${userCode}`);
+            console.log(`=============================================================\n`);
+          },
+        );
         console.log(`\n[data7-cli] Módulo publicado e Pull Request criado com sucesso!`);
         console.log(`[data7-cli] Link do PR: ${prUrl}`);
       } catch (err: any) {
@@ -75,7 +84,7 @@ async function run() {
           console.error(`[data7-cli] Erro: Arquivo de projeto .7proj não encontrado no workspace.`);
           process.exit(1);
         }
-        
+
         Builder.buildProject(workspaceDir, projectFilePath);
         console.log(`[data7-cli] Compilação concluída com sucesso!`);
       } catch (err: any) {
@@ -98,7 +107,7 @@ async function run() {
 
         console.log(`[data7-cli] Indexando ${allFiles.length} arquivos...`);
         const indexer = WorkspaceSymbolIndexer.getInstance();
-        
+
         // 1. Index all files first to resolve cross-references correctly
         const fileContents: Record<string, string> = {};
         for (const file of allFiles) {
@@ -116,14 +125,14 @@ async function run() {
         for (const file of srcFiles) {
           const content = fileContents[file]!;
           const fileUri = vscode.Uri.file(file);
-          
+
           // Create a mock document suitable for DiagnosticsLinter
           const mockDoc: any = {
             uri: fileUri,
             fileName: file,
             languageId: "d7basic",
             lineCount: content.split(/\r?\n/).length,
-            getText: () => content
+            getText: () => content,
           };
 
           const diagnostics = linter.runDiagnostics(mockDoc, indexer);
@@ -131,15 +140,20 @@ async function run() {
           if (diagnostics.length > 0) {
             console.log(`\nArquivo: ${path.relative(workspaceDir, file)}`);
             for (const diag of diagnostics) {
-              const severityText = diag.severity === vscode.DiagnosticSeverity.Error ? "ERRO" : "AVISO";
-              console.log(`  [${severityText}] Linha ${diag.range.start.line + 1}: ${diag.message}`);
+              const severityText =
+                diag.severity === vscode.DiagnosticSeverity.Error ? "ERRO" : "AVISO";
+              console.log(
+                `  [${severityText}] Linha ${diag.range.start.line + 1}: ${diag.message}`,
+              );
               if (diag.severity === vscode.DiagnosticSeverity.Error) totalErrors++;
               else totalWarnings++;
             }
           }
         }
 
-        console.log(`\n[data7-cli] Linter finalizado: ${totalErrors} erros, ${totalWarnings} avisos.`);
+        console.log(
+          `\n[data7-cli] Linter finalizado: ${totalErrors} erros, ${totalWarnings} avisos.`,
+        );
         if (totalErrors > 0) {
           process.exit(1);
         }

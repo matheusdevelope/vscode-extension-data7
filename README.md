@@ -64,7 +64,9 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 - Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
 
 ### Arquitetura (Monorepo)
+
 O projeto é estruturado como um monorepo via NPM Workspaces, contendo:
+
 - `@data7/core`: Kernel da linguagem (parser, linter, builder, indexador) independente do VS Code.
 - `@data7/cli`: Interface CLI para integração contínua (CI) e uso standalone.
 - `vscode-extension-data7`: A extensão gráfica do VS Code.

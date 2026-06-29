@@ -50,3 +50,4 @@ Quando o ambiente permitir e a política da sessão não proibir, dê preferênc
 - Durante a iteração execute os checks relevantes. Antes de concluir mudança longa ou multiarquivo, rode `npm run verify`; para parser, linter, providers, builder, indexador e system library, rode ao menos `npm run test`.
 - Se algum check não puder rodar, declare isso explicitamente. Não conclua com falha conhecida sem informar o usuário.
 - Não crie branch, commit, push ou PR sem solicitação explícita. Trabalhe na branch atual por padrão.
+- Sempre rode `npm run format` antes de finalizar uma mudança, para manter a consistência visual do código.

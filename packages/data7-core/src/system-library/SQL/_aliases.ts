@@ -40,8 +40,7 @@ const aliases: readonly AliasSpec[] = [
   },
   {
     name: "TRDBMS",
-    description:
-      "Identificador do RDBMS conectado (dbASA, dbMSSQL, dbPostgreSQL).",
+    description: "Identificador do RDBMS conectado (dbASA, dbMSSQL, dbPostgreSQL).",
   },
 
   // ───────── Tipos de evento (delegates) ─────────

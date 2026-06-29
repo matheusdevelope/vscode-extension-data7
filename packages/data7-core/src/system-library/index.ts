@@ -254,240 +254,240 @@ import { symbols as sym_XML_TXMLDocument } from "./XML/TXMLDocument";
 import { symbols as sym_XML_XML } from "./XML/XML";
 
 export const SYSTEM_SYMBOLS: SymbolInfo[] = [
-   // Collections
-   ...sym_Collections_Collections,
-   ...sym_Collections_StringList,
-   ...sym_Collections_TStrings,
-   ...sym_Collections_TStringList,
-   ...sym_Collections_TObjectList,
-   // Data7
-   ...sym_Data7_CodEmpresa,
-   ...sym_Data7_CodFilial,
-   ...sym_Data7_CodPeriodoCaixa,
-   ...sym_Data7_CodUsuario,
-   ...sym_Data7_Criptografar,
-   ...sym_Data7_Data7,
-   ...sym_Data7_Report,
-   ...sym_Data7_Descriptografar,
-   ...sym_Data7_NomeArquivoExecutavel,
-   ...sym_Data7_NomeUsuario,
-   ...sym_Data7_Parametro,
-   ...sym_Data7_PesquisaPadrao,
-   ...sym_Data7_ProximoCodigo,
-   ...sym_Data7_ProximoID,
-   ...sym_Data7_ValorPorExtenso,
-   ...sym_Data7_ValorPorExtensoLinha1,
-   ...sym_Data7_ValorPorExtensoLinha2,
-   // Drawing
-   ...sym_Drawing_Drawing,
-   ...sym_Drawing_TCanvas,
-   ...sym_Drawing_TPen,
-   ...sym_Drawing_TBrushStyle,
-   ...sym_Drawing_TPenStyle,
-   // Environment
-   ...sym_Environment_Environment,
-   ...sym_Environment_Execute,
-   ...sym_Environment_MachineName,
-   ...sym_Environment_UserName,
-   // Forms — trunks
-   ...sym_Forms_TComponent,
-   ...sym_Forms_TControl,
-   ...sym_Forms_TGraphicControl,
-   ...sym_Forms_TShape,
-   ...sym_Forms_TWinControl,
-   ...sym_Forms_TScrollingWinControl,
-   ...sym_Forms_TForm,
-   ...sym_Forms_TFrame,
-   ...sym_Forms_TButtonControl,
-   ...sym_Forms_TCustomControl,
-   ...sym_Forms_TcxCustomEdit,
-   ...sym_Forms_TcxCustomTextEdit,
-   ...sym_Forms_TCustomEdit,
-   ...sym_Forms_TCustomButtonedEdit,
-   ...sym_Forms_TButtonedEdit,
-   ...sym_Forms_compat,
-   // Forms — utility
-   ...sym_Forms_Forms,
-   ...sym_Forms_MessageBox,
-   ...sym_Forms_ProcessMessages,
-   ...sym_Globals_TAlign,
-   ...sym_Globals_TAlignment,
-   ...sym_Globals_TMargins,
-   // Forms — type aliases & intermediate classes
-   ...sym_Forms_aliases,
-   // Forms — enum types & constants
-   ...sym_Forms_TShiftState,
-   ...sym_Forms_TModalResult,
-   ...sym_Forms_TFormBorderStyle,
-   ...sym_Forms_TBorderStyle,
-   ...sym_Forms_TDefaultMonitor,
-   ...sym_Forms_TFormStyle,
-   ...sym_Forms_TPopupMode,
-   ...sym_Forms_TPosition,
-   ...sym_Forms_TPrintScale,
-   ...sym_Forms_TRoundedCornerType,
-   ...sym_Forms_TEditorType,
-   ...sym_Forms_TGridDrawState,
-   // Forms — interfaces / event types / grid-related
-   ...sym_Forms_IFormVisualManager,
-   ...sym_Forms_TMonitorDpiChangedEvent,
-   ...sym_Forms_TCloseEvent,
-   ...sym_Forms_TCloseQueryEvent,
-   ...sym_Forms_GridConfigs,
-   ...sym_Forms_TEditLink,
-   ...sym_Forms_GridEditorLink,
-   ...sym_Forms_gridEvents,
-   ...sym_Forms_gridTypes,
-   // Forms — bevel / shape / state / anchor / progress / bidi
-   ...sym_Forms_TBevelShape,
-   ...sym_Forms_TBevelStyle,
-   ...sym_Forms_TBevelKind,
-   ...sym_Forms_TShapeType,
-   ...sym_Forms_TWindowState,
-   ...sym_Forms_TAnchorKind,
-   ...sym_Forms_TBorderIcon,
-   ...sym_Globals_TCloseAction,
-   ...sym_Forms_TLabelPosition,
-   ...sym_Forms_TProgressBarOrientation,
-   ...sym_Forms_TProgressBarState,
-   ...sym_Forms_TProgressBarStyle,
-   ...sym_Forms_TBiDiMode,
-   // Forms — visual leaves
-   ...sym_Forms_Form,
-   ...sym_Forms_FormButtons,
-   ...sym_Forms_Topbar,
-   ...sym_Forms_Calendar,
-   ...sym_Forms_PageControl,
-   ...sym_Forms_TabSheet,
-   ...sym_Forms_Panel,
-   ...sym_Forms_CustomControl,
-   ...sym_Forms_ControlGroup,
-   ...sym_Forms_Grid,
-   ...sym_Forms_Imagem,
-   ...sym_Forms_Rectangle,
-   ...sym_Forms_Ellipse,
-   ...sym_Forms_Line,
-   ...sym_Forms_Border,
-   ...sym_Forms_FlatButton,
-   ...sym_Forms_CommandButton,
-   ...sym_Forms_ButtonOk,
-   ...sym_Forms_ButtonCancel,
-   ...sym_Forms_ProgressBar,
-   ...sym_Forms_Timer,
-   ...sym_Forms_StaticText,
-   ...sym_Forms_TBoundLabel,
-   ...sym_Forms_TLabeledEdit,
-   ...sym_Forms_TextBox,
-   ...sym_Forms_PasswordTextBox,
-   ...sym_Forms_MaskTextBox,
-   ...sym_Forms_DateTextBox,
-   ...sym_Forms_NumberTextBox,
-   ...sym_Forms_ValueTextBox,
-   ...sym_Forms_MemoTextBox,
-   ...sym_Forms_SearchTextBox,
-   ...sym_Forms_ButtonTextBox,
-   ...sym_Forms_HComboBox,
-   ...sym_Forms_CheckBox,
-   // Globals
-   ...sym_Globals_alBottom,
-   ...sym_Globals_alClient,
-   ...sym_Globals_alLeft,
-   ...sym_Globals_alNone,
-   ...sym_Globals_alRight,
-   ...sym_Globals_alTop,
-   ...sym_Globals_Base64ToFile,
-   ...sym_Globals_CDbl,
-   ...sym_Globals_Char,
-   ...sym_Globals_CInt,
-   ...sym_Globals_CStr,
-   ...sym_Globals_dbASA,
-   ...sym_Globals_dbMSSQL,
-   ...sym_Globals_dbPostgreSQL,
-   ...sym_Globals_DateTime,
-   ...sym_Globals_dateUtils,
-   ...sym_Globals_FileToBase64,
-   ...sym_Globals_InStr,
-   ...sym_Globals_LCase,
-   ...sym_Globals_Len,
-   ...sym_Globals_Left,
-   ...sym_Globals_Mid,
-   ...sym_Globals_Print,
-   ...sym_Globals_RGB,
-   ...sym_Globals_Space,
-   ...sym_Globals_taCenter,
-   ...sym_Globals_taLeftJustify,
-   ...sym_Globals_taRightJustify,
-   ...sym_Globals_THTTP,
-   ...sym_Globals_Timer,
-   ...sym_Globals_TJSONArray,
-   ...sym_Globals_TJSONObject,
-   ...sym_Globals_TLSv1,
-   ...sym_Globals_TLSv1_1,
-   ...sym_Globals_TLSv1_2,
-   ...sym_Globals_TLSv1_3,
-   ...sym_Globals_TObject,
-   ...sym_Globals_TPersistent,
-   ...sym_Globals_TryStrToInt,
-   ...sym_Globals_UCase,
-   ...sym_Globals_ZipFile,
-   ...sym_Globals_Whatsapp,
-   ...sym_Globals_Clipboard,
-   ...sym_Globals_Math,
-   // Globals — tipos comuns Delphi
-   ...sym_Globals_Exception,
-   ...sym_Globals_TColor,
-   ...sym_Globals_TCursor,
-   ...sym_Globals_TFont,
-   ...sym_Globals_FontConfig,
-   ...sym_Globals_TFontPitch,
-   ...sym_Globals_TFontQuality,
-   ...sym_Globals_TMsg,
-   ...sym_Globals_TPoint,
-   ...sym_Globals_TRect,
-   ...sym_Globals_TFontStyle,
-   ...sym_Globals_TMouseButton,
-   ...sym_Globals_TNotifyEvent,
-   ...sym_Globals_TMouseEvent,
-   ...sym_Globals_TKeyEvent,
-   ...sym_Globals_TKeyPressEvent,
-   ...sym_Globals_eventTypes,
-   // IO
-   ...sym_IO_Directory,
-   ...sym_IO_File,
-   ...sym_IO_IO,
-   // Net
-   ...sym_Net_Net,
-   ...sym_Net_TFTP,
-   // Primitives
-   ...sym_Primitives_Primitive,
-   ...sym_Primitives_Boolean,
-   ...sym_Primitives_Double,
-   ...sym_Primitives_Extended,
-   ...sym_Primitives_Integer,
-   ...sym_Primitives_Cardinal,
-   ...sym_Primitives_Single,
-   ...sym_Primitives_String,
-   ...sym_Primitives_TDateTime,
-   ...sym_Primitives_compat,
-   // SQL
-   ...sym_SQL_Command,
-   ...sym_SQL_Connection,
-   ...sym_SQL_SQL,
-   ...sym_SQL_TFDParam,
-   ...sym_SQL_TField,
-   ...sym_SQL_aliases,
-   // System
-   ...sym_System_IOUtils,
-   ...sym_System_System,
-   // System.Classes
-   ...sym_SystemClasses_SystemClasses,
-   ...sym_SystemClasses_TObject,
-   ...sym_SystemClasses_TPersistent,
-   // XML
-   ...sym_XML_IXMLNode,
-   ...sym_XML_IXMLNodeList,
-   ...sym_XML_TXMLDocument,
-   ...sym_XML_XML,
+  // Collections
+  ...sym_Collections_Collections,
+  ...sym_Collections_StringList,
+  ...sym_Collections_TStrings,
+  ...sym_Collections_TStringList,
+  ...sym_Collections_TObjectList,
+  // Data7
+  ...sym_Data7_CodEmpresa,
+  ...sym_Data7_CodFilial,
+  ...sym_Data7_CodPeriodoCaixa,
+  ...sym_Data7_CodUsuario,
+  ...sym_Data7_Criptografar,
+  ...sym_Data7_Data7,
+  ...sym_Data7_Report,
+  ...sym_Data7_Descriptografar,
+  ...sym_Data7_NomeArquivoExecutavel,
+  ...sym_Data7_NomeUsuario,
+  ...sym_Data7_Parametro,
+  ...sym_Data7_PesquisaPadrao,
+  ...sym_Data7_ProximoCodigo,
+  ...sym_Data7_ProximoID,
+  ...sym_Data7_ValorPorExtenso,
+  ...sym_Data7_ValorPorExtensoLinha1,
+  ...sym_Data7_ValorPorExtensoLinha2,
+  // Drawing
+  ...sym_Drawing_Drawing,
+  ...sym_Drawing_TCanvas,
+  ...sym_Drawing_TPen,
+  ...sym_Drawing_TBrushStyle,
+  ...sym_Drawing_TPenStyle,
+  // Environment
+  ...sym_Environment_Environment,
+  ...sym_Environment_Execute,
+  ...sym_Environment_MachineName,
+  ...sym_Environment_UserName,
+  // Forms — trunks
+  ...sym_Forms_TComponent,
+  ...sym_Forms_TControl,
+  ...sym_Forms_TGraphicControl,
+  ...sym_Forms_TShape,
+  ...sym_Forms_TWinControl,
+  ...sym_Forms_TScrollingWinControl,
+  ...sym_Forms_TForm,
+  ...sym_Forms_TFrame,
+  ...sym_Forms_TButtonControl,
+  ...sym_Forms_TCustomControl,
+  ...sym_Forms_TcxCustomEdit,
+  ...sym_Forms_TcxCustomTextEdit,
+  ...sym_Forms_TCustomEdit,
+  ...sym_Forms_TCustomButtonedEdit,
+  ...sym_Forms_TButtonedEdit,
+  ...sym_Forms_compat,
+  // Forms — utility
+  ...sym_Forms_Forms,
+  ...sym_Forms_MessageBox,
+  ...sym_Forms_ProcessMessages,
+  ...sym_Globals_TAlign,
+  ...sym_Globals_TAlignment,
+  ...sym_Globals_TMargins,
+  // Forms — type aliases & intermediate classes
+  ...sym_Forms_aliases,
+  // Forms — enum types & constants
+  ...sym_Forms_TShiftState,
+  ...sym_Forms_TModalResult,
+  ...sym_Forms_TFormBorderStyle,
+  ...sym_Forms_TBorderStyle,
+  ...sym_Forms_TDefaultMonitor,
+  ...sym_Forms_TFormStyle,
+  ...sym_Forms_TPopupMode,
+  ...sym_Forms_TPosition,
+  ...sym_Forms_TPrintScale,
+  ...sym_Forms_TRoundedCornerType,
+  ...sym_Forms_TEditorType,
+  ...sym_Forms_TGridDrawState,
+  // Forms — interfaces / event types / grid-related
+  ...sym_Forms_IFormVisualManager,
+  ...sym_Forms_TMonitorDpiChangedEvent,
+  ...sym_Forms_TCloseEvent,
+  ...sym_Forms_TCloseQueryEvent,
+  ...sym_Forms_GridConfigs,
+  ...sym_Forms_TEditLink,
+  ...sym_Forms_GridEditorLink,
+  ...sym_Forms_gridEvents,
+  ...sym_Forms_gridTypes,
+  // Forms — bevel / shape / state / anchor / progress / bidi
+  ...sym_Forms_TBevelShape,
+  ...sym_Forms_TBevelStyle,
+  ...sym_Forms_TBevelKind,
+  ...sym_Forms_TShapeType,
+  ...sym_Forms_TWindowState,
+  ...sym_Forms_TAnchorKind,
+  ...sym_Forms_TBorderIcon,
+  ...sym_Globals_TCloseAction,
+  ...sym_Forms_TLabelPosition,
+  ...sym_Forms_TProgressBarOrientation,
+  ...sym_Forms_TProgressBarState,
+  ...sym_Forms_TProgressBarStyle,
+  ...sym_Forms_TBiDiMode,
+  // Forms — visual leaves
+  ...sym_Forms_Form,
+  ...sym_Forms_FormButtons,
+  ...sym_Forms_Topbar,
+  ...sym_Forms_Calendar,
+  ...sym_Forms_PageControl,
+  ...sym_Forms_TabSheet,
+  ...sym_Forms_Panel,
+  ...sym_Forms_CustomControl,
+  ...sym_Forms_ControlGroup,
+  ...sym_Forms_Grid,
+  ...sym_Forms_Imagem,
+  ...sym_Forms_Rectangle,
+  ...sym_Forms_Ellipse,
+  ...sym_Forms_Line,
+  ...sym_Forms_Border,
+  ...sym_Forms_FlatButton,
+  ...sym_Forms_CommandButton,
+  ...sym_Forms_ButtonOk,
+  ...sym_Forms_ButtonCancel,
+  ...sym_Forms_ProgressBar,
+  ...sym_Forms_Timer,
+  ...sym_Forms_StaticText,
+  ...sym_Forms_TBoundLabel,
+  ...sym_Forms_TLabeledEdit,
+  ...sym_Forms_TextBox,
+  ...sym_Forms_PasswordTextBox,
+  ...sym_Forms_MaskTextBox,
+  ...sym_Forms_DateTextBox,
+  ...sym_Forms_NumberTextBox,
+  ...sym_Forms_ValueTextBox,
+  ...sym_Forms_MemoTextBox,
+  ...sym_Forms_SearchTextBox,
+  ...sym_Forms_ButtonTextBox,
+  ...sym_Forms_HComboBox,
+  ...sym_Forms_CheckBox,
+  // Globals
+  ...sym_Globals_alBottom,
+  ...sym_Globals_alClient,
+  ...sym_Globals_alLeft,
+  ...sym_Globals_alNone,
+  ...sym_Globals_alRight,
+  ...sym_Globals_alTop,
+  ...sym_Globals_Base64ToFile,
+  ...sym_Globals_CDbl,
+  ...sym_Globals_Char,
+  ...sym_Globals_CInt,
+  ...sym_Globals_CStr,
+  ...sym_Globals_dbASA,
+  ...sym_Globals_dbMSSQL,
+  ...sym_Globals_dbPostgreSQL,
+  ...sym_Globals_DateTime,
+  ...sym_Globals_dateUtils,
+  ...sym_Globals_FileToBase64,
+  ...sym_Globals_InStr,
+  ...sym_Globals_LCase,
+  ...sym_Globals_Len,
+  ...sym_Globals_Left,
+  ...sym_Globals_Mid,
+  ...sym_Globals_Print,
+  ...sym_Globals_RGB,
+  ...sym_Globals_Space,
+  ...sym_Globals_taCenter,
+  ...sym_Globals_taLeftJustify,
+  ...sym_Globals_taRightJustify,
+  ...sym_Globals_THTTP,
+  ...sym_Globals_Timer,
+  ...sym_Globals_TJSONArray,
+  ...sym_Globals_TJSONObject,
+  ...sym_Globals_TLSv1,
+  ...sym_Globals_TLSv1_1,
+  ...sym_Globals_TLSv1_2,
+  ...sym_Globals_TLSv1_3,
+  ...sym_Globals_TObject,
+  ...sym_Globals_TPersistent,
+  ...sym_Globals_TryStrToInt,
+  ...sym_Globals_UCase,
+  ...sym_Globals_ZipFile,
+  ...sym_Globals_Whatsapp,
+  ...sym_Globals_Clipboard,
+  ...sym_Globals_Math,
+  // Globals — tipos comuns Delphi
+  ...sym_Globals_Exception,
+  ...sym_Globals_TColor,
+  ...sym_Globals_TCursor,
+  ...sym_Globals_TFont,
+  ...sym_Globals_FontConfig,
+  ...sym_Globals_TFontPitch,
+  ...sym_Globals_TFontQuality,
+  ...sym_Globals_TMsg,
+  ...sym_Globals_TPoint,
+  ...sym_Globals_TRect,
+  ...sym_Globals_TFontStyle,
+  ...sym_Globals_TMouseButton,
+  ...sym_Globals_TNotifyEvent,
+  ...sym_Globals_TMouseEvent,
+  ...sym_Globals_TKeyEvent,
+  ...sym_Globals_TKeyPressEvent,
+  ...sym_Globals_eventTypes,
+  // IO
+  ...sym_IO_Directory,
+  ...sym_IO_File,
+  ...sym_IO_IO,
+  // Net
+  ...sym_Net_Net,
+  ...sym_Net_TFTP,
+  // Primitives
+  ...sym_Primitives_Primitive,
+  ...sym_Primitives_Boolean,
+  ...sym_Primitives_Double,
+  ...sym_Primitives_Extended,
+  ...sym_Primitives_Integer,
+  ...sym_Primitives_Cardinal,
+  ...sym_Primitives_Single,
+  ...sym_Primitives_String,
+  ...sym_Primitives_TDateTime,
+  ...sym_Primitives_compat,
+  // SQL
+  ...sym_SQL_Command,
+  ...sym_SQL_Connection,
+  ...sym_SQL_SQL,
+  ...sym_SQL_TFDParam,
+  ...sym_SQL_TField,
+  ...sym_SQL_aliases,
+  // System
+  ...sym_System_IOUtils,
+  ...sym_System_System,
+  // System.Classes
+  ...sym_SystemClasses_SystemClasses,
+  ...sym_SystemClasses_TObject,
+  ...sym_SystemClasses_TPersistent,
+  // XML
+  ...sym_XML_IXMLNode,
+  ...sym_XML_IXMLNodeList,
+  ...sym_XML_TXMLDocument,
+  ...sym_XML_XML,
 ];
 
 // -----------------------------------------------------------------------------
@@ -504,46 +504,46 @@ const classesByNameLower = new Map<string, SymbolInfo[]>();
 const namespacesAndClassesByNameLower = new Map<string, SymbolInfo[]>();
 
 for (const symbol of SYSTEM_SYMBOLS) {
-   const nameLower = symbol.name.toLowerCase();
-   const bucket = byNameLower.get(nameLower);
-   if (bucket) bucket.push(symbol);
-   else byNameLower.set(nameLower, [symbol]);
+  const nameLower = symbol.name.toLowerCase();
+  const bucket = byNameLower.get(nameLower);
+  if (bucket) bucket.push(symbol);
+  else byNameLower.set(nameLower, [symbol]);
 
-   if (symbol.containerName) {
-      const containerLower = symbol.containerName.toLowerCase();
-      const cBucket = byContainerLower.get(containerLower);
-      if (cBucket) cBucket.push(symbol);
-      else byContainerLower.set(containerLower, [symbol]);
-   }
+  if (symbol.containerName) {
+    const containerLower = symbol.containerName.toLowerCase();
+    const cBucket = byContainerLower.get(containerLower);
+    if (cBucket) cBucket.push(symbol);
+    else byContainerLower.set(containerLower, [symbol]);
+  }
 
-   if (symbol.kind === "class") {
-      const cls = classesByNameLower.get(nameLower);
-      if (cls) cls.push(symbol);
-      else classesByNameLower.set(nameLower, [symbol]);
-   }
-   if (symbol.kind === "namespace" || symbol.kind === "class") {
-      const nc = namespacesAndClassesByNameLower.get(nameLower);
-      if (nc) nc.push(symbol);
-      else namespacesAndClassesByNameLower.set(nameLower, [symbol]);
-   }
+  if (symbol.kind === "class") {
+    const cls = classesByNameLower.get(nameLower);
+    if (cls) cls.push(symbol);
+    else classesByNameLower.set(nameLower, [symbol]);
+  }
+  if (symbol.kind === "namespace" || symbol.kind === "class") {
+    const nc = namespacesAndClassesByNameLower.get(nameLower);
+    if (nc) nc.push(symbol);
+    else namespacesAndClassesByNameLower.set(nameLower, [symbol]);
+  }
 }
 
 /** O(1) lookup of system symbols by simple name. Returns an empty array when not found. */
 export function lookupSystemByName(name: string): readonly SymbolInfo[] {
-   return byNameLower.get(name.toLowerCase()) ?? [];
+  return byNameLower.get(name.toLowerCase()) ?? [];
 }
 
 /** O(1) lookup of system symbols by `containerName`. Returns an empty array when not found. */
 export function lookupSystemByContainer(containerName: string): readonly SymbolInfo[] {
-   return byContainerLower.get(containerName.toLowerCase()) ?? [];
+  return byContainerLower.get(containerName.toLowerCase()) ?? [];
 }
 
 /** O(1) lookup of `kind === 'class'` system symbols by simple name. */
 export function lookupSystemClassByName(name: string): readonly SymbolInfo[] {
-   return classesByNameLower.get(name.toLowerCase()) ?? [];
+  return classesByNameLower.get(name.toLowerCase()) ?? [];
 }
 
 /** O(1) lookup of `kind === 'class' | 'namespace'` system symbols by simple name. */
 export function lookupSystemNamespaceOrClassByName(name: string): readonly SymbolInfo[] {
-   return namespacesAndClassesByNameLower.get(name.toLowerCase()) ?? [];
+  return namespacesAndClassesByNameLower.get(name.toLowerCase()) ?? [];
 }

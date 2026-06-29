@@ -20,17 +20,21 @@ export class GitHubPublisher {
    */
   public static async publish(
     workspaceDir: string,
-    onAuthPrompt: (userCode: string, verificationUri: string) => void
+    onAuthPrompt: (userCode: string, verificationUri: string) => void,
   ): Promise<string> {
     // 1. Validate module first
     const manifestPath = path.join(workspaceDir, ManifestRegistry.FILENAME);
     const manifest = ManifestRegistry.read(manifestPath);
     if (!manifest) {
-      throw new Error(`Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace: ${workspaceDir}`);
+      throw new Error(
+        `Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace: ${workspaceDir}`,
+      );
     }
 
     if (!manifest.nome || typeof manifest.nome !== "string" || manifest.nome.trim() === "") {
-      throw new Error("O campo 'nome' no arquivo 'data7.json' é obrigatório e deve ser uma string não vazia.");
+      throw new Error(
+        "O campo 'nome' no arquivo 'data7.json' é obrigatório e deve ser uma string não vazia.",
+      );
     }
 
     const moduleName = manifest.nome.trim();
@@ -51,7 +55,9 @@ export class GitHubPublisher {
         const code = fs.readFileSync(filePath, "utf-8");
         const result = parseBasic(code);
         if (result.errors && result.errors.length > 0) {
-          const errMsgs = result.errors.map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`).join("; ");
+          const errMsgs = result.errors
+            .map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`)
+            .join("; ");
           throw new Error(`Erro de compilação/sintaxe em '${path.basename(filePath)}': ${errMsgs}`);
         }
       }
@@ -63,7 +69,7 @@ export class GitHubPublisher {
       logger.info("Token não encontrado. Iniciando Device Flow...");
       const deviceCode = await GitHubAuth.requestDeviceCode();
       onAuthPrompt(deviceCode.user_code, deviceCode.verification_uri);
-      
+
       token = await GitHubAuth.pollForToken(deviceCode.device_code, deviceCode.interval);
       GitHubAuth.storeToken(token);
     }
@@ -83,7 +89,11 @@ export class GitHubPublisher {
     let forkInfo: any = null;
     for (let attempt = 1; attempt <= 10; attempt++) {
       try {
-        const forkRes = await this.githubApiRequest("GET", `/repos/${username}/${path.basename(this.UPSTREAM_REPO)}`, token);
+        const forkRes = await this.githubApiRequest(
+          "GET",
+          `/repos/${username}/${path.basename(this.UPSTREAM_REPO)}`,
+          token,
+        );
         forkInfo = JSON.parse(forkRes);
         if (forkInfo && forkInfo.name) {
           forkReady = true;
@@ -97,7 +107,9 @@ export class GitHubPublisher {
     }
 
     if (!forkReady || !forkInfo) {
-      throw new Error(`O fork em github.com/${username}/${path.basename(this.UPSTREAM_REPO)} não ficou pronto a tempo.`);
+      throw new Error(
+        `O fork em github.com/${username}/${path.basename(this.UPSTREAM_REPO)} não ficou pronto a tempo.`,
+      );
     }
 
     const defaultBranch = forkInfo.default_branch || "main";
@@ -112,7 +124,10 @@ export class GitHubPublisher {
     const authenticatedCloneUrl = `https://x-access-token:${token}@github.com/${username}/${path.basename(this.UPSTREAM_REPO)}.git`;
     logger.info("Realizando clone raso do Fork do usuário...");
     try {
-      execSync(`git clone --depth 1 --branch ${defaultBranch} "${authenticatedCloneUrl}" "${tempDir}"`, { stdio: "pipe" });
+      execSync(
+        `git clone --depth 1 --branch ${defaultBranch} "${authenticatedCloneUrl}" "${tempDir}"`,
+        { stdio: "pipe" },
+      );
     } catch (err: any) {
       throw new Error(`Falha ao clonar o fork: ${err.stderr?.toString() || err.message}`);
     }
@@ -149,17 +164,23 @@ export class GitHubPublisher {
       execSync(`git config user.email "developer@data7.io"`, { cwd: tempDir });
 
       execSync(`git add modules/${moduleName.toLowerCase()}`, { cwd: tempDir, stdio: "pipe" });
-      
+
       const status = execSync("git status --porcelain", { cwd: tempDir }).toString().trim();
       if (!status) {
         logger.info("Nenhuma alteração detectada para publicar.");
       } else {
-        const moduleVersion = (manifest.raw.version as string) ?? manifest.opcoes.versao ?? "1.0.0.0";
-        execSync(`git commit -m "Publish module ${moduleName} v${moduleVersion}"`, { cwd: tempDir, stdio: "pipe" });
+        const moduleVersion =
+          (manifest.raw.version as string) ?? manifest.opcoes.versao ?? "1.0.0.0";
+        execSync(`git commit -m "Publish module ${moduleName} v${moduleVersion}"`, {
+          cwd: tempDir,
+          stdio: "pipe",
+        });
         execSync(`git push origin ${defaultBranch}`, { cwd: tempDir, stdio: "pipe" });
       }
     } catch (err: any) {
-      throw new Error(`Falha ao empurrar alterações de Git: ${err.stderr?.toString() || err.message}`);
+      throw new Error(
+        `Falha ao empurrar alterações de Git: ${err.stderr?.toString() || err.message}`,
+      );
     } finally {
       // Clean up temporary clone folder
       try {
@@ -168,11 +189,13 @@ export class GitHubPublisher {
         // ignore cleanup errors
       }
     }
-    
+
     // 9. Open Pull Request on the upstream repository
     const [owner] = this.UPSTREAM_REPO.split("/");
     if (owner && username.toLowerCase() === owner.toLowerCase()) {
-      logger.info("Publicação concluída diretamente no repositório principal (usuário é o proprietário).");
+      logger.info(
+        "Publicação concluída diretamente no repositório principal (usuário é o proprietário).",
+      );
       return `https://github.com/${this.UPSTREAM_REPO}`;
     }
 
@@ -181,11 +204,16 @@ export class GitHubPublisher {
       title: `Publish module ${moduleName} v${(manifest.raw.version as string) ?? manifest.opcoes.versao ?? "1.0.0.0"}`,
       head: `${username}:${defaultBranch}`,
       base: defaultBranch,
-      body: `Publicação automática do módulo \`${moduleName}\` criado via ferramentas de desenvolvedor do ecossistema Data7.`
+      body: `Publicação automática do módulo \`${moduleName}\` criado via ferramentas de desenvolvedor do ecossistema Data7.`,
     });
 
     try {
-      const prRes = await this.githubApiRequest("POST", `/repos/${this.UPSTREAM_REPO}/pulls`, token, prBody);
+      const prRes = await this.githubApiRequest(
+        "POST",
+        `/repos/${this.UPSTREAM_REPO}/pulls`,
+        token,
+        prBody,
+      );
       const prInfo = JSON.parse(prRes) as { html_url: string };
       logger.info(`Pull Request criado com sucesso: ${prInfo.html_url}`);
       return prInfo.html_url;
@@ -198,7 +226,7 @@ export class GitHubPublisher {
     method: "GET" | "POST",
     apiPath: string,
     token: string,
-    body?: string
+    body?: string,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const options = {
@@ -206,14 +234,16 @@ export class GitHubPublisher {
         path: apiPath,
         method,
         headers: {
-          "Authorization": `token ${token}`,
-          "Accept": "application/vnd.github.v3+json",
+          Authorization: `token ${token}`,
+          Accept: "application/vnd.github.v3+json",
           "User-Agent": "data7-publisher",
-          ...(body ? {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(body)
-          } : {})
-        }
+          ...(body
+            ? {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(body),
+              }
+            : {}),
+        },
       };
 
       const req = https.request(options, (res) => {

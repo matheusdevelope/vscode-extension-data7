@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
-import { LanguageProcessor, SYSTEM_SYMBOLS, TypeResolver, WorkspaceSymbolIndexer } from "@data7/core";
+import {
+  LanguageProcessor,
+  SYSTEM_SYMBOLS,
+  TypeResolver,
+  WorkspaceSymbolIndexer,
+} from "@data7/core";
 import type { SymbolInfo } from "@data7/core";
 
 /**

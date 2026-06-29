@@ -1,7 +1,16 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { CONFIG_NAMESPACE, DiagnosticCodes, PROJECT_CONFIG_FILENAME, findLegacyDataModulesExcludePattern, getRawConfiguration, logger, readConfiguration, readProjectConfig } from "@data7/core";
+import {
+  CONFIG_NAMESPACE,
+  DiagnosticCodes,
+  PROJECT_CONFIG_FILENAME,
+  findLegacyDataModulesExcludePattern,
+  getRawConfiguration,
+  logger,
+  readConfiguration,
+  readProjectConfig,
+} from "@data7/core";
 
 import { BuildService } from "./build-service";
 import { DependencyService } from "./dependency-service";

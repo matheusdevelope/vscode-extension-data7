@@ -9,7 +9,7 @@ import {
   readConfiguration,
   isReadOnlyModuleFile,
   initLogger,
-  logger
+  logger,
 } from "@data7/core";
 import { registerCommands } from "./commands";
 import { registerLanguageProviders } from "./providers/registration";

@@ -1,5 +1,11 @@
 import * as vscode from "vscode";
-import { TypeResolver, WorkspaceSymbolIndexer, getChainPrefix, lookupSystemByName, lookupSystemNamespaceOrClassByName } from "@data7/core";
+import {
+  TypeResolver,
+  WorkspaceSymbolIndexer,
+  getChainPrefix,
+  lookupSystemByName,
+  lookupSystemNamespaceOrClassByName,
+} from "@data7/core";
 import type { SymbolInfo } from "@data7/core";
 
 export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvider {

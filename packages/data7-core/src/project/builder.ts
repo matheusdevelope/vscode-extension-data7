@@ -763,7 +763,9 @@ export class Builder {
           const fileDir = path.dirname(filePath);
           const relFileDir = path.relative(data7ModulesDir, fileDir);
           const virtualRelDir = getVirtualRelPath(relFileDir);
-          const virtualPath = virtualRelDir ? path.join("data7_modules", virtualRelDir) : "data7_modules";
+          const virtualPath = virtualRelDir
+            ? path.join("data7_modules", virtualRelDir)
+            : "data7_modules";
           const folderId = foldersByPath.get(virtualPath) ?? data7ModulesFolderId!;
 
           let rawCode = fs.readFileSync(filePath, "utf-8");
@@ -846,7 +848,11 @@ export class Builder {
       readonly fileUri: string;
       readonly code: string;
     }[] => [
-      { moduleName: "Principal", fileUri: mainUri, code: codeByModuleName.get("Principal") ?? mainTranspiled.code },
+      {
+        moduleName: "Principal",
+        fileUri: mainUri,
+        code: codeByModuleName.get("Principal") ?? mainTranspiled.code,
+      },
       ...virtualSugarModules.map((m) => ({
         moduleName: m.name,
         fileUri: m.fileUri,

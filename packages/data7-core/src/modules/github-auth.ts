@@ -97,7 +97,7 @@ export class GitHubAuth {
   public static async requestDeviceCode(): Promise<DeviceCodeResponse> {
     const postData = JSON.stringify({
       client_id: this.CLIENT_ID,
-      scope: "public_repo write:repo_hook workflow"
+      scope: "public_repo write:repo_hook workflow",
     });
 
     const response = await this.postJson("github.com", "/login/device/code", postData);
@@ -111,11 +111,11 @@ export class GitHubAuth {
     const postData = JSON.stringify({
       client_id: this.CLIENT_ID,
       device_code: deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
     });
 
     const intervalMs = intervalSeconds * 1000;
-    
+
     return new Promise((resolve, reject) => {
       const checkToken = async () => {
         try {
@@ -157,10 +157,10 @@ export class GitHubAuth {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
           "Content-Length": Buffer.byteLength(body),
-          "User-Agent": "data7-auth-agent"
-        }
+          "User-Agent": "data7-auth-agent",
+        },
       };
 
       const req = https.request(options, (res) => {

@@ -12,14 +12,16 @@ export class ModuleTreeItem extends vscode.TreeItem {
     public readonly label: string,
     public readonly version: string,
     public readonly type: "local" | "online" | "missing",
-    public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode
+      .TreeItemCollapsibleState.None,
   ) {
     super(label, collapsibleState);
-    
+
     // Add tag to the description
-    const tag = type === "local" ? "[💻 Local]" : type === "online" ? "[🌐 Online]" : "[⚠️ Ausente]";
+    const tag =
+      type === "local" ? "[💻 Local]" : type === "online" ? "[🌐 Online]" : "[⚠️ Ausente]";
     this.description = `${tag} v${version}`;
-    
+
     // Set appropriate context value for action buttons
     this.contextValue = `module-${type}`;
 
@@ -38,9 +40,9 @@ export class ModuleTreeItem extends vscode.TreeItem {
 }
 
 export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTreeItem> {
-  private _onDidChangeTreeData: vscode.EventEmitter<ModuleTreeItem | undefined | null | void> = 
+  private _onDidChangeTreeData: vscode.EventEmitter<ModuleTreeItem | undefined | null | void> =
     new vscode.EventEmitter<ModuleTreeItem | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<ModuleTreeItem | undefined | null | void> = 
+  readonly onDidChangeTreeData: vscode.Event<ModuleTreeItem | undefined | null | void> =
     this._onDidChangeTreeData.event;
 
   private items: ModuleTreeItem[] = [];
@@ -104,7 +106,7 @@ export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTre
    */
   private async runBackgroundUpdateScan(): Promise<void> {
     // Wait a brief delay after start
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const activeProject = ProjectService.getActiveProject();
     if (!activeProject) return;
@@ -137,7 +139,7 @@ export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTre
     if (upgradesAvailable.length > 0) {
       const message = `Versões mais recentes encontradas para dependências em uso:\n${upgradesAvailable.join("\n")}`;
       const action = "Atualizar Tudo";
-      vscode.window.showInformationMessage(message, action).then(selected => {
+      vscode.window.showInformationMessage(message, action).then((selected) => {
         if (selected === action) {
           vscode.commands.executeCommand("data7.modules.updateDependencies");
         }
@@ -158,6 +160,6 @@ export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTre
   }
 
   public getSelectedItems(): ModuleTreeItem[] {
-    return this.items.filter(item => item.checkboxState === vscode.TreeItemCheckboxState.Checked);
+    return this.items.filter((item) => item.checkboxState === vscode.TreeItemCheckboxState.Checked);
   }
 }

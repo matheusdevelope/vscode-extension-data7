@@ -10,7 +10,6 @@ import { logger } from "../infra/logger";
 import { getOnlineModulesLocalPath } from "../infra/extension-paths";
 import { GitHubPublisher } from "./github-publisher";
 
-
 export class ModuleOrchestrator {
   /**
    * Returns true if the given module name matches the active project name in the workspace.
@@ -35,7 +34,9 @@ export class ModuleOrchestrator {
     const manifestPath = path.join(workspaceDir, ManifestRegistry.FILENAME);
     const manifest = ManifestRegistry.read(manifestPath);
     if (!manifest) {
-      logger.warn(`Manifesto ${ManifestRegistry.FILENAME} não encontrado no workspace: ${workspaceDir}`);
+      logger.warn(
+        `Manifesto ${ManifestRegistry.FILENAME} não encontrado no workspace: ${workspaceDir}`,
+      );
       return [];
     }
 
@@ -45,7 +46,9 @@ export class ModuleOrchestrator {
     for (const [depName, version] of Object.entries(manifest.dependencies)) {
       // Rule: Protect active development module from being overwritten/synced to data7_modules.
       if (depName.toLowerCase() === projectName) {
-        logger.info(`Ignorando sincronização para o módulo "${depName}" por ser o próprio projeto em desenvolvimento ativo.`);
+        logger.info(
+          `Ignorando sincronização para o módulo "${depName}" por ser o próprio projeto em desenvolvimento ativo.`,
+        );
         continue;
       }
       filteredDeps[depName] = version;
@@ -62,11 +65,15 @@ export class ModuleOrchestrator {
     const manifestPath = path.join(workspaceDir, ManifestRegistry.FILENAME);
     const manifest = ManifestRegistry.read(manifestPath);
     if (!manifest) {
-      throw new Error(`Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace: ${workspaceDir}`);
+      throw new Error(
+        `Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace: ${workspaceDir}`,
+      );
     }
 
     if (!manifest.nome || typeof manifest.nome !== "string" || manifest.nome.trim() === "") {
-      throw new Error("O campo 'nome' no arquivo 'data7.json' é obrigatório e deve ser uma string não vazia.");
+      throw new Error(
+        "O campo 'nome' no arquivo 'data7.json' é obrigatório e deve ser uma string não vazia.",
+      );
     }
 
     const moduleName = manifest.nome.trim();
@@ -87,7 +94,9 @@ export class ModuleOrchestrator {
         const code = fs.readFileSync(filePath, "utf-8");
         const result = parseBasic(code);
         if (result.errors && result.errors.length > 0) {
-          const errMsgs = result.errors.map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`).join("; ");
+          const errMsgs = result.errors
+            .map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`)
+            .join("; ");
           throw new Error(`Erro de compilação/sintaxe em '${path.basename(filePath)}': ${errMsgs}`);
         }
       }
@@ -125,9 +134,8 @@ export class ModuleOrchestrator {
    */
   public static async publishModuleOnline(
     workspaceDir: string,
-    onAuthPrompt: (userCode: string, verificationUri: string) => void
+    onAuthPrompt: (userCode: string, verificationUri: string) => void,
   ): Promise<string> {
     return GitHubPublisher.publish(workspaceDir, onAuthPrompt);
   }
 }
-

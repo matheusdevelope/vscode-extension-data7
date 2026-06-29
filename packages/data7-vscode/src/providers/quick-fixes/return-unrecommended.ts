@@ -1,6 +1,20 @@
 import * as vscode from "vscode";
-import { ASTWalker, DiagnosticCodes, LanguageProcessor, deepClone, serializeUnit } from "@data7/core";
-import type { CompilationUnit, IfStatement, MethodDeclaration, Node, PropertyDeclaration, ReturnUnrecommendedPayload, Statement } from "@data7/core";
+import {
+  ASTWalker,
+  DiagnosticCodes,
+  LanguageProcessor,
+  deepClone,
+  serializeUnit,
+} from "@data7/core";
+import type {
+  CompilationUnit,
+  IfStatement,
+  MethodDeclaration,
+  Node,
+  PropertyDeclaration,
+  ReturnUnrecommendedPayload,
+  Statement,
+} from "@data7/core";
 
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 

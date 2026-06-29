@@ -1,5 +1,25 @@
 import * as vscode from "vscode";
-import { DIAGNOSTIC_SOURCE, DependencyScanner, DiagnosticCodes, DiagnosticsLinter, LANGUAGE_IDS, LanguageProcessor, PROJECT_CONFIG_FILENAME, SymbolParser, WorkspaceSymbolIndexer, buildMockDocument, debounceKeyed, getCoreModulesPath, isExcluded, isReadOnlyModuleFile, logger, lookupSystemNamespaceOrClassByName, readConfiguration, readProjectConfig, setDiagnosticPayload } from "@data7/core";
+import {
+  DIAGNOSTIC_SOURCE,
+  DependencyScanner,
+  DiagnosticCodes,
+  DiagnosticsLinter,
+  LANGUAGE_IDS,
+  LanguageProcessor,
+  PROJECT_CONFIG_FILENAME,
+  SymbolParser,
+  WorkspaceSymbolIndexer,
+  buildMockDocument,
+  debounceKeyed,
+  getCoreModulesPath,
+  isExcluded,
+  isReadOnlyModuleFile,
+  logger,
+  lookupSystemNamespaceOrClassByName,
+  readConfiguration,
+  readProjectConfig,
+  setDiagnosticPayload,
+} from "@data7/core";
 import type { SharedModuleInfo } from "@data7/core";
 
 import * as path from "path";
@@ -175,7 +195,10 @@ export class DiagnosticService {
   }
 
   public static replaceDiagnosticsFromBatch(
-    entries: readonly { readonly uri: vscode.Uri; readonly diagnostics: readonly vscode.Diagnostic[] }[],
+    entries: readonly {
+      readonly uri: vscode.Uri;
+      readonly diagnostics: readonly vscode.Diagnostic[];
+    }[],
   ): void {
     for (const entry of entries) {
       const uriKey = entry.uri.toString().toLowerCase();

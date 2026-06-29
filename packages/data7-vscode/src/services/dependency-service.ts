@@ -1,16 +1,16 @@
 import * as vscode from "vscode";
 import { ProjectService } from "./project-service";
 import { DiagnosticService } from "./diagnostic-service";
-import { 
-  Builder, 
-  PROJECT_CONFIG_FILENAME, 
-  WorkspaceSymbolIndexer, 
+import {
+  Builder,
+  PROJECT_CONFIG_FILENAME,
+  WorkspaceSymbolIndexer,
   logger,
   readProjectConfig,
   writeProjectConfig,
   isRecord,
   DependencySynchronizer,
-  ModuleOrchestrator
+  ModuleOrchestrator,
 } from "@data7/core";
 import * as path from "path";
 import * as fs from "fs";
@@ -69,7 +69,7 @@ export class DependencyService {
     if (!moduleName) {
       moduleName = await vscode.window.showInputBox({
         prompt: "Digite o nome do módulo a ser instalado",
-        placeHolder: "ex: mod_buttonedtextbox"
+        placeHolder: "ex: mod_buttonedtextbox",
       });
     }
     if (!moduleName) return;
@@ -90,7 +90,9 @@ export class DependencyService {
       if (!manifest) throw new Error("data7.json não encontrado no projeto ativo.");
 
       let changed = false;
-      const rawDeps = (isRecord(manifest.raw.dependencies) ? { ...manifest.raw.dependencies } : {}) as Record<string, string>;
+      const rawDeps = (
+        isRecord(manifest.raw.dependencies) ? { ...manifest.raw.dependencies } : {}
+      ) as Record<string, string>;
       for (const moduleName of moduleNames) {
         if (!rawDeps[moduleName]) {
           rawDeps[moduleName] = "latest";
@@ -106,12 +108,19 @@ export class DependencyService {
         writeProjectConfig(manifestPath, updatedMetadata as any);
       }
 
-      const synced = await DependencySynchronizer.sync(project.workspaceDir, changed ? rawDeps : manifest.dependencies);
+      const synced = await DependencySynchronizer.sync(
+        project.workspaceDir,
+        changed ? rawDeps : manifest.dependencies,
+      );
       if (synced.length > 0) {
-        vscode.window.showInformationMessage(`Módulos instalados/sincronizados: ${synced.join(", ")}`);
+        vscode.window.showInformationMessage(
+          `Módulos instalados/sincronizados: ${synced.join(", ")}`,
+        );
         this.refreshActiveProject();
       } else if (!changed) {
-        vscode.window.showInformationMessage("Todos os módulos já estavam instalados e atualizados.");
+        vscode.window.showInformationMessage(
+          "Todos os módulos já estavam instalados e atualizados.",
+        );
       }
     } catch (err: any) {
       vscode.window.showErrorMessage(`Falha ao instalar módulos: ${err.message}`);
@@ -137,13 +146,13 @@ export class DependencyService {
           vscode.window.showInformationMessage(
             synced.length > 0
               ? `Dependências sincronizadas: ${synced.length} módulo(s).`
-              : "Nenhuma dependência precisou ser sincronizada."
+              : "Nenhuma dependência precisou ser sincronizada.",
           );
           this.refreshActiveProject();
         } catch (err: any) {
           vscode.window.showErrorMessage(`Falha ao sincronizar dependências: ${err.message}`);
         }
-      }
+      },
     );
   }
 
@@ -167,7 +176,7 @@ export class DependencyService {
         } catch (err: any) {
           vscode.window.showErrorMessage(`Falha ao publicar módulo: ${err.message}`);
         }
-      }
+      },
     );
   }
 }

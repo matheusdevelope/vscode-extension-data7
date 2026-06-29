@@ -1406,9 +1406,10 @@ export class DiagnosticsASTWalker extends ASTWalker {
     this.timeMethodInvocation += performance.now() - t0;
   }
 
-  private resolveStaticReceiverAccess(
-    receiver: Expression,
-  ): { readonly typeName: string | undefined; readonly isStaticAccess: boolean } {
+  private resolveStaticReceiverAccess(receiver: Expression): {
+    readonly typeName: string | undefined;
+    readonly isStaticAccess: boolean;
+  } {
     if (receiver.kind !== "Identifier") {
       return { typeName: undefined, isStaticAccess: false };
     }
@@ -1586,10 +1587,16 @@ export class DiagnosticsASTWalker extends ASTWalker {
       console.log("FROM MEMBER ACCESS: parameterlessCallable=", !!parameterlessCallable);
     }
     const parent = this.parentStack[this.parentStack.length - 1];
-    const isAddressOf = parent && parent.kind === "UnaryExpression" && parent.operator.toLowerCase() === "addressof";
+    const isAddressOf =
+      parent && parent.kind === "UnaryExpression" && parent.operator.toLowerCase() === "addressof";
     const isAssignmentTarget = parent && parent.kind === "Assignment" && parent.target === node;
-    
-    if (parent && !(parent.kind === "MethodInvocation" && parent.callee === node) && !isAddressOf && !isAssignmentTarget) {
+
+    if (
+      parent &&
+      !(parent.kind === "MethodInvocation" && parent.callee === node) &&
+      !isAddressOf &&
+      !isAssignmentTarget
+    ) {
       const parameterlessCallable = this.resolveParameterlessFinalCall(node, lineIdx);
       if (parameterlessCallable) {
         this.pushFinalCallParenthesesDiagnostic(node, parameterlessCallable, lineIdx);
@@ -1868,10 +1875,10 @@ export class DiagnosticsASTWalker extends ASTWalker {
 
     const enumerable = enumerableType
       ? detectEnumerable(
-        enumerableType,
-        (t) => TypeResolver.getAllMembersForType(t, this.indexer),
-        explicitType,
-      )
+          enumerableType,
+          (t) => TypeResolver.getAllMembersForType(t, this.indexer),
+          explicitType,
+        )
       : undefined;
 
     if (!enumerable) {
@@ -1883,7 +1890,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
       const diag = new vscode.Diagnostic(
         range,
         `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
-        `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
+          `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
         vscode.DiagnosticSeverity.Warning,
       );
       diag.code = DiagnosticCodes.NotEnumerable;
@@ -2222,13 +2229,13 @@ export class DiagnosticsASTWalker extends ASTWalker {
     lineIdx: number,
   ):
     | {
-      readonly root: MethodInvocation;
-      readonly rootSymbol: SymbolInfo;
-      readonly startChar: number;
-      readonly endChar: number;
-      readonly rootText: string;
-      readonly suffixText: string;
-    }
+        readonly root: MethodInvocation;
+        readonly rootSymbol: SymbolInfo;
+        readonly startChar: number;
+        readonly endChar: number;
+        readonly rootText: string;
+        readonly suffixText: string;
+      }
     | undefined {
     if (!this.isActiveSharedFunction()) return undefined;
 
@@ -2246,11 +2253,15 @@ export class DiagnosticsASTWalker extends ASTWalker {
     const endChar = this.findExpressionEndColumn(lineText, startChar);
     const rootStart = root.loc?.startChar ?? startChar;
 
-    const rootEnd = this.findInvocationEndColumn(lineText, rootStart, (root as MethodInvocation).methodName);
+    const rootEnd = this.findInvocationEndColumn(
+      lineText,
+      rootStart,
+      (root as MethodInvocation).methodName,
+    );
     if (rootEnd <= rootStart || rootEnd > endChar) return undefined;
 
     return {
-      root: (root as MethodInvocation),
+      root: root as MethodInvocation,
       rootSymbol,
       startChar,
       endChar,
@@ -2361,7 +2372,8 @@ export class DiagnosticsASTWalker extends ASTWalker {
       rootText: resolved.rootText,
       suffixText: resolved.suffixText,
       tempName: `__data7GlobalReturn${lineIdx + 1}`,
-      tempType: (resolved.rootSymbol.type || typeRefToString(this.activeMethod?.returnType)) ?? "Variant",
+      tempType:
+        (resolved.rootSymbol.type || typeRefToString(this.activeMethod?.returnType)) ?? "Variant",
       exitType: "Function",
       isInsideCatch: this.isInsideCatchBlock(expr),
     };
@@ -2506,10 +2518,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     }
   }
 
-  private resolveParameterlessFinalCall(
-    expr: Expression,
-    lineIdx: number,
-  ): SymbolInfo | undefined {
+  private resolveParameterlessFinalCall(expr: Expression, lineIdx: number): SymbolInfo | undefined {
     if (expr.kind === "Identifier") {
       if (
         PRIMITIVE_TYPES.has(expr.name.toLowerCase()) ||
@@ -2556,10 +2565,7 @@ export class DiagnosticsASTWalker extends ASTWalker {
     ) {
       return false;
     }
-    return (
-      (symbol.parameters?.length ?? 0) === 0 ||
-      symbol.parameters!.every((p) => p.isOptional)
-    );
+    return (symbol.parameters?.length ?? 0) === 0 || symbol.parameters!.every((p) => p.isOptional);
   }
 
   private pushFinalCallParenthesesDiagnostic(

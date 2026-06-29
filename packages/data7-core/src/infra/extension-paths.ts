@@ -105,4 +105,3 @@ function ensureDirectory(dir: string): void {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
-

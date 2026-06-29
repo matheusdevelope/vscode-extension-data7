@@ -52,7 +52,7 @@ describe("GitHubPublisher - publish", () => {
                 user_code: "1234",
                 verification_uri: "https://github.com",
                 expires_in: 900,
-                interval: 5
+                interval: 5,
               });
             } else if (options.path === "/login/oauth/access_token") {
               responseData = JSON.stringify({ access_token: "new-mock-token" });
@@ -62,7 +62,7 @@ describe("GitHubPublisher - publish", () => {
           if (event === "end") {
             handler();
           }
-        }
+        },
       };
 
       callback(mockRes);
@@ -75,7 +75,7 @@ describe("GitHubPublisher - publish", () => {
             apiRequests[idx].body = data;
           }
         },
-        end: () => {}
+        end: () => {},
       };
     });
 
@@ -103,7 +103,7 @@ describe("GitHubPublisher - publish", () => {
   test("throws error when data7.json does not exist", async () => {
     await assert.rejects(
       GitHubPublisher.publish(tempWorkspace, () => {}),
-      /data7.json' não encontrado/
+      /data7.json' não encontrado/,
     );
   });
 
@@ -113,14 +113,14 @@ describe("GitHubPublisher - publish", () => {
       path.join(tempWorkspace, "data7.json"),
       JSON.stringify({
         nome: "helpers",
-        opcoes: { versao: "1.0.0.0" }
-      })
+        opcoes: { versao: "1.0.0.0" },
+      }),
     );
     const srcDir = path.join(tempWorkspace, "src");
     fs.mkdirSync(srcDir);
     fs.writeFileSync(
       path.join(srcDir, "Helper.bas"),
-      "Namespace helpers\n  Class THelper\n  End Class\nEnd Namespace\n"
+      "Namespace helpers\n  Class THelper\n  End Class\nEnd Namespace\n",
     );
 
     let authPromptCalled = false;
@@ -130,19 +130,35 @@ describe("GitHubPublisher - publish", () => {
 
     // PR url should be returned
     assert.equal(prUrl, "https://github.com/pull/123");
-    assert.equal(authPromptCalled, false, "Auth prompt should not be called if token already exists");
+    assert.equal(
+      authPromptCalled,
+      false,
+      "Auth prompt should not be called if token already exists",
+    );
 
     // Check that github API requests were triggered
-    const paths = apiRequests.map(r => r.path);
+    const paths = apiRequests.map((r) => r.path);
     assert.ok(paths.includes("/user"), "Should request user info");
     assert.ok(paths.includes("/repos/matheusdevelope/data7-modules/forks"), "Should trigger fork");
     assert.ok(paths.includes("/repos/mockuser/data7-modules"), "Should check fork state");
     assert.ok(paths.includes("/repos/matheusdevelope/data7-modules/pulls"), "Should open PR");
 
     // Verify git commands executed locally
-    assert.ok(executedCommands.some(cmd => cmd.includes("git clone")), "Should clone fork");
-    assert.ok(executedCommands.some(cmd => cmd.includes("git add")), "Should add changes");
-    assert.ok(executedCommands.some(cmd => cmd.includes("git commit")), "Should commit changes");
-    assert.ok(executedCommands.some(cmd => cmd.includes("git push")), "Should push to origin");
+    assert.ok(
+      executedCommands.some((cmd) => cmd.includes("git clone")),
+      "Should clone fork",
+    );
+    assert.ok(
+      executedCommands.some((cmd) => cmd.includes("git add")),
+      "Should add changes",
+    );
+    assert.ok(
+      executedCommands.some((cmd) => cmd.includes("git commit")),
+      "Should commit changes",
+    );
+    assert.ok(
+      executedCommands.some((cmd) => cmd.includes("git push")),
+      "Should push to origin",
+    );
   });
 });

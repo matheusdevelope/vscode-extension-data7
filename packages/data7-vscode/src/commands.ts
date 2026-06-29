@@ -77,7 +77,9 @@ export function registerCommands(context: vscode.ExtensionContext): void {
       async () => {
         const activeProject = ProjectService.getActiveProject();
         if (!activeProject) {
-          vscode.window.showWarningMessage("Nenhum projeto ativo encontrado no workspace para publicação.");
+          vscode.window.showWarningMessage(
+            "Nenhum projeto ativo encontrado no workspace para publicação.",
+          );
           return;
         }
         const projectName = path.basename(activeProject.workspaceDir);
@@ -87,25 +89,29 @@ export function registerCommands(context: vscode.ExtensionContext): void {
             {
               location: vscode.ProgressLocation.Notification,
               title: `Publicando módulo '${projectName}' localmente...`,
-              cancellable: false
+              cancellable: false,
             },
             async () => {
               await ModuleOrchestrator.publishModuleLocally(activeProject.workspaceDir);
-            }
+            },
           );
-          vscode.window.showInformationMessage(`Módulo '${projectName}' publicado localmente com sucesso!`);
+          vscode.window.showInformationMessage(
+            `Módulo '${projectName}' publicado localmente com sucesso!`,
+          );
           await vscode.commands.executeCommand("data7.modules.refreshView");
         } catch (err: any) {
           vscode.window.showErrorMessage(`Falha ao publicar módulo localmente: ${err.message}`);
         }
-      }
+      },
     ],
     [
       COMMAND_IDS.publishOnline,
       async () => {
         const activeProject = ProjectService.getActiveProject();
         if (!activeProject) {
-          vscode.window.showWarningMessage("Nenhum projeto ativo encontrado no workspace para publicação.");
+          vscode.window.showWarningMessage(
+            "Nenhum projeto ativo encontrado no workspace para publicação.",
+          );
           return;
         }
         const projectName = path.basename(activeProject.workspaceDir);
@@ -116,43 +122,49 @@ export function registerCommands(context: vscode.ExtensionContext): void {
             {
               location: vscode.ProgressLocation.Notification,
               title: `Publicando módulo '${projectName}' online...`,
-              cancellable: false
+              cancellable: false,
             },
             async () => {
               prUrl = await ModuleOrchestrator.publishModuleOnline(
                 activeProject.workspaceDir,
                 (userCode, verificationUri) => {
-                  vscode.window.showInformationMessage(
-                    `Autenticação GitHub necessária. Código: ${userCode}`,
-                    "Autorizar no GitHub"
-                  ).then((selection) => {
-                    if (selection === "Autorizar no GitHub") {
-                      vscode.env.openExternal(vscode.Uri.parse(verificationUri));
-                    }
-                  });
-                }
+                  vscode.window
+                    .showInformationMessage(
+                      `Autenticação GitHub necessária. Código: ${userCode}`,
+                      "Autorizar no GitHub",
+                    )
+                    .then((selection) => {
+                      if (selection === "Autorizar no GitHub") {
+                        vscode.env.openExternal(vscode.Uri.parse(verificationUri));
+                      }
+                    });
+                },
               );
-            }
+            },
           );
-          vscode.window.showInformationMessage(
-            `Módulo '${projectName}' publicado online com sucesso!`,
-            "Ver Pull Request"
-          ).then((selection) => {
-            if (selection === "Ver Pull Request" && prUrl) {
-              vscode.env.openExternal(vscode.Uri.parse(prUrl));
-            }
-          });
+          vscode.window
+            .showInformationMessage(
+              `Módulo '${projectName}' publicado online com sucesso!`,
+              "Ver Pull Request",
+            )
+            .then((selection) => {
+              if (selection === "Ver Pull Request" && prUrl) {
+                vscode.env.openExternal(vscode.Uri.parse(prUrl));
+              }
+            });
           await vscode.commands.executeCommand("data7.modules.refreshView");
         } catch (err: any) {
           vscode.window.showErrorMessage(`Falha ao publicar módulo online: ${err.message}`);
         }
-      }
+      },
     ],
     [
       COMMAND_IDS.suggestDependencies,
       async () => {
-        vscode.window.showInformationMessage("A sugestão automática de dependências está temporariamente desativada na nova arquitetura.");
-      }
+        vscode.window.showInformationMessage(
+          "A sugestão automática de dependências está temporariamente desativada na nova arquitetura.",
+        );
+      },
     ],
 
     // Linter/Fixer commands

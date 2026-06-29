@@ -16,7 +16,8 @@ export const symbols: SystemSymbolInfo[] = [
     fileUri: "system://library",
     containerName: "Forms",
     inheritsFrom: "TcxCustomTextEdit",
-    description: "Variante de TextBox configurada para entrada de mascaras (caracteres mascarados).",
+    description:
+      "Variante de TextBox configurada para entrada de mascaras (caracteres mascarados).",
   },
   {
     name: "Mascara",

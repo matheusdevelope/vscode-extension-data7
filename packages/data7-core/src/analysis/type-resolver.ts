@@ -83,10 +83,7 @@ export class TypeResolver {
     // Also check method parameters (they don't appear in the Dim-locals map).
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     const currentMethod = fileSyms?.symbols.find(
-      (s) =>
-        s.kind === "method" &&
-        lineIdx >= s.range.startLine &&
-        lineIdx <= s.range.endLine,
+      (s) => s.kind === "method" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
     );
     return currentMethod?.parameters?.some((p) => p.name.toLowerCase() === nameLower) ?? false;
   }
@@ -274,12 +271,14 @@ export class TypeResolver {
       const byName = lookupSystemClassByName(namePart)[0];
       if (byName) return byName;
 
-      const wsMatches = indexer.getSymbolsByName(namePart).filter(
-        (s) =>
-          (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") &&
-          (s.containerName?.toLowerCase() === nsPart.toLowerCase() ||
-           nsPart.toLowerCase().endsWith("." + s.containerName?.toLowerCase()))
-      );
+      const wsMatches = indexer
+        .getSymbolsByName(namePart)
+        .filter(
+          (s) =>
+            (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") &&
+            (s.containerName?.toLowerCase() === nsPart.toLowerCase() ||
+              nsPart.toLowerCase().endsWith("." + s.containerName?.toLowerCase())),
+        );
       if (wsMatches.length > 0) {
         return wsMatches[0];
       }
@@ -290,7 +289,10 @@ export class TypeResolver {
     if (sys) return sys;
 
     const wsSym = indexer.findSymbolByName(qualifiedOrSimpleName);
-    if (wsSym && (wsSym.kind === "class" || wsSym.kind === "structure" || wsSym.kind === "delegate")) {
+    if (
+      wsSym &&
+      (wsSym.kind === "class" || wsSym.kind === "structure" || wsSym.kind === "delegate")
+    ) {
       return wsSym;
     }
     return isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer);
@@ -984,8 +986,7 @@ export class TypeResolver {
     const memberLower = memberName.toLowerCase();
     const arity = argumentTypes.length;
     const candidates = TypeResolver.getAllMembersForType(typeName, indexer).filter(
-      (s) =>
-        s.name.toLowerCase() === memberLower && isArityMatch(s.parameters, arity),
+      (s) => s.name.toLowerCase() === memberLower && isArityMatch(s.parameters, arity),
     );
 
     return (
@@ -1521,9 +1522,13 @@ function findGenericBaseSymbol(
         (s) => s.containerName?.toLowerCase() === nsPart.toLowerCase(),
       ) ?? indexer.findSymbolByName(namePart);
   } else {
-    symbol = lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
+    symbol =
+      lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
   }
-  if (symbol && (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate")) {
+  if (
+    symbol &&
+    (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate")
+  ) {
     return symbol;
   }
   return undefined;
@@ -1549,9 +1554,10 @@ function isPrincipalFileUri(fileUri: string): boolean {
   return /(?:^|[/\\])principal\.bas$/i.test(fileUri);
 }
 
-
 function isArityMatch(
-  parameters: readonly { readonly isOptional?: boolean; readonly defaultValue?: string }[] | undefined,
+  parameters:
+    | readonly { readonly isOptional?: boolean; readonly defaultValue?: string }[]
+    | undefined,
   arity: number,
 ): boolean {
   if (!parameters || parameters.length === 0) {
@@ -1568,7 +1574,11 @@ function isArityMatch(
 }
 
 function parametersAcceptArguments(
-  parameters: readonly { readonly type: string; readonly isOptional?: boolean; readonly defaultValue?: string }[],
+  parameters: readonly {
+    readonly type: string;
+    readonly isOptional?: boolean;
+    readonly defaultValue?: string;
+  }[],
   argumentTypes: readonly (string | undefined)[],
   indexer: WorkspaceSymbolIndexer,
 ): boolean {

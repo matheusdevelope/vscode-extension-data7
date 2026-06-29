@@ -1,7 +1,11 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { Builder, DiagnosticsLinter, isExcluded, logger, readConfiguration } from "@data7/core";
-import type { BuildProjectOptions, TranspiledBuildSource, WorkspaceSymbolIndexer } from "@data7/core";
+import type {
+  BuildProjectOptions,
+  TranspiledBuildSource,
+  WorkspaceSymbolIndexer,
+} from "@data7/core";
 
 /**
  * VS Code-facing build orchestration. The project kernel receives all runtime

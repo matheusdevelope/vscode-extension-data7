@@ -14,7 +14,8 @@ export const symbols: SystemSymbolInfo[] = [
       endChar: 0,
     },
     fileUri: "system://library",
-    description: "Estrutura de mensagem do Windows. Contém informações sobre eventos de sistema e interface, como movimento do mouse, teclado, redimensionamento de janelas e mensagens de pintação (WM_PAINT). Usada internamente pelo VCL e acessível em procedimentos de janela (WindowProc).",
+    description:
+      "Estrutura de mensagem do Windows. Contém informações sobre eventos de sistema e interface, como movimento do mouse, teclado, redimensionamento de janelas e mensagens de pintação (WM_PAINT). Usada internamente pelo VCL e acessível em procedimentos de janela (WindowProc).",
   },
   {
     name: "hWnd",

@@ -1,5 +1,20 @@
 import * as vscode from "vscode";
-import { Builder, Decompiler, DependencyScanner, PROJECT_CONFIG_FILENAME, WorkspaceSymbolIndexer, generateProjectGuid, getCoreModulesPath, isRecord, isXmlRecord, logger, parseProjectXml, readConfiguration, readProjectConfig, xmlRecord } from "@data7/core";
+import {
+  Builder,
+  Decompiler,
+  DependencyScanner,
+  PROJECT_CONFIG_FILENAME,
+  WorkspaceSymbolIndexer,
+  generateProjectGuid,
+  getCoreModulesPath,
+  isRecord,
+  isXmlRecord,
+  logger,
+  parseProjectXml,
+  readConfiguration,
+  readProjectConfig,
+  xmlRecord,
+} from "@data7/core";
 
 import { DiagnosticService } from "./diagnostic-service";
 import * as path from "path";

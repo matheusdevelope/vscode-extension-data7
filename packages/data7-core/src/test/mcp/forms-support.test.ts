@@ -169,7 +169,8 @@ describe("chapter 14 — construindo-telas is discoverable", () => {
       path.resolve(__dirname, "..", "..", ".."), // legacy
       path.resolve(__dirname, "..", "..", "..", "..", ".."), // monorepo
     ];
-    const repoRoot = repoRootCandidates.find(p => fs.existsSync(path.join(p, "docs"))) ?? repoRootCandidates[0]!;
+    const repoRoot =
+      repoRootCandidates.find((p) => fs.existsSync(path.join(p, "docs"))) ?? repoRootCandidates[0]!;
     const chapter = path.join(repoRoot, "docs", "linguagem-basic", "14-construindo-telas.md");
     assert.ok(fs.existsSync(chapter), "14-construindo-telas.md should exist");
     const content = fs.readFileSync(chapter, "utf-8");

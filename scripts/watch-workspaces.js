@@ -20,13 +20,13 @@ const workspaces = [
   },
 ];
 
-const statusByWorkspace = new Map(workspaces.map(workspace => [workspace.label, false]));
+const statusByWorkspace = new Map(workspaces.map((workspace) => [workspace.label, false]));
 const watchPrograms = [];
 let shuttingDown = false;
 let readyPrinted = false;
 
 const formatHost = {
-  getCanonicalFileName: fileName => fileName,
+  getCanonicalFileName: (fileName) => fileName,
   getCurrentDirectory: () => workspaceRoot,
   getNewLine: () => ts.sys.newLine,
 };
@@ -42,12 +42,12 @@ for (const workspace of workspaces) {
     },
     ts.sys,
     ts.createSemanticDiagnosticsBuilderProgram,
-    diagnostic => reportDiagnostic(workspace.label, diagnostic),
-    diagnostic => reportWatchStatus(workspace.label, diagnostic),
+    (diagnostic) => reportDiagnostic(workspace.label, diagnostic),
+    (diagnostic) => reportWatchStatus(workspace.label, diagnostic),
   );
 
   const originalAfterProgramCreate = host.afterProgramCreate;
-  host.afterProgramCreate = builderProgram => {
+  host.afterProgramCreate = (builderProgram) => {
     originalAfterProgramCreate?.(builderProgram);
   };
 

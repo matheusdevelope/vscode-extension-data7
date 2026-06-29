@@ -1,5 +1,9 @@
 import * as fs from "fs";
-import { readProjectConfig, writeProjectConfig, type ProjectConfig } from "../project/project-config";
+import {
+  readProjectConfig,
+  writeProjectConfig,
+  type ProjectConfig,
+} from "../project/project-config";
 import type { ProjectMetadata } from "../project/project-metadata";
 
 /**

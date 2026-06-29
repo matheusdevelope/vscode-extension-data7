@@ -1,5 +1,13 @@
 import * as vscode from "vscode";
-import { SugarTranspiler, TypeResolver, WorkspaceSymbolIndexer, collectGenericsContext, detectEnumerable, lookupSystemByName, readConfiguration } from "@data7/core";
+import {
+  SugarTranspiler,
+  TypeResolver,
+  WorkspaceSymbolIndexer,
+  collectGenericsContext,
+  detectEnumerable,
+  lookupSystemByName,
+  readConfiguration,
+} from "@data7/core";
 import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "@data7/core";
 
 const PREVIEW_PRIMITIVE_TYPE_NAMES = new Set([

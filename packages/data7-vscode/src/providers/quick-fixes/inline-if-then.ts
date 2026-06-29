@@ -1,5 +1,12 @@
 import * as vscode from "vscode";
-import { ASTWalker, DiagnosticCodes, LanguageProcessor, deepClone, getCommentStartIndex, serializeUnit } from "@data7/core";
+import {
+  ASTWalker,
+  DiagnosticCodes,
+  LanguageProcessor,
+  deepClone,
+  getCommentStartIndex,
+  serializeUnit,
+} from "@data7/core";
 import type { CompilationUnit, IfStatement, Node } from "@data7/core";
 
 import { dedupeDiagnostics, hasDiagnosticCode } from "../code-action-helpers";

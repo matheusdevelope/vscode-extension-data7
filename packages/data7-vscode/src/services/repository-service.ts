@@ -1,5 +1,17 @@
 import * as vscode from "vscode";
-import { DependencyScanner, getRawConfiguration, getRepoBasPath, initializeExtensionPaths, isSafeSegment, logger, parseProjectXml, readConfiguration, safeJoinInside, xmlRecord, xmlText } from "@data7/core";
+import {
+  DependencyScanner,
+  getRawConfiguration,
+  getRepoBasPath,
+  initializeExtensionPaths,
+  isSafeSegment,
+  logger,
+  parseProjectXml,
+  readConfiguration,
+  safeJoinInside,
+  xmlRecord,
+  xmlText,
+} from "@data7/core";
 
 import * as path from "path";
 import * as fs from "fs";

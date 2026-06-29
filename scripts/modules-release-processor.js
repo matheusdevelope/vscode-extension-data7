@@ -7,7 +7,10 @@ try {
 
   // Get the last commit's modified files to identify the module changed
   const diffOutput = execSync("git diff --name-only HEAD~1 HEAD", { encoding: "utf-8" });
-  const changedFiles = diffOutput.split("\n").map(f => f.trim()).filter(f => f.length > 0);
+  const changedFiles = diffOutput
+    .split("\n")
+    .map((f) => f.trim())
+    .filter((f) => f.length > 0);
 
   const moduleFolders = new Set();
   for (const file of changedFiles) {
@@ -23,7 +26,9 @@ try {
   }
 
   if (moduleFolders.size > 1) {
-    console.error("Aviso: Múltiplos módulos modificados em um único commit. Processando apenas o primeiro.");
+    console.error(
+      "Aviso: Múltiplos módulos modificados em um único commit. Processando apenas o primeiro.",
+    );
   }
 
   const moduleName = Array.from(moduleFolders)[0];
@@ -67,11 +72,12 @@ try {
 
   // Create GitHub Release using Github CLI 'gh'
   console.log(`Criando GitHub Release para a tag ${tagName}...`);
-  execSync(`gh release create ${tagName} --title "${tagName}" --notes "Release automática do módulo ${normalizedModuleName} na versão v${version}."`);
+  execSync(
+    `gh release create ${tagName} --title "${tagName}" --notes "Release automática do módulo ${normalizedModuleName} na versão v${version}."`,
+  );
 
   console.log("Processo de release concluído com sucesso!");
   process.exit(0);
-
 } catch (err) {
   console.error("Falha ao processar release:", err);
   process.exit(1);

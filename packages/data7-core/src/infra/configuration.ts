@@ -23,7 +23,10 @@ export function loadDotEnv(dir: string): void {
           const key = trimmed.slice(0, eqIdx).trim();
           let val = trimmed.slice(eqIdx + 1).trim();
           // Remove surrounding quotes if any
-          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          if (
+            (val.startsWith('"') && val.endsWith('"')) ||
+            (val.startsWith("'") && val.endsWith("'"))
+          ) {
             val = val.slice(1, -1);
           }
           if (!process.env[key]) {
@@ -36,7 +39,6 @@ export function loadDotEnv(dir: string): void {
     }
   }
 }
-
 
 export type DiagnosticSeverityOverride = "error" | "warning" | "info" | "hint" | "off";
 

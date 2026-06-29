@@ -78,7 +78,10 @@ describe("Builder", () => {
 
         // Verify that virtualFolders has been written back/initialized as an array
         const updatedConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-        assert.ok(Array.isArray(updatedConfig.virtualFolders), "virtualFolders must be initialized to an array");
+        assert.ok(
+          Array.isArray(updatedConfig.virtualFolders),
+          "virtualFolders must be initialized to an array",
+        );
       });
     });
 
@@ -117,7 +120,6 @@ End Namespace
       await withTempDir(async (tmp) => {
         seedProject(tmp);
         fs.writeFileSync(path.join(tmp, "src", "Principal.bas"), `Print("hello")`, "utf-8");
-
 
         const destXml = path.join(tmp, "TestProject.7Proj");
         const logFilePath = path.join(tmp, ".data7", "logs", "vscode-executor.log");
@@ -231,15 +233,22 @@ Print("Hello global dependency")
         const d7ModulesFolder = folders.find((f) => f.nome === "data7_modules");
         assert.ok(d7ModulesFolder, "data7_modules virtual folder must exist");
 
-        const helpersModuleFolder = folders.find((f) => f.nome === "helpers" && f.pastaId === d7ModulesFolder.id);
+        const helpersModuleFolder = folders.find(
+          (f) => f.nome === "helpers" && f.pastaId === d7ModulesFolder.id,
+        );
         assert.ok(helpersModuleFolder, "helpers module virtual folder must exist");
 
         // 'src' folder must not exist
         const srcFolder = folders.find((f) => f.nome === "src");
         assert.ok(!srcFolder, "src virtual folder must NOT exist");
 
-        const nestedHelpersFolder = folders.find((f) => f.nome === "helpers" && f.pastaId === helpersModuleFolder.id);
-        assert.ok(nestedHelpersFolder, "nested helpers folder (promoted) must exist under helpersModuleFolder");
+        const nestedHelpersFolder = folders.find(
+          (f) => f.nome === "helpers" && f.pastaId === helpersModuleFolder.id,
+        );
+        assert.ok(
+          nestedHelpersFolder,
+          "nested helpers folder (promoted) must exist under helpersModuleFolder",
+        );
       });
     });
 

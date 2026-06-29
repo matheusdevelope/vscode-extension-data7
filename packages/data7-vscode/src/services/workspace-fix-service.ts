@@ -1,7 +1,17 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { DIAGNOSTIC_SOURCE, DiagnosticsLinter, LanguageProcessor, WorkspaceSymbolIndexer, applyTextEditsToContent, buildMockDocument, isExcluded, isReadOnlyModuleFile, logger } from "@data7/core";
+import {
+  DIAGNOSTIC_SOURCE,
+  DiagnosticsLinter,
+  LanguageProcessor,
+  WorkspaceSymbolIndexer,
+  applyTextEditsToContent,
+  buildMockDocument,
+  isExcluded,
+  isReadOnlyModuleFile,
+  logger,
+} from "@data7/core";
 
 import { D7BasicCodeActionProvider } from "../providers/code-action-provider";
 

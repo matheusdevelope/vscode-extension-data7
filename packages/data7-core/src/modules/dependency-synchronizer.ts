@@ -5,11 +5,13 @@ import { getCoreModulesPath } from "../infra/extension-paths";
 import { logger } from "../infra/logger";
 
 export class DependencySynchronizer {
-  
   /**
    * Syncs all dependencies of the project at workspaceDir to its data7_modules/ folder.
    */
-  public static async sync(workspaceDir: string, dependencies: Record<string, string>): Promise<string[]> {
+  public static async sync(
+    workspaceDir: string,
+    dependencies: Record<string, string>,
+  ): Promise<string[]> {
     const data7ModulesDir = path.join(workspaceDir, "data7_modules");
     if (!fs.existsSync(data7ModulesDir)) {
       fs.mkdirSync(data7ModulesDir, { recursive: true });
@@ -63,7 +65,7 @@ export class DependencySynchronizer {
     }
 
     // 3. Cleanup unused modules in data7_modules
-    const expectedDirs = new Set([...activeDeps, "core_modules"].map(d => d.toLowerCase()));
+    const expectedDirs = new Set([...activeDeps, "core_modules"].map((d) => d.toLowerCase()));
     if (fs.existsSync(data7ModulesDir)) {
       const files = fs.readdirSync(data7ModulesDir);
       for (const file of files) {

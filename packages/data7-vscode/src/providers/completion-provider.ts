@@ -1,5 +1,14 @@
 import * as vscode from "vscode";
-import { D7AstContext, LANGUAGE_KEYWORD_CANONICALS, SYSTEM_SYMBOLS, TimeTracker, TypeResolver, WorkspaceSymbolIndexer, lookupSystemByContainer, lookupSystemNamespaceOrClassByName } from "@data7/core";
+import {
+  D7AstContext,
+  LANGUAGE_KEYWORD_CANONICALS,
+  SYSTEM_SYMBOLS,
+  TimeTracker,
+  TypeResolver,
+  WorkspaceSymbolIndexer,
+  lookupSystemByContainer,
+  lookupSystemNamespaceOrClassByName,
+} from "@data7/core";
 import type { AstBindingScope, SymbolInfo } from "@data7/core";
 
 // Re-export for backwards compatibility with code that imports `TypeResolver`

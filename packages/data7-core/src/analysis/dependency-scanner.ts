@@ -22,14 +22,30 @@ export interface ModuleReference {
 }
 
 export class DependencyScanner {
-  public static collectModuleReferences(content: string): ModuleReference[] { return []; }
-  public static scanSharedModules(sharedDir: string): Map<string, SharedModuleInfo> { return new Map(); }
-  public static getLocalModuleNames(srcDir: string): Set<string> { return new Set(); }
-  public static getLocalTypeNames(srcDir: string): Set<string> { return new Set(); }
-  public static getLocalValueNames(srcDir: string): Set<string> { return new Set(); }
-  public static hasModuleImportedMarker(content: string): boolean { return false; }
-  public static getModuleMarkedNamespaces(content: string): string[] { return []; }
-  public static syncDependencies(a: any, b: any, c: any, d?: any, e?: any): string[] { return []; }
+  public static collectModuleReferences(content: string): ModuleReference[] {
+    return [];
+  }
+  public static scanSharedModules(sharedDir: string): Map<string, SharedModuleInfo> {
+    return new Map();
+  }
+  public static getLocalModuleNames(srcDir: string): Set<string> {
+    return new Set();
+  }
+  public static getLocalTypeNames(srcDir: string): Set<string> {
+    return new Set();
+  }
+  public static getLocalValueNames(srcDir: string): Set<string> {
+    return new Set();
+  }
+  public static hasModuleImportedMarker(content: string): boolean {
+    return false;
+  }
+  public static getModuleMarkedNamespaces(content: string): string[] {
+    return [];
+  }
+  public static syncDependencies(a: any, b: any, c: any, d?: any, e?: any): string[] {
+    return [];
+  }
   public static getFilesRecursive(dir: string, extensions: string[]): string[] {
     let results: string[] = [];
     if (!fs.existsSync(dir)) {

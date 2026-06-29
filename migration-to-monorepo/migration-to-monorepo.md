@@ -2,7 +2,7 @@ Aqui está o documento de especificação definitivo. Ele consolida todo o hist�
 
 ---
 
-```markdown
+````markdown
 # Documento de Especificação Técnica: Ecossistema Monorepo Centralizado (data7)
 
 ## 1. Visão Geral
@@ -31,7 +31,7 @@ Para garantir a segurança do código estável atual, a migração e as implemen
   ]
 }
 
-```
+````
 
 ### Nova Estrutura de Pastas Centralizada
 
@@ -105,8 +105,8 @@ Cada projeto ou módulo individual possui um arquivo `data7.json` na raiz que se
 
 ### Regra de Instalação Explícita e Proteção de Escopo
 
-* **Ação Explícita:** Módulos só entram na lista de dependências do `data7.json` se o usuário solicitar manualmente (via UI ou comando), ou ao fazer a decomposição de um projeto empacotado, a extensão pode sugerir atualizar a lista de dependência verificando os namespaces usados que não existem na lista de dependência e existem nos repositórios locais e públicos.
-* **Proteção ao Desenvolvimento Ativo:** Ao abrir um projeto, o `@data7/core` analisa se o namespace em desenvolvimento coincide com o declarado. Caso sim, o orquestrador **bloqueia qualquer substituição, deleção ou sobrescrita**, tratando os arquivos da pasta de trabalho como fonte primária da verdade.
+- **Ação Explícita:** Módulos só entram na lista de dependências do `data7.json` se o usuário solicitar manualmente (via UI ou comando), ou ao fazer a decomposição de um projeto empacotado, a extensão pode sugerir atualizar a lista de dependência verificando os namespaces usados que não existem na lista de dependência e existem nos repositórios locais e públicos.
+- **Proteção ao Desenvolvimento Ativo:** Ao abrir um projeto, o `@data7/core` analisa se o namespace em desenvolvimento coincide com o declarado. Caso sim, o orquestrador **bloqueia qualquer substituição, deleção ou sobrescrita**, tratando os arquivos da pasta de trabalho como fonte primária da verdade.
 
 ### Pipeline de Resolução Híbrido (Múltiplos Registros)
 
@@ -126,17 +126,17 @@ Os fluxos do GitHub Actions relacionados aos módulos devem rodar de forma isola
 
 Disparado quando um usuário utiliza a função pública de publicação na extensão. O script associado (`scripts/modules-validate-pr.js`) executa as seguintes verificações de segurança:
 
-* **Barreira de Escopo:** Bloqueia o PR se hover qualquer arquivo alterado fora do diretório `modules/`.
-* **Atomicidade:** Garante que apenas um módulo esteja sendo alterado/adicionado por Pull Request.
-* **Conformidade de Nome:** Valida se o nome da pasta física é idêntico ao campo `name` do `data7.json`.
+- **Barreira de Escopo:** Bloqueia o PR se hover qualquer arquivo alterado fora do diretório `modules/`.
+- **Atomicidade:** Garante que apenas um módulo esteja sendo alterado/adicionado por Pull Request.
+- **Conformidade de Nome:** Valida se o nome da pasta física é idêntico ao campo `name` do `data7.json`.
 
 ### Workflow 2: Processador de Releases Automático (`modules-release-processor.yml`)
 
 Disparado após o merge de um PR aprovado na branch `main`:
 
-* O script `scripts/modules-release-processor.js` identifica qual pasta dentro de `modules/` foi modificada.
-* Lê o incremento de versão no `data7.json`.
-* Cria uma Tag Git no padrão `nome-do-modulo-vX.Y.Z` de forma isolada e publica uma GitHub Release oficial documentando a atualização.
+- O script `scripts/modules-release-processor.js` identifica qual pasta dentro de `modules/` foi modificada.
+- Lê o incremento de versão no `data7.json`.
+- Cria uma Tag Git no padrão `nome-do-modulo-vX.Y.Z` de forma isolada e publica uma GitHub Release oficial documentando a atualização.
 
 ---
 
@@ -144,19 +144,19 @@ Disparado após o merge de um PR aprovado na branch `main`:
 
 ### Aba Lateral Dedicada (Sidebar View)
 
-* **Painel de Módulos Instalados:** Exibe a lista obtida nas `dependencies` do `data7.json` local. Cada item possui uma caixa de seleção (*checkbox*) para operações em lote.
-* **Tags de Origem:** Identificação visual nítida ao lado de cada dependência utilizando os rótulos `[🌐 Online]` ou `[💻 Local]`.
-* **Barra de Controle:** Botões para "Instalar Selecionados", "Atualizar Selecionados", "Atualizar Tudo" e "Publicar Módulo" (este último aciona o fluxo de PR automático para o monorepo).
-* **Alertas Proativos:** Varredura em segundo plano em segundo plano ao abrir o ambiente. Caso existam novas versões de tags disponíveis na nuvem ou na pasta local para os módulos em uso, exibe uma notificação discreta permitindo a atualização em um clique.
+- **Painel de Módulos Instalados:** Exibe a lista obtida nas `dependencies` do `data7.json` local. Cada item possui uma caixa de seleção (_checkbox_) para operações em lote.
+- **Tags de Origem:** Identificação visual nítida ao lado de cada dependência utilizando os rótulos `[🌐 Online]` ou `[💻 Local]`.
+- **Barra de Controle:** Botões para "Instalar Selecionados", "Atualizar Selecionados", "Atualizar Tudo" e "Publicar Módulo" (este último aciona o fluxo de PR automático para o monorepo).
+- **Alertas Proativos:** Varredura em segundo plano em segundo plano ao abrir o ambiente. Caso existam novas versões de tags disponíveis na nuvem ou na pasta local para os módulos em uso, exibe uma notificação discreta permitindo a atualização em um clique.
 
 ### Paleta de Comandos (Command Palette)
 
 Replicação de 100% dos recursos visuais em comandos de teclado:
 
-* `data7: Instalar Módulo`
-* `data7: Atualizar Todos os Módulos`
-* `data7: Publicar Módulo Atual`
-* `data7: Sincronizar Dependências`
+- `data7: Instalar Módulo`
+- `data7: Atualizar Todos os Módulos`
+- `data7: Publicar Módulo Atual`
+- `data7: Sincronizar Dependências`
 
 ---
 

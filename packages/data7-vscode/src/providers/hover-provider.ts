@@ -1,5 +1,17 @@
 import * as vscode from "vscode";
-import { D7AstContext, LANGUAGE_IDS, TimeTracker, TypeResolver, WorkspaceSymbolIndexer, astLocalToSymbol, detectEnumerable, formatParameterList, inferLiteralType, lookupSystemByName, typeRefToString } from "@data7/core";
+import {
+  D7AstContext,
+  LANGUAGE_IDS,
+  TimeTracker,
+  TypeResolver,
+  WorkspaceSymbolIndexer,
+  astLocalToSymbol,
+  detectEnumerable,
+  formatParameterList,
+  inferLiteralType,
+  lookupSystemByName,
+  typeRefToString,
+} from "@data7/core";
 import type { SymbolInfo } from "@data7/core";
 
 export class D7BasicHoverProvider implements vscode.HoverProvider {
