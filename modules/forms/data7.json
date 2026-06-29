@@ -1,0 +1,113 @@
+{
+  "nome": "forms",
+  "language": "Basic",
+  "version": "1.0.0.0",
+  "targetPlatform": "Default",
+  "opcoes": {
+    "autor": "Administrador",
+    "versao": "1.0.0.0",
+    "informacoes": "Projeto forms criado no VS Code",
+    "codEmpresa": 1,
+    "codFilial": 1,
+    "nomeUsuario": "Administrador",
+    "preScript": "",
+    "identificacaoBancoDados": "05B54E6D-D75B-4A7F-9943-5521A91747C9"
+  },
+  "virtualFolders": [
+    {
+      "nome": "Unidades (35)",
+      "id": "{7CCDCDB7-993B-4E03-8B4C-A234716EADB4}",
+      "pastaId": "",
+      "aberta": "Sim"
+    },
+    {
+      "nome": "data7_modules",
+      "id": "{F8DA6E9D-43E8-4132-AA56-A061D9918912}",
+      "pastaId": "{7CCDCDB7-993B-4E03-8B4C-A234716EADB4}",
+      "aberta": "Nao"
+    },
+    {
+      "nome": "core_modules",
+      "id": "{CF715796-6B91-4576-BB04-40E9FD0CE8F4}",
+      "pastaId": "{F8DA6E9D-43E8-4132-AA56-A061D9918912}",
+      "aberta": "Nao"
+    },
+    {
+      "nome": "helpers",
+      "id": "{DEC7E642-8C17-40C8-8AB0-D76C259A7438}",
+      "pastaId": "{F8DA6E9D-43E8-4132-AA56-A061D9918912}",
+      "aberta": "Nao"
+    },
+    {
+      "nome": "helpers",
+      "id": "{42894A71-85E4-44F4-AE51-CD2839BD065B}",
+      "pastaId": "{DEC7E642-8C17-40C8-8AB0-D76C259A7438}",
+      "aberta": "Nao"
+    },
+    {
+      "nome": "modules",
+      "id": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}",
+      "pastaId": "{7CCDCDB7-993B-4E03-8B4C-A234716EADB4}",
+      "aberta": "Sim"
+    }
+  ],
+  "modulesMetadata": {
+    "mod_base_editor": {
+      "nome": "mod_base_editor",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_base_editor_cep": {
+      "nome": "mod_base_editor_cep",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_base_editor_cnpj": {
+      "nome": "mod_base_editor_cnpj",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_buttonedtextbox": {
+      "nome": "mod_buttonedtextbox",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_control": {
+      "nome": "mod_control",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_form": {
+      "nome": "mod_form",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_labeled_container": {
+      "nome": "mod_labeled_container",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_props": {
+      "nome": "mod_props",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    },
+    "mod_topbar": {
+      "nome": "mod_topbar",
+      "aberto": true,
+      "ordemAbertura": 0,
+      "pastaId": "{845489CC-0C62-4708-A00D-9B6BF7A4D399}"
+    }
+  },
+  "dependencies": {
+    "helpers": "latest"
+  }
+}
