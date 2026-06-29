@@ -27,8 +27,31 @@
  */
 const path = require("path");
 const fs = require("fs");
-const { SYSTEM_SYMBOLS } = require(path.join("..", "out", "system-library"));
-const { PRIMITIVE_TYPES } = require(path.join("..", "out", "utils", "primitive-types"));
+
+function requireFirstExisting(candidates) {
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (error) {
+      if (!error || error.code !== "MODULE_NOT_FOUND") {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`Nenhum build compativel encontrado:\n${candidates.join("\n")}`);
+}
+
+const coreDistRoot = path.resolve(__dirname, "..", "packages", "data7-core", "dist");
+const legacyOutRoot = path.resolve(__dirname, "..", "out");
+const { SYSTEM_SYMBOLS } = requireFirstExisting([
+  path.join(coreDistRoot, "system-library"),
+  path.join(legacyOutRoot, "system-library"),
+]);
+const { PRIMITIVE_TYPES } = requireFirstExisting([
+  path.join(coreDistRoot, "utils", "primitive-types"),
+  path.join(legacyOutRoot, "utils", "primitive-types"),
+]);
 
 // `PRIMITIVE_TYPES` is keyed by lower-case names; normalise inputs before lookup.
 function isPrimitive(name) {

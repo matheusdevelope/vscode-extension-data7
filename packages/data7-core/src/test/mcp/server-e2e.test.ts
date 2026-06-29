@@ -15,10 +15,6 @@ import "../_setup/global-hooks";
 import { strict as assert } from "node:assert";
 import { describe, test, before, after } from "node:test";
 
-// Shim must be installed before buildServer pulls vscode-touching modules.
-import { installVscodeShim } from "../../mcp/runtime/vscode-shim";
-installVscodeShim();
-
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { buildServer } from "../../mcp/server";

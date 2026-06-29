@@ -2,7 +2,9 @@ import "./vscode-mock"; // must come first: installs the require('vscode') overr
 
 import { beforeEach } from "node:test";
 import * as vscode from "vscode";
-import { WorkspaceSymbolIndexer } from "@data7/core";
+import { installVscodeApi, WorkspaceSymbolIndexer } from "@data7/core";
+
+installVscodeApi(vscode as unknown as Parameters<typeof installVscodeApi>[0]);
 
 /**
  * Global `beforeEach` hook applied to every test file that imports this module

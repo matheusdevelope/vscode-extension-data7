@@ -1,6 +1,6 @@
-ï»¿import * as fs from "fs";
+import * as fs from "fs";
 import * as path from "path";
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
 import { getCoreModulesPath, getRepoBasPath } from "../infra/extension-paths";
 import { DependencyScanner } from "./dependency-scanner";
@@ -11,9 +11,9 @@ import { DependencyScanner } from "./dependency-scanner";
  *
  * Resolution priority mirrors the language model:
  *
- *  1. **Workspace** â€” any `.bas` indexed by the workspace symbol indexer that
+ *  1. **Workspace** — any `.bas` indexed by the workspace symbol indexer that
  *     declares `Namespace <name>`.
- *  2. **Private repository** â€” recursive scan under
+ *  2. **Private repository** — recursive scan under
  *     `getRepoBasPath()` (owned by `RepositoryService`, path published by
  *     `infra/extension-paths.ts`).
  *
@@ -21,8 +21,8 @@ import { DependencyScanner } from "./dependency-scanner";
  * providers (e.g. `document-link-provider`) and services can share it without
  * crossing the architectural fence between layers.
  *
- * System Library namespaces (`Forms`, `IO`, `SQL`, â€¦) are intentionally
- * **not** resolved â€” their definitions live in TypeScript and would not be
+ * System Library namespaces (`Forms`, `IO`, `SQL`, …) are intentionally
+ * **not** resolved — their definitions live in TypeScript and would not be
  * useful to most users via "Go to file".
  */
 export function resolveNamespaceFile(

@@ -13,7 +13,7 @@
  * avoiding the `onDidChangeTextDocument` cascade triggered by `applyEdit`.
  */
 
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 
 // ---------------------------------------------------------------------------
 // Mock TextDocument

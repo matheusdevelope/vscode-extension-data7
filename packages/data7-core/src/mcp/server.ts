@@ -17,16 +17,9 @@
  * Architectural constraints (MCP-001):
  *  - This file MUST NOT import "vscode" directly.
  *  - This file MUST NOT import providers/, services/, or extension.ts.
- *  - Only `src/mcp/runtime/vscode-shim.ts` may stand in for VS Code API
- *    surface in modules that this file transitively pulls in (e.g.
- *    DiagnosticsLinter).
- *  - The shim is installed as the very first side-effect import below
- *    so that any subsequent `require("vscode")` (triggered by
- *    transitively-imported diagnostics/analysis modules) resolves to
- *    our minimal stand-in. ORDER MATTERS.
+ *  - Shared core modules use `src/platform/vscode-api.ts`, whose default
+ *    implementation is pure and does not require the VS Code extension host.
  */
-import "./runtime/install-shim"; // MUST be the first import — installs vscode-shim before any module touches `vscode`.
-
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 

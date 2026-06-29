@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 import { parseBasic, tokenize, GenericsParserPlugin, parseExpr } from "../project/parser";
 import type { CompilationUnit, Expression } from "../project/ast/ast";
 import type { ParseError } from "../project/parser/parser-errors";

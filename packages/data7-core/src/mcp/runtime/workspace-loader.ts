@@ -12,9 +12,8 @@
  *  - This file is OUT of the extension host. It loads
  *    `WorkspaceSymbolIndexer.createDetached()` rather than the singleton
  *    so test runs and concurrent MCP sessions never share state.
- *  - `installVscodeShim` MUST have been called before this module
- *    imports `symbol-indexer`, otherwise `import * as vscode from
- *    "vscode"` would throw.
+ *  - Shared core modules use the pure `platform/vscode-api` adapter, so this
+ *    loader can run without installing a runtime `vscode` require hook.
  */
 import * as fs from "fs";
 import * as path from "path";

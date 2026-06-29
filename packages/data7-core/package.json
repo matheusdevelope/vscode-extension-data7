@@ -10,7 +10,7 @@
     "compile": "tsc -p ./tsconfig.json && npm run mcp:articles && npm run mcp:bundle",
     "watch": "tsc -watch -p ./tsconfig.json",
     "mcp:articles": "node ../../scripts/extract-official-articles.js",
-    "mcp:bundle": "esbuild dist/mcp/server.js --bundle --minify --platform=node --target=node22 --outfile=dist/mcp/server.bundled.js --external:vscode",
+    "mcp:bundle": "esbuild dist/mcp/server.js --bundle --minify --platform=node --target=node22 --outfile=dist/mcp/server.bundled.js",
     "test": "node --test dist/test/**/*.test.js"
   },
   "dependencies": {

@@ -26,7 +26,7 @@ export * from "./infra/configuration";
 export * from "./infra/constants";
 export * from "./infra/extension-paths";
 export * from "./infra/logger";
-export * from "./mcp/runtime/vscode-shim";
+export * from "./platform/vscode-api";
 
 // project
 export * from "./project/builder";

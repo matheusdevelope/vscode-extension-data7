@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 import type { ParameterInfo, SymbolInfo, WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { SYSTEM_SYMBOLS } from "../system-library";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";

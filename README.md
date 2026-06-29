@@ -71,6 +71,8 @@ O projeto é estruturado como um monorepo via NPM Workspaces, contendo:
 - `@data7/cli`: Interface CLI para integração contínua (CI) e uso standalone.
 - `vscode-extension-data7`: A extensão gráfica do VS Code.
 
+O `@data7/core` nao importa o modulo runtime `vscode`; ele usa um adapter puro em `src/platform/vscode-api.ts`. A extensao instala a API real do VS Code no `activate`, enquanto CLI e MCP usam a implementacao standalone do core.
+
 ### Documentação da System Library
 
 - **`Data7: Gerar Documentação da System Library`** — gera `.md` por namespace com classes, eventos, propriedades, cadeia de herança e cross-links.

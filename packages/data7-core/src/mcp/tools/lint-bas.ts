@@ -3,8 +3,7 @@
  * against an inline `.bas` snippet and returns the diagnostics as JSON
  * (code + message + range + payload data).
  *
- * Requires the vscode-shim to be installed BEFORE this module is
- * loaded (see `src/mcp/runtime/install-shim.ts`).
+ * Uses the pure core VS Code adapter, so it can run outside the extension host.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -12,7 +11,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
 import type { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
 import { setInlineDocument } from "../runtime/workspace-loader";
-import { vscode } from "../runtime/vscode-shim";
+import * as vscode from "../../platform/vscode-api";
 
 interface SerialDiagnostic {
   readonly code: unknown;
@@ -136,10 +135,10 @@ export function registerLintBas(server: McpServer, deps: LintToolDeps): void {
       const uri = args.uri ?? "file:///__inline__.bas";
       setInlineDocument(indexer, args.code, uri);
       const doc = buildInlineDoc(uri, args.code);
-      // The shim's `vscode.workspace.textDocuments` array is required
+      // The platform adapter's `workspace.textDocuments` array is required
       // by some linter paths (isFileValid). Add+remove around the call
       // so we don't leak state.
-      const docs = vscode.workspace.textDocuments;
+      const docs = vscode.workspace.textDocuments as unknown as InlineDoc[];
       docs.push(doc);
       let diagnostics: SerialDiagnostic[] = [];
       try {

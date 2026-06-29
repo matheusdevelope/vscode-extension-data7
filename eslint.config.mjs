@@ -40,6 +40,7 @@ export default tseslint.config(
     name: "data7/ignores",
     ignores: [
       "out/**",
+      "**/out/**",
       "node_modules/**",
       "coverage/**",
       ".vscode-test/**",

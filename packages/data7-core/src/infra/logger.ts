@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 
 const CHANNEL_NAME = "Data7";
 

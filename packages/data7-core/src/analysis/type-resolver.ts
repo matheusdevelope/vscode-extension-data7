@@ -1,4 +1,4 @@
-import type * as vscode from "vscode";
+import type * as vscode from "../platform/vscode-api";
 import type { SymbolInfo, WorkspaceSymbolIndexer } from "./symbol-indexer";
 import {
   SYSTEM_SYMBOLS,

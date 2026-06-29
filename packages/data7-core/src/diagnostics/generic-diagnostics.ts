@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import type { GenericTemplateInfo, GenericsPassWarning } from "../analysis/generics-analyzer";
 import {

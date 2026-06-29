@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 import { logger } from "../infra/logger";
 import { isExcluded, readConfiguration } from "../infra/configuration";
 import {

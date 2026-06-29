@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import "@data7/core/dist/mcp/runtime/install-shim";
 import {
+  DiagnosticSeverity,
   loadDotEnv,
   ModuleOrchestrator,
   Builder,
   DiagnosticsLinter,
+  Uri,
   WorkspaceSymbolIndexer,
 } from "@data7/core";
 
@@ -12,7 +13,6 @@ import {
 loadDotEnv(process.cwd());
 import * as path from "path";
 import * as fs from "fs";
-import * as vscode from "vscode";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -112,7 +112,7 @@ async function run() {
         const fileContents: Record<string, string> = {};
         for (const file of allFiles) {
           const content = fs.readFileSync(file, "utf-8");
-          const fileUri = vscode.Uri.file(file);
+          const fileUri = Uri.file(file);
           fileContents[file] = content;
           indexer.updateFileContent(fileUri.toString(), content);
         }
@@ -124,7 +124,7 @@ async function run() {
 
         for (const file of srcFiles) {
           const content = fileContents[file]!;
-          const fileUri = vscode.Uri.file(file);
+          const fileUri = Uri.file(file);
 
           // Create a mock document suitable for DiagnosticsLinter
           const mockDoc: any = {
@@ -140,12 +140,11 @@ async function run() {
           if (diagnostics.length > 0) {
             console.log(`\nArquivo: ${path.relative(workspaceDir, file)}`);
             for (const diag of diagnostics) {
-              const severityText =
-                diag.severity === vscode.DiagnosticSeverity.Error ? "ERRO" : "AVISO";
+              const severityText = diag.severity === DiagnosticSeverity.Error ? "ERRO" : "AVISO";
               console.log(
                 `  [${severityText}] Linha ${diag.range.start.line + 1}: ${diag.message}`,
               );
-              if (diag.severity === vscode.DiagnosticSeverity.Error) totalErrors++;
+              if (diag.severity === DiagnosticSeverity.Error) totalErrors++;
               else totalWarnings++;
             }
           }

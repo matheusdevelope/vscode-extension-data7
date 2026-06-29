@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from "../platform/vscode-api";
 import * as fs from "fs";
 import * as path from "path";
 import { CONFIG_NAMESPACE } from "./constants";

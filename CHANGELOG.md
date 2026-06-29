@@ -12,6 +12,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
   - `@data7/core`: Kernel da linguagem contendo parser, linter, transpiler, CLI-agnostic analyzer e system library.
   - `@data7/cli`: Interface de linha de comando para uso standalone e em CIs.
   - `vscode-extension-data7`: Extensão do VS Code que consome o `@data7/core`.
+- **Core sem dependencia runtime do VS Code:** `@data7/core` passou a usar o adapter puro `src/platform/vscode-api.ts` para `Uri`, `Range`, `Diagnostic`, configuracao e workspace. A extensao instala a API real do VS Code somente durante `activate`, enquanto MCP e CLI rodam sem `installVscodeShim` ou `require("vscode")`.
 - **Novo Gerenciador de Dependências:** O tratamento de dependências foi desacoplado da flag legada `@Module`. Dependências (módulos de terceiros) agora são declaradas explicitamente em `data7.json` e baixadas sob demanda, sendo tratadas pelo construtor via injecao de `@Module-Imported`. Módulos locais decompilados do próprio projeto agora vivem nativamente em `src/`.
 - **Desativação Temporária do Auto-scan:** O auto-scan de dependências e Quick Picks foram temporariamente suspensos (desativados) até uma nova modelagem que comporte projetos onde múltiplos namespaces são exportados por um único módulo.
 

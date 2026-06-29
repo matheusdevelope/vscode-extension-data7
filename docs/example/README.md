@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (127 arquivos)
+## Índice de exemplos (130 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -193,7 +193,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (59)
+### diagnostics (61)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -233,6 +233,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/missing-then/trigger.bas`](./diagnostics/missing-then/trigger.bas) | bloco If sem a palavra-chave Then | `missing-then@4` | — |
 | [`diagnostics/module-not-declared/trigger.bas`](./diagnostics/module-not-declared/trigger.bas) | módulo existe no repositório privado mas não foi adicionado a data7.json#dependencies | `module-not-declared@6` | `módulo "mod_shared_utility" no repositório privado E ausência da entrada em data7.json` |
 | [`diagnostics/module-not-found/trigger.bas`](./diagnostics/module-not-found/trigger.bas) | Imports de um módulo que não existe no workspace, repositório privado, nem System Library | `module-not-found@6` | `nenhum módulo "mod_unknown_module" instalado em lugar nenhum` |
+| [`diagnostics/namespace-name-conflict/trigger.bas`](./diagnostics/namespace-name-conflict/trigger.bas) | classe com o mesmo nome do namespace que a contém | `namespace-name-conflict@2` | — |
 | [`diagnostics/not-enumerable/trigger.bas`](./diagnostics/not-enumerable/trigger.bas) | For Each sobre tipo do workspace sem propriedade Count + indexer inteiro | `not-enumerable@12` | — |
 | [`diagnostics/null-coalesce-context-unsupported/trigger.bas`](./diagnostics/null-coalesce-context-unsupported/trigger.bas) | ?? usado fora de assignment RHS — Print não é assignment | `null-coalesce-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/null-narrowing/01-after-guard.bas`](./diagnostics/null-narrowing/01-after-guard.bas) | TypeResolver propaga NotNull(x) após If x = NULL Then Return | `none` | — |
@@ -244,6 +245,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/redundant-terminal-exit/trigger.bas`](./diagnostics/redundant-terminal-exit/trigger.bas) | Exit Sub terminal redundante no fim exato da rotina | `redundant-terminal-exit@9` | — |
 | [`diagnostics/return-assignment-in-catch/trigger.bas`](./diagnostics/return-assignment-in-catch/trigger.bas) | retorno por atribuicao dentro de Catch rejeitado pelo compilador nativo | `return-assignment-in-catch@11` | — |
 | [`diagnostics/return-unrecommended/trigger.bas`](./diagnostics/return-unrecommended/trigger.bas) | uso de Return em função onde a forma preferida é atribuição ao nome da rotina | `return-unrecommended@4` | — |
+| [`diagnostics/shared-return-global-function/trigger.bas`](./diagnostics/shared-return-global-function/trigger.bas) | shared-return-global-function warning when shared function return variable is assigned directly from global function | `shared-return-global-function@9` | `linter implementation for shared return global function detection` |
 | [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |
 | [`diagnostics/sub-used-as-function/trigger.bas`](./diagnostics/sub-used-as-function/trigger.bas) | using a Sub procedure as a function in an expression context | `sub-used-as-function@12` | — |
 | [`diagnostics/ternary-context-unsupported/trigger.bas`](./diagnostics/ternary-context-unsupported/trigger.bas) | ternário em contexto não-assignment (Print) — não é expansível | `ternary-context-unsupported@8` | — |

@@ -8,6 +8,7 @@ import {
   LANGUAGE_IDS,
   readConfiguration,
   isReadOnlyModuleFile,
+  installVscodeApi,
   initLogger,
   logger,
 } from "@data7/core";
@@ -26,6 +27,8 @@ import { DependencyService } from "./services/dependency-service";
 import { ProjectService } from "./services/project-service";
 
 export function activate(context: vscode.ExtensionContext): void {
+  installVscodeApi(vscode as unknown as Parameters<typeof installVscodeApi>[0]);
+
   // Load .env configurations
   const { loadDotEnv } = require("@data7/core");
   loadDotEnv(context.extensionUri.fsPath);

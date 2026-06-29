@@ -14,13 +14,6 @@ import "../_setup/global-hooks";
 import { strict as assert } from "node:assert";
 import { describe, test, before } from "node:test";
 
-// Install the shim BEFORE the server import (which transitively pulls
-// `vscode`-touching modules like DiagnosticsLinter). The shim is
-// idempotent — calling it twice (here + inside server.ts's
-// install-shim) is safe.
-import { installVscodeShim } from "../../mcp/runtime/vscode-shim";
-installVscodeShim();
-
 import { buildServer } from "../../mcp/server";
 
 let counts: { resources: number; tools: number; prompts: number };
