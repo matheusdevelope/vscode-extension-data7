@@ -89,7 +89,7 @@
       "patterns": [
         {
           "name": "keyword.control.d7basic",
-          "match": "(?i)\\b(AddHandler|AddressOf|Alias|As|ByRef|ByVal|Call|Case|Catch|CBool|CByte|CChar|CDate|CDec|CDbl|CInt|Class|CLng|CObj|Const|Continue|CSByte|CShort|CSng|CStr|CType|CUInt|CULng|CUShort|Declare|Default|Delegate|Dim|DirectCast|Do|Each|Else|ElseIf|End|Enum|Enun|Erase|Error|Event|Exit|Finally|For|Friend|Function|Get|GetType|Global|GoTo|Handles|If|Implements|Imports|In|Inherits|Interface|Let|Lib|Loop|Me|Module|MustInherit|MustOverride|MyBase|MyClass|Namespace|Narrowing|New|Next|Of|On|Operator|Option|Optional|Overloads|Overridable|Overrides|ParamArray|Partial|Private|Property|Protected|Public|RaiseEvent|ReadOnly|ReDim|REM|Resume|Return|Select|Set|Shadows|Shared|Static|Step|Stop|Structure|Sub|SyncLock|Then|Throw|To|Try|TryCast|TypeOf|Until|While|Widening|With|WithEvents|WriteOnly)\\b"
+          "match": "(?i)\\b(AddHandler|AddressOf|Alias|As|ByRef|ByVal|Call|Case|Catch|CBool|CByte|CChar|CDate|CDec|CDbl|CInt|Class|CLng|CObj|Const|Continue|CShort|CSng|CStr|CType|Declare|Default|Delegate|Dim|Do|Each|Else|ElseIf|End|Enum|Enun|Error|Event|Exit|Finally|For|Friend|Function|Get|GetType|Global|GoTo|If|Implements|Imports|In|Inherits|Interface|Let|Lib|Loop|Me|MustInherit|MustOverride|MyBase|MyClass|Namespace|New|Next|Of|On|Operator|Option|Optional|Overloads|Overridable|Overrides|ParamArray|Partial|Private|Property|Protected|Public|RaiseEvent|ReadOnly|ReDim|REM|Resume|Return|Select|Set|Shadows|Shared|Static|Step|Stop|Structure|Sub|SyncLock|Then|Throw|To|Try|TryCast|TypeOf|Until|While|With|WithEvents|WriteOnly)\\b"
         },
         {
           "name": "keyword.operator.logical.d7basic",

@@ -138,6 +138,8 @@ export interface MethodDeclaration extends BaseNode {
   body: Statement[];
   readonly modifiers?: string[];
   readonly noParentheses?: boolean;
+  libName?: string;
+  aliasName?: string;
 }
 
 export interface DelegateDeclaration extends BaseNode {
@@ -206,6 +208,7 @@ export interface VariableDeclaration extends BaseNode {
   nativeArrayDimensions?: Expression[];
   isConst?: boolean;
   isArraySugar?: boolean;
+  readonly modifiers?: string[];
 }
 
 export type Expression =

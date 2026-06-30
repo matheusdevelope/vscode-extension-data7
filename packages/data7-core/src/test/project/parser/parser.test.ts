@@ -647,7 +647,7 @@ describe("parser/parser", () => {
     assert.equal((klass.members[0] as any).initializer.kind, "Literal");
   });
 
-  test("parses Declare statements as OpaqueStatement preserving verbatim line", () => {
+  test("parses Declare statements structurally preserving metadata", () => {
     const src = [
       "Namespace mod_winapi",
       '   Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" As Long',
@@ -658,16 +658,23 @@ describe("parser/parser", () => {
     assert.deepEqual([...r.errors], []);
     const ns = r.unit.members[0] as NamespaceDeclaration;
     assert.equal(ns.members.length, 2);
-    assert.equal(ns.members[0]?.kind, "OpaqueStatement");
-    assert.equal(
-      (ns.members[0] as any).text.trim(),
-      'Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" As Long',
-    );
-    assert.equal(ns.members[1]?.kind, "OpaqueStatement");
-    assert.equal(
-      (ns.members[1] as any).text.trim(),
-      'Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" (dwFlags As Long, dpX As Long)',
-    );
+
+    const m1 = ns.members[0] as MethodDeclaration;
+    assert.equal(m1.kind, "MethodDeclaration");
+    assert.equal(m1.name, "_GetForegroundWindow");
+    assert.equal(m1.libName, "user32.dll");
+    assert.equal(m1.aliasName, "GetForegroundWindow");
+    assert.deepEqual(m1.modifiers, ["private", "declare"]);
+    assert.equal(m1.returnType?.name, "Long");
+
+    const m2 = ns.members[1] as MethodDeclaration;
+    assert.equal(m2.kind, "MethodDeclaration");
+    assert.equal(m2.name, "_MouseEvent");
+    assert.equal(m2.libName, "user32.dll");
+    assert.equal(m2.aliasName, "mouse_event");
+    assert.deepEqual(m2.modifiers, ["declare"]);
+    assert.equal(m2.parameters.length, 2);
+    assert.equal(m2.parameters[0]?.name, "dwFlags");
   });
 
   test("parses nested class and structure declarations", () => {
@@ -785,5 +792,30 @@ describe("parser/parser", () => {
     assert.equal(method.body[0]?.kind, "Assignment");
     assert.equal((method.body[0] as any).target.name, "Match");
     assert.equal(method.body[1]?.kind, "ContinueStatement");
+  });
+
+  test("parses comma-separated namespace level imports", () => {
+    const src = "Imports Forms, mod_winapi, System.Collections";
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    assert.equal(r.unit.members.length, 3);
+    assert.equal(r.unit.members[0]?.kind, "ImportsDeclaration");
+    assert.equal((r.unit.members[0] as any).target, "Forms");
+    assert.equal(r.unit.members[1]?.kind, "ImportsDeclaration");
+    assert.equal((r.unit.members[1] as any).target, "mod_winapi");
+    assert.equal(r.unit.members[2]?.kind, "ImportsDeclaration");
+    assert.equal((r.unit.members[2] as any).target, "System.Collections");
+  });
+
+  test("does not accept multiple variable declarations in class fields", () => {
+    const src = ["Class C", "   Dim a As String, b As Integer", "End Class"].join("\n");
+    const r = parse(src);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    // The parser resyncs or only registers a single field, generating errors or resyncing.
+    // In our implementation, class-member parsing delegates to field-parser which only consumes a single variable.
+    // So the rest (`b As Integer`) is not parsed as part of the field.
+    assert.equal(klass.members.length, 1);
+    assert.equal(klass.members[0]?.kind, "FieldDeclaration");
+    assert.equal((klass.members[0] as any).name, "a");
   });
 });

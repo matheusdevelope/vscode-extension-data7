@@ -29,5 +29,4 @@ export function parseBasic(source: string, options?: ParseOptions): ParseResult 
 }
 
 export type { ParserPlugin } from "./plugin";
-export { SugarsParserPlugin } from "./sugars-plugin";
 export { GenericsParserPlugin } from "./generics-plugin";

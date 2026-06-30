@@ -1,6 +1,17 @@
 import type { SugarPlugin } from "../types";
 import { enumSugarPlugin } from "./enum";
 import { inlineIfSugarPlugin } from "./inline-if";
+import { ArrayListParserPlugin } from "./array-list/parser";
+import { TernaryParserPlugin } from "./ternary/parser";
+import { NullCoalesceParserPlugin } from "./null-coalesce/parser";
+import { OptionalChainParserPlugin } from "./optional-chain/parser";
+import { InterpolationParserPlugin } from "./interpolation/parser";
+import { TaggedTemplateParserPlugin } from "./tagged-template/parser";
+import { ObjectInitializerParserPlugin } from "./object-initializer/parser";
+import { UsingParserPlugin } from "./using/parser";
+import { ReturnIfParserPlugin } from "./return-if/parser";
+import { PipeParserPlugin } from "./pipe/parser";
+import { DestructureParserPlugin } from "./destructure/parser";
 
 function metadata(plugin: SugarPlugin): SugarPlugin {
   return plugin;
@@ -21,6 +32,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
       "ArrowFunctionExpression",
       "MethodInvocation(map/filter/find/findIndex/some/every/reduce/forEach)",
     ],
+    createParserPlugin: () => new ArrayListParserPlugin(),
   }),
   metadata({
     id: "for-each",
@@ -44,6 +56,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["TernaryExpression"],
     diagnosticCodes: ["ternary-context-unsupported"],
+    createParserPlugin: () => new TernaryParserPlugin(),
   }),
   metadata({
     id: "null-coalesce",
@@ -52,6 +65,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["NullCoalescingExpression", "Assignment(??=)"],
     diagnosticCodes: ["null-coalesce-context-unsupported"],
+    createParserPlugin: () => new NullCoalesceParserPlugin(),
   }),
   metadata({
     id: "logical-assignment",
@@ -67,6 +81,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["OptionalChainingExpression"],
     diagnosticCodes: ["optional-chain-context-unsupported", "optional-chain-too-deep"],
+    createParserPlugin: () => new OptionalChainParserPlugin(),
   }),
   metadata({
     id: "numeric-separator",
@@ -81,6 +96,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["TaggedTemplateExpression(tag='')"],
     diagnosticCodes: ["invalid-interpolation"],
+    createParserPlugin: () => new InterpolationParserPlugin(),
   }),
   metadata({
     id: "tagged-template",
@@ -88,6 +104,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     description: "Expands tagged template expressions into custom builder calls.",
     enabledByDefault: true,
     syntaxKinds: ["TaggedTemplateExpression"],
+    createParserPlugin: () => new TaggedTemplateParserPlugin(),
   }),
   metadata({
     id: "object-initializer",
@@ -95,6 +112,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     description: "Expands New T() With { .A = ... } into creation plus assignments.",
     enabledByDefault: true,
     syntaxKinds: ["ObjectInitializerExpression"],
+    createParserPlugin: () => new ObjectInitializerParserPlugin(),
   }),
   metadata({
     id: "using",
@@ -103,6 +121,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["UsingStatement"],
     diagnosticCodes: ["using-non-disposable"],
+    createParserPlugin: () => new UsingParserPlugin(),
   }),
   enumSugarPlugin,
   metadata({
@@ -111,6 +130,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     description: "Parses Return If ... Then ... Else ... as a returnable ternary form.",
     enabledByDefault: true,
     syntaxKinds: ["ReturnStatement", "TernaryExpression"],
+    createParserPlugin: () => new ReturnIfParserPlugin(),
   }),
   metadata({
     id: "pipe",
@@ -118,6 +138,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     description: "Expands left |> right into a call that passes left as the first argument.",
     enabledByDefault: true,
     syntaxKinds: ["PipeExpression"],
+    createParserPlugin: () => new PipeParserPlugin(),
   }),
   metadata({
     id: "destructure-object",
@@ -126,6 +147,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["DestructuredVariableDeclaration(object)"],
     diagnosticCodes: ["destructure-context-unsupported", "destructure-unknown-member"],
+    createParserPlugin: () => new DestructureParserPlugin(true, false),
   }),
   metadata({
     id: "destructure-array",
@@ -134,6 +156,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: ["DestructuredVariableDeclaration(array)"],
     diagnosticCodes: ["destructure-context-unsupported", "destructure-non-array"],
+    createParserPlugin: () => new DestructureParserPlugin(false, true),
   }),
   metadata({
     id: "auto-new",

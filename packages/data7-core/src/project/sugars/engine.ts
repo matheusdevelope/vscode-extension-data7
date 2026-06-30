@@ -1,6 +1,5 @@
-import { SugarsParserPlugin } from "../parser";
 import type { ParserPlugin } from "../parser";
-import { isDisabledSugarSyntaxLine } from "../parser/sugars-plugin";
+import { isDisabledSugarSyntaxLine } from "./disabled-preserver";
 import { SugarRegistry } from "./registry";
 import type { SugarEngineOptions, SugarUtilityModule } from "./types";
 
@@ -46,11 +45,15 @@ export class SugarEngine {
   }
 
   public createParserPlugins(): ParserPlugin[] {
-    const parserSugarIds = this.getEnabledSugarIds();
-    if (!PARSER_SUGAR_IDS.some((id) => parserSugarIds.has(id))) return [];
-    // The compatibility parser is configured with only the sugars selected by
-    // this engine. Its dispatch never accepts syntax from a disabled sugar.
-    return [new SugarsParserPlugin(parserSugarIds)];
+    if (!this.enabled) return [];
+    const plugins: ParserPlugin[] = [];
+    for (const id of this.enabledIds) {
+      const sugar = SugarRegistry.get(id);
+      if (sugar?.createParserPlugin) {
+        plugins.push(sugar.createParserPlugin());
+      }
+    }
+    return plugins;
   }
 
   /**

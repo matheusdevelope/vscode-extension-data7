@@ -281,7 +281,7 @@ Namespace mod_ev
    Class C
       Public f As Form
       Public Sub Setup()
-         Me.f.OnClick = AddressOf NoArgsHandler
+         Me.f.OnClick = NoArgsHandler
       End Sub
       Public Sub NoArgsHandler()
       End Sub
@@ -304,7 +304,7 @@ Namespace mod_ev2
    Class C
       Public f As Form
       Public Sub Setup()
-         Me.f.OnClick = AddressOf GoodHandler
+         Me.f.OnClick = GoodHandler
       End Sub
       Public Sub GoodHandler(Sender As TObject)
       End Sub

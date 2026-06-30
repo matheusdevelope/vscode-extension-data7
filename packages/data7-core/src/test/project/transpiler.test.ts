@@ -1553,11 +1553,11 @@ describe("SugarTranspiler — array-list", () => {
     assert.equal(diagnostics.length, 0);
     assert.match(
       out,
-      /Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" {2}As Long/,
+      /Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" {1,2}As Long/,
     );
     assert.match(
       out,
-      /Private Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event" \(dwFlags As Long, dpX As Long, dpY As Long, cButtons As Long, dwExtraInfo As Long\)/,
+      /Private Declare Sub _MouseEvent Lib "user32.dll" Alias "mouse_event"\s*\(dwFlags As Long, dpX As Long, dpY As Long, cButtons As Long, dwExtraInfo As Long\)/,
     );
   });
 

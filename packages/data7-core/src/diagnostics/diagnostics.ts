@@ -1951,6 +1951,8 @@ export class DiagnosticsASTWalker extends ASTWalker {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
 
+    let isDelegateAssignment = false;
+
     // Event signature mismatch
     if (node.target.kind === "MemberAccess" && node.target.member.toLowerCase().startsWith("on")) {
       const eventName = node.target.member;
@@ -1970,43 +1972,48 @@ export class DiagnosticsASTWalker extends ASTWalker {
             this.indexer.findSymbolByName(delegateName);
 
           if (delegate?.kind === "delegate" && delegate.parameters) {
-            // Check if AddressOf handler is assigned
+            isDelegateAssignment = true;
+            // Check if handler is assigned directly or via AddressOf (compatibility)
+            let handlerName = "";
             if (
               node.value.kind === "MethodInvocation" &&
               node.value.methodName.toLowerCase() === "addressof" &&
               node.value.arguments.length === 1
             ) {
               const handlerArg = node.value.arguments[0];
-              let handlerName = "";
               if (handlerArg?.kind === "Identifier") {
                 handlerName = handlerArg.name;
               } else if (handlerArg?.kind === "MemberAccess") {
                 handlerName = handlerArg.member;
               }
+            } else if (node.value.kind === "MethodInvocation" && node.value.noParentheses) {
+              handlerName = node.value.methodName;
+            } else if (node.value.kind === "Identifier") {
+              handlerName = node.value.name;
+            } else if (node.value.kind === "MemberAccess") {
+              handlerName = node.value.member;
+            }
 
-              if (handlerName) {
-                const handler = this.indexer.findSymbolByName(handlerName);
-                if (
-                  handler &&
-                  (handler.kind === "method" ||
-                    handler.kind === "declare_sub" ||
-                    handler.kind === "declare_function")
-                ) {
-                  const handlerParams = handler.parameters ?? [];
-                  if (handlerParams.length !== delegate.parameters.length) {
-                    const startChar = node.value.loc
-                      ? node.value.loc.startChar
-                      : node.loc.startChar;
-                    const endChar = node.value.loc ? node.value.loc.endChar : node.loc.endChar;
-                    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
-                    const diag = new vscode.Diagnostic(
-                      range,
-                      `Assinatura incompatível: o evento "${eventName}" espera ${delegate.parameters.length} parâmetro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
-                      vscode.DiagnosticSeverity.Error,
-                    );
-                    diag.code = DiagnosticCodes.EventSignatureMismatch;
-                    this.diagnostics.push(diag);
-                  }
+            if (handlerName) {
+              const handler = this.indexer.findSymbolByName(handlerName);
+              if (
+                handler &&
+                (handler.kind === "method" ||
+                  handler.kind === "declare_sub" ||
+                  handler.kind === "declare_function")
+              ) {
+                const handlerParams = handler.parameters ?? [];
+                if (handlerParams.length !== delegate.parameters.length) {
+                  const startChar = node.value.loc ? node.value.loc.startChar : node.loc.startChar;
+                  const endChar = node.value.loc ? node.value.loc.endChar : node.loc.endChar;
+                  const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+                  const diag = new vscode.Diagnostic(
+                    range,
+                    `Assinatura incompatível: o evento "${eventName}" espera ${delegate.parameters.length} parâmetro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
+                    vscode.DiagnosticSeverity.Error,
+                  );
+                  diag.code = DiagnosticCodes.EventSignatureMismatch;
+                  this.diagnostics.push(diag);
                 }
               }
             }
@@ -2152,9 +2159,11 @@ export class DiagnosticsASTWalker extends ASTWalker {
 
     // Warn when the RHS is a parameterless callable used without parentheses,
     // e.g. `x = obj.logado` should be `x = obj.logado()`.
-    const parameterlessCallable = this.resolveParameterlessFinalCall(node.value, lineIdx);
-    if (parameterlessCallable) {
-      this.pushFinalCallParenthesesDiagnostic(node.value, parameterlessCallable, lineIdx);
+    if (!isDelegateAssignment) {
+      const parameterlessCallable = this.resolveParameterlessFinalCall(node.value, lineIdx);
+      if (parameterlessCallable) {
+        this.pushFinalCallParenthesesDiagnostic(node.value, parameterlessCallable, lineIdx);
+      }
     }
   }
 

@@ -68,6 +68,8 @@ Na mesma coleta AST, acessos abreviados de `With` representados como `.Membro` n
 
 Classes e namespaces da System Library tambem devem encerrar a validacao de modulo implicito: `TFile.Exists(...)`, `TPath.GetTempPath(...)` e `File.ExtractName(...)` sao chamadas estaticas nativas, nao dependencias de repositorio. `System.IOUtils.TFile`, `System.IOUtils.TPath` e o alias qualificado `IO.File.ZipFile` estao modelados como simbolos de sistema para manter hover, autocomplete e linter no mesmo caminho de resolucao.
 
+Os primitivos da System Library incluem a cobertura do manual `Funcoes Projetos Basic.txt`: `Boolean`, `SmallInt`, `ShortInt`, `Word`, `Cardinal`, `Integer`, `Int64`, `Single`, `Double`, `Extended`, `Currency`, `TDateTime`, `String`, `AnsiString`, `AnsiChar` e `WideChar`. Essa cobertura vive em `src/system-library/Primitives/official-basic-functions.ts` e deve permanecer sincronizada pelo teste `basic-functions-coverage.test.ts` quando o arquivo oficial estiver disponivel localmente.
+
 Os diagnostics devem reconhecer imports transitivos de modulos utilizados, promocoes numericas sem perda e APIs globais legadas registradas na System Library, como `dateUtils.toStringFormat(...)`.
 
 Quick Fixes devem normalizar o codigo do diagnostico recebido do VS Code antes do despacho, pois ele pode ser uma string ou um objeto com a propriedade `value`. Adicionalmente, devem prever fallbacks robustos por payload tipado, AST ou tokens do documento caso o payload `data` seja omitido pelo VS Code.
@@ -93,7 +95,7 @@ A árvore de fontes e o arquivo `.7proj` seguem um fluxo manual: use os comandos
 
 ### 2.1. Arquivos `.bas` e `.7proj`
 
-- **`.bas`**: Arquivos de script contendo a codificação em Data7 Basic. Podem declarar namespaces, classes, estruturas, métodos, variáveis locais, atributos globais e declarações `Declare Sub` / `Declare Function` de DLLs (preservadas verbatim como `OpaqueStatement`).
+- **`.bas`**: Arquivos de script contendo a codificação em Data7 Basic. Podem declarar namespaces, classes, estruturas, métodos, variáveis locais, atributos globais e declarações `Declare Sub` / `Declare Function` de DLLs (estruturalmente analisadas em `MethodDeclaration` com metadados DLL).
 - **`.7proj`**: Arquivo XML de projeto estruturado que contém metadados, formulários e todos os scripts `.bas` agregados do projeto do ERP.
 
 Os módulos core são sincronizados para `data7_modules/` junto com o projeto. O logging desse runtime é centralizado em `mod_logger`; `TEnum` deriva de `TTObject` para uso seguro em listas, e a serialização de valores trata `TDateTime`, `TTObject` e objetos nativos pelo seu tipo concreto. O módulo legado `mod_console` não faz parte desse conjunto.

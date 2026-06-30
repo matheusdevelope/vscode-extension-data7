@@ -218,6 +218,7 @@ import { symbols as sym_Primitives_Single } from "./Primitives/Single";
 import { symbols as sym_Primitives_String } from "./Primitives/String";
 import { symbols as sym_Primitives_TDateTime } from "./Primitives/TDateTime";
 import { symbols as sym_Primitives_compat } from "./Primitives/_compat";
+import { symbols as sym_Primitives_officialBasicFunctions } from "./Primitives/official-basic-functions";
 
 // ───────── SQL ─────────
 import { symbols as sym_SQL_Command } from "./SQL/Command";
@@ -449,6 +450,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Primitives_String,
   ...sym_Primitives_TDateTime,
   ...sym_Primitives_compat,
+  ...sym_Primitives_officialBasicFunctions,
   // SQL
   ...sym_SQL_Command,
   ...sym_SQL_Connection,

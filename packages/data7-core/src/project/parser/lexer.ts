@@ -316,6 +316,16 @@ function hasTrailingLineContinuation(tokens: readonly LineToken[], rawLine: stri
   if (lastNonCommentIdx < 0) return false;
   const lastNonCommentToken = tokens[lastNonCommentIdx];
   if (lastNonCommentToken?.kind === "identifier" && lastNonCommentToken.value === "_") {
+    const col = lastNonCommentToken.col;
+    if (col > 0) {
+      const prevChar = rawLine[col - 1];
+      if (prevChar === undefined) return false;
+      if (/[a-zA-Z0-9_]/i.test(prevChar)) {
+        return false;
+      }
+    } else {
+      return false;
+    }
     const rawAfterUnderscore = rawLine.slice(lastNonCommentToken.col + 1).trim();
     if (rawAfterUnderscore === "" || rawAfterUnderscore.startsWith("'")) {
       return true;

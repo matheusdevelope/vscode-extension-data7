@@ -69,8 +69,18 @@ import { tokenize } from "./lexer";
 import { makeError, type ParseError, type ParseErrorCode } from "./parser-errors";
 import type { Token, TokenLocation } from "./token-types";
 import type { ParserPlugin } from "./plugin";
-import { SugarsParserPlugin } from "./sugars-plugin";
 import { GenericsParserPlugin } from "./generics-plugin";
+import { SugarEngine } from "../sugars/engine";
+import { parseNamespace } from "./declaration-parsers/namespace-parser";
+import { parseClass } from "./declaration-parsers/class-parser";
+import { parseMethod } from "./declaration-parsers/method-parser";
+import { parseProperty } from "./declaration-parsers/property-parser";
+import { parseField } from "./declaration-parsers/field-parser";
+import { parseLocalVariableDeclarationAfterDim } from "./declaration-parsers/variable-parser";
+import { parseDelegate } from "./declaration-parsers/delegate-parser";
+import { parseImportsDeclaration } from "./declaration-parsers/imports-parser";
+import { parseNativeEnumDeclaration } from "./declaration-parsers/enum-parser";
+import { parseDeclareDeclaration } from "./declaration-parsers/declare-parser";
 import {
   parseExpression as parseExpressionGrammar,
   parseExpressionWithLeft as parseExpressionWithLeftGrammar,
@@ -156,7 +166,10 @@ export interface ParseOptions {
 export function parse(source: string, options?: ParseOptions): ParseResult {
   const tokens = tokenize(source);
   const sourceLines = source.split(/\r?\n/);
-  const plugins = options?.plugins ?? [new SugarsParserPlugin(), new GenericsParserPlugin()];
+  const plugins = options?.plugins ?? [
+    ...new SugarEngine().createParserPlugins(),
+    new GenericsParserPlugin(),
+  ];
   const parser = new Parser(tokens, sourceLines, plugins, options?.preserveLine);
   const unit = parser.parseCompilationUnit();
   return { unit, errors: parser.errors };
@@ -164,7 +177,10 @@ export function parse(source: string, options?: ParseOptions): ParseResult {
 
 export function parseExpr(source: string, options?: ParseOptions): Expression {
   const tokens = tokenize(source);
-  const plugins = options?.plugins ?? [new SugarsParserPlugin(), new GenericsParserPlugin()];
+  const plugins = options?.plugins ?? [
+    ...new SugarEngine().createParserPlugins(),
+    new GenericsParserPlugin(),
+  ];
   const parser = new Parser(tokens, [source], plugins);
   return parser.parseExpression();
 }
@@ -342,13 +358,19 @@ export class Parser {
     this.skipNewlines();
     while (!this.isEOF()) {
       const m = this.parseTopLevelMember();
-      if (m !== null) members.push(m);
+      if (m !== null) {
+        if (Array.isArray(m)) {
+          members.push(...m);
+        } else {
+          members.push(m);
+        }
+      }
       this.skipNewlines();
     }
     return { kind: "CompilationUnit", members };
   }
 
-  private parseTopLevelMember(): TopLevelMember | null {
+  public parseTopLevelMember(): TopLevelMember | TopLevelMember[] | null {
     if (this.shouldPreserveCurrentLine()) return this.consumeLineAsOpaque();
 
     // Skip modifier prefixes that may precede a declaration so we can
@@ -367,16 +389,16 @@ export class Parser {
         }
       }
 
-      if (v === "namespace") return this.parseNamespace();
-      if (v === "class" || v === "structure") return this.parseClass();
-      if (v === "sub" || v === "function") return this.parseMethod();
-      if (v === "delegate") return this.parseDelegate();
-      if (v === "imports") return this.parseImportsDeclaration();
-      if (v === "declare") return this.consumeLineAsOpaque();
-      if (v === "enum") return this.parseNativeEnumDeclaration();
+      if (v === "namespace") return parseNamespace(this);
+      if (v === "class" || v === "structure") return parseClass(this);
+      if (v === "sub" || v === "function") return parseMethod(this);
+      if (v === "delegate") return parseDelegate(this);
+      if (v === "imports") return parseImportsDeclaration(this);
+      if (v === "declare") return parseDeclareDeclaration(this);
+      if (v === "enum") return parseNativeEnumDeclaration(this);
 
       if (v === "dim" || v === "const") {
-        this.parseModifiers();
+        const modifiers = this.parseModifiers();
         const startLoc = this.peek().loc;
         const isConst = v === "const";
         this.advance(); // consume dim/const
@@ -386,9 +408,9 @@ export class Parser {
             if (res !== null) return res;
           }
         }
-        return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
+        return parseLocalVariableDeclarationAfterDim(this, startLoc, isConst, modifiers);
       }
-      if (lookahead > 0) return this.parseField();
+      if (lookahead > 0) return parseField(this);
     }
 
     // Try to parse the top-level member as a statement structurally first
@@ -399,7 +421,7 @@ export class Parser {
     return this.consumeLineAsOpaque();
   }
 
-  private peekIsModifier(offset: number): boolean {
+  public peekIsModifier(offset: number): boolean {
     const t = this.peek(offset);
     if (t.kind !== "keyword" && t.kind !== "identifier") return false;
     return MODIFIER_KEYWORDS.has(t.value.toLowerCase());
@@ -409,226 +431,7 @@ export class Parser {
   // Namespace
   // --------------------------------------------------------------------------
 
-  private parseNamespace(): NamespaceDeclaration {
-    const startLoc = this.peek().loc;
-    // Consume any leading modifiers we ignored at the peek stage.
-    this.parseModifiers();
-    this.advance(); // 'Namespace'
-    const nameToken = this.expect("identifier", "<namespace-name>");
-    const name = nameToken?.value ?? "";
-    this.skipToEndOfLine();
-
-    const members: TopLevelMember[] = [];
-    let endLoc: TokenLocation | undefined;
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd("namespace")) {
-        endLoc = this.consumeEnd("namespace");
-        this.skipToEndOfLine();
-        return { kind: "NamespaceDeclaration", name, members, loc: locOf(startLoc, endLoc) };
-      }
-      const m = this.parseTopLevelMember();
-      if (m !== null) members.push(m);
-    }
-    this.recordError(
-      "unterminated-block",
-      `Namespace '${name}' is missing 'End Namespace'.`,
-      startLoc,
-    );
-    return { kind: "NamespaceDeclaration", name, members, loc: locOf(startLoc) };
-  }
-
-  private parseImportsDeclaration(): ImportsDeclaration {
-    const startLoc = this.peek().loc;
-    this.advance(); // consume 'Imports'
-    const parts: string[] = [];
-    const firstIdent = this.expect("identifier", "<namespace-or-module-name>");
-    if (firstIdent) {
-      parts.push(firstIdent.value);
-    }
-    while (this.consume("punct", ".")) {
-      const nextIdent = this.expect("identifier", "<namespace-or-module-name>");
-      if (nextIdent) {
-        parts.push(nextIdent.value);
-      } else {
-        break;
-      }
-    }
-    const target = parts.join(".");
-    const endLoc = this.peek().loc;
-    const comment = this.skipToEndOfLine();
-    return {
-      kind: "ImportsDeclaration",
-      target,
-      comment,
-      loc: locOf(startLoc, endLoc),
-    };
-  }
-
-  // --------------------------------------------------------------------------
-  // Class
-  // --------------------------------------------------------------------------
-
-  private parseClass(): ClassDeclaration {
-    const startLoc = this.peek().loc;
-    const modifiers = this.parseModifiers();
-    const isStructure = Parser.eq(this.peek(), "structure");
-    this.advance(); // 'Class' or 'Structure'
-    if (isStructure) {
-      modifiers.push("structure");
-    }
-    const nameToken = this.expect("identifier", isStructure ? "<structure-name>" : "<class-name>");
-    const name = nameToken?.value ?? "";
-    const typeParameters = this.parseOptionalTypeParameters();
-    let baseType: TypeReference | undefined;
-    if (this.match("keyword", "Inherits") || this.match("identifier", "Inherits")) {
-      this.advance();
-      const parsed = this.parseTypeReference();
-      if (parsed !== null) baseType = parsed;
-    }
-    this.skipToEndOfLine();
-    this.skipNewlines();
-    if (this.match("keyword", "Inherits") || this.match("identifier", "Inherits")) {
-      this.advance();
-      const parsed = this.parseTypeReference();
-      if (parsed !== null) baseType = parsed;
-      this.skipToEndOfLine();
-    }
-
-    const classMembers: ClassMember[] = [];
-    const endKind = isStructure ? "structure" : "class";
-    let endLoc: TokenLocation | undefined;
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd(endKind)) {
-        endLoc = this.consumeEnd(endKind);
-        this.skipToEndOfLine();
-        const decl: ClassDeclaration = {
-          kind: "ClassDeclaration",
-          name,
-          typeParameters,
-          members: classMembers,
-          loc: locOf(startLoc, endLoc),
-          modifiers,
-        };
-        if (baseType !== undefined) decl.baseType = baseType;
-        return decl;
-      }
-      const m = this.parseClassMember();
-      if (m !== null) classMembers.push(m);
-    }
-    this.recordError(
-      "unterminated-block",
-      `${isStructure ? "Structure" : "Class"} '${name}' is missing 'End ${isStructure ? "Structure" : "Class"}'.`,
-      startLoc,
-    );
-    const decl: ClassDeclaration = {
-      kind: "ClassDeclaration",
-      name,
-      typeParameters,
-      members: classMembers,
-      loc: locOf(startLoc),
-      modifiers,
-    };
-    if (baseType !== undefined) decl.baseType = baseType;
-    return decl;
-  }
-
-  private parseClassMember(): ClassMember | null {
-    let lookahead = 0;
-    while (this.peekIsModifier(lookahead)) lookahead++;
-    const head = this.peek(lookahead);
-    if (head.kind === "keyword" || head.kind === "identifier") {
-      const v = head.value.toLowerCase();
-      if (v === "sub" || v === "function") return this.parseMethod();
-      if (v === "property") return this.parseProperty();
-      if (v === "class" || v === "structure") return this.parseClass();
-    }
-
-    // Field declaration: `<modifier>* <name> As <Type>`. Anything we
-    // cannot interpret is dropped as a parse error and we resync to the
-    // next line.
-    return this.parseField();
-  }
-
-  // --------------------------------------------------------------------------
-  // Method / Sub / Function
-  // --------------------------------------------------------------------------
-
-  private parseMethod(): MethodDeclaration {
-    const startLoc = this.peek().loc;
-    const modifiers = this.parseModifiers();
-    const head = this.advance(); // 'Sub' | 'Function'
-    const isFunction = Parser.eq(head, "function");
-    // 'New' is a keyword token (not an identifier), but it is a valid
-    // method name in Data7 Basic (constructor). Accept either kind.
-    const nameToken = this.consumeNameToken();
-    if (!nameToken) {
-      this.recordError(
-        "expected-token",
-        `Expected '<method-name>', got '${this.peek().value || this.peek().kind}'.`,
-        this.peek().loc,
-      );
-    }
-    const name = nameToken?.value ?? "";
-    const isConstructor = name.toLowerCase() === "new";
-    const typeParameters = this.parseOptionalTypeParameters();
-    const { params: parameters, hasParentheses } = this.parseParameterList();
-    let returnType: TypeReference | undefined;
-    if (isFunction && this.consume("keyword", "as")) {
-      const t = this.parseTypeReference();
-      if (t !== null) returnType = t;
-    } else if (isFunction && this.consume("identifier", "as")) {
-      const t = this.parseTypeReference();
-      if (t !== null) returnType = t;
-    }
-    this.skipToEndOfLine();
-
-    const endKind = isFunction ? "function" : "sub";
-    const { stmts: body, endLoc } = this.parseMethodBody(endKind, startLoc);
-    const decl: MethodDeclaration = {
-      kind: "MethodDeclaration",
-      name,
-      typeParameters,
-      parameters,
-      body,
-      loc: locOf(startLoc, endLoc),
-      modifiers,
-      noParentheses: !hasParentheses,
-    };
-    if (isConstructor) decl.isConstructor = true;
-    if (returnType !== undefined) decl.returnType = returnType;
-    return decl;
-  }
-
-  // Substitua a função parseMethodBody original por esta:
-  private parseMethodBody(
-    endKind: "sub" | "function" | "get" | "set",
-    startLoc: TokenLocation,
-  ): { stmts: Statement[]; endLoc?: TokenLocation } {
-    const stmts: Statement[] = [];
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd(endKind)) {
-        const endLoc = this.consumeEnd(endKind);
-        this.skipToEndOfLine();
-        return { stmts, endLoc };
-      }
-      const s = this.parseStatement();
-      if (s !== null) stmts.push(s);
-      this.skipStatementSeparator();
-    }
-    const endLabel =
-      endKind === "sub"
-        ? "Sub"
-        : endKind === "function"
-          ? "Function"
-          : endKind === "get"
-            ? "Get"
-            : "Set";
-    this.recordError("unterminated-block", `Method body is missing 'End ${endLabel}'.`, startLoc);
-    return { stmts };
-  }
+  // Declarations parsed via specialized modules in declaration-parsers/
 
   // private parseMethodBody(endKind: "sub" | "function", startLoc: TokenLocation): Statement[] {
   //   const stmts: Statement[] = [];
@@ -695,7 +498,7 @@ export class Parser {
           if (res !== null) return res;
         }
       }
-      return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
+      return parseLocalVariableDeclarationAfterDim(this, startLoc, isConst);
     }
     if (this.match("keyword", "if") || this.match("identifier", "if")) {
       return this.parseIfStatement();
@@ -737,87 +540,7 @@ export class Parser {
     const startLoc = this.peek().loc;
     const isConst = this.peek().value.toLowerCase() === "const";
     this.advance(); // consume 'Dim'/'Const'
-    return this.parseLocalVariableDeclarationAfterDim(startLoc, isConst);
-  }
-
-  private parseSingleVariableDeclaration(
-    startLoc: TokenLocation,
-    isConst: boolean,
-  ): VariableDeclaration {
-    const nameToken = this.expect("identifier", "<variable-name>");
-    const name = nameToken?.value ?? "";
-    let type: TypeReference | undefined;
-    let hasAsNew = false;
-    const nativeArrayDimensions = this.parseNativeArrayDimensions();
-    const isArraySugar = this.consumeArraySugarMarker();
-    if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
-        hasAsNew = true;
-      }
-      const t = this.parseTypeReference();
-      if (t !== null) {
-        type = isArraySugar ? wrapArraySugarType(t, startLoc) : t;
-      }
-    }
-    let initializer: Expression | undefined;
-    const asNewArguments = hasAsNew ? this.parseOptionalArgumentList() : [];
-    if (this.consume("punct", "=")) {
-      initializer = this.parseExpression();
-    } else if (isArraySugar && type) {
-      initializer = {
-        kind: "ObjectCreationExpression",
-        type,
-        arguments: [],
-        loc: type.loc,
-      };
-    } else if (hasAsNew && type) {
-      initializer = {
-        kind: "ObjectCreationExpression",
-        type: type,
-        arguments: asNewArguments,
-        loc: type.loc,
-      };
-    }
-    const declaration: VariableDeclaration = {
-      kind: "VariableDeclaration",
-      name,
-      type,
-      initializer,
-      isConst,
-      isArraySugar,
-      loc: locOf(startLoc),
-    };
-    if (nativeArrayDimensions !== undefined) {
-      declaration.nativeArrayDimensions = nativeArrayDimensions;
-    }
-    return declaration;
-  }
-
-  public parseLocalVariableDeclarationAfterDim(
-    startLoc: TokenLocation,
-    isConst: boolean,
-  ): Statement {
-    const first = this.parseSingleVariableDeclaration(startLoc, isConst);
-
-    if (this.match("punct", ",")) {
-      const decls: Statement[] = [first];
-      while (this.consume("punct", ",")) {
-        const nextStartLoc = this.peek().loc;
-        const nextDecl = this.parseSingleVariableDeclaration(nextStartLoc, isConst);
-        decls.push(nextDecl);
-      }
-      const comment = this.skipToEndOfLine();
-      return {
-        kind: "Block",
-        statements: decls,
-        comment,
-        loc: locOf(startLoc, this.peek().loc),
-      };
-    } else {
-      const comment = this.skipToEndOfLine();
-      first.comment = comment;
-      return first;
-    }
+    return parseLocalVariableDeclarationAfterDim(this, startLoc, isConst);
   }
 
   private parseIfStatement(): IfStatement {
@@ -1047,153 +770,7 @@ export class Parser {
   // Delegate
   // --------------------------------------------------------------------------
 
-  private parseDelegate(): DelegateDeclaration {
-    const startLoc = this.peek().loc;
-    const modifiers = this.parseModifiers();
-    this.advance(); // 'Delegate'
-    const kindToken = this.advance(); // 'Sub' | 'Function'
-    const isFunction = Parser.eq(kindToken, "function");
-    const nameToken = this.expect("identifier", "<delegate-name>");
-    const name = nameToken?.value ?? "";
-    const typeParameters = this.parseOptionalTypeParameters();
-    const { params: parameters, hasParentheses } = this.parseParameterList();
-    let returnType: TypeReference | undefined;
-    if (isFunction && (this.consume("keyword", "as") || this.consume("identifier", "as"))) {
-      const t = this.parseTypeReference();
-      if (t !== null) returnType = t;
-    }
-    this.skipToEndOfLine();
-    const decl: DelegateDeclaration = {
-      kind: "DelegateDeclaration",
-      name,
-      typeParameters,
-      parameters,
-      loc: locOf(startLoc),
-      modifiers,
-      noParentheses: !hasParentheses,
-    };
-    if (returnType !== undefined) decl.returnType = returnType;
-    return decl;
-  }
-
-  // --------------------------------------------------------------------------
-  // Property / Field
-  // --------------------------------------------------------------------------
-
-  // Substitua a função parseProperty original por esta:
-  private parseProperty(): PropertyDeclaration {
-    const startLoc = this.peek().loc;
-    const modifiers = this.parseModifiers();
-    this.advance(); // 'Property'
-    const nameToken = this.expectNameToken("<property-name>");
-    const name = nameToken?.value ?? "";
-    let params: ParameterDeclaration[] | undefined;
-    if (this.match("punct", "(")) {
-      const parsed = this.parseParameterList();
-      params = parsed.params;
-    }
-    let type: TypeReference = emptyTypeReference();
-    if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      const t = this.parseTypeReference();
-      if (t !== null) type = t;
-    }
-    this.skipToEndOfLine();
-
-    let getter: MethodDeclaration | undefined;
-    let setter: MethodDeclaration | undefined;
-
-    // Faz o lookahead para verificar se a property possui um bloco
-    let lookahead = 0;
-    let nextToken = this.peek(lookahead);
-    while (
-      nextToken.kind === "newline" ||
-      nextToken.kind === "comment" ||
-      this.peekIsModifier(lookahead)
-    ) {
-      lookahead++;
-      nextToken = this.peek(lookahead);
-    }
-
-    let hasBlock = false;
-    if (nextToken.kind === "identifier" || nextToken.kind === "keyword") {
-      const v = nextToken.value.toLowerCase();
-      if (v === "get" || v === "set") {
-        hasBlock = true;
-      } else if (v === "end" && Parser.eq(this.peek(lookahead + 1), "property")) {
-        hasBlock = true;
-      }
-    }
-
-    let endLoc: TokenLocation | undefined;
-    if (hasBlock) {
-      while (!this.isEOF()) {
-        this.skipNewlines();
-        if (this.matchEnd("property")) {
-          endLoc = this.consumeEnd("property");
-          this.skipToEndOfLine();
-          break;
-        }
-
-        const getSetModifiers = this.parseModifiers();
-        const head = this.peek();
-        if (head.kind === "identifier" || head.kind === "keyword") {
-          const v = head.value.toLowerCase();
-          if (v === "get") {
-            const getStartLoc = head.loc;
-            this.advance(); // consume Get
-            this.skipToEndOfLine();
-            const { stmts: body, endLoc: getEndLoc } = this.parseMethodBody("get", getStartLoc);
-            getter = {
-              kind: "MethodDeclaration",
-              name: "Get",
-              typeParameters: [],
-              parameters: [],
-              body,
-              loc: locOf(getStartLoc, getEndLoc),
-              modifiers: getSetModifiers,
-              noParentheses: true,
-            };
-            continue;
-          } else if (v === "set") {
-            const setStartLoc = head.loc;
-            this.advance(); // consume Set
-            const { params, hasParentheses } = this.parseParameterList();
-            this.skipToEndOfLine();
-            const { stmts: body, endLoc: setEndLoc } = this.parseMethodBody("set", setStartLoc);
-            setter = {
-              kind: "MethodDeclaration",
-              name: "Set",
-              typeParameters: [],
-              parameters: params,
-              body,
-              loc: locOf(setStartLoc, setEndLoc),
-              modifiers: getSetModifiers,
-              noParentheses: !hasParentheses,
-            };
-            continue;
-          }
-        }
-
-        //const s =
-        this.parseStatement();
-        this.skipStatementSeparator();
-      }
-    }
-
-    const decl: PropertyDeclaration = {
-      kind: "PropertyDeclaration",
-      name,
-      type,
-      loc: locOf(startLoc, endLoc),
-      modifiers,
-      getter: getter,
-      setter: setter,
-      hasBlock: hasBlock,
-      parameters: params,
-    };
-
-    return decl;
-  }
+  // Delegate and Property parsing delegated to specialized modules
 
   private parseSelectCaseStatement(): SelectCaseStatement {
     const startLoc = this.peek().loc;
@@ -1295,134 +872,9 @@ export class Parser {
     };
   }
 
-  private parseNativeEnumDeclaration(): EnumDeclaration {
-    const startLoc = this.peek().loc;
-    const modifiers = this.parseModifiers();
-    this.advance(); // 'Enum'
-    const nameToken = this.expect("identifier", "<enum-name>");
-    const name = nameToken?.value ?? "";
-    this.skipToEndOfLine();
+  // Enum and Field parsing delegated to specialized modules
 
-    const entries: { name: string; value?: Expression; loc?: SourceLocation }[] = [];
-    let endLoc: TokenLocation | undefined;
-    while (!this.isEOF()) {
-      this.skipNewlines();
-      if (this.matchEnd("enum")) {
-        endLoc = this.consumeEnd("enum");
-        this.skipToEndOfLine();
-        break;
-      }
-
-      if (this.peek().kind === "comment") {
-        this.consumeLineAsOpaque();
-        continue;
-      }
-
-      const entryNameToken = this.consume("identifier");
-      if (entryNameToken) {
-        const entryName = entryNameToken.value;
-        let value: Expression | undefined;
-        if (this.consume("punct", "=")) {
-          value = this.parseExpression();
-        }
-        const entryLoc = value?.loc
-          ? {
-              startLine: entryNameToken.loc.line,
-              startChar: entryNameToken.loc.column,
-              endLine: value.loc.endLine,
-              endChar: value.loc.endChar,
-            }
-          : locOf(entryNameToken.loc);
-        entries.push({ name: entryName, value, loc: entryLoc });
-      } else {
-        this.consumeLineAsOpaque();
-      }
-      this.skipToEndOfLine();
-    }
-
-    return {
-      kind: "EnumDeclaration",
-      name,
-      entries,
-      loc: locOf(startLoc, endLoc),
-      modifiers,
-    };
-  }
-
-  // private parseProperty(): PropertyDeclaration {
-  //   const startLoc = this.peek().loc;
-  //   const modifiers = this.parseModifiers();
-  //   this.advance(); // 'Property'
-  //   const nameToken = this.expect("identifier", "<property-name>");
-  //   const name = nameToken?.value ?? "";
-  //   let type: TypeReference = emptyTypeReference();
-  //   if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-  //     const t = this.parseTypeReference();
-  //     if (t !== null) type = t;
-  //   }
-  //   this.skipToEndOfLine();
-  //   return { kind: "PropertyDeclaration", name, type, loc: locOf(startLoc), modifiers };
-  // }
-
-  private parseField(): FieldDeclaration | null {
-    const startLoc = this.peek().loc;
-    const modifiers = this.parseModifiers();
-    this.consume("keyword", "dim");
-    this.consume("identifier", "dim");
-    const nameToken = this.consume("identifier");
-    if (nameToken === null) {
-      this.skipToEndOfLine();
-      return null;
-    }
-    const name = nameToken.value;
-    let type: TypeReference = emptyTypeReference();
-    let hasAsNew = false;
-    const nativeArrayDimensions = this.parseNativeArrayDimensions();
-    const isArraySugar = this.consumeArraySugarMarker();
-    if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
-      if (this.consume("keyword", "new") || this.consume("identifier", "new")) {
-        hasAsNew = true;
-      }
-      const t = this.parseTypeReference();
-      if (t !== null) {
-        type = isArraySugar ? wrapArraySugarType(t, startLoc) : t;
-      }
-    }
-    let initializer: Expression | undefined;
-    const asNewArguments = hasAsNew ? this.parseOptionalArgumentList() : [];
-    if (this.consume("punct", "=")) {
-      initializer = this.parseExpression();
-    } else if (isArraySugar) {
-      initializer = {
-        kind: "ObjectCreationExpression",
-        type,
-        arguments: [],
-        loc: type.loc,
-      };
-    } else if (hasAsNew) {
-      initializer = {
-        kind: "ObjectCreationExpression",
-        type: type,
-        arguments: asNewArguments,
-        loc: type.loc,
-      };
-    }
-    const comment = this.skipToEndOfLine();
-    const field: FieldDeclaration = {
-      kind: "FieldDeclaration",
-      name,
-      type,
-      initializer,
-      isArraySugar,
-      loc: locOf(startLoc),
-      modifiers,
-      comment,
-    };
-    if (nativeArrayDimensions !== undefined) field.nativeArrayDimensions = nativeArrayDimensions;
-    return field;
-  }
-
-  private consumeArraySugarMarker(): boolean {
+  public consumeArraySugarMarker(): boolean {
     if (!this.match("punct", "[")) return false;
     const next = this.peek(1);
     if (next.kind !== "punct" || next.value !== "]") return false;
@@ -1431,7 +883,7 @@ export class Parser {
     return true;
   }
 
-  private parseNativeArrayDimensions(): Expression[] | undefined {
+  public parseNativeArrayDimensions(): Expression[] | undefined {
     const open = this.peek();
     if (open.kind !== "punct" || (open.value !== "(" && open.value !== "[")) return undefined;
     const closeValue = open.value === "(" ? ")" : "]";
@@ -1448,7 +900,7 @@ export class Parser {
     return dimensions;
   }
 
-  private parseOptionalArgumentList(): Expression[] {
+  public parseOptionalArgumentList(): Expression[] {
     const args: Expression[] = [];
     if (!this.consume("punct", "(")) return args;
     while (!this.match("punct", ")") && !this.isEOF()) {
@@ -1719,7 +1171,7 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "mustoverride",
 ]);
 
-function locOf(
+export function locOf(
   loc: TokenLocation,
   endLoc?: TokenLocation,
 ): {
@@ -1736,11 +1188,11 @@ function locOf(
   };
 }
 
-function emptyTypeReference(): TypeReference {
+export function emptyTypeReference(): TypeReference {
   return { kind: "TypeReference", name: "", typeArguments: [] };
 }
 
-function wrapArraySugarType(elementType: TypeReference, loc: TokenLocation): TypeReference {
+export function wrapArraySugarType(elementType: TypeReference, loc: TokenLocation): TypeReference {
   return {
     kind: "TypeReference",
     name: "TTList",

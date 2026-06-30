@@ -42,6 +42,7 @@ A precedência de escopos no compilador segue a ordem do mais específico ao mai
   ```basic
   Public Dim result As String, i As Integer, _count As Integer = 10
   ```
+- **Padrão:** Por padrão o Public é implicito em toda declaração, não sendo obrigatório aplicar esse modicador, então o parser precisa suportar declarações com ou sem modificadores de acesso, sendo o modificador padrão implicito Public, ele também pode ser explicitamente declarado, assim como Private, ReadOnly, Protected etc...
 
 ### Inicialização de `Dim` no Escopo de Namespace (Pegadinha do Compilador)
 

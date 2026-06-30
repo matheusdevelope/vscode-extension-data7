@@ -245,6 +245,23 @@ function serializeMethod(
   options: SerializeOptions,
 ): void {
   out.setLine(m.loc);
+  const isDeclare = m.modifiers?.includes("declare") ?? false;
+  if (isDeclare) {
+    const filteredMods = m.modifiers?.filter((mod) => mod !== "declare");
+    const keyword = m.returnType !== undefined ? "Declare Function" : "Declare Sub";
+    const params = m.parameters.map(emitParameter).join(", ");
+    const ret = m.returnType !== undefined ? ` As ${emitTypeRef(m.returnType)}` : "";
+    const paramsStr = m.noParentheses ? "" : `(${params})`;
+    const libStr = m.libName ? ` Lib "${m.libName}"` : "";
+    const aliasStr = m.aliasName ? ` Alias "${m.aliasName}"` : "";
+    out.push(
+      indent(depth, options) +
+        `${emitModifiers(filteredMods)}${keyword} ${m.name}${libStr}${aliasStr}${paramsStr}${ret}` +
+        (m.comment && !options.minify ? " " + m.comment : ""),
+    );
+    return;
+  }
+
   const keyword = m.returnType !== undefined ? "Function" : "Sub";
   const params = m.parameters.map(emitParameter).join(", ");
   const ret = m.returnType !== undefined ? ` As ${emitTypeRef(m.returnType)}` : "";
@@ -467,7 +484,8 @@ function emitVariableDeclaration(v: VariableDeclaration): string {
   const dimensionsStr = emitNativeArrayDimensions(v.nativeArrayDimensions);
   const typeStr = v.type !== undefined ? " As " + emitTypeRef(v.type) : "";
   const initStr = v.initializer !== undefined ? " = " + emitExpression(v.initializer) : "";
-  return `${v.isConst ? "Const " : "Dim "}${v.name}${dimensionsStr}${typeStr}${initStr}`;
+  const modsStr = v.modifiers && v.modifiers.length > 0 ? emitModifiers(v.modifiers) : "";
+  return `${modsStr}${v.isConst ? "Const " : "Dim "}${v.name}${dimensionsStr}${typeStr}${initStr}`;
 }
 
 function emitNativeArrayDimensions(dimensions: readonly Expression[] | undefined): string {

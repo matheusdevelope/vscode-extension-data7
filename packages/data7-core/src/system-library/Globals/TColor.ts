@@ -41,7 +41,11 @@ export const symbols: SystemSymbolInfo[] = [
   // ───────── System colors (tema do Windows) ─────────
   buildEnumVal("clBtnFace", "TColor", "Cor da face de botão padrão do sistema."),
   buildEnumVal("clBtnShadow", "TColor", "Cor de sombra de botão padrão do sistema."),
-  buildEnumVal("clBtnHighlight", "TColor", "Cor de destaque (highlight) de botão padrão do sistema."),
+  buildEnumVal(
+    "clBtnHighlight",
+    "TColor",
+    "Cor de destaque (highlight) de botão padrão do sistema.",
+  ),
   buildEnumVal("clBtnText", "TColor", "Cor do texto do botão padrão do sistema."),
   buildEnumVal("clActiveCaption", "TColor", "Cor da barra de título da janela activa."),
   buildEnumVal("clInactiveCaption", "TColor", "Cor da barra de título de janela inativa."),

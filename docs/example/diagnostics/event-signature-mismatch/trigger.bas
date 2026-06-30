@@ -8,7 +8,7 @@ Namespace mod_consumer
    Class TConsumer
       Public f As Form
       Public Sub Setup()
-         Me.f.OnClick = AddressOf NoArgsHandler
+         Me.f.OnClick = NoArgsHandler
       End Sub
       Public Sub NoArgsHandler()
       End Sub

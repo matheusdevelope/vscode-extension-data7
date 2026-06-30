@@ -7,6 +7,27 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Refatoração e SOLIDificação do Parser de Linguagem (Kernel)
+- **Modularização do Parser de Declarações:** Decomposição do arquivo monolítico `parser.ts` em parsers especializados, autocontidos e livres de dependências circulares sob `src/project/parser/declaration-parsers/`:
+  - `imports-parser.ts`: Suporte completo a múltiplos imports separados por vírgula em uma única linha (ex. `Imports Forms, mod_winapi`).
+  - `namespace-parser.ts`: Parser de declaração de namespaces.
+  - `class-parser.ts`: Parser estruturado de classes e structures.
+  - `method-parser.ts`: Parser de Sub, Function e DLL externs.
+  - `property-parser.ts`: Parser de propriedades da classe.
+  - `field-parser.ts`: Parser de campos de classes/structures (restringido para proibir múltiplas variáveis comma-separated em classes/structures).
+  - `variable-parser.ts`: Parser de variáveis locais `Dim`.
+  - `delegate-parser.ts`: Parser estruturado de delegates.
+  - `enum-parser.ts`: Parser de enums nativos e açucarados.
+  - `declare-parser.ts`: Parser especializado de imports DLL externos (`Private Declare (Sub|Function) ... Lib ... Alias ...`).
+- **Desacoplamento e Modularização de Açúcares Sintáticos (Sugars):**
+  - Desacoplamento do parser agregador de açúcares monolítico. Cada açúcar agora possui seu próprio parser plugin sob `src/project/sugars/plugins/<sugar-id>/parser.ts` (ternary, optional-chain, pipe, using, null-coalesce, etc.).
+  - Configuração dinâmica de parsers de açúcares no `SugarEngine` a partir dos metadados expostos no registro do catálogo de açúcares.
+  - Correção de precedência em parsers infixos de açúcares (ternary `?`, null-coalesce `??`, e pipe `|>`).
+- **Correções do Lexer e Linter:**
+  - Correção da regra de quebra de linha com caractere de continuação `_`: agora um `_` no final de um identificador (ex. `meu_identificador_`) não é tratado como quebra de linha. A quebra de linha só ocorre se o `_` for precedido por caractere não identificador (ex.: operadores como `+` ou espaços).
+  - Remoção de suporte à palavra-chave obsoleta e não funcional `AddressOf`.
+  - Atualização do linter de diagnósticos para suportar atribuição direta de event handlers sem `AddressOf` (ex. `OnClick = MeuHandler`) e evitar falso positivo de `call-parentheses-mismatch` nesses cenários.
+
 ### Arquitetura (Monorepo)
 - **Refatoração para Monorepo:** O projeto foi convertido para uma estrutura de monorepo utilizando NPM Workspaces, isolando responsabilidades em pacotes independentes:
   - `@data7/core`: Kernel da linguagem contendo parser, linter, transpiler, CLI-agnostic analyzer e system library.
@@ -17,6 +38,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Desativação Temporária do Auto-scan:** O auto-scan de dependências e Quick Picks foram temporariamente suspensos (desativados) até uma nova modelagem que comporte projetos onde múltiplos namespaces são exportados por um único módulo.
 
 ### Adicionado
+- A System Library passou a cobrir as 281 assinaturas do manual `Funcoes Projetos Basic.txt` para primitivos (`Boolean`, inteiros, floats, `Currency`, `TDateTime`, `String`/`AnsiString` e chars), com teste de regressao contra o arquivo quando disponivel localmente.
 - Gerenciador de módulos com semântica tipo npm no `ModuleOrchestrator`: install, update e remove aceitam múltiplos módulos, resolvem versões disponíveis em repositório local/online, atualizam `data7.json#dependencies` e sincronizam `data7_modules/`.
 - Sidebar do Gerenciador de Módulos passa a listar catálogo local e online separadamente, indicar módulos instalados/atualizáveis e oferecer checkboxes com ações de instalar, atualizar e remover por item ou em lote.
 - Publicação online de módulos agora executa uma pré-checagem pública antes de autenticar no GitHub: bloqueia republicação sem alterações e exige versão local maior quando o módulo já existe online com conteúdo diferente.

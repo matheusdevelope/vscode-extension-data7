@@ -17,6 +17,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - O linter resolve variaveis globais declaradas no escopo superior, com prioridade para `Principal.bas`, e escolhe overloads por compatibilidade de tipos dos argumentos.
 - O linter aceita indexacao em `Variant`/`String`, resolve chamadas sem receiver respeitando imports antes de homonimos globais e reconhece `Net`/`ftBinary`/`ftASCII` como itens nativos da System Library.
 - A System Library cobre flags de `Forms.GridConfigs` usadas em projetos legados e `TStringList`/`TStrings` podem ser indexados diretamente com `lista[i]`.
+- A System Library tambem cobre as funcoes nativas de primitivos do manual `Funcoes Projetos Basic.txt`, incluindo conversoes e helpers de `String`/`AnsiString`, inteiros, floats, `Currency`, `Boolean`, chars e `TDateTime`.
 - `private-member-access` permanece estrito, destaca o token exato do membro privado em cadeias longas e o autocomplete nao sugere membros `Private` fora da classe declarante. `redundant-terminal-exit` remove `Exit`/`Return` vazio terminal sem confundir com `missing-return-value`.
 - Quick Fixes corretivos aparecem antes das supressoes, supressoes de linha sao emitidas com `data7:disable-next-line`, `dead-code` agrupa blocos inalcançaveis e o arquivo `.bas` ativo pode ser corrigido pelo comando `Data7: Linter - Corrigir Arquivo Atual`.
 - Diagnosticos `missing-mybase-new` e `missing-mybase-free` valem apenas para `Class`; `Structure` e tratada como estatica e nao recebe `Sub New`, `Sub Free` ou quick fix de destrutor.

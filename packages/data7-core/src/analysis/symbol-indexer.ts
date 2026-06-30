@@ -198,9 +198,10 @@ class SymbolIndexerWalker extends ASTWalker {
         isOptional: false,
       }));
 
+      const isDeclare = node.modifiers?.includes("declare") ?? false;
       const methodSymbol: SymbolInfo = {
         name: node.name,
-        kind: "method",
+        kind: isDeclare ? (node.returnType ? "declare_function" : "declare_sub") : "method",
         type: node.returnType ? (typeRefToString(node.returnType) ?? "Variant") : "Void",
         isShared,
         isPrivate,
