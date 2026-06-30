@@ -89,11 +89,11 @@
       "patterns": [
         {
           "name": "keyword.control.d7basic",
-          "match": "(?i)\\b(Imports|Namespace|Class|Sub|Function|Property|Get|Set|Shared|Inherits|Overridable|Overrides|As|Public|Private|Dim|Const|New|If|Then|Else|ElseIf|End|Return|Select|Case|Try|Catch|Finally|Throw|For|Each|In|To|Step|Next|While|Until|Loop|Do|Exit|With|Using|Match|Enum|Enun|MyBase|Me)\\b"
+          "match": "(?i)\\b(AddHandler|AddressOf|Alias|As|ByRef|ByVal|Call|Case|Catch|CBool|CByte|CChar|CDate|CDec|CDbl|CInt|Class|CLng|CObj|Const|Continue|CSByte|CShort|CSng|CStr|CType|CUInt|CULng|CUShort|Declare|Default|Delegate|Dim|DirectCast|Do|Each|Else|ElseIf|End|Enum|Enun|Erase|Error|Event|Exit|Finally|For|Friend|Function|Get|GetType|Global|GoTo|Handles|If|Implements|Imports|In|Inherits|Interface|Let|Lib|Loop|Me|Module|MustInherit|MustOverride|MyBase|MyClass|Namespace|Narrowing|New|Next|Of|On|Operator|Option|Optional|Overloads|Overridable|Overrides|ParamArray|Partial|Private|Property|Protected|Public|RaiseEvent|ReadOnly|ReDim|REM|Resume|Return|Select|Set|Shadows|Shared|Static|Step|Stop|Structure|Sub|SyncLock|Then|Throw|To|Try|TryCast|TypeOf|Until|While|Widening|With|WithEvents|WriteOnly)\\b"
         },
         {
           "name": "keyword.operator.logical.d7basic",
-          "match": "(?i)\\b(And|Or|Not|Xor)\\b"
+          "match": "(?i)\\b(And|AndAlso|Or|OrElse|Not|Xor|Like|Is|IsNot|Mod)\\b"
         }
       ]
     },
@@ -101,7 +101,7 @@
       "patterns": [
         {
           "name": "support.type.d7basic",
-          "match": "(?i)\\b(Integer|Long|String|Boolean|Variant|TDateTime|Exception|TObject|StringList|Collections\\.StringList|ObjectPrinter|Transport|TransportList|BaseList|BaseItem|SQL\\.Command|TJSONArray|TJSONObject|Certificado|CertificadoList|Logger|LogInfo)\\b"
+          "match": "(?i)\\\\b(Boolean|Border|ButtonCancel|ButtonOk|ButtonTextBox|Byte|Calendar|Cardinal|Char|CheckBox|Clipboard|Command|CommandButton|Connection|ControlGroup|Currency|CustomControl|Date|DateTextBox|dateUtils|Decimal|Directory|Double|Ellipse|Exception|Extended|File|FlatButton|FontConfig|Form|FormButtons|Grid|GridConfigs|GridEditorLink|HComboBox|HMODULE|Hresult|IFormVisualManager|Iinterface|Imagem|Integer|IOUtils|IXMLNode|IXMLNodeList|Line|Long|Longint|LongWord|MaskTextBox|Math|MemoTextBox|MessageBox|NumberTextBox|PageControl|Panel|PasswordTextBox|Pointer|ProgressBar|Pvoid|Real|Rectangle|Report|SearchTextBox|Short|Shortstring|Single|StaticText|String|StringList|TabSheet|TAdvColumnGrid|TAdvStringGrid|TAlign|TAlignInsertBeforeEvent|TAlignment|TAnchorKind|TBaseGrid|TBevel|TBevelCut|TBevelEdges|TBevelKind|TBevelShape|TBevelStyle|TBiDiMode|TBorderIcon|TBorderIcons|TBorderStyle|TBotao|TBoundLabel|TBrushStyle|TButtonControl|TButtonedEdit|TCanResizeEvent|TCanvas|Tclass|TCloseAction|TColor|TComponent|TConstrainedResizeEvent|TContextPopupEvent|TControl|TControlGroup|TCursor|TCustomButtonedEdit|TCustomControl|TCustomDrawGrid|TCustomEdit|TCustomForm|TCustomFrame|TCustomGrid|TCustomLabel|TCustomPanel|TCustomSpeedButton|TcxButtonEdit|TcxCalcEdit|TcxCheckBox|TcxComboBox|TcxCurrencyEdit|TcxCustomButtonEdit|TcxCustomCalcEdit|TcxCustomCheckBox|TcxCustomComboBox|TcxCustomCurrencyEdit|TcxCustomDateEdit|TcxCustomDropDownEdit|TcxCustomEdit|TcxCustomMaskEdit|TcxCustomMemo|TcxCustomPopupEdit|TcxCustomTextEdit|TcxDateEdit|TcxMaskEdit|TcxMemo|TcxTextEdit|TDataEditor|TDataSetNotifyEvent|Tdatetime|TDefaultMonitor|TDoubleBufferedMode|TDragDropEvent|TDragKind|TDragMode|TDragOverEvent|TDragState|TDrawGrid|TEditLink|TEditor|TEditorBotao|TEditorType|TEndDragEvent|TextBox|TFDAfterApplyUpdatesEvent|TFDDataSet|TFDDataSetEvent|TFDErrorEvent|TFDParam|TFDStoredActivationUsage|TFDUpdateRecordTypes|TField|TFile|TFilterDropDownColumns|TFilterOptions|TFilterRecordEvent|TFont|TFontPitch|TFontQuality|TFontStyle|TForm|TFormatType|TFormBorderStyle|TFormStyle|TFrame|TFrameCalendario|TFrameTopbar|TfrmFormulario|TfrmPaiCadastro|TFTP|TGetSiteInfoEvent|TGrade|TGraphicControl|TGridDrawingStyle|TGridDrawState|TGridFilterType|TGridLook|TGridOptions|THandle|THCheckBox|THComboBox|THelpType|THintShowLargeTextPos|THoverFixedCells|THoverRowCells|THTTP|TImage|Timer|TIntelliPan|TInvalidEntryIcon|TJSONArray|TJSONObject|TLabeledEdit|TLabelPosition|TMargins|TMascaraEditor|TMethod|TModalResult|TMouseButton|TMouseWheelEvent|TMouseWheelUpDownEvent|TMsg|TNumeroEditor|Tobject|TObjectList|TObjStringGrid|Topbar|TPath|TPen|TPenStyle|TPersistent|TPesquisaEditor|TPoint|TPopupMode|TPopupToolBarMode|TPosition|TPrimitive|TPrintScale|TProgressBarOrientation|TProgressBarState|TProgressBarStyle|TRDBMS|TRect|TRotulo|TRoundedCornerType|TRzCustomTabControl|TRzPageControl|TRzTabSheet|TScrollBarAlways|TScrollHintType|TScrollingWinControl|TScrollStyle|TScrollType|TShape|TShapeType|TShiftState|TSpeedBotao|TSpeedButton|TSSCustomButton|TStartDockEvent|TStringGrid|TStringList|TStrings|TStyleElements|TTextLineBreakStyle|TThreadFunc|TTimer|TTMSStyle|TUnDockEvent|TVAlignment|TValorEditor|TVarType|TWinControl|TWindowState|TXMLDocument|UCS4String|Unicodestring|UTF8String|ValueTextBox|Variant|Void|WhatsappMessage|WhatsappSend|Widechar|Word|ZipFile)\\\\b"
         }
       ]
     },
@@ -109,7 +109,7 @@
       "patterns": [
         {
           "name": "constant.language.d7basic",
-          "match": "(?i)\\b(True|False|NULL|Nothing)\\b"
+          "match": "(?i)\\b(True|False|Null|Unassigned|Empty)\\b"
         },
         {
           "name": "constant.numeric.d7basic",

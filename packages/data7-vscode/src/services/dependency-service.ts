@@ -6,11 +6,8 @@ import {
   PROJECT_CONFIG_FILENAME,
   WorkspaceSymbolIndexer,
   logger,
-  readProjectConfig,
-  writeProjectConfig,
-  isRecord,
-  DependencySynchronizer,
   ModuleOrchestrator,
+  type ModuleOperationResult,
 } from "@data7/core";
 import * as path from "path";
 import * as fs from "fs";
@@ -78,82 +75,77 @@ export class DependencyService {
   }
 
   public static async installModules(moduleNames: string[]): Promise<void> {
+    await this.runModuleOperation(
+      "Instalando módulos...",
+      async (workspaceDir) => ModuleOrchestrator.installModules(workspaceDir, moduleNames),
+      "instalados",
+    );
+  }
+
+  public static async updateModules(moduleNames?: string[]): Promise<void> {
+    await this.runModuleOperation(
+      moduleNames && moduleNames.length > 0
+        ? "Atualizando módulos..."
+        : "Atualizando dependências...",
+      async (workspaceDir) => ModuleOrchestrator.updateModules(workspaceDir, moduleNames),
+      "atualizados",
+    );
+  }
+
+  public static async removeModules(moduleNames: string[]): Promise<void> {
+    await this.runModuleOperation(
+      "Removendo módulos...",
+      async (workspaceDir) => ModuleOrchestrator.removeModules(workspaceDir, moduleNames),
+      "removidos",
+    );
+  }
+
+  private static async runModuleOperation(
+    title: string,
+    operation: (workspaceDir: string) => Promise<ModuleOperationResult>,
+    doneLabel: string,
+  ): Promise<void> {
     const project = ProjectService.getActiveProject();
     if (!project) {
       vscode.window.showWarningMessage("Nenhum projeto ativo. Abra um projeto Data7 primeiro.");
       return;
     }
 
-    try {
-      const manifestPath = path.join(project.workspaceDir, "data7.json");
-      const manifest = readProjectConfig(manifestPath);
-      if (!manifest) throw new Error("data7.json não encontrado no projeto ativo.");
-
-      let changed = false;
-      const rawDeps = (
-        isRecord(manifest.raw.dependencies) ? { ...manifest.raw.dependencies } : {}
-      ) as Record<string, string>;
-      for (const moduleName of moduleNames) {
-        if (!rawDeps[moduleName]) {
-          rawDeps[moduleName] = "latest";
-          changed = true;
-        }
-      }
-
-      if (changed) {
-        const updatedMetadata = {
-          ...manifest.raw,
-          dependencies: rawDeps,
-        };
-        writeProjectConfig(manifestPath, updatedMetadata as any);
-      }
-
-      const synced = await DependencySynchronizer.sync(
-        project.workspaceDir,
-        changed ? rawDeps : manifest.dependencies,
-      );
-      if (synced.length > 0) {
-        vscode.window.showInformationMessage(
-          `Módulos instalados/sincronizados: ${synced.join(", ")}`,
-        );
-        this.refreshActiveProject();
-      } else if (!changed) {
-        vscode.window.showInformationMessage(
-          "Todos os módulos já estavam instalados e atualizados.",
-        );
-      }
-    } catch (err: any) {
-      vscode.window.showErrorMessage(`Falha ao instalar módulos: ${err.message}`);
-    }
-  }
-
-  public static async updateDependencies(): Promise<void> {
-    const project = ProjectService.getActiveProject();
-    if (!project) {
-      vscode.window.showWarningMessage("Nenhum projeto ativo.");
-      return;
-    }
-
-    vscode.window.withProgress(
+    await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: "Sincronizando dependências do projeto...",
+        title,
         cancellable: false,
       },
       async () => {
         try {
-          const synced = await ModuleOrchestrator.syncDependencies(project.workspaceDir);
-          vscode.window.showInformationMessage(
-            synced.length > 0
-              ? `Dependências sincronizadas: ${synced.length} módulo(s).`
-              : "Nenhuma dependência precisou ser sincronizada.",
-          );
-          this.refreshActiveProject();
-        } catch (err: any) {
-          vscode.window.showErrorMessage(`Falha ao sincronizar dependências: ${err.message}`);
+          const result = await operation(project.workspaceDir);
+          const changed = [...result.installed, ...result.updated, ...result.removed];
+          if (changed.length > 0) {
+            vscode.window.showInformationMessage(`Módulos ${doneLabel}: ${changed.join(", ")}`);
+          } else if (result.synced.length > 0) {
+            vscode.window.showInformationMessage(
+              `Módulos sincronizados: ${result.synced.join(", ")}`,
+            );
+          } else {
+            vscode.window.showInformationMessage("Nenhum módulo precisou ser alterado.");
+          }
+          if (result.missing.length > 0) {
+            vscode.window.showWarningMessage(
+              `Módulos não encontrados: ${result.missing.join(", ")}`,
+            );
+          }
+          await this.refreshActiveProject();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          vscode.window.showErrorMessage(`Falha ao gerenciar módulos: ${message}`);
         }
       },
     );
+  }
+
+  public static async updateDependencies(): Promise<void> {
+    await this.updateModules();
   }
 
   public static async publishModule(): Promise<void> {

@@ -38,10 +38,10 @@ const aliases: readonly AliasSpec[] = [
     description:
       "Conjunto de tipos de registro filtrados pelo cache de updates (urInserted/urModified/urDeleted/urUnmodified).",
   },
-  {
-    name: "TRDBMS",
-    description: "Identificador do RDBMS conectado (dbASA, dbMSSQL, dbPostgreSQL).",
-  },
+  // {
+  //   name: "TRDBMS",
+  //   description: "Identificador do RDBMS conectado (dbASA, dbMSSQL, dbPostgreSQL).",
+  // },
 
   // ───────── Tipos de evento (delegates) ─────────
   {

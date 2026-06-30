@@ -1,17 +1,5 @@
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const cursor = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TCursor",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: "system://library",
-  description: description,
-});
+import { SYSTEM_RANGE, SYSTEM_URI, buildEnumVal } from "../symbol-helpers";
 
 export const symbols: SystemSymbolInfo[] = [
   {
@@ -20,33 +8,33 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TCursor",
     isShared: false,
     isPrivate: false,
-    range: range,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     description:
       "Forma do ponteiro do mouse quando passa sobre o controle (TControl.Cursor). Acessível globalmente.",
   },
 
-  cursor("crDefault", "Cursor padrão definido pelo container ou sistema."),
-  cursor("crNone", "Sem cursor visível."),
-  cursor("crArrow", "Seta padrão do Windows."),
-  cursor("crCross", "Cursor em cruz (mira)."),
-  cursor("crIBeam", "Cursor de inserção de texto (I-beam)."),
-  cursor("crSize", "Cursor de redimensionamento genérico."),
-  cursor("crSizeNESW", "Redimensionamento diagonal NE-SW."),
-  cursor("crSizeNS", "Redimensionamento vertical (norte-sul)."),
-  cursor("crSizeNWSE", "Redimensionamento diagonal NW-SE."),
-  cursor("crSizeWE", "Redimensionamento horizontal (oeste-leste)."),
-  cursor("crUpArrow", "Seta apontando para cima."),
-  cursor("crHourGlass", "Ampulheta (operação em andamento)."),
-  cursor("crDrag", "Arrasto em andamento."),
-  cursor("crNoDrop", "Arrasto inválido (não pode soltar aqui)."),
-  cursor("crHSplit", "Divisor horizontal."),
-  cursor("crVSplit", "Divisor vertical."),
-  cursor("crMultiDrag", "Arrasto de múltiplos itens."),
-  cursor("crSQLWait", "Aguardando operação SQL."),
-  cursor("crNo", "Proibido (círculo com barra)."),
-  cursor("crAppStart", "Aplicação carregando (seta + ampulheta)."),
-  cursor("crHelp", "Ajuda (seta + ponto de interrogação)."),
-  cursor("crHandPoint", "Mão apontando (sobre link clicável)."),
-  cursor("crSizeAll", "Redimensionamento em todas as direções (movimentar)."),
+  buildEnumVal("crDefault", "TCursor", "Cursor padrão definido pelo container ou sistema."),
+  buildEnumVal("crNone", "TCursor", "Sem cursor visível."),
+  buildEnumVal("crArrow", "TCursor", "Seta padrão do Windows."),
+  buildEnumVal("crCross", "TCursor", "Cursor em cruz (mira)."),
+  buildEnumVal("crIBeam", "TCursor", "Cursor de inserção de texto (I-beam)."),
+  buildEnumVal("crSize", "TCursor", "Cursor de redimensionamento genérico."),
+  buildEnumVal("crSizeNESW", "TCursor", "Redimensionamento diagonal NE-SW."),
+  buildEnumVal("crSizeNS", "TCursor", "Redimensionamento vertical (norte-sul)."),
+  buildEnumVal("crSizeNWSE", "TCursor", "Redimensionamento diagonal NW-SE."),
+  buildEnumVal("crSizeWE", "TCursor", "Redimensionamento horizontal (oeste-leste)."),
+  buildEnumVal("crUpArrow", "TCursor", "Seta apontando para cima."),
+  buildEnumVal("crHourGlass", "TCursor", "Ampulheta (operação em andamento)."),
+  buildEnumVal("crDrag", "TCursor", "Arrasto em andamento."),
+  buildEnumVal("crNoDrop", "TCursor", "Arrasto inválido (não pode soltar aqui)."),
+  buildEnumVal("crHSplit", "TCursor", "Divisor horizontal."),
+  buildEnumVal("crVSplit", "TCursor", "Divisor vertical."),
+  buildEnumVal("crMultiDrag", "TCursor", "Arrasto de múltiplos itens."),
+  buildEnumVal("crSQLWait", "TCursor", "Aguardando operação SQL."),
+  buildEnumVal("crNo", "TCursor", "Proibido (círculo com barra)."),
+  buildEnumVal("crAppStart", "TCursor", "Aplicação carregando (seta + ampulheta)."),
+  buildEnumVal("crHelp", "TCursor", "Ajuda (seta + ponto de interrogação)."),
+  buildEnumVal("crHandPoint", "TCursor", "Mão apontando (sobre link clicável)."),
+  buildEnumVal("crSizeAll", "TCursor", "Redimensionamento em todas as direções (movimentar)."),
 ];

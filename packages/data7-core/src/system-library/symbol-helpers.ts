@@ -226,3 +226,23 @@ export function buildNamespaceSymbols(opts: BuildNamespaceOptions): SystemSymbol
 
   return symbols;
 }
+
+/** Constrói um membro de enumeração/valor constante de tipo específico. */
+export function buildEnumVal(
+  name: string,
+  type: string,
+  description: string,
+  containerName?: SystemContainer,
+): SystemSymbolInfo {
+  return {
+    name,
+    kind: "variable",
+    type,
+    isShared: true,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    description,
+    containerName,
+  };
+}

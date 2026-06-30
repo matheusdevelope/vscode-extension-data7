@@ -176,6 +176,7 @@ export interface ParameterDeclaration extends BaseNode {
   name: string;
   type: TypeReference;
   isByRef?: boolean;
+  isByVal?: boolean;
   defaultValue?: Expression;
 }
 

@@ -107,11 +107,22 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     }
 
     let targetSymbol: SymbolInfo | undefined;
-    const memberAccess = ast.getMemberAccessContext();
 
-    if (memberAccess) {
-      targetSymbol = memberAccess.symbol;
-    } else {
+    // Tentar resolver classes aninhadas ou símbolos qualificados primeiro
+    const lineText = document.lineAt(position.line).text;
+    const qualifiedWord = getQualifiedWordAtPosition(lineText, position.character);
+    if (qualifiedWord && qualifiedWord.includes(".")) {
+      targetSymbol = resolveQualifiedSymbol(qualifiedWord, document.uri.toString(), this.indexer);
+    }
+
+    if (!targetSymbol) {
+      const memberAccess = ast.getMemberAccessContext();
+      if (memberAccess) {
+        targetSymbol = memberAccess.symbol;
+      }
+    }
+
+    if (!targetSymbol) {
       const wordLower = word.toLowerCase();
       if (wordLower === "me" || wordLower === "mybase") {
         const activeClass = ast.getActiveClassSymbol();
@@ -324,4 +335,60 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     }
     return new vscode.Hover(md, range);
   }
+}
+
+function getQualifiedWordAtPosition(lineText: string, charIndex: number): string | undefined {
+  if (charIndex < 0 || charIndex >= lineText.length) return undefined;
+  let start = charIndex;
+  while (start > 0 && /[A-Za-z0-9_.]/.test(lineText[start - 1] ?? "")) {
+    start--;
+  }
+  let end = charIndex;
+  while (end < lineText.length && /[A-Za-z0-9_.]/.test(lineText[end] ?? "")) {
+    end++;
+  }
+  const word = lineText.slice(start, end).trim();
+  return word.replace(/^\.+|\.+$/g, "") || undefined;
+}
+
+function resolveQualifiedSymbol(
+  qualifiedName: string,
+  uri: string,
+  indexer: WorkspaceSymbolIndexer,
+): SymbolInfo | undefined {
+  const parts = qualifiedName.split(".");
+  if (parts.length <= 1) return undefined;
+
+  let currentContainer: string | undefined;
+  let currentSymbol: SymbolInfo | undefined;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    if (i === 0) {
+      currentSymbol =
+        indexer.findSymbolByName(part, uri) ??
+        lookupSystemByName(part).find(
+          (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
+        );
+      if (!currentSymbol) return undefined;
+      currentContainer = currentSymbol.name;
+    } else {
+      const containerLower = currentContainer!.toLowerCase();
+      const partLower = part.toLowerCase();
+      const nextSymbol =
+        indexer
+          .getAllSymbols()
+          .find(
+            (s) =>
+              s.name.toLowerCase() === partLower &&
+              s.containerName?.toLowerCase() === containerLower,
+          ) ??
+        lookupSystemByName(part).find((s) => s.containerName?.toLowerCase() === containerLower);
+      if (!nextSymbol) return undefined;
+      currentSymbol = nextSymbol;
+      currentContainer = currentSymbol.name;
+    }
+  }
+
+  return currentSymbol;
 }

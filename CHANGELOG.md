@@ -17,6 +17,12 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Desativação Temporária do Auto-scan:** O auto-scan de dependências e Quick Picks foram temporariamente suspensos (desativados) até uma nova modelagem que comporte projetos onde múltiplos namespaces são exportados por um único módulo.
 
 ### Adicionado
+- Gerenciador de módulos com semântica tipo npm no `ModuleOrchestrator`: install, update e remove aceitam múltiplos módulos, resolvem versões disponíveis em repositório local/online, atualizam `data7.json#dependencies` e sincronizam `data7_modules/`.
+- Sidebar do Gerenciador de Módulos passa a listar catálogo local e online separadamente, indicar módulos instalados/atualizáveis e oferecer checkboxes com ações de instalar, atualizar e remover por item ou em lote.
+- Publicação online de módulos agora executa uma pré-checagem pública antes de autenticar no GitHub: bloqueia republicação sem alterações e exige versão local maior quando o módulo já existe online com conteúdo diferente.
+- Catálogo online de módulos passa a ser derivado de releases GitHub com tag `<modulo>-v<versao>`, com cache e revalidação intervalada para reduzir chamadas à API e evitar rate limit.
+- Adicionado fluxo de unpublish online via extensão e CLI: a remoção abre PR no repositório de módulos e é permitida somente ao `module.publisher` publicado ou ao dono do repositório.
+- Adicionado suporte ao bloco opcional `data7.json#module` para projetos publicáveis como módulo, incluindo `module.name` como nome canônico do pacote e bloqueio de instalação do próprio módulo no projeto ativo.
 - Estendida a validação de parênteses faltantes (`call-parentheses-mismatch`) para abranger métodos com todos os argumentos opcionais (parâmetros default) e cadeias de membros internas/intermediárias de uma expressão.
 - Adicionado o comando `data7.linter.fixActiveFile` para aplicar `source.fixAll.data7` no arquivo `.bas` ativo, disponivel por command palette, menu de contexto do editor e atalho `Ctrl+Alt+Shift+F`.
 - Adicionado Quick Fix para comentar blocos inteiros de `dead-code`, incluindo acao em lote por arquivo.

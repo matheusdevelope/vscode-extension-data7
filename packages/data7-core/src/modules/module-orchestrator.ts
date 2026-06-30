@@ -1,16 +1,155 @@
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
 import { ManifestRegistry } from "./manifest-registry";
 import { DependencySynchronizer } from "./dependency-synchronizer";
-import { RepositoryQueryService } from "./repository-query-service";
+import {
+  RepositoryQueryService,
+  type RepositoryModuleEntry,
+  type ModuleManifest,
+} from "./repository-query-service";
 import { parseBasic } from "../project/parser";
 import { DependencyScanner } from "../analysis/dependency-scanner";
 import { logger } from "../infra/logger";
-import { getOnlineModulesLocalPath } from "../infra/extension-paths";
 import { GitHubPublisher } from "./github-publisher";
+import { isRecord, writeProjectConfig } from "../project/project-config";
+import type { ProjectMetadata } from "../project/project-metadata";
+
+export interface ModuleCatalogEntry {
+  readonly name: string;
+  readonly version: string;
+  readonly source: "local" | "online";
+  readonly installed: boolean;
+  readonly installedVersion?: string;
+  readonly updateAvailable: boolean;
+  readonly isCurrentProject: boolean;
+}
+
+export interface ModuleOperationResult {
+  readonly installed: string[];
+  readonly updated: string[];
+  readonly removed: string[];
+  readonly synced: string[];
+  readonly missing: string[];
+}
 
 export class ModuleOrchestrator {
+  public static async listCatalog(workspaceDir: string): Promise<ModuleCatalogEntry[]> {
+    const installed = this.readInstalledDependencies(workspaceDir);
+    const currentModuleNames = this.readCurrentModuleNames(workspaceDir);
+    const local = RepositoryQueryService.listLocalPrivateModules();
+    const online = await RepositoryQueryService.listOnlineModuleEntries();
+    return [...local, ...online].map((entry) => {
+      const installedVersion = this.findDependencyVersion(installed, entry.name);
+      const isCurrentProject = currentModuleNames.has(entry.name.toLowerCase());
+      return {
+        name: entry.name,
+        version: entry.version,
+        source: entry.source,
+        installed: installedVersion !== undefined || isCurrentProject,
+        installedVersion,
+        updateAvailable:
+          !isCurrentProject &&
+          installedVersion !== undefined &&
+          this.isNewerVersion(entry.version, installedVersion),
+        isCurrentProject,
+      };
+    });
+  }
+
+  public static async installModules(
+    workspaceDir: string,
+    moduleNames: readonly string[],
+  ): Promise<ModuleOperationResult> {
+    const normalizedNames = this.normalizeModuleNames(moduleNames);
+    if (normalizedNames.length === 0) return this.emptyResult();
+
+    const currentModuleNames = this.readCurrentModuleNames(workspaceDir);
+    const selfInstall = normalizedNames.find((name) => currentModuleNames.has(name.toLowerCase()));
+    if (selfInstall) {
+      throw new Error(
+        `O módulo "${selfInstall}" é o próprio projeto ativo e não pode ser instalado como dependência dele mesmo.`,
+      );
+    }
+
+    const dependencies = this.readInstalledDependencies(workspaceDir);
+    const installed: string[] = [];
+    const missing: string[] = [];
+
+    for (const moduleName of normalizedNames) {
+      const available = await this.resolveAvailableModule(moduleName);
+      if (!available) {
+        missing.push(moduleName);
+        continue;
+      }
+      const existingName = this.findDependencyName(dependencies, available.name) ?? available.name;
+      dependencies[existingName] = available.version;
+      installed.push(`${available.name}@${available.version}`);
+    }
+
+    this.writeDependencies(workspaceDir, dependencies);
+    const synced = await this.syncDependencies(workspaceDir);
+    return { installed, updated: [], removed: [], synced, missing };
+  }
+
+  public static async updateModules(
+    workspaceDir: string,
+    moduleNames?: readonly string[],
+  ): Promise<ModuleOperationResult> {
+    const dependencies = this.readInstalledDependencies(workspaceDir);
+    const targetNames =
+      moduleNames && moduleNames.length > 0
+        ? this.normalizeModuleNames(moduleNames)
+        : Object.keys(dependencies);
+    const updated: string[] = [];
+    const missing: string[] = [];
+
+    for (const moduleName of targetNames) {
+      const dependencyName = this.findDependencyName(dependencies, moduleName);
+      if (!dependencyName) {
+        missing.push(moduleName);
+        continue;
+      }
+      const available = await this.resolveAvailableModule(dependencyName);
+      if (!available) {
+        missing.push(dependencyName);
+        continue;
+      }
+      if (this.isNewerVersion(available.version, dependencies[dependencyName] ?? "0.0.0.0")) {
+        dependencies[dependencyName] = available.version;
+        updated.push(`${dependencyName}@${available.version}`);
+      }
+    }
+
+    this.writeDependencies(workspaceDir, dependencies);
+    const synced = await this.syncDependencies(workspaceDir);
+    return { installed: [], updated, removed: [], synced, missing };
+  }
+
+  public static async removeModules(
+    workspaceDir: string,
+    moduleNames: readonly string[],
+  ): Promise<ModuleOperationResult> {
+    const normalizedNames = this.normalizeModuleNames(moduleNames);
+    if (normalizedNames.length === 0) return this.emptyResult();
+
+    const dependencies = this.readInstalledDependencies(workspaceDir);
+    const removed: string[] = [];
+    const missing: string[] = [];
+    for (const moduleName of normalizedNames) {
+      const dependencyName = this.findDependencyName(dependencies, moduleName);
+      if (!dependencyName) {
+        missing.push(moduleName);
+        continue;
+      }
+      delete dependencies[dependencyName];
+      removed.push(dependencyName);
+    }
+
+    this.writeDependencies(workspaceDir, dependencies);
+    const synced = await this.syncDependencies(workspaceDir);
+    return { installed: [], updated: [], removed, synced, missing };
+  }
+
   /**
    * Returns true if the given module name matches the active project name in the workspace.
    */
@@ -137,5 +276,133 @@ export class ModuleOrchestrator {
     onAuthPrompt: (userCode: string, verificationUri: string) => void,
   ): Promise<string> {
     return GitHubPublisher.publish(workspaceDir, onAuthPrompt);
+  }
+
+  public static async unpublishModuleOnline(
+    moduleName: string,
+    onAuthPrompt: (userCode: string, verificationUri: string) => void,
+  ): Promise<string> {
+    return GitHubPublisher.unpublish(moduleName, onAuthPrompt);
+  }
+
+  public static isNewerVersion(available: string, current: string): boolean {
+    if (available === "latest") return current !== "latest";
+    if (current === "latest") return false;
+    const p1 = available.split(".").map((part) => Number(part));
+    const p2 = current.split(".").map((part) => Number(part));
+    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+      const v1 = Number.isFinite(p1[i]) ? (p1[i] as number) : 0;
+      const v2 = Number.isFinite(p2[i]) ? (p2[i] as number) : 0;
+      if (v1 > v2) return true;
+      if (v1 < v2) return false;
+    }
+    return false;
+  }
+
+  private static readInstalledDependencies(workspaceDir: string): Record<string, string> {
+    const manifestPath = path.join(workspaceDir, ManifestRegistry.FILENAME);
+    const manifest = ManifestRegistry.read(manifestPath);
+    if (!manifest) {
+      throw new Error(`Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace.`);
+    }
+    return { ...manifest.dependencies };
+  }
+
+  private static readCurrentModuleNames(workspaceDir: string): Set<string> {
+    const manifestPath = path.join(workspaceDir, ManifestRegistry.FILENAME);
+    const manifest = ManifestRegistry.read(manifestPath);
+    if (!manifest) {
+      throw new Error(`Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace.`);
+    }
+    const names = new Set<string>();
+    if (manifest.nome.trim()) names.add(manifest.nome.trim().toLowerCase());
+    const moduleConfig = manifest.raw.module;
+    if (isRecord(moduleConfig) && typeof moduleConfig.name === "string") {
+      const moduleName = moduleConfig.name.trim();
+      if (moduleName) names.add(moduleName.toLowerCase());
+    }
+    return names;
+  }
+
+  private static writeDependencies(
+    workspaceDir: string,
+    dependencies: Record<string, string>,
+  ): void {
+    const manifestPath = path.join(workspaceDir, ManifestRegistry.FILENAME);
+    const manifest = ManifestRegistry.read(manifestPath);
+    if (!manifest) {
+      throw new Error(`Manifesto '${ManifestRegistry.FILENAME}' não encontrado no workspace.`);
+    }
+    const updatedMetadata = {
+      ...manifest.raw,
+      dependencies,
+    };
+    writeProjectConfig(manifestPath, updatedMetadata as unknown as ProjectMetadata);
+  }
+
+  private static async resolveAvailableModule(
+    moduleName: string,
+  ): Promise<RepositoryModuleEntry | undefined> {
+    const local = RepositoryQueryService.findLocalPrivateModule(moduleName);
+    if (local) {
+      return {
+        name: this.manifestName(local.manifest, moduleName),
+        source: "local",
+        version: this.manifestVersion(local.manifest),
+        manifest: local.manifest,
+      };
+    }
+    const onlineManifest = await RepositoryQueryService.fetchOnlineModuleManifest(moduleName);
+    if (onlineManifest) {
+      return {
+        name: this.manifestName(onlineManifest, moduleName),
+        source: "online",
+        version: this.manifestVersion(onlineManifest),
+        manifest: onlineManifest,
+      };
+    }
+    return undefined;
+  }
+
+  private static manifestName(manifest: ModuleManifest, fallback: string): string {
+    return typeof manifest.nome === "string" && manifest.nome ? manifest.nome : fallback;
+  }
+
+  private static manifestVersion(manifest: ModuleManifest): string {
+    if (typeof manifest.version === "string" && manifest.version) return manifest.version;
+    const opcoes = manifest.opcoes;
+    if (isRecord(opcoes) && typeof opcoes.versao === "string" && opcoes.versao) {
+      return opcoes.versao;
+    }
+    return "latest";
+  }
+
+  private static normalizeModuleNames(moduleNames: readonly string[]): string[] {
+    const unique = new Map<string, string>();
+    for (const name of moduleNames) {
+      const trimmed = name.trim();
+      if (trimmed) unique.set(trimmed.toLowerCase(), trimmed);
+    }
+    return Array.from(unique.values());
+  }
+
+  private static findDependencyName(
+    dependencies: Record<string, string>,
+    moduleName: string,
+  ): string | undefined {
+    const expected = moduleName.toLowerCase();
+    return Object.keys(dependencies).find((name) => name.toLowerCase() === expected);
+  }
+
+  private static findDependencyVersion(
+    dependencies: Record<string, string>,
+    moduleName: string,
+  ): string | undefined {
+    const dependencyName = this.findDependencyName(dependencies, moduleName);
+    return dependencyName ? dependencies[dependencyName] : undefined;
+  }
+
+  private static emptyResult(): ModuleOperationResult {
+    return { installed: [], updated: [], removed: [], synced: [], missing: [] };
   }
 }

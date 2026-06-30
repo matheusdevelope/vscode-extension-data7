@@ -186,6 +186,13 @@
         "detail": "Valida e publica o módulo ativo no repositório remoto público"
       },
       {
+        "command": "data7.modules.unpublishOnline",
+        "title": "01 - Projeto - Remover Módulo Online",
+        "category": "Data7",
+        "icon": "$(cloud-upload)",
+        "detail": "Abre um Pull Request para remover um módulo do repositório remoto público"
+      },
+      {
         "command": "data7.modules.install",
         "title": "01 - Projeto - Instalar Módulo",
         "category": "Data7",
@@ -198,9 +205,38 @@
         "detail": "Instala múltiplos módulos Data7 no projeto ativo"
       },
       {
+        "command": "data7.modules.installSelected",
+        "title": "01 - Projeto - Instalar Módulos Selecionados",
+        "category": "Data7",
+        "icon": "$(cloud-download)",
+        "detail": "Instala os módulos marcados no Gerenciador de Módulos"
+      },
+      {
+        "command": "data7.modules.updateSelected",
+        "title": "01 - Projeto - Atualizar Módulos Selecionados",
+        "category": "Data7",
+        "icon": "$(sync)",
+        "detail": "Atualiza os módulos marcados no Gerenciador de Módulos"
+      },
+      {
+        "command": "data7.modules.remove",
+        "title": "01 - Projeto - Remover Módulo",
+        "category": "Data7",
+        "icon": "$(trash)",
+        "detail": "Remove um módulo Data7 do projeto ativo"
+      },
+      {
+        "command": "data7.modules.removeSelected",
+        "title": "01 - Projeto - Remover Módulos Selecionados",
+        "category": "Data7",
+        "icon": "$(trash)",
+        "detail": "Remove os módulos marcados no Gerenciador de Módulos"
+      },
+      {
         "command": "data7.modules.updateDependencies",
         "title": "01 - Projeto - Atualizar Módulos",
         "category": "Data7",
+        "icon": "$(sync)",
         "detail": "Atualiza as dependências do projeto Data7 ativo"
       },
       {
@@ -333,6 +369,45 @@
           "command": "data7.linter.fixActiveFile",
           "when": "editorLangId == d7basic",
           "group": "1_modification"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "data7.modules.installSelected",
+          "when": "view == data7.modulesView",
+          "group": "navigation"
+        },
+        {
+          "command": "data7.modules.updateSelected",
+          "when": "view == data7.modulesView",
+          "group": "navigation"
+        },
+        {
+          "command": "data7.modules.removeSelected",
+          "when": "view == data7.modulesView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "data7.modules.install",
+          "when": "view == data7.modulesView && viewItem =~ /available/ && viewItem =~ /notCurrentProject/",
+          "group": "inline"
+        },
+        {
+          "command": "data7.modules.updateDependencies",
+          "when": "view == data7.modulesView && viewItem =~ /installed/ && viewItem =~ /notCurrentProject/",
+          "group": "inline"
+        },
+        {
+          "command": "data7.modules.remove",
+          "when": "view == data7.modulesView && viewItem =~ /installed/ && viewItem =~ /notCurrentProject/",
+          "group": "inline"
+        },
+        {
+          "command": "data7.modules.unpublishOnline",
+          "when": "view == data7.modulesView && viewItem =~ /online/ && viewItem =~ /notCurrentProject/",
+          "group": "inline@2"
         }
       ]
     },

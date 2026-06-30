@@ -5,6 +5,7 @@ import {
   WorkspaceSymbolIndexer,
   LanguageProcessor,
   CONFIG_NAMESPACE,
+  COMMAND_IDS,
   LANGUAGE_IDS,
   readConfiguration,
   isReadOnlyModuleFile,
@@ -14,7 +15,7 @@ import {
 } from "@data7/core";
 import { registerCommands } from "./commands";
 import { registerLanguageProviders } from "./providers/registration";
-import { ModulesSidebarProvider } from "./providers/modules-sidebar-provider";
+import { ModuleTreeItem, ModulesSidebarProvider } from "./providers/modules-sidebar-provider";
 import { QuickActionsProvider } from "./providers/quick-actions-provider";
 
 import { ActivationService } from "./services/activation-service";
@@ -51,10 +52,58 @@ export function activate(context: vscode.ExtensionContext): void {
   vscode.window.registerTreeDataProvider("data7.quickActionsView", quickActionsProvider);
 
   const modulesSidebarProvider = new ModulesSidebarProvider(context);
-  vscode.window.registerTreeDataProvider("data7.modulesView", modulesSidebarProvider);
-  vscode.commands.registerCommand("data7.modules.refreshView", () => {
-    modulesSidebarProvider.refresh();
+  const modulesTreeView = vscode.window.createTreeView("data7.modulesView", {
+    treeDataProvider: modulesSidebarProvider,
+    showCollapseAll: true,
   });
+  modulesTreeView.onDidChangeCheckboxState((event) => {
+    modulesSidebarProvider.setCheckboxStates(event.items);
+  });
+  context.subscriptions.push(modulesTreeView);
+  context.subscriptions.push(
+    vscode.commands.registerCommand("data7.modules.refreshView", () => {
+      modulesSidebarProvider.refresh();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(COMMAND_IDS.installSelectedModules, async (item?: unknown) => {
+      const names = modulesSidebarProvider.getSelectedOrItemModuleNames(
+        item instanceof ModuleTreeItem ? item : undefined,
+      );
+      if (names.length === 0) {
+        vscode.window.showWarningMessage("Marque um ou mais módulos para instalar.");
+        return;
+      }
+      await DependencyService.installModules(names);
+      modulesSidebarProvider.refresh();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(COMMAND_IDS.updateSelectedModules, async (item?: unknown) => {
+      const names = modulesSidebarProvider.getSelectedOrItemModuleNames(
+        item instanceof ModuleTreeItem ? item : undefined,
+      );
+      if (names.length === 0) {
+        await DependencyService.updateDependencies();
+      } else {
+        await DependencyService.updateModules(names);
+      }
+      modulesSidebarProvider.refresh();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(COMMAND_IDS.removeSelectedModules, async (item?: unknown) => {
+      const names = modulesSidebarProvider.getSelectedOrItemModuleNames(
+        item instanceof ModuleTreeItem ? item : undefined,
+      );
+      if (names.length === 0) {
+        vscode.window.showWarningMessage("Marque um ou mais módulos instalados para remover.");
+        return;
+      }
+      await DependencyService.removeModules(names);
+      modulesSidebarProvider.refresh();
+    }),
+  );
 
   ActivationService.initializeWorkspace(context);
   const features = readConfiguration().features;

@@ -1,41 +1,51 @@
 import * as vscode from "vscode";
-import { logger } from "@data7/core";
-
-import * as path from "path";
-import * as fs from "fs";
-import { ManifestRegistry, RepositoryQueryService, ModuleOrchestrator } from "@data7/core";
+import { ModuleOrchestrator, RepositoryQueryService, type ModuleCatalogEntry } from "@data7/core";
 import { ProjectService } from "../services/project-service";
-import { DependencyService } from "../services/dependency-service";
 
 export class ModuleTreeItem extends vscode.TreeItem {
+  public checkboxState?: vscode.TreeItemCheckboxState;
+
   constructor(
     public readonly label: string,
-    public readonly version: string,
-    public readonly type: "local" | "online" | "missing",
-    public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode
-      .TreeItemCollapsibleState.None,
+    public readonly itemKind: "section" | "module",
+    public readonly moduleName?: string,
+    public readonly source?: "local" | "online",
+    public readonly version?: string,
+    public readonly installed = false,
+    public readonly updateAvailable = false,
+    public readonly isCurrentProject = false,
+    collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None,
   ) {
     super(label, collapsibleState);
 
-    // Add tag to the description
-    const tag =
-      type === "local" ? "[💻 Local]" : type === "online" ? "[🌐 Online]" : "[⚠️ Ausente]";
-    this.description = `${tag} v${version}`;
-
-    // Set appropriate context value for action buttons
-    this.contextValue = `module-${type}`;
-
-    // Add checkbox (VS Code 1.80+)
-    this.checkboxState = vscode.TreeItemCheckboxState.Unchecked;
-
-    // Use built-in icons
-    if (type === "local") {
-      this.iconPath = new vscode.ThemeIcon("device-desktop");
-    } else if (type === "online") {
-      this.iconPath = new vscode.ThemeIcon("globe");
-    } else {
-      this.iconPath = new vscode.ThemeIcon("warning");
+    if (itemKind === "section") {
+      this.contextValue = "module-section";
+      this.iconPath = new vscode.ThemeIcon("folder");
+      return;
     }
+
+    const sourceLabel = source === "local" ? "Local" : "Online";
+    const installedLabel = isCurrentProject
+      ? "projeto atual"
+      : installed
+        ? "instalado"
+        : "disponível";
+    const updateLabel = updateAvailable ? " - atualização disponível" : "";
+    this.description = `${sourceLabel} v${version ?? "latest"} - ${installedLabel}${updateLabel}`;
+    this.tooltip = this.description;
+    this.contextValue = [
+      "module",
+      source === "local" ? "local" : "online",
+      isCurrentProject ? "currentProject" : "notCurrentProject",
+      installed ? "installed" : "available",
+      updateAvailable ? "updateAvailable" : "current",
+    ].join("-");
+
+    if (!isCurrentProject) {
+      this.checkboxState = vscode.TreeItemCheckboxState.Unchecked;
+    }
+    this.iconPath =
+      source === "local" ? new vscode.ThemeIcon("device-desktop") : new vscode.ThemeIcon("globe");
   }
 }
 
@@ -46,10 +56,48 @@ export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTre
     this._onDidChangeTreeData.event;
 
   private items: ModuleTreeItem[] = [];
+  private readonly checkedNames = new Map<string, string>();
+  private readonly localSection = new ModuleTreeItem(
+    "Repositório local",
+    "section",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    false,
+    false,
+    vscode.TreeItemCollapsibleState.Expanded,
+  );
+  private readonly onlineSection = new ModuleTreeItem(
+    "Repositório online",
+    "section",
+    undefined,
+    undefined,
+    undefined,
+    false,
+    false,
+    false,
+    vscode.TreeItemCollapsibleState.Expanded,
+  );
+  private catalog: ModuleCatalogEntry[] = [];
 
-  constructor(private readonly context: vscode.ExtensionContext) {
-    // Run background scan on startup to warn about available upgrades
-    this.runBackgroundUpdateScan();
+  constructor(context: vscode.ExtensionContext) {
+    const startupTimer = setTimeout(() => {
+      void this.refreshOnlineCatalogAndScan(false);
+    }, 5000);
+    context.subscriptions.push({
+      dispose: () => clearTimeout(startupTimer),
+    });
+
+    const interval = setInterval(
+      () => {
+        void this.refreshOnlineCatalogAndScan(true);
+      },
+      30 * 60 * 1000,
+    );
+    context.subscriptions.push({
+      dispose: () => clearInterval(interval),
+    });
   }
 
   public refresh(): void {
@@ -61,79 +109,63 @@ export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTre
   }
 
   public async getChildren(element?: ModuleTreeItem): Promise<ModuleTreeItem[]> {
-    if (element) return [];
-
     const activeProject = ProjectService.getActiveProject();
     if (!activeProject) {
       return [];
     }
 
-    const manifestPath = path.join(activeProject.workspaceDir, ManifestRegistry.FILENAME);
-    const manifest = ManifestRegistry.read(manifestPath);
-    if (!manifest) {
+    if (!element) {
+      return [this.localSection, this.onlineSection];
+    }
+
+    if (element.itemKind !== "section") {
       return [];
     }
 
-    const items: ModuleTreeItem[] = [];
-    const deps = manifest.dependencies;
-
-    for (const [depName, version] of Object.entries(deps)) {
-      // Determine source type of dependency
-      let type: "local" | "online" | "missing" = "missing";
-
-      if (RepositoryQueryService.findLocalPrivateModule(depName)) {
-        type = "local";
-      } else {
-        try {
-          const onlineManifest = await RepositoryQueryService.fetchOnlineModuleManifest(depName);
-          if (onlineManifest) {
-            type = "online";
-          }
-        } catch {
-          // Keep as missing if fetch failed
-        }
-      }
-
-      items.push(new ModuleTreeItem(depName, version, type));
+    try {
+      this.catalog = await ModuleOrchestrator.listCatalog(activeProject.workspaceDir);
+    } catch {
+      this.catalog = [];
     }
-
+    const source = element === this.localSection ? "local" : "online";
+    const items = this.catalog
+      .filter((entry) => entry.source === source)
+      .map((entry) => this.createModuleItem(entry));
     this.items = items;
     return items;
+  }
+
+  public setCheckboxStates(items: readonly [ModuleTreeItem, vscode.TreeItemCheckboxState][]): void {
+    for (const [item, state] of items) {
+      if (item.itemKind !== "module" || !item.moduleName) continue;
+      if (state === vscode.TreeItemCheckboxState.Checked) {
+        this.checkedNames.set(item.moduleName.toLowerCase(), item.moduleName);
+      } else {
+        this.checkedNames.delete(item.moduleName.toLowerCase());
+      }
+      item.checkboxState = state;
+    }
+    this._onDidChangeTreeData.fire();
   }
 
   /**
    * Performs a background scan comparing active project dependency versions with the registry.
    */
-  private async runBackgroundUpdateScan(): Promise<void> {
-    // Wait a brief delay after start
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
+  private async refreshOnlineCatalogAndScan(forceRefresh: boolean): Promise<void> {
     const activeProject = ProjectService.getActiveProject();
     if (!activeProject) return;
 
-    const manifestPath = path.join(activeProject.workspaceDir, ManifestRegistry.FILENAME);
-    const manifest = ManifestRegistry.read(manifestPath);
-    if (!manifest) return;
-
-    const upgradesAvailable: string[] = [];
-
-    for (const [depName, currentVersion] of Object.entries(manifest.dependencies)) {
-      try {
-        // Check local private module upgrade
-        const local = RepositoryQueryService.findLocalPrivateModule(depName);
-        if (local && this.isNewerVersion(local.manifest.version, currentVersion)) {
-          upgradesAvailable.push(`${depName} (💻 Local: v${local.manifest.version})`);
-          continue;
-        }
-
-        // Check online module upgrade
-        const online = await RepositoryQueryService.fetchOnlineModuleManifest(depName);
-        if (online && this.isNewerVersion(online.version, currentVersion)) {
-          upgradesAvailable.push(`${depName} (🌐 Online: v${online.version})`);
-        }
-      } catch {
-        // Ignore background query errors
-      }
+    let upgradesAvailable: string[] = [];
+    try {
+      await RepositoryQueryService.listOnlineModuleEntries(forceRefresh);
+      upgradesAvailable = (await ModuleOrchestrator.listCatalog(activeProject.workspaceDir))
+        .filter((entry) => entry.updateAvailable)
+        .map(
+          (entry) =>
+            `${entry.name} (${entry.source === "local" ? "Local" : "Online"}: v${entry.version})`,
+        );
+    } catch {
+      upgradesAvailable = [];
     }
 
     if (upgradesAvailable.length > 0) {
@@ -147,19 +179,31 @@ export class ModulesSidebarProvider implements vscode.TreeDataProvider<ModuleTre
     }
   }
 
-  private isNewerVersion(available: string, current: string): boolean {
-    const p1 = available.split(".").map(Number);
-    const p2 = current.split(".").map(Number);
-    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
-      const v1 = p1[i] ?? 0;
-      const v2 = p2[i] ?? 0;
-      if (v1 > v2) return true;
-      if (v1 < v2) return false;
-    }
-    return false;
+  private createModuleItem(entry: ModuleCatalogEntry): ModuleTreeItem {
+    const item = new ModuleTreeItem(
+      entry.name,
+      "module",
+      entry.name,
+      entry.source,
+      entry.version,
+      entry.installed,
+      entry.updateAvailable,
+      entry.isCurrentProject,
+    );
+    item.checkboxState = this.checkedNames.has(entry.name.toLowerCase())
+      ? vscode.TreeItemCheckboxState.Checked
+      : vscode.TreeItemCheckboxState.Unchecked;
+    return item;
   }
 
-  public getSelectedItems(): ModuleTreeItem[] {
-    return this.items.filter((item) => item.checkboxState === vscode.TreeItemCheckboxState.Checked);
+  public getSelectedModuleNames(): string[] {
+    return Array.from(this.checkedNames.values());
+  }
+
+  public getSelectedOrItemModuleNames(item?: ModuleTreeItem): string[] {
+    if (item?.itemKind === "module" && item.moduleName) {
+      return [item.moduleName];
+    }
+    return this.getSelectedModuleNames();
   }
 }

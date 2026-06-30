@@ -102,27 +102,32 @@ Cada projeto tem um `data7.json` na raiz declarando metadata + dependências:
 
 ```json
 {
-   "name": "MeuProjeto",
-   "version": "1.0.0",
-   "description": "Processamento de retorno de cartões.",
-   "dependencies": [
-      "mod_pipeline_form",
-      "mod_pipeline_controller",
-      "mod_pipeline_record",
-      "mod_pipeline_grouper",
-      "mod_card_record",
-      "mod_enum",
-      "mod_base_list"
-   ]
+   "nome": "forms",
+   "version": "1.0.0.0",
+   "module": {
+      "enabled": true,
+      "name": "forms",
+      "repository": "matheusdevelope/data7-modules"
+   },
+   "dependencies": {
+      "mod_pipeline_form": "1.0.0.0",
+      "mod_card_record": "2.1.0.0"
+   }
 }
 ```
 
-Cada entrada de `dependencies` é o nome de um módulo `@Module` que vive no **repositório privado** (vide próxima seção). O `DependencyService` da extensão:
+Cada entrada de `dependencies` é o nome de um módulo compartilhado disponível no catálogo local ou online, associado à versão instalada. O bloco opcional `module` marca o projeto como publicável e define `module.name` como nome canônico do pacote. O `ModuleOrchestrator` da extensão segue o modelo do NPM:
 
-1. Lê `data7.json#dependencies`.
-2. Para cada módulo declarado, copia a versão canônica do repositório privado para `data7_modules/` no workspace.
-3. Marca o `.bas` copiado com `'@Module-Imported`.
-4. Adiciona `data7_modules/` ao `.gitignore` (não é versionado).
+1. `install` aceita um ou mais módulos, resolve a versão disponível e grava `data7.json#dependencies`.
+2. `update` compara a versão instalada com a versão disponível no repositório local ou online e atualiza o manifesto quando houver versão mais nova.
+3. `remove` exclui um ou mais módulos de `dependencies`.
+4. Após cada operação, `data7_modules/` é sincronizado para refletir exatamente o manifesto.
+5. Instalar um módulo cujo nome corresponde a `module.name` ou `nome` do projeto ativo é bloqueado.
+6. O construtor marca os arquivos copiados com `'@Module-Imported`.
+
+Ao publicar online, a extensão consulta o catálogo público antes de autenticar no GitHub. Se o módulo já existe e o conteúdo local é igual ao publicado, a publicação é bloqueada como repetida. Se há alteração local, a versão em `version`/`opcoes.versao` precisa ser maior que a versão já publicada. O manifesto enviado ao repositório online recebe `module.publisher` com o login GitHub autenticado.
+
+O comando de unpublish online remove a pasta `modules/<modulo>` em um fork e abre um PR de remoção. A extensão bloqueia a operação quando o usuário autenticado não é o `module.publisher` do manifesto publicado nem o dono do repositório de módulos.
 
 Quando um projeto recebido de terceiros ja contem uma copia local em `data7_modules/`
 marcada com `'@Module` ou `'@Module-Imported`, mas o namespace ainda nao existe no
@@ -130,14 +135,16 @@ repositorio/core local, a extensao preserva essa copia e a entrada correspondent
 `data7.json#dependencies`. Ao decompor um `.7Proj`, modulos de dependencia
 desconhecidos tambem sao materializados em `data7_modules/` para evitar perda de codigo.
 
-## Repositório privado de módulos
+## Repositórios de módulos
 
-Pasta isolada gerenciada pela extensão:
+O catálogo de módulos é separado por origem:
 
-- **Localização**: `vscode.ExtensionContext.globalStorageUri` (no Windows: `%APPDATA%\Code\User\globalStorage\<publisher>.<extension>\`). Fallback: `~/.data7_extension/repository`.
-- **Conteúdo**: cópias canônicas de cada módulo `@Module` importado de outros projetos.
-- **Quem gerencia**: `RepositoryService` (o único componente autorizado a escrever lá — fence em [`governance.mdc`](../../.cursor/rules/governance.mdc)).
-- **Segurança**: toda escrita passa por `safeJoinInside` (vide [`src/utils/path-safety.ts`](../../src/utils/path-safety.ts)) para impedir path-traversal a partir de nomes controlados por XML.
+- **Local**: `~/.data7/local_modules`, usado para módulos privados ou em desenvolvimento publicados localmente.
+- **Online**: repositório GitHub configurado pela extensão, usado para módulos públicos. Apenas releases com tag no formato `<modulo>-v<versao>` entram no catálogo e podem ser instaladas/atualizadas.
+- **Cache online**: a extensão faz uma consulta pública de releases no início e mantém cache por intervalo longo, com revalidação periódica, para reduzir chamadas à API do GitHub.
+- **Instalação**: quando o mesmo módulo existir nas duas origens, a instalação/sincronização prioriza a origem local.
+- **Sidebar**: o Gerenciador de Módulos lista as origens local e online separadamente, mostra módulos instalados/atualizáveis e permite ações em lote por checkbox.
+- **Segurança**: `.bas`, `.7proj`, manifesto e módulos externos devem ser tratados como entrada não confiável; operações de escrita permanecem confinadas ao workspace ativo, `data7_modules/` ou aos repositórios gerenciados.
 
 ```mermaid
 flowchart LR

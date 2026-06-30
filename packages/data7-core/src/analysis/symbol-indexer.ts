@@ -11,6 +11,7 @@ import {
 import { parseBasic } from "../project/parser";
 import { SugarRegistry } from "../project/sugar-registry";
 import { ASTWalker, type CompilationUnit, type TypeReference, type Node } from "../project/ast/ast";
+import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 
 // Parameter info
 export interface ParameterInfo {
@@ -47,6 +48,8 @@ export interface SymbolInfo {
   isProtected?: boolean;
   isConst?: boolean;
   isReadOnly?: boolean;
+  isMustOverride?: boolean;
+  isShadows?: boolean;
   parameters?: ParameterInfo[];
   nativeArrayRank?: number;
   noParentheses?: boolean;
@@ -191,7 +194,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const params = node.parameters.map((p) => ({
         name: p.name,
         type: typeRefToString(p.type) ?? "Variant",
-        isByRef: p.isByRef ?? false,
+        isByRef: resolveParameterIsByRef(p),
         isOptional: false,
       }));
 
@@ -202,6 +205,8 @@ class SymbolIndexerWalker extends ASTWalker {
         isShared,
         isPrivate,
         isProtected,
+        isMustOverride: node.modifiers?.includes("mustoverride") ?? false,
+        isShadows: node.modifiers?.includes("shadows") ?? false,
         parameters: params,
         range: {
           startLine: loc.startLine - 1,
@@ -230,7 +235,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const params = node.parameters.map((p) => ({
         name: p.name,
         type: typeRefToString(p.type) ?? "Variant",
-        isByRef: p.isByRef ?? false,
+        isByRef: resolveParameterIsByRef(p),
         isOptional: false,
       }));
 
@@ -272,7 +277,7 @@ class SymbolIndexerWalker extends ASTWalker {
           ? params.map((p) => ({
               name: p.name,
               type: typeRefToString(p.type) ?? "Variant",
-              isByRef: p.isByRef ?? false,
+              isByRef: resolveParameterIsByRef(p),
               isOptional: false,
             }))
           : undefined;
@@ -284,6 +289,8 @@ class SymbolIndexerWalker extends ASTWalker {
         isShared,
         isPrivate,
         isProtected,
+        isMustOverride: node.modifiers?.includes("mustoverride") ?? false,
+        isShadows: node.modifiers?.includes("shadows") ?? false,
         range: {
           startLine: loc.startLine - 1,
           startChar: loc.startChar,
@@ -1300,4 +1307,19 @@ function substituteTypeName(type: string, subs: ReadonlyMap<string, string>): st
     out = out.replace(new RegExp(`\\b${tp}\\b`, "g"), ta);
   }
   return out;
+}
+
+function resolveParameterIsByRef(p: {
+  type: TypeReference;
+  isByRef?: boolean;
+  isByVal?: boolean;
+}): boolean {
+  if (p.isByRef === true) return true;
+  if (p.isByVal === true) return false;
+  const typeStr = typeRefToString(p.type) ?? "Variant";
+  const typeLower = typeStr.toLowerCase();
+  if (PRIMITIVE_TYPES.has(typeLower) || typeLower === "variant") {
+    return false;
+  }
+  return true;
 }

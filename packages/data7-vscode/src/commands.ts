@@ -36,8 +36,8 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     // Module commands
     [
       COMMAND_IDS.installModule,
-      async (moduleName?: string) => {
-        await DependencyService.installModule(moduleName);
+      async (moduleNameOrItem?: string | { moduleName?: string }) => {
+        await DependencyService.installModule(resolveModuleName(moduleNameOrItem));
         await vscode.commands.executeCommand("data7.modules.refreshView");
       },
     ],
@@ -50,8 +50,21 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     ],
     [
       COMMAND_IDS.updateDependencies,
-      async () => {
-        await DependencyService.updateDependencies();
+      async (moduleNameOrItem?: string | { moduleName?: string }) => {
+        const moduleName = resolveModuleName(moduleNameOrItem);
+        await DependencyService.updateModules(moduleName ? [moduleName] : undefined);
+        await vscode.commands.executeCommand("data7.modules.refreshView");
+      },
+    ],
+    [
+      COMMAND_IDS.removeModule,
+      async (moduleNameOrItem?: string | { moduleName?: string }) => {
+        const moduleName = resolveModuleName(moduleNameOrItem);
+        if (!moduleName) {
+          vscode.window.showWarningMessage("Nenhum módulo informado para remoção.");
+          return;
+        }
+        await DependencyService.removeModules([moduleName]);
         await vscode.commands.executeCommand("data7.modules.refreshView");
       },
     ],
@@ -159,6 +172,69 @@ export function registerCommands(context: vscode.ExtensionContext): void {
       },
     ],
     [
+      COMMAND_IDS.unpublishOnline,
+      async (moduleNameOrItem?: string | { moduleName?: string }) => {
+        let moduleName = resolveModuleName(moduleNameOrItem);
+        if (!moduleName) {
+          moduleName = await vscode.window.showInputBox({
+            prompt: "Digite o nome do módulo a remover do repositório online",
+            placeHolder: "ex: forms",
+          });
+        }
+        if (!moduleName) return;
+
+        const confirmation = await vscode.window.showWarningMessage(
+          `Remover o módulo "${moduleName}" do catálogo online? Isso abrirá um Pull Request de unpublish.`,
+          { modal: true },
+          "Abrir PR de remoção",
+        );
+        if (confirmation !== "Abrir PR de remoção") return;
+
+        try {
+          const { ModuleOrchestrator } = await import("@data7/core");
+          let prUrl: string | undefined;
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Solicitando remoção online do módulo '${moduleName}'...`,
+              cancellable: false,
+            },
+            async () => {
+              prUrl = await ModuleOrchestrator.unpublishModuleOnline(
+                moduleName as string,
+                (userCode, verificationUri) => {
+                  vscode.window
+                    .showInformationMessage(
+                      `Autenticação GitHub necessária. Código: ${userCode}`,
+                      "Autorizar no GitHub",
+                    )
+                    .then((selection) => {
+                      if (selection === "Autorizar no GitHub") {
+                        vscode.env.openExternal(vscode.Uri.parse(verificationUri));
+                      }
+                    });
+                },
+              );
+            },
+          );
+          vscode.window
+            .showInformationMessage(
+              `Solicitação de remoção do módulo '${moduleName}' criada.`,
+              "Ver Pull Request",
+            )
+            .then((selection) => {
+              if (selection === "Ver Pull Request" && prUrl) {
+                vscode.env.openExternal(vscode.Uri.parse(prUrl));
+              }
+            });
+          await vscode.commands.executeCommand("data7.modules.refreshView");
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          vscode.window.showErrorMessage(`Falha ao remover módulo online: ${message}`);
+        }
+      },
+    ],
+    [
       COMMAND_IDS.suggestDependencies,
       async () => {
         vscode.window.showInformationMessage(
@@ -199,4 +275,12 @@ export function registerCommands(context: vscode.ExtensionContext): void {
       vscode.commands.registerCommand(id, handler as (...args: unknown[]) => unknown),
     );
   }
+}
+
+function resolveModuleName(
+  value: string | { moduleName?: string } | undefined,
+): string | undefined {
+  if (typeof value === "string") return value;
+  if (value && typeof value.moduleName === "string") return value.moduleName;
+  return undefined;
 }

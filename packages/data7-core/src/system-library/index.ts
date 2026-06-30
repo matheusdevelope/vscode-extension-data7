@@ -142,20 +142,12 @@ import { symbols as sym_Forms_HComboBox } from "./Forms/HComboBox";
 import { symbols as sym_Forms_CheckBox } from "./Forms/CheckBox";
 
 // ───────── Globals ─────────
-import { symbols as sym_Globals_alBottom } from "./Globals/alBottom";
-import { symbols as sym_Globals_alClient } from "./Globals/alClient";
-import { symbols as sym_Globals_alLeft } from "./Globals/alLeft";
-import { symbols as sym_Globals_alNone } from "./Globals/alNone";
-import { symbols as sym_Globals_alRight } from "./Globals/alRight";
-import { symbols as sym_Globals_alTop } from "./Globals/alTop";
 import { symbols as sym_Globals_Base64ToFile } from "./Globals/Base64ToFile";
 import { symbols as sym_Globals_CDbl } from "./Globals/CDbl";
 import { symbols as sym_Globals_Char } from "./Globals/Char";
 import { symbols as sym_Globals_CInt } from "./Globals/CInt";
 import { symbols as sym_Globals_CStr } from "./Globals/CStr";
-import { symbols as sym_Globals_dbASA } from "./Globals/dbASA";
-import { symbols as sym_Globals_dbMSSQL } from "./Globals/dbMSSQL";
-import { symbols as sym_Globals_dbPostgreSQL } from "./Globals/dbPostgreSQL";
+import { symbols as sym_Globals_TRDBMS } from "./Globals/TRDBMS";
 import { symbols as sym_Globals_DateTime } from "./Globals/DateTime";
 import { symbols as sym_Globals_dateUtils } from "./Globals/dateUtils";
 import { symbols as sym_Globals_FileToBase64 } from "./Globals/FileToBase64";
@@ -167,9 +159,6 @@ import { symbols as sym_Globals_Mid } from "./Globals/Mid";
 import { symbols as sym_Globals_Print } from "./Globals/Print";
 import { symbols as sym_Globals_RGB } from "./Globals/RGB";
 import { symbols as sym_Globals_Space } from "./Globals/Space";
-import { symbols as sym_Globals_taCenter } from "./Globals/taCenter";
-import { symbols as sym_Globals_taLeftJustify } from "./Globals/taLeftJustify";
-import { symbols as sym_Globals_taRightJustify } from "./Globals/taRightJustify";
 import { symbols as sym_Globals_TAlign } from "./Globals/TAlign";
 import { symbols as sym_Globals_TAlignment } from "./Globals/TAlignment";
 import { symbols as sym_Globals_THTTP } from "./Globals/THTTP";
@@ -389,20 +378,12 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_HComboBox,
   ...sym_Forms_CheckBox,
   // Globals
-  ...sym_Globals_alBottom,
-  ...sym_Globals_alClient,
-  ...sym_Globals_alLeft,
-  ...sym_Globals_alNone,
-  ...sym_Globals_alRight,
-  ...sym_Globals_alTop,
   ...sym_Globals_Base64ToFile,
   ...sym_Globals_CDbl,
   ...sym_Globals_Char,
   ...sym_Globals_CInt,
   ...sym_Globals_CStr,
-  ...sym_Globals_dbASA,
-  ...sym_Globals_dbMSSQL,
-  ...sym_Globals_dbPostgreSQL,
+  ...sym_Globals_TRDBMS,
   ...sym_Globals_DateTime,
   ...sym_Globals_dateUtils,
   ...sym_Globals_FileToBase64,
@@ -414,9 +395,8 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_Print,
   ...sym_Globals_RGB,
   ...sym_Globals_Space,
-  ...sym_Globals_taCenter,
-  ...sym_Globals_taLeftJustify,
-  ...sym_Globals_taRightJustify,
+  ...sym_Globals_TAlign,
+  ...sym_Globals_TAlignment,
   ...sym_Globals_THTTP,
   ...sym_Globals_Timer,
   ...sym_Globals_TJSONArray,

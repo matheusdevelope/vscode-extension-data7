@@ -56,12 +56,34 @@ Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `
 ### Repositório de módulos compartilhados
 
 - **Gerenciamento de Dependências Explícito**: Dependências e módulos compartilhados agora são declarados explicitamente no arquivo `data7.json` (seção `dependencies`).
+- **Gerenciador de Módulos tipo npm**: o `ModuleOrchestrator` centraliza install/update/remove em lote, resolve versões disponíveis em repositório local (`~/.data7/local_modules`) ou online (GitHub) e mantém `data7_modules/` sincronizado com o manifesto.
+- **Sidebar de módulos**: o Gerenciador de Módulos lista módulos disponíveis separados por repositório local e online, mostra estado instalado/atualizável, permite marcar múltiplos itens por checkbox e executar instalar, atualizar ou remover pela barra da view ou pelo menu do item.
+- **Catálogo online por releases**: módulos online só entram no catálogo quando existe uma release com tag válida no formato `<modulo>-v<versao>`; o catálogo é cacheado e reconsultado em intervalo longo para reduzir rate limit da API do GitHub.
+- **Publicação segura**: antes de autenticar no GitHub, criar fork ou abrir PR, a extensão verifica se o módulo já existe online. Se não houver alteração real, a publicação é bloqueada; se houver alteração sem versão maior, a extensão exige bump de versão.
+- **Unpublish online**: módulos publicados podem ser removidos do catálogo por PR de unpublish. A remoção é permitida somente para `module.publisher` registrado no manifesto publicado ou para o dono do repositório de módulos.
+- **Projetos publicáveis como módulo**: `data7.json` pode declarar `module.name` como nome canônico do pacote. A extensão usa esse nome na publicação e impede instalar o próprio módulo como dependência dele mesmo.
 - **Sincronização**: A extensão baixa e sincroniza automaticamente dependências ausentes para a pasta `data7_modules/`. O construtor injeta automaticamente a flag `@Module-Imported` em arquivos de dependência externa para evitar conflitos na decomposição.
 - Repositório privado de módulos isolado (`globalStoragePath`) que evita poluir o disco.
 - Módulos locais do próprio projeto vivem nativamente em `src/`, sem a obrigatoriedade da flag `@Module`.
 - Módulos orientados a objeto usam `TTObject` para permitir armazenamento seguro em `TTList` e descarte determinístico de recursos.
 - O sugar declarativo `Enun X` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções, sem conflitar com `Enum X` nativo.
 - Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
+
+Exemplo mínimo de projeto publicável como módulo:
+
+```json
+{
+  "nome": "forms",
+  "version": "1.0.0.0",
+  "module": {
+    "enabled": true,
+    "name": "forms",
+    "repository": "matheusdevelope/data7-modules",
+    "publisher": "usuario-github"
+  },
+  "dependencies": {}
+}
+```
 
 ### Arquitetura (Monorepo)
 
@@ -91,20 +113,22 @@ Use `npm run build:extension -w vscode-extension-data7` ou rode o mesmo comando 
 
 ## Comandos principais
 
-| Comando                                        | Atalho             | Descrição                                                 |
-| ---------------------------------------------- | ------------------ | --------------------------------------------------------- |
-| `Data7: Abrir Projeto`                         | —                  | Decompõe um `.7Proj` em estrutura `.bas` editável         |
-| `Data7: Criar Novo Projeto`                    | —                  | Cria um projeto Data7 do zero                             |
-| `Data7: Compilar/Rebuildar Projeto`            | `Ctrl+Shift+B`     | Empacota a árvore atual no `.7Proj`                       |
-| `Data7: Executar Projeto`                      | `F5`               | Roda no Executor do Data7                                 |
-| `Data7: Abrir no Developer Studio`             | —                  | Abre no IDE legado                                        |
-| `Data7: Instalar Módulo Compartilhado`         | —                  | Sincroniza um módulo do repositório para `data7_modules/` |
-| `Data7: Atualizar Dependências do Projeto`     | —                  | Refresh completo de `data7.json#dependencies`             |
-| `Data7: Gerar Documentação da System Library`  | —                  | Gera `.md` por namespace em `docs/system-library/`        |
-| `Data7: Sincronizar Documentação no AGENTS.md` | —                  | Injeta bloco gerado no `AGENTS.md` do workspace           |
-| `Data7: Mostrar Saída`                         | —                  | Abre o canal "Data7" no painel Output                     |
-| `Data7: Reiniciar/Rodar Linter no Projeto`     | —                  | Reavalia todo o projeto e exibe resumo de diagnósticos    |
-| `Data7: Linter - Corrigir Arquivo Atual`       | `Ctrl+Alt+Shift+F` | Aplica Quick Fixes corretivos no `.bas` ativo             |
+| Comando                                        | Atalho             | Descrição                                                  |
+| ---------------------------------------------- | ------------------ | ---------------------------------------------------------- |
+| `Data7: Abrir Projeto`                         | —                  | Decompõe um `.7Proj` em estrutura `.bas` editável          |
+| `Data7: Criar Novo Projeto`                    | —                  | Cria um projeto Data7 do zero                              |
+| `Data7: Compilar/Rebuildar Projeto`            | `Ctrl+Shift+B`     | Empacota a árvore atual no `.7Proj`                        |
+| `Data7: Executar Projeto`                      | `F5`               | Roda no Executor do Data7                                  |
+| `Data7: Abrir no Developer Studio`             | —                  | Abre no IDE legado                                         |
+| `Data7: Instalar Módulo Compartilhado`         | —                  | Sincroniza um módulo do repositório para `data7_modules/`  |
+| `Data7: Instalar Módulos Selecionados`         | —                  | Instala os módulos marcados no Gerenciador de Módulos      |
+| `Data7: Atualizar Dependências do Projeto`     | —                  | Refresh completo de `data7.json#dependencies`              |
+| `Data7: Remover Módulos Selecionados`          | —                  | Remove módulos marcados do manifesto e de `data7_modules/` |
+| `Data7: Gerar Documentação da System Library`  | —                  | Gera `.md` por namespace em `docs/system-library/`         |
+| `Data7: Sincronizar Documentação no AGENTS.md` | —                  | Injeta bloco gerado no `AGENTS.md` do workspace            |
+| `Data7: Mostrar Saída`                         | —                  | Abre o canal "Data7" no painel Output                      |
+| `Data7: Reiniciar/Rodar Linter no Projeto`     | —                  | Reavalia todo o projeto e exibe resumo de diagnósticos     |
+| `Data7: Linter - Corrigir Arquivo Atual`       | `Ctrl+Alt+Shift+F` | Aplica Quick Fixes corretivos no `.bas` ativo              |
 
 ## Configurações
 

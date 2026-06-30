@@ -1005,9 +1005,9 @@ End Namespace`;
     test("emits error for duplicate class name in same namespace", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
-   Class MyClass
+   Class DupClass
    End Class
-   Class MyClass
+   Class DupClass
    End Class
 End Namespace`;
       const uri = "file:///dup_class.bas";
@@ -1016,7 +1016,7 @@ End Namespace`;
       expectDiagnostic(
         diags,
         DiagnosticCodes.DuplicateDeclaration,
-        "Declaração duplicada: o tipo/símbolo 'MyClass'",
+        "Declaração duplicada: o tipo/símbolo 'DupClass'",
       );
     });
 

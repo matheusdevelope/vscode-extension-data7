@@ -819,7 +819,7 @@ describe("SugarTranspiler — native string expressions and inline throws", () =
       "   End Property",
       "   AsInteger As Integer",
       "   Function BuildOption(pClassName As String, pEnumName As String) As String",
-      '      Dim option As String = """" & me.AsString & "=" & me.AsInteger & """"',
+      '      Dim myOption As String = """" & me.AsString & "=" & me.AsInteger & """"',
       '      Dim cacheKey As String = UCase(pClassName) & "-" & UCase(pEnumName)',
       '      If Not initialized Then Throw New Exception("Enum cache not initialized")',
       '      If index < 0 Then Throw New Exception("Enum not found")',

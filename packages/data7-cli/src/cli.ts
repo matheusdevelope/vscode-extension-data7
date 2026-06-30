@@ -76,6 +76,37 @@ async function run() {
       }
       break;
 
+    case "unpublish-online": {
+      const moduleName = args[1];
+      if (!moduleName) {
+        console.error(
+          "[data7-cli] Erro: informe o nome do módulo. Ex.: data7 unpublish-online forms",
+        );
+        process.exit(1);
+      }
+      console.log(`[data7-cli] Solicitando remoção online do módulo: ${moduleName}...`);
+      try {
+        const prUrl = await ModuleOrchestrator.unpublishModuleOnline(
+          moduleName,
+          (userCode, verificationUri) => {
+            console.log(`\n=============================================================`);
+            console.log(`AUTENTICAÇÃO NECESSÁRIA COM O GITHUB`);
+            console.log(`Por favor, acesse o link no seu navegador:`);
+            console.log(`  ${verificationUri}`);
+            console.log(`E insira o seguinte código de ativação:`);
+            console.log(`  ${userCode}`);
+            console.log(`=============================================================\n`);
+          },
+        );
+        console.log(`\n[data7-cli] Pull Request de remoção criado com sucesso!`);
+        console.log(`[data7-cli] Link do PR: ${prUrl}`);
+      } catch (err: any) {
+        console.error(`[data7-cli] Erro ao remover módulo online: ${err.message}`);
+        process.exit(1);
+      }
+      break;
+    }
+
     case "build":
       console.log(`[data7-cli] Compilando projeto no workspace: ${workspaceDir}...`);
       try {
@@ -179,6 +210,7 @@ Comandos disponíveis:
   lint            Executa o linter estático em todos os arquivos .bas no diretório src/.
   publish-local   Publica o módulo atual localmente de forma privada.
   publish-online  Publica o módulo online criando Fork e Pull Request no GitHub.
+  unpublish-online <module>  Abre um PR para remover um módulo do catálogo online.
   help            Exibe este menu de ajuda.
 `);
 }

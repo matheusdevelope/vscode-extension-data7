@@ -1,18 +1,5 @@
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const ca = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TCloseAction",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: "system://library",
-  containerName: "Forms",
-  description: description,
-});
+import { SYSTEM_RANGE, SYSTEM_URI, buildEnumVal } from "../symbol-helpers";
 
 export const symbols: SystemSymbolInfo[] = [
   {
@@ -21,17 +8,19 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TCloseAction",
     isShared: false,
     isPrivate: false,
-    range: range,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     description:
       "Ação a ser tomada no fechamento de um Form. Recebido como parâmetro `Action` (ByRef) em TCloseEvent — você pode alterar para controlar o que acontece após OnClose.",
   },
 
-  ca("caNone", "Não fechar o form (cancela o fechamento)."),
-  ca(
+  buildEnumVal("caNone", "TCloseAction", "Não fechar o form (cancela o fechamento).", "Forms"),
+  buildEnumVal(
     "caHide",
+    "TCloseAction",
     "Apenas oculta o form (Visible := False); a instância permanece em memória — padrão.",
+    "Forms",
   ),
-  ca("caFree", "Destrói o form e libera sua memória."),
-  ca("caMinimize", "Minimiza o form em vez de fechar."),
+  buildEnumVal("caFree", "TCloseAction", "Destrói o form e libera sua memória.", "Forms"),
+  buildEnumVal("caMinimize", "TCloseAction", "Minimiza o form em vez de fechar.", "Forms"),
 ];

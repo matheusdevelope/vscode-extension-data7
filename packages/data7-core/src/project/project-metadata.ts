@@ -53,12 +53,20 @@ export interface ProjectBuildOptions {
   optimization?: ProjectBuildOptimization;
 }
 
+export interface ProjectModuleOptions {
+  enabled?: boolean;
+  name?: string;
+  repository?: string;
+  publisher?: string;
+}
+
 export interface ProjectMetadata {
   nome: string;
   language: string;
   version: string;
   targetPlatform: string;
   opcoes: ProjectOptions;
+  module?: ProjectModuleOptions;
   virtualFolders: VirtualFolder[];
   modulesMetadata: Record<string, ModuleMetadata>;
   dependencies?: Record<string, string>;

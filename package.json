@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "compile": "npm run compile -w @data7/core && npm run compile -w vscode-extension-data7 && npm run compile -w @data7/cli",
+    "compile": "npm run compile -w @data7/core && node scripts/update-grammar-types.js && npm run compile -w vscode-extension-data7 && npm run compile -w @data7/cli",
     "watch": "node scripts/watch-workspaces.js",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",

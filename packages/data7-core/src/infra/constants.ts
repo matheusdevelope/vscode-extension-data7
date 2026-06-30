@@ -49,12 +49,17 @@ export const COMMAND_IDS = {
   // Module commands
   installModule: "data7.modules.install",
   installModulesBulk: "data7.modules.installBulk",
+  installSelectedModules: "data7.modules.installSelected",
+  updateSelectedModules: "data7.modules.updateSelected",
+  removeModule: "data7.modules.remove",
+  removeSelectedModules: "data7.modules.removeSelected",
   updateDependencies: "data7.modules.updateDependencies",
   importModuleToRepository: "data7.modules.importToRepository",
   bulkImportToRepository: "data7.modules.bulkImportToRepository",
   exploreRepository: "data7.modules.exploreRepository",
   publishLocal: "data7.modules.publishLocal",
   publishOnline: "data7.modules.publishOnline",
+  unpublishOnline: "data7.modules.unpublishOnline",
   suggestDependencies: "data7.modules.suggestDependencies",
 
   // Linter/Fixer commands

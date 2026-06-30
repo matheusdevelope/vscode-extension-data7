@@ -51,12 +51,10 @@ export const logger = {
   info(message: string): void {
     const ch = ensureChannel();
     ch.appendLine(format("INFO", message));
-    ch.show(true);
   },
   warn(message: string): void {
     const ch = ensureChannel();
     ch.appendLine(format("WARN", message));
-    ch.show(true);
   },
   error(message: string, err?: unknown): void {
     const ch = ensureChannel();

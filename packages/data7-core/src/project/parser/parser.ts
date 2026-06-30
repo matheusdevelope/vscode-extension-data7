@@ -250,7 +250,40 @@ export class Parser {
     }
     if (next.kind === "keyword") {
       const val = next.value.toLowerCase();
-      if (["new", "get", "set", "continue"].includes(val)) {
+      if (
+        [
+          "new",
+          "get",
+          "set",
+          "continue",
+          "option",
+          "default",
+          "error",
+          "shadows",
+          "shared",
+          "readonly",
+          "mustoverride",
+          "type",
+          "value",
+          "alias",
+          "lib",
+          "declare",
+          "date",
+          "integer",
+          "string",
+          "boolean",
+          "long",
+          "double",
+          "char",
+          "sbyte",
+          "short",
+          "single",
+          "decimal",
+          "object",
+          "byref",
+          "byval",
+        ].includes(val)
+      ) {
         return this.advance();
       }
     }
@@ -1448,6 +1481,7 @@ export class Parser {
     while (!this.match("punct", ")") && !this.isEOF() && !this.match("newline")) {
       // Skip ByRef/ByVal/ReadOnly/Optional modifiers.
       let isByRef = false;
+      let isByVal = false;
       let advanced = true;
       while (advanced) {
         advanced = false;
@@ -1455,6 +1489,7 @@ export class Parser {
           isByRef = true;
           advanced = true;
         } else if (this.consume("keyword", "byval") || this.consume("identifier", "byval")) {
+          isByVal = true;
           advanced = true;
         } else if (this.consume("keyword", "readonly") || this.consume("identifier", "readonly")) {
           advanced = true;
@@ -1479,6 +1514,7 @@ export class Parser {
         type,
       };
       if (isByRef) decl.isByRef = true;
+      if (isByVal) decl.isByVal = true;
       if (defaultValue) decl.defaultValue = defaultValue;
       params.push(decl);
       if (!this.consume("punct", ",")) break;
@@ -1679,6 +1715,8 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "overridable",
   "overrides",
   "readonly",
+  "shadows",
+  "mustoverride",
 ]);
 
 function locOf(

@@ -283,6 +283,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
     });
 
     for (const diagnostic of sortedDiags) {
+      const code = getDiagnosticCode(diagnostic);
+      if (code === DiagnosticCodes.UnusedImport) {
+        continue;
+      }
       const actions = this.getQuickFixesForDiagnostic(document, diagnostic);
       const firstFix = actions.find(
         (action) =>

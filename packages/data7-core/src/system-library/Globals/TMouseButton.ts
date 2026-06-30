@@ -1,17 +1,5 @@
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const mb = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TMouseButton",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: "system://library",
-  description: description,
-});
+import { SYSTEM_RANGE, SYSTEM_URI, buildEnumVal } from "../symbol-helpers";
 
 export const symbols: SystemSymbolInfo[] = [
   {
@@ -20,13 +8,13 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TMouseButton",
     isShared: false,
     isPrivate: false,
-    range: range,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     description:
       "Botão do mouse identificado em eventos OnMouseDown/OnMouseUp. Acessível globalmente.",
   },
 
-  mb("mbLeft", "Botão esquerdo do mouse."),
-  mb("mbRight", "Botão direito do mouse."),
-  mb("mbMiddle", "Botão central (scroll) do mouse."),
+  buildEnumVal("mbLeft", "TMouseButton", "Botão esquerdo do mouse."),
+  buildEnumVal("mbRight", "TMouseButton", "Botão direito do mouse."),
+  buildEnumVal("mbMiddle", "TMouseButton", "Botão central (scroll) do mouse."),
 ];
