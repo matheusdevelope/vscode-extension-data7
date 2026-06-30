@@ -1,6 +1,7 @@
 import type { ClassDeclaration, ClassMember } from "../../ast/ast";
 import { Parser, locOf } from "../parser";
 import type { TokenLocation } from "../token-types";
+import { parseDeclareDeclaration } from "./declare-parser";
 import { parseMethod } from "./method-parser";
 import { parseProperty } from "./property-parser";
 import { parseField } from "./field-parser";
@@ -79,6 +80,7 @@ export function parseClassMember(parser: Parser): ClassMember | null {
   const head = parser.peek(lookahead);
   if (head.kind === "keyword" || head.kind === "identifier") {
     const v = head.value.toLowerCase();
+    if (v === "declare") return parseDeclareDeclaration(parser);
     if (v === "sub" || v === "function") return parseMethod(parser);
     if (v === "property") return parseProperty(parser);
     if (v === "class" || v === "structure") return parseClass(parser);

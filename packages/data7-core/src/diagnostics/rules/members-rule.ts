@@ -1,5 +1,13 @@
 import * as vscode from "../../platform/vscode-api";
-import type { Node, MemberAccess, MethodInvocation, Expression } from "../../project/ast/ast";
+import type {
+  Node,
+  MemberAccess,
+  MethodInvocation,
+  Expression,
+  Assignment,
+  ExpressionStatement,
+  VariableDeclaration,
+} from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import type { CallParenthesesMismatchPayload } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
@@ -10,9 +18,12 @@ import {
   attachUnknownMemberSuggestions,
   exprToString,
   inheritsFromClass,
+  isQualifiedTypeInvocation,
 } from "../diagnostic-helpers";
-import { lookupSystemByName } from "../../system-library";
+import { lookupSystemByName, SYSTEM_SYMBOLS } from "../../system-library";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
+
+const SYSTEM_SYMBOL_NAMES = new Set(SYSTEM_SYMBOLS.map((s) => s.name.toLowerCase()));
 
 export class MembersRule implements Rule {
   public readonly name = "members";
@@ -22,6 +33,14 @@ export class MembersRule implements Rule {
       this.checkMemberAccess(node, context, parent);
     } else if (node.kind === "MethodInvocation") {
       this.checkMethodInvocation(node, context, parent);
+    } else if (node.kind === "Assignment") {
+      this.checkAssignment(node, context);
+    } else if (node.kind === "VariableDeclaration") {
+      this.checkVariableDeclaration(node, context);
+    } else if (node.kind === "ExpressionStatement") {
+      this.checkExpressionStatement(node, context);
+    } else if (node.kind === "Identifier") {
+      this.checkIdentifier(node, context, parent);
     }
   }
 
@@ -301,6 +320,10 @@ export class MembersRule implements Rule {
     }
 
     if (resolvedMethod) {
+      if (this.isAssignedEventHandlerReference(node, context)) {
+        return;
+      }
+
       const paramCount = resolvedMethod.parameters ? resolvedMethod.parameters.length : 0;
       const isSub = resolvedMethod.type.toLowerCase() === "void";
 
@@ -349,6 +372,196 @@ export class MembersRule implements Rule {
         context.report(diag);
       }
     }
+  }
+
+  private checkAssignment(node: Assignment, context: RuleContext): void {
+    if (!node.loc) return;
+    if (this.isAssignedEventHandlerReference(node.value, context)) return;
+    if (node.value.kind !== "Identifier") return;
+
+    const lineIdx = node.loc.startLine - 1;
+    const parameterlessCallable = this.resolveParameterlessFinalCall(node.value, lineIdx, context);
+    if (parameterlessCallable) {
+      this.pushFinalCallParenthesesDiagnostic(node.value, parameterlessCallable, lineIdx, context);
+    }
+  }
+
+  private checkVariableDeclaration(node: VariableDeclaration, context: RuleContext): void {
+    if (!node.loc || !node.initializer || node.initializer.kind !== "Identifier") return;
+
+    const lineIdx = node.loc.startLine - 1;
+    const parameterlessCallable = this.resolveParameterlessFinalCall(
+      node.initializer,
+      lineIdx,
+      context,
+    );
+    if (parameterlessCallable) {
+      this.pushFinalCallParenthesesDiagnostic(
+        node.initializer,
+        parameterlessCallable,
+        lineIdx,
+        context,
+      );
+    }
+  }
+
+  private checkExpressionStatement(node: ExpressionStatement, context: RuleContext): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const expr = node.expression;
+
+    if (expr.kind === "Identifier" || expr.kind === "MemberAccess") {
+      const parameterlessCallable = this.resolveParameterlessFinalCall(expr, lineIdx, context);
+      if (parameterlessCallable) {
+        this.pushFinalCallParenthesesDiagnostic(expr, parameterlessCallable, lineIdx, context);
+        return;
+      }
+    }
+
+    let isLooseType = false;
+    let typeName = "";
+    if (expr.kind === "Identifier") {
+      if (
+        PRIMITIVE_TYPES.has(expr.name.toLowerCase()) ||
+        DiagnosticsLinter.isKnownType(expr.name, context.indexer)
+      ) {
+        isLooseType = true;
+        typeName = expr.name;
+      }
+    } else if (expr.kind === "MemberAccess") {
+      const fullPath = exprToString(expr);
+      if (fullPath && DiagnosticsLinter.isKnownType(fullPath, context.indexer)) {
+        isLooseType = true;
+        typeName = fullPath;
+      }
+    }
+
+    if (isLooseType) {
+      const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+      const diag = new vscode.Diagnostic(
+        range,
+        `Nome de tipo avulso "${typeName}" não é permitido como instrução standalone.`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.LooseTypeStatement;
+      context.report(diag);
+      return;
+    }
+
+    if (expr.kind === "MemberAccess") {
+      const target = expr.target;
+      if (target.kind === "Identifier" && PRIMITIVE_TYPES.has(target.name.toLowerCase())) {
+        const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+        const diag = new vscode.Diagnostic(
+          range,
+          `O tipo primitivo "${target.name}" não possui membros estáticos acessÃ­veis. Acesso ".${expr.member}" é inválido.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.LooseTypeStatement;
+        context.report(diag);
+      }
+      return;
+    }
+
+    if (expr.kind === "MethodInvocation" && expr.callee?.kind === "Identifier") {
+      const calleeName = expr.callee.name;
+      if (PRIMITIVE_TYPES.has(calleeName.toLowerCase())) {
+        const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+        const diag = new vscode.Diagnostic(
+          range,
+          `O tipo primitivo "${calleeName}" não possui membros estáticos acessÃ­veis. Acesso ".${expr.methodName}" é inválido.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.LooseTypeStatement;
+        context.report(diag);
+      }
+    }
+  }
+
+  private checkIdentifier(
+    node: Extract<Node, { kind: "Identifier" }>,
+    context: RuleContext,
+    parent: Node | undefined,
+  ): void {
+    if (!node.name || !node.loc) return;
+    const name = node.name;
+    const nameLower = name.toLowerCase();
+
+    let shouldSkip =
+      PRIMITIVE_TYPES.has(nameLower) ||
+      nameLower === "variant" ||
+      nameLower === "tobject" ||
+      nameLower === "void" ||
+      nameLower === "true" ||
+      nameLower === "false" ||
+      nameLower === "null" ||
+      nameLower === "nothing" ||
+      nameLower === "me" ||
+      nameLower === "mybase" ||
+      nameLower === "value" ||
+      nameLower === "addressof" ||
+      nameLower === "unassigned";
+
+    if (parent) {
+      if (parent.kind === "MemberAccess" && parent.member === name) shouldSkip = true;
+      if (parent.kind === "MethodInvocation" && parent.methodName === name) shouldSkip = true;
+      if (
+        parent.kind === "MethodInvocation" &&
+        parent.callee === node &&
+        isQualifiedTypeInvocation(parent, context.indexer)
+      ) {
+        shouldSkip = true;
+      }
+      if (
+        parent.kind === "MethodInvocation" &&
+        parent.methodName.toLowerCase() === "ctype" &&
+        parent.arguments[1] === node
+      ) {
+        shouldSkip = true;
+      }
+      if (
+        (parent.kind === "ClassDeclaration" && parent.name === name) ||
+        (parent.kind === "MethodDeclaration" && parent.name === name) ||
+        (parent.kind === "DelegateDeclaration" && parent.name === name) ||
+        (parent.kind === "PropertyDeclaration" && parent.name === name) ||
+        (parent.kind === "FieldDeclaration" && parent.name === name) ||
+        (parent.kind === "VariableDeclaration" && parent.name === name) ||
+        (parent.kind === "ParameterDeclaration" && parent.name === name)
+      ) {
+        shouldSkip = true;
+      }
+    }
+
+    if (shouldSkip) return;
+
+    const isDeclared =
+      nameLower === context.activeMethod?.name.toLowerCase() ||
+      nameLower === context.activeProperty?.name.toLowerCase() ||
+      context.isLocalDeclared(name) ||
+      context.isGenericTypeParameter(name) ||
+      !!(
+        context.activeClass &&
+        (context.activeClassInheritedNames?.has(nameLower) ??
+          TypeResolver.findMember(context.activeClass.name, name, context.indexer) !== undefined)
+      ) ||
+      context.indexer.getSymbolsByName(name).length > 0 ||
+      SYSTEM_SYMBOL_NAMES.has(nameLower);
+
+    if (isDeclared) return;
+
+    const range = new vscode.Range(
+      node.loc.startLine - 1,
+      node.loc.startChar,
+      node.loc.endLine - 1,
+      node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `O símbolo "${name}" não foi encontrado no escopo atual.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.UnknownSymbol;
+    context.report(diag);
   }
 
   private resolveStaticReceiverAccess(
@@ -535,7 +748,7 @@ export class MembersRule implements Rule {
     return dotIndex !== -1 ? dotIndex + 1 : startAt;
   }
 
-  private isAssignedEventHandlerReference(node: MemberAccess, context: RuleContext): boolean {
+  private isAssignedEventHandlerReference(node: Expression, context: RuleContext): boolean {
     const parent = context.parentStack[context.parentStack.length - 1];
     if (parent?.kind !== "Assignment" || parent.value !== node) return false;
     const target = parent.target;

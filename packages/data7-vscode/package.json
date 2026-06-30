@@ -692,7 +692,7 @@
               "off"
             ]
           },
-          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported, unknown-template, generic-arity-mismatch, duplicate-template, class-generic-method-unsupported, flat-name-collision, instantiation-limit-exceeded, unknown-type, duplicate-declaration, return-assignment-in-catch."
+          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported, unknown-template, generic-arity-mismatch, duplicate-template, class-generic-method-unsupported, flat-name-collision, instantiation-limit-exceeded, unknown-type, duplicate-declaration, declaration-parentheses-mismatch, declare-name-parentheses, return-assignment-in-catch."
         },
         "data7.autoFormatOnSave": {
           "type": "boolean",

@@ -180,7 +180,7 @@ export class ASTFlowAnalyzer {
     );
     const diagnostic = new vscode.Diagnostic(
       range,
-      `O método Function "${this.methodNode.name}" pode retornar sem definir um valor de retorno expl­icito em todas as ramificaÃ§Ãµes de fluxo de controle.`,
+      `O método Function "${this.methodNode.name}" pode retornar sem definir um valor de retorno expl­icito em todas as ramificações de fluxo de controle.`,
       vscode.DiagnosticSeverity.Warning,
     );
     diagnostic.code = DiagnosticCodes.MissingReturnValue;

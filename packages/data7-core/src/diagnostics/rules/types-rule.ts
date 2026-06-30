@@ -5,6 +5,8 @@ import type {
   VariableDeclaration,
   Assignment,
   ClassDeclaration,
+  ObjectCreationExpression,
+  Expression,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
@@ -13,6 +15,7 @@ import { TypeResolver } from "../../analysis/type-resolver";
 import { typeRefToString, exprToString } from "../diagnostic-helpers";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
+import { lookupSystemByName } from "../../system-library";
 
 export class TypesRule implements Rule {
   public readonly name = "types";
@@ -31,7 +34,30 @@ export class TypesRule implements Rule {
       case "ClassDeclaration":
         this.checkClassMustOverride(node, context);
         break;
+      case "ObjectCreationExpression":
+        this.checkObjectCreationExpression(node, context);
+        break;
     }
+  }
+
+  private checkObjectCreationExpression(
+    node: ObjectCreationExpression,
+    context: RuleContext,
+  ): void {
+    if (!node.noParentheses || !node.type.loc) return;
+    const range = new vscode.Range(
+      node.type.loc.startLine - 1,
+      node.type.loc.startChar,
+      node.type.loc.endLine - 1,
+      node.type.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `A instanciação de "${node.type.name}" omitiu os parênteses do construtor. Recomenda-se usar "${node.type.name}()".`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.ObjectCreationParenthesesMissing;
+    context.report(diag);
   }
 
   private checkTypeReference(node: TypeReference, context: RuleContext): void {
@@ -84,6 +110,8 @@ export class TypesRule implements Rule {
   private checkAssignmentTypes(node: Assignment, context: RuleContext): void {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
+
+    this.checkEventSignatureMismatch(node, lineIdx, context);
 
     const lhsType = TypeResolver.resolveExpressionType(
       node.target,
@@ -205,6 +233,91 @@ export class TypesRule implements Rule {
         context.report(diag);
       }
     }
+  }
+
+  private checkEventSignatureMismatch(
+    node: Assignment,
+    lineIdx: number,
+    context: RuleContext,
+  ): void {
+    if (node.target.kind !== "MemberAccess") return;
+    const eventName = node.target.member;
+
+    const targetType = TypeResolver.resolveExpressionType(
+      node.target.target,
+      context.document,
+      lineIdx,
+      context.indexer,
+    );
+    if (!targetType) return;
+
+    const eventMember = TypeResolver.findMember(targetType, eventName, context.indexer);
+    if (!eventMember) return;
+    if (
+      !eventName.toLowerCase().startsWith("on") &&
+      !this.isDelegateType(eventMember.type, context)
+    ) {
+      return;
+    }
+
+    const delegateName = eventMember.type;
+    const delegate =
+      lookupSystemByName(delegateName).find((s) => s.kind === "delegate") ??
+      context.indexer.findSymbolByName(delegateName);
+    if (delegate?.kind !== "delegate" || !delegate.parameters) return;
+
+    const handlerName = this.getAssignedHandlerName(node.value);
+    if (!handlerName) return;
+
+    const handler = context.indexer.findSymbolByName(handlerName);
+    if (
+      !handler ||
+      (handler.kind !== "method" &&
+        handler.kind !== "declare_sub" &&
+        handler.kind !== "declare_function")
+    ) {
+      return;
+    }
+
+    const handlerParams = handler.parameters ?? [];
+    if (handlerParams.length === delegate.parameters.length) return;
+
+    const assignmentLoc = node.loc;
+    if (!assignmentLoc) return;
+    const startChar = node.value.loc ? node.value.loc.startChar : assignmentLoc.startChar;
+    const endChar = node.value.loc ? node.value.loc.endChar : assignmentLoc.endChar;
+    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Assinatura incompatÃ­vel: o evento "${eventName}" espera ${delegate.parameters.length} parÃ¢metro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.EventSignatureMismatch;
+    context.report(diag);
+  }
+
+  private getAssignedHandlerName(value: Expression): string {
+    if (
+      value.kind === "MethodInvocation" &&
+      value.methodName.toLowerCase() === "addressof" &&
+      value.arguments.length === 1
+    ) {
+      const handlerArg = value.arguments[0];
+      if (handlerArg?.kind === "Identifier") return handlerArg.name;
+      if (handlerArg?.kind === "MemberAccess") return handlerArg.member;
+      return "";
+    }
+    if (value.kind === "MethodInvocation" && value.noParentheses) return value.methodName;
+    if (value.kind === "Identifier") return value.name;
+    if (value.kind === "MemberAccess") return value.member;
+    return "";
+  }
+
+  private isDelegateType(typeName: string, context: RuleContext): boolean {
+    return (
+      context.indexer.findSymbolByName(typeName)?.kind === "delegate" ||
+      lookupSystemByName(typeName).some((symbol) => symbol.kind === "delegate")
+    );
   }
 
   private checkClassMustOverride(node: ClassDeclaration, context: RuleContext): void {

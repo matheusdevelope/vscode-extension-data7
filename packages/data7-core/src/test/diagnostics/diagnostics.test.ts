@@ -1334,6 +1334,35 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.FunctionReadSelf);
     });
 
+    test("does NOT emit warning for valid Declare statements without name parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Private Declare Function DragAcceptFiles Lib "shell32" (hWnd As Long, fAccept As Boolean) As Long
+      Private Declare Function _GetForegroundWindow Lib "user32.dll" Alias "GetForegroundWindow" As Long
+      Private Declare Sub Sleep Lib "kernel32" (dwMilliseconds As Long)
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.DeclarationParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.DeclareNameParentheses);
+    });
+
+    test("emits declare-name-parentheses when Declare name uses forbidden empty parentheses", () => {
+      const diags = runLinter(`Namespace mod_test
+   Class C
+      Private Declare Function _GetWindowRect() Lib "user32.dll" Alias "GetWindowRect" (hwnd As Long, ByRef lpRect As TRect) As Long
+   End Class
+End Namespace`);
+      const diag = expectDiagnostic(
+        diags,
+        DiagnosticCodes.DeclareNameParentheses,
+        "_GetWindowRect",
+      );
+      assert.equal(diag.range.start.line, 2);
+      assert.equal(diag.range.start.character, 45);
+      assert.equal(diag.range.end.character, 47);
+      expectNoDiagnostic(diags, "expected-token");
+    });
+
     test("does NOT emit function-read-self when function name is dot-preceded", () => {
       const diags = runLinter(`Namespace mod_test
    Class C

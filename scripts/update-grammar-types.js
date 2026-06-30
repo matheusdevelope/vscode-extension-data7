@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const path = require("path");
 const fs = require("fs");
+const prettier = require("prettier");
 
 function requireFirstExisting(candidates) {
   for (const candidate of candidates) {
@@ -92,10 +93,20 @@ if (
   grammarJson.repository.types.patterns[0]
 ) {
   grammarJson.repository.types.patterns[0].match = matchPattern;
-  fs.writeFileSync(grammarPath, JSON.stringify(grammarJson, null, 2), "utf8");
-  console.log(
-    `Successfully updated types in grammar from System Library! Total types: ${sortedTypes.length}`,
-  );
+  Promise.resolve(prettier.resolveConfig(grammarPath))
+    .then((config) =>
+      prettier.format(JSON.stringify(grammarJson), { ...(config ?? {}), filepath: grammarPath }),
+    )
+    .then((formatted) => {
+      fs.writeFileSync(grammarPath, formatted, "utf8");
+      console.log(
+        `Successfully updated types in grammar from System Library! Total types: ${sortedTypes.length}`,
+      );
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 } else {
   console.error("Could not find repository.types.patterns[0] inside the grammar JSON.");
   process.exit(1);

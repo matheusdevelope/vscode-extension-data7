@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
 import {
+  parseBasic,
   TypeResolver,
   WorkspaceSymbolIndexer,
   getChainPrefix,
   lookupSystemByName,
   lookupSystemNamespaceOrClassByName,
+  typeRefToString,
 } from "@data7/core";
-import type { SymbolInfo } from "@data7/core";
+import type { ClassDeclaration, MethodDeclaration, Node, SymbolInfo } from "@data7/core";
 
 export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -127,7 +129,7 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
             )?.name;
         }
         if (typeName) {
-          targetSymbol = this.findClassMember(typeName, sigCtx.name);
+          targetSymbol = this.findClassMember(typeName, sigCtx.name, document);
         }
       }
     } else {
@@ -214,9 +216,123 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
     return info;
   }
 
-  private findClassMember(className: string, memberName: string): SymbolInfo | undefined {
-    return TypeResolver.findMember(className, memberName, this.indexer);
+  private findClassMember(
+    className: string,
+    memberName: string,
+    document?: vscode.TextDocument,
+  ): SymbolInfo | undefined {
+    return (
+      TypeResolver.findMember(className, memberName, this.indexer) ??
+      (document
+        ? (this.findCurrentDocumentMethod(className, memberName, document) ??
+          this.findUniqueIndexedDocumentCallable(memberName, document))
+        : undefined)
+    );
   }
+
+  private findCurrentDocumentMethod(
+    className: string,
+    memberName: string,
+    document: vscode.TextDocument,
+  ): SymbolInfo | undefined {
+    const parsed = parseBasic(document.getText());
+    const classDeclaration = findClassDeclaration(parsed.unit.members, className);
+    if (!classDeclaration) return undefined;
+
+    const method = classDeclaration.members.find(
+      (member): member is MethodDeclaration =>
+        member.kind === "MethodDeclaration" &&
+        member.name.toLowerCase() === memberName.toLowerCase(),
+    );
+    if (!method) return undefined;
+
+    return {
+      name: method.name,
+      kind: "method",
+      type: method.returnType ? (typeRefToString(method.returnType) ?? "Variant") : "Void",
+      isShared: (method.modifiers ?? []).some((modifier) => modifier.toLowerCase() === "shared"),
+      isPrivate: (method.modifiers ?? []).some((modifier) => modifier.toLowerCase() === "private"),
+      isProtected: (method.modifiers ?? []).some(
+        (modifier) => modifier.toLowerCase() === "protected",
+      ),
+      parameters: method.parameters.map((parameter) => ({
+        name: parameter.name,
+        type: typeRefToString(parameter.type) ?? "Variant",
+        isByRef: !!parameter.isByRef,
+        isOptional: parameter.defaultValue !== undefined,
+        defaultValue: literalValueToString(parameter.defaultValue),
+      })),
+      range: method.loc
+        ? {
+            startLine: method.loc.startLine - 1,
+            startChar: method.loc.startChar,
+            endLine: method.loc.endLine - 1,
+            endChar: method.loc.endChar,
+          }
+        : { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+      fileUri: document.uri.toString(),
+      containerName: classDeclaration.name,
+    };
+  }
+
+  private findUniqueIndexedDocumentCallable(
+    memberName: string,
+    document: vscode.TextDocument,
+  ): SymbolInfo | undefined {
+    const fileSymbols = this.indexer.getFileSymbols(document.uri.toString());
+    if (!fileSymbols) return undefined;
+
+    const matches = fileSymbols.symbols.filter(
+      (symbol) =>
+        symbol.name.toLowerCase() === memberName.toLowerCase() &&
+        (symbol.kind === "method" ||
+          symbol.kind === "declare_function" ||
+          symbol.kind === "declare_sub" ||
+          symbol.kind === "delegate" ||
+          symbol.kind === "indexed-property"),
+    );
+    return matches.length === 1 ? matches[0] : undefined;
+  }
+}
+
+function findClassDeclaration(
+  members: readonly Node[],
+  className: string,
+): ClassDeclaration | undefined {
+  for (const member of members) {
+    if (member.kind === "ClassDeclaration" && matchesClassName(member.name, className)) {
+      return member;
+    }
+    const childMembers = childMembersOf(member);
+    if (childMembers.length > 0) {
+      const nested = findClassDeclaration(childMembers, className);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
+function matchesClassName(candidate: string, expected: string): boolean {
+  const normalizedCandidate = candidate.toLowerCase();
+  const normalizedExpected = expected.toLowerCase();
+  const simpleExpected = normalizedExpected.split(".").at(-1) ?? normalizedExpected;
+  return normalizedCandidate === normalizedExpected || normalizedCandidate === simpleExpected;
+}
+
+function childMembersOf(node: Node): readonly Node[] {
+  switch (node.kind) {
+    case "CompilationUnit":
+    case "NamespaceDeclaration":
+    case "ClassDeclaration":
+      return node.members;
+    default:
+      return [];
+  }
+}
+
+function literalValueToString(node: Node | undefined): string | undefined {
+  if (!node || node.kind !== "Literal") return undefined;
+  return typeof node.value === "string" ? `"${node.value}"` : String(node.value);
 }
 
 /**

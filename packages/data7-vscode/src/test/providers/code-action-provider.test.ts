@@ -421,6 +421,48 @@ describe("D7BasicCodeActionProvider", () => {
     });
   });
 
+  describe("declare-name-parentheses", () => {
+    test("emits an edit to remove parentheses after the Declare name", async () => {
+      const text =
+        'Private Declare Function _GetForegroundWindow() Lib "user32.dll" Alias "GetForegroundWindow" As Long\n';
+      const doc = mockDoc(text);
+      const range = new vscode.Range(0, 45, 0, 47);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.DeclareNameParentheses, undefined, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as unknown as {
+        title: string;
+        kind?: { value?: string };
+        isPreferred?: boolean;
+        edit: {
+          edits: {
+            type: string;
+            range?: {
+              start: { line: number; character?: number };
+              end?: { line: number; character?: number };
+            };
+          }[];
+        };
+      }[];
+
+      const fix = onlyQuickFixes(all).find((a) =>
+        a.title.includes("Remover parênteses do nome do Declare"),
+      );
+      assert.ok(fix);
+      assert.equal(fix.isPreferred, true);
+      const deleteEdit = expectEdit(fix.edit, { type: "delete", line: 0 });
+      assert.equal(deleteEdit.range?.start.character, 45);
+      assert.equal(deleteEdit.range?.end?.character, 47);
+    });
+  });
+
   describe("object-creation-parentheses-missing", () => {
     test("emits an edit to insert parentheses () after the instantiated type", async () => {
       const doc = mockDoc("Dim file As StringList = New StringList\n");

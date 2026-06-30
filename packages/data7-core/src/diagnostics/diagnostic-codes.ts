@@ -211,6 +211,8 @@ export const DiagnosticCodes = {
   ObjectCreationParenthesesMissing: "object-creation-parentheses-missing",
   /** A method/delegate declaration missing parentheses. */
   DeclarationParenthesesMismatch: "declaration-parentheses-mismatch",
+  /** A DLL/API `Declare` statement has forbidden empty parentheses immediately after its name. */
+  DeclareNameParentheses: "declare-name-parentheses",
   /** Reading from the function name inside its own body is not allowed. */
   FunctionReadSelf: "function-read-self",
   /** Assigning a value to an invalid target (like another function name). */

@@ -349,6 +349,7 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `call-parentheses-mismatch` — chamada de método/procedimento violando as regras estritas de parênteses (por exemplo, chamar funções com parâmetros ou subs com >1 parâmetro sem parênteses). Também emite _Warning_ opcional para chamadas finais sem argumentos escritas sem `()`, com Quick Fix determinístico para inserir os parênteses. Emite _Error_ para violações obrigatórias.
 - `chained-global-function-assignment` — atribuição direta a partir de cadeia iniciada por função global, como `x = CreateObj().Value()`, que o compilador Data7 pode rejeitar. Emite _Warning_ recomendando armazenar o retorno da função em variável temporária antes de acessar membros.
 - `declaration-parentheses-mismatch` — declaração de método/procedimento sem parâmetros que omite os parênteses. Emite _Warning_.
+- `declare-name-parentheses` — instrução `Declare` com `()` imediatamente após o nome (`Declare Function Foo() Lib ...`). Emite _Error_; parâmetros de DLL devem ficar depois de `Lib`/`Alias`, e o Quick Fix remove os parênteses indevidos do nome.
 - `missing-mybase-free` — uma classe não possui o método `Sub Free()` ou o método `Sub Free()` não invoca `MyBase.Free()`. Emite _Warning_.
 - `function-read-self` — tentativa de ler o valor de retorno usando o nome da própria função dentro de seu escopo. Emite _Error_.
 - `invalid-assignment-target` — atribuição de valor a um destino inválido (como atribuir ao nome de outra função que não seja a função/método ou propriedade ativa no escopo atual). Emite _Error_.
@@ -415,8 +416,9 @@ Módulos puros (sem registro de provider) consumidos por providers, diagnostics 
 
 ### 5.4. Linter e diagnósticos (`src/diagnostics/`)
 
-- `src/diagnostics/diagnostics.ts`: Motor de validação de escopos e sintaxe (`DiagnosticsLinter`). Emite todos os 9 códigos de diagnóstico, com payloads estruturados para auto-fix.
-- `src/diagnostics/diagnostic-codes.ts`: Tabela canônica dos `DiagnosticCode` (9 códigos) e seus 6 payloads tipados (`MissingImportPayload`, `UnusedImportPayload`, `ModuleNotFoundPayload`, `ModuleNotDeclaredPayload`, `UnknownMemberPayload`, `UnsupportedMemberPayload`).
+- `src/diagnostics/diagnostics.ts`: Fachada do `DiagnosticsLinter` e walker AST de contexto. O walker implementa `RuleContext`, mantém escopos/estado ativo e executa uma pipeline única de rules; novas validações semânticas devem viver em `src/diagnostics/rules/`, não no orquestrador.
+- `src/diagnostics/rules/`: Rules especializadas para imports, membros/chamadas, tipos/atribuições, fluxo/declarations, arrays/indexadores e ciclo de vida (`MyBase.New`/`MyBase.Free`). Cada rule recebe o mesmo `RuleContext` e emite os payloads canônicos para Quick Fixes.
+- `src/diagnostics/diagnostic-codes.ts`: Tabela canônica dos `DiagnosticCode` e payloads tipados consumidos por Problems, Quick Fixes, exemplos e MCP.
 
 ### 5.5. Tooling de projeto (`src/project/`)
 

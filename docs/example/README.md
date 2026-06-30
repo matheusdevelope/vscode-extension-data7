@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (130 arquivos)
+## Índice de exemplos (131 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -193,7 +193,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (61)
+### diagnostics (62)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -203,6 +203,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/class-generic-method-unsupported/trigger.bas`](./diagnostics/class-generic-method-unsupported/trigger.bas) | a generic method declared inside a non-generic class | `class-generic-method-unsupported@9` | `only emitted by the AST monomorphization engine (Fase 6); the live linter does not yet detect generic methods inside classes.` |
 | [`diagnostics/dead-code/trigger.bas`](./diagnostics/dead-code/trigger.bas) | dead code after return | `dead-code@10` | `linter implementation for dead code detection` |
 | [`diagnostics/declaration-parentheses-mismatch/trigger.bas`](./diagnostics/declaration-parentheses-mismatch/trigger.bas) | method declaration missing parentheses | `declaration-parentheses-mismatch@8` | — |
+| [`diagnostics/declare-name-parentheses/trigger.bas`](./diagnostics/declare-name-parentheses/trigger.bas) | Declare name cannot use empty parentheses before Lib/Alias | `declare-name-parentheses@6` | — |
 | [`diagnostics/default-indexer-missing/trigger.bas`](./diagnostics/default-indexer-missing/trigger.bas) | list(i) usado mas o tipo não declara Item(Integer) | `default-indexer-missing@5` | `classe TBag sem Property Item(Integer) no workspace` |
 | [`diagnostics/destructure-context-unsupported/trigger.bas`](./diagnostics/destructure-context-unsupported/trigger.bas) | destructure fora de Dim/parâmetro — não suportado | `destructure-context-unsupported@6` | `emissão futura do linter quando destructure for detectado em contexto não-Dim` |
 | [`diagnostics/destructure-non-array/trigger.bas`](./diagnostics/destructure-non-array/trigger.bas) | destructure array [a, b] aplicado a tipo não indexável | `destructure-non-array@6` | `classe TPessoa sem Item(Integer) no workspace` |

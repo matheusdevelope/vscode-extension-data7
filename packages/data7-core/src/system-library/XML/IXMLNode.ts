@@ -2,7 +2,6 @@ import type { SystemSymbolInfo } from "../types";
 
 import { SYSTEM_RANGE, SYSTEM_URI, buildEnumVal } from "../symbol-helpers";
 
-
 export const symbols: SystemSymbolInfo[] = [
   {
     name: "IXMLNode",

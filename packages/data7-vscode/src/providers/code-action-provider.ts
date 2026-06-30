@@ -26,6 +26,10 @@ import {
   addDeclarationParenthesesMismatchBulkFix,
 } from "./quick-fixes/declaration-parentheses-mismatch";
 import {
+  addDeclareNameParenthesesFix,
+  addDeclareNameParenthesesBulkFix,
+} from "./quick-fixes/declare-name-parentheses";
+import {
   addObjectCreationParenthesesMissingFix,
   addObjectCreationParenthesesMissingBulkFix,
 } from "./quick-fixes/object-creation-parentheses-missing";
@@ -165,6 +169,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       case DiagnosticCodes.DeclarationParenthesesMismatch:
         addDeclarationParenthesesMismatchFix(actions, document, diagnostic);
         addDeclarationParenthesesMismatchBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.DeclareNameParentheses:
+        addDeclareNameParenthesesFix(actions, document, diagnostic);
+        addDeclareNameParenthesesBulkFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.ObjectCreationParenthesesMissing:
         addObjectCreationParenthesesMissingFix(actions, document, diagnostic);

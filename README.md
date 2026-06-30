@@ -22,6 +22,8 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - Quick Fixes corretivos aparecem antes das supressoes, supressoes de linha sao emitidas com `data7:disable-next-line`, `dead-code` agrupa blocos inalcançaveis e o arquivo `.bas` ativo pode ser corrigido pelo comando `Data7: Linter - Corrigir Arquivo Atual`.
 - Diagnosticos `missing-mybase-new` e `missing-mybase-free` valem apenas para `Class`; `Structure` e tratada como estatica e nao recebe `Sub New`, `Sub Free` ou quick fix de destrutor.
 - O linter respeita escopo de variavel de `Catch`, aceita guardas legados `Exit Sub` em `Function` e limita `chained-global-function-assignment` a atribuicoes cujo RHS e diretamente a cadeia de funcao global.
+- O motor de diagnosticos usa um walker AST unico que fornece contexto para rules modulares de imports, membros, tipos, fluxo, arrays e ciclo de vida, preservando os mesmos codigos e payloads para Quick Fixes.
+- Instrucoes `Declare` seguem a sintaxe nativa: o nome nao recebe `()`, e parametros ficam depois de `Lib`/`Alias`; o quick fix `declare-name-parentheses` remove parenteses indevidos do nome.
 - A execução via F5 usa `data7.json#opcoes` como fonte principal para conexão, empresa, filial e usuário; `data7.databaseConnectionId` e apenas fallback para execução direta de `.7Proj` fora de um projeto decomposto.
 - Antes de iniciar o Executor no F5, o projeto é reanalisado pelo parser/linter e a execução é cancelada se houver erro. Chamadas qualificadas em namespaces/tipos, como `console.clear()`, também são validadas como `unknown-member` quando o membro não existe.
 - Logs de execuções ficam acumulados no canal dedicado `Data7 Logs`, separado do output interno da extensão.
@@ -46,7 +48,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 
 ### Sistema de projeto
 
-Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then`, `return-unrecommended` e `return-assignment-in-catch`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correÃ§Ã£o em massa do workspace. Para `missing-then`, comentários inline e seu espaçamento de alinhamento são preservados.
+Os diagnÃ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then`, `return-unrecommended` e `return-assignment-in-catch`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correção em massa do workspace. Para `missing-then`, comentários inline e seu espaçamento de alinhamento são preservados.
 
 - **Decompositor** (`.7Proj` → árvore de `.bas`): abre um `.7Proj` e gera a estrutura física do projeto.
 - **Builder** (`.bas` → `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências.

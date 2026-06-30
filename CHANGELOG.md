@@ -27,6 +27,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
   - Correção da regra de quebra de linha com caractere de continuação `_`: agora um `_` no final de um identificador (ex. `meu_identificador_`) não é tratado como quebra de linha. A quebra de linha só ocorre se o `_` for precedido por caractere não identificador (ex.: operadores como `+` ou espaços).
   - Remoção de suporte à palavra-chave obsoleta e não funcional `AddressOf`.
   - Atualização do linter de diagnósticos para suportar atribuição direta de event handlers sem `AddressOf` (ex. `OnClick = MeuHandler`) e evitar falso positivo de `call-parentheses-mismatch` nesses cenários.
+  - Refatoração do walker de diagnósticos para executar uma pipeline de rules (`imports`, `members`, `types`, `control-flow`, `arrays` e `lifecycle`), mantendo `diagnostics.ts` como orquestrador de contexto e removendo os checkers privados duplicados.
 
 ### Arquitetura (Monorepo)
 - **Refatoração para Monorepo:** O projeto foi convertido para uma estrutura de monorepo utilizando NPM Workspaces, isolando responsabilidades em pacotes independentes:
@@ -75,6 +76,9 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - Desativado o aviso e quick-fix de `return-unrecommended` para blocos `Property Get`, dado que o compilador nativo do Data7 não suporta a instrução `Exit Property`.
 - `missing-mybase-new` e `missing-mybase-free` agora se aplicam somente a classes; `Structure` e seus membros não recebem construtor/destrutor nem quick fix de `Free`.
 - Corrigidos falsos positivos de `duplicate-declaration` para variáveis `Catch ex` em blocos distintos, de `missing-return-value` para guardas legados com `Exit Sub` dentro de `Function`, e de `chained-global-function-assignment` quando a cadeia de função global aparece apenas como operando de uma expressão composta.
+- Corrigido o `SignatureHelpProvider` para recuperar assinaturas de chamadas qualificadas no documento atual mesmo quando o índice ainda não consegue associar perfeitamente o nome da classe parseada ao tipo inferido.
+- Declarados aliases oficiais da System Library (`ByteBool`, `LongBool`, `WordBool`, `TStringDynArray` e `TAnsiStringDynArray`) usados por métodos de `String`/`AnsiString`, removendo pendências da auditoria de símbolos.
+- Corrigido falso positivo em instruções `Declare`: declarações válidas sem `()` no nome não recebem mais `declaration-parentheses-mismatch`, e o novo diagnóstico `declare-name-parentheses` oferece Quick Fix para remover `()` indevido antes de `Lib`.
 - A execução via F5 agora usa o ID de conexão e os parâmetros do projeto em `data7.json#opcoes` como fonte principal, evitando novo prompt quando `opcoes.identificacaoBancoDados` já foi validado. A configuração global `data7.databaseConnectionId` fica apenas como fallback para execução direta de `.7Proj`.
 - Logs de execução do projeto agora são acumulados em uma aba dedicada `Data7 Logs`, sem misturar com o output geral da extensão e sem limpeza automática entre execuções.
 - O linter agora valida chamadas qualificadas em namespaces/tipos, emitindo `unknown-member` para métodos inexistentes como `console.clear()`. A execução via F5 reanalisa o projeto antes de build/run e é cancelada quando restam erros de parser/linter.
@@ -99,7 +103,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Performance - Developer Studio
 
-- A execuÃ§Ã£o via F5 agora gera a variante com logger em `.data7/run/*.run.7Proj`, evitando sobrescrever o `.7Proj` standard e invalidar o cache usado pelo Developer Studio.
+- A execução via F5 agora gera a variante com logger em `.data7/run/*.run.7Proj`, evitando sobrescrever o `.7Proj` standard e invalidar o cache usado pelo Developer Studio.
 
 ### Performance
 

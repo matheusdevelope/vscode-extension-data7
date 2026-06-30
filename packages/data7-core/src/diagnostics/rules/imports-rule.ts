@@ -4,7 +4,7 @@ import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import { ASTWordCollector } from "../ast-collectors";
 import { collectTransitivelyRequiredImports } from "../import-usage";
 import type { Rule, RuleContext } from "./base-rule";
-import { lookupSystemByContainer, lookupSystemByName } from "../../system-library";
+import { lookupSystemByContainer } from "../../system-library";
 
 export class ImportsRule implements Rule {
   public readonly name = "unused-imports";
@@ -59,44 +59,6 @@ export class ImportsRule implements Rule {
         return;
       }
       seenImports.set(key, imp.loc);
-
-      const hasSymbolsInWorkspaceContainer = context.indexer.getSymbolsByContainer(key).length > 0;
-      const hasSymbolsInSystemContainer = lookupSystemByContainer(imp.name).length > 0;
-      const isNamespaceSymbolInWorkspace = context.indexer
-        .getSymbolsByName(imp.name)
-        .some((s) => s.kind === "namespace");
-      const isNamespaceSymbolInSystem = lookupSystemByName(imp.name).some(
-        (s) => s.kind === "namespace",
-      );
-      const isClassOrStructInWorkspace = context.indexer
-        .getSymbolsByName(imp.name)
-        .some((s) => s.kind === "class" || s.kind === "structure");
-      const isClassOrStructInSystem = lookupSystemByName(imp.name).some(
-        (s) => s.kind === "class" || s.kind === "structure",
-      );
-
-      const isNamespaceDeclared =
-        hasSymbolsInWorkspaceContainer ||
-        hasSymbolsInSystemContainer ||
-        isNamespaceSymbolInWorkspace ||
-        isNamespaceSymbolInSystem ||
-        isClassOrStructInWorkspace ||
-        isClassOrStructInSystem;
-
-      if (!isNamespaceDeclared) {
-        const diag = new vscode.Diagnostic(
-          range,
-          `Módulo ou namespace não declarado no projeto: "${imp.name}".`,
-          vscode.DiagnosticSeverity.Error,
-        );
-        diag.code = DiagnosticCodes.ModuleNotFound;
-        setDiagnosticPayload(diag, {
-          code: DiagnosticCodes.ModuleNotFound,
-          moduleName: imp.name,
-        });
-        context.report(diag);
-        return;
-      }
 
       const isReferenced =
         directlyReferencedImports.has(key) || transitivelyRequiredImports.has(key);

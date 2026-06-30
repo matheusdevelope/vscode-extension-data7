@@ -1,10 +1,15 @@
-import type { MethodDeclaration, ParameterDeclaration, TypeReference } from "../../ast/ast";
+import type {
+  MethodDeclaration,
+  ParameterDeclaration,
+  SourceLocation,
+  TypeReference,
+} from "../../ast/ast";
 import { Parser, locOf } from "../parser";
 
 /**
  * Parses DLL / API Declare statements:
  * `Declare Sub Sleep Lib "kernel32.dll" (dwMilliseconds As Long)`
- * `Private Declare Function GetActiveWindow Lib "user32.dll" () As Long`
+ * `Private Declare Function GetActiveWindow Lib "user32.dll" As Long`
  */
 export function parseDeclareDeclaration(parser: Parser): MethodDeclaration {
   const startLoc = parser.peek().loc;
@@ -20,6 +25,22 @@ export function parseDeclareDeclaration(parser: Parser): MethodDeclaration {
 
   const nameToken = parser.expect("identifier", "<declare-name>");
   const name = nameToken?.value ?? "";
+
+  let declareNameParenthesesLoc: SourceLocation | undefined;
+  if (
+    parser.match("punct", "(") &&
+    parser.peek(1).kind === "punct" &&
+    parser.peek(1).value === ")"
+  ) {
+    const openToken = parser.advance();
+    const closeToken = parser.advance();
+    declareNameParenthesesLoc = {
+      startLine: openToken.loc.line,
+      startChar: openToken.loc.column,
+      endLine: closeToken.loc.line,
+      endChar: closeToken.loc.column + 1,
+    };
+  }
 
   // Expect 'Lib' keyword
   const libToken = parser.advance();
@@ -69,6 +90,7 @@ export function parseDeclareDeclaration(parser: Parser): MethodDeclaration {
     libName,
     aliasName,
     comment,
+    ...(declareNameParenthesesLoc ? { declareNameParenthesesLoc } : {}),
   };
 
   if (returnType !== undefined) decl.returnType = returnType;

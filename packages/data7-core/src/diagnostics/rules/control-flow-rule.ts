@@ -1,4 +1,5 @@
 import * as vscode from "../../platform/vscode-api";
+import { ASTWalker } from "../../project/ast/ast";
 import type {
   Node,
   TryCatchStatement,
@@ -7,24 +8,34 @@ import type {
   Assignment,
   Expression,
   MethodInvocation,
+  ForEachStatement,
+  TaggedTemplateExpression,
+  TernaryExpression,
+  MethodDeclaration,
+  DelegateDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import type {
+  ChainedGlobalFunctionAssignmentPayload,
   FinallyBlockUnsupportedPayload,
   InlineIfThenPayload,
   MissingThenPayload,
+  InvalidInterpolationPayload,
+  NotEnumerablePayload,
   ElseIfWhitespacePayload,
   ReturnUnrecommendedPayload,
   ReturnAssignmentInCatchPayload,
   SharedReturnGlobalFunctionPayload,
+  TernaryContextUnsupportedPayload,
 } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { getCommentStartIndex } from "../../utils/suppression-comments";
 import { exprToString, typeRefToString } from "../diagnostic-helpers";
-import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
 import { TypeResolver } from "../../analysis/type-resolver";
-import { lookupSystemByName } from "../../system-library";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
+import { detectEnumerable } from "../../analysis/enumerable-detector";
+import { parseInterpolation } from "../../utils/interpolation";
+import { ASTFlowAnalyzer } from "../ast-flow-analyzer";
 
 export class ControlFlowRule implements Rule {
   public readonly name = "control-flow";
@@ -45,7 +56,217 @@ export class ControlFlowRule implements Rule {
       case "Assignment":
         this.checkAssignmentFlow(node, context);
         break;
+      case "ForEachStatement":
+        this.checkForEachStatement(node, context);
+        break;
+      case "TaggedTemplateExpression":
+        this.checkTaggedTemplateExpression(node, context);
+        break;
+      case "TernaryExpression":
+        this.checkTernaryExpression(node, context);
+        break;
+      case "MethodDeclaration":
+        this.checkMethodDeclaration(node, context);
+        break;
+      case "DelegateDeclaration":
+        this.checkDelegateDeclaration(node, context);
+        break;
     }
+  }
+
+  private checkForEachStatement(node: ForEachStatement, context: RuleContext): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+
+    const enumerableType = TypeResolver.resolveExpressionType(
+      node.enumerable,
+      context.document,
+      lineIdx,
+      context.indexer,
+    );
+    const explicitType = node.elementType ? typeRefToString(node.elementType) : undefined;
+
+    const enumerable = enumerableType
+      ? detectEnumerable(
+          enumerableType,
+          (typeName) => TypeResolver.getAllMembersForType(typeName, context.indexer),
+          explicitType,
+        )
+      : undefined;
+
+    if (enumerable) return;
+
+    const typeName = enumerableType ?? "Variant";
+    const startChar = node.enumerable.loc ? node.enumerable.loc.startChar : 0;
+    const endChar = node.enumerable.loc ? node.enumerable.loc.endChar : 0;
+    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
+        `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.NotEnumerable;
+    const payload: NotEnumerablePayload = {
+      code: DiagnosticCodes.NotEnumerable,
+      typeName,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
+  }
+
+  private checkTaggedTemplateExpression(
+    node: TaggedTemplateExpression,
+    context: RuleContext,
+  ): void {
+    if (!node.loc || node.tag !== "") return;
+    const lineIdx = node.loc.startLine - 1;
+
+    const result = parseInterpolation(node.body);
+    for (const interpolationDiagnostic of result.diagnostics) {
+      const absCol = node.loc.startChar + interpolationDiagnostic.column;
+      const range = new vscode.Range(lineIdx, absCol, lineIdx, node.loc.endChar);
+      const diag = new vscode.Diagnostic(
+        range,
+        `String interpolada \`$"..."\` mal formada (${interpolationDiagnostic.reason}). O Builder não conseguirá expandir esta linha.`,
+        vscode.DiagnosticSeverity.Warning,
+      );
+      diag.code = DiagnosticCodes.InvalidInterpolation;
+      const payload: InvalidInterpolationPayload = {
+        code: DiagnosticCodes.InvalidInterpolation,
+        reason: interpolationDiagnostic.reason,
+      };
+      setDiagnosticPayload(diag, payload);
+      context.report(diag);
+    }
+  }
+
+  private checkTernaryExpression(node: TernaryExpression, context: RuleContext): void {
+    if (!node.loc || context.allowedTernaries.has(node)) return;
+
+    const lineIdx = node.loc.startLine - 1;
+    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Ternário \`?:\` fora de contexto de assignment. O Builder sÃ³ expande ternários em \`Dim x = c ? a : b\`, \`x = c ? a : b\` ou \`obj.prop = c ? a : b\` (forma nativa é \`If/Then/Else/End If\`).`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.TernaryContextUnsupported;
+    const payload: TernaryContextUnsupportedPayload = {
+      code: DiagnosticCodes.TernaryContextUnsupported,
+      context: "non-assignment",
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
+  }
+
+  private checkMethodDeclaration(node: MethodDeclaration, context: RuleContext): void {
+    if (node.modifiers?.includes("declare")) {
+      this.checkDeclareMethodDeclaration(node, context);
+      return;
+    }
+
+    const isFunction =
+      node.returnType && typeRefToString(node.returnType)?.toLowerCase() !== "void";
+    if (isFunction) {
+      this.checkFunctionSelfRead(node, context);
+    }
+
+    if (node.body.length > 0) {
+      const flowAnalyzer = new ASTFlowAnalyzer(node, context.lines, context.diagnostics);
+      flowAnalyzer.run();
+    }
+
+    if (!node.noParentheses || node.parameters.length !== 0 || !node.loc) return;
+    const nameLower = node.name.toLowerCase();
+    if (nameLower === "get" || nameLower === "set") return;
+
+    const range = new vscode.Range(
+      node.loc.startLine - 1,
+      node.loc.startChar,
+      node.loc.startLine - 1,
+      node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `A declaração do método/função "${node.name}" não possui parênteses. Recomenda-se o uso de parênteses "()" para seguir o padrão da linguagem.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.DeclarationParenthesesMismatch;
+    context.report(diag);
+  }
+
+  private checkDeclareMethodDeclaration(node: MethodDeclaration, context: RuleContext): void {
+    const loc = node.declareNameParenthesesLoc;
+    if (!loc) return;
+
+    const lineIdx = loc.startLine - 1;
+    const range = new vscode.Range(lineIdx, loc.startChar, lineIdx, loc.endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `A instrução Declare "${node.name}" não permite parênteses após o nome. Declare parâmetros depois de Lib/Alias, por exemplo: Declare Function ${node.name} Lib "..." (...) As Long.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.DeclareNameParentheses;
+    context.report(diag);
+  }
+
+  private checkFunctionSelfRead(node: MethodDeclaration, context: RuleContext): void {
+    const funcName = node.name.toLowerCase();
+    new (class extends ASTWalker {
+      private readonly parentStack: Node[] = [];
+
+      public constructor(private readonly diagnostics: vscode.Diagnostic[]) {
+        super();
+      }
+
+      public override walk(idNode: Node): void {
+        if (idNode.kind === "Identifier" && idNode.name.toLowerCase() === funcName && idNode.loc) {
+          const parent = this.parentStack[this.parentStack.length - 1];
+          const isPlainAssignment = parent?.kind === "Assignment" && parent.target === idNode;
+          const isCall =
+            parent?.kind === "MethodInvocation" && parent.methodName.toLowerCase() === funcName;
+
+          if (!isPlainAssignment && !isCall) {
+            const lineIdx = idNode.loc.startLine - 1;
+            const range = new vscode.Range(
+              lineIdx,
+              idNode.loc.startChar,
+              lineIdx,
+              idNode.loc.endChar,
+            );
+            const diag = new vscode.Diagnostic(
+              range,
+              `Leitura do nome da função "${idNode.name}" dentro de seu prÃ³prio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.FunctionReadSelf;
+            this.diagnostics.push(diag);
+          }
+        }
+        this.parentStack.push(idNode);
+        super.walk(idNode);
+        this.parentStack.pop();
+      }
+    })(context.diagnostics).walk(node);
+  }
+
+  private checkDelegateDeclaration(node: DelegateDeclaration, context: RuleContext): void {
+    if (!node.noParentheses || node.parameters.length !== 0 || !node.loc) return;
+
+    const range = new vscode.Range(
+      node.loc.startLine - 1,
+      node.loc.startChar,
+      node.loc.startLine - 1,
+      node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `A declaração do método/função "${node.name}" não possui parênteses. Recomenda-se o uso de parênteses "()" para seguir o padrão da linguagem.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.DeclarationParenthesesMismatch;
+    context.report(diag);
   }
 
   private checkTryCatchStatement(node: TryCatchStatement, context: RuleContext): void {
@@ -367,6 +588,16 @@ export class ControlFlowRule implements Rule {
         node.target,
         context,
       );
+    } else {
+      const chainedGlobalRoot = this.findChainedGlobalFunctionRoot(node.value, lineIdx, context);
+      if (chainedGlobalRoot) {
+        this.pushChainedGlobalFunctionAssignmentDiagnostic(
+          node.value,
+          chainedGlobalRoot,
+          lineIdx,
+          context,
+        );
+      }
     }
   }
 
@@ -579,7 +810,42 @@ export class ControlFlowRule implements Rule {
     if (!resolved) return undefined;
     if (resolved.kind !== "method" && resolved.kind !== "declare_function") return undefined;
     if (resolved.type.toLowerCase() === "void") return undefined;
+    if (resolved.fileUri === "system://library") return undefined;
+    const ownerLower = resolved.containerName?.toLowerCase();
+    if (!ownerLower) return resolved;
+    if (ownerLower === context.activeClass?.name.toLowerCase()) return undefined;
+    if (context.activeClassInheritedNames?.has(ownerLower)) return undefined;
     return resolved;
+  }
+
+  private pushChainedGlobalFunctionAssignmentDiagnostic(
+    expr: Expression,
+    root: MethodInvocation,
+    lineIdx: number,
+    context: RuleContext,
+  ): void {
+    const lineText = context.lines[lineIdx] ?? "";
+    const startChar = expr.loc?.startChar ?? 0;
+    const endChar =
+      expr.loc && expr.loc.endChar > expr.loc.startChar
+        ? expr.loc.endChar
+        : this.findExpressionEndColumn(lineText, startChar);
+    const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Atribuicao direta a partir da cadeia iniciada pela Funcao global "${root.methodName}" pode falhar no compilador Data7. Armazene o retorno da Funcao em uma variavel temporaria antes de acessar membros.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.ChainedGlobalFunctionAssignment;
+    const payload: ChainedGlobalFunctionAssignmentPayload = {
+      code: DiagnosticCodes.ChainedGlobalFunctionAssignment,
+      line: lineIdx,
+      startChar,
+      endChar,
+      functionName: root.methodName,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
   }
 
   private findExpressionEndColumn(lineText: string, startChar: number): number {

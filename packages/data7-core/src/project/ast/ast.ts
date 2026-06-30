@@ -138,6 +138,7 @@ export interface MethodDeclaration extends BaseNode {
   body: Statement[];
   readonly modifiers?: string[];
   readonly noParentheses?: boolean;
+  readonly declareNameParenthesesLoc?: SourceLocation;
   libName?: string;
   aliasName?: string;
 }

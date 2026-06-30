@@ -85,17 +85,17 @@ function mapGenericWarningToDiagnosticCode(code: GenericsPassWarning["code"]): s
 function formatGenericWarningMessage(warning: GenericsPassWarning): string {
   switch (warning.code) {
     case "unknown-template":
-      return `Generics: template '${warning.templateName ?? ""}' nÃ£o foi encontrado no contexto de generics. O Builder deixarÃ¡ a referÃªncia inalterada e o compilador surfarÃ¡ erro.`;
+      return `Generics: template '${warning.templateName ?? ""}' não foi encontrado no contexto de generics. O Builder deixará a referência inalterada e o compilador surfará erro.`;
     case "generic-arity-mismatch":
       return `Generics: '${warning.templateName ?? ""}' espera ${String(warning.expected ?? 0)} argumento(s) de tipo, mas recebeu ${String(warning.actual ?? 0)}.`;
     case "duplicate-template":
-      return `Generics: template '${warning.templateName ?? ""}' declarado mais de uma vez; a Ãºltima declaraÃ§Ã£o prevalece.`;
+      return `Generics: template '${warning.templateName ?? ""}' declarado mais de uma vez; a Ãºltima declaração prevalece.`;
     case "class-generic-method-unsupported":
-      return `Generics: método genÃ©rico '${warning.templateName ?? ""}' dentro de classe nÃ£o Ã© suportado pelo monomorphizer; a declaraÃ§Ã£o serÃ¡ removida do output do Builder.`;
+      return `Generics: método genérico '${warning.templateName ?? ""}' dentro de classe não é suportado pelo monomorphizer; a declaração será removida do output do Builder.`;
     case "flat-name-collision":
-      return `Generics: duas instanciaÃ§Ãµes distintas colapsam ao mesmo nome '${warning.flatName ?? ""}'. Renomeie um dos tipos para desambiguar.`;
+      return `Generics: duas instanciações distintas colapsam ao mesmo nome '${warning.flatName ?? ""}'. Renomeie um dos tipos para desambiguar.`;
     case "instantiation-limit-exceeded":
-      return "Generics: limite de instanciaÃ§Ãµes excedido; o Builder abortou a expansÃ£o. Verifique se hÃ¡ recursÃ£o infinita em um template.";
+      return "Generics: limite de instanciações excedido; o Builder abortou a expansão. Verifique se há recursão infinita em um template.";
   }
 }
 
