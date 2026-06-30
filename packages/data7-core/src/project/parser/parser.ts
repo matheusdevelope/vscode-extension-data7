@@ -71,6 +71,7 @@ import type { Token, TokenLocation } from "./token-types";
 import type { ParserPlugin } from "./plugin";
 import { GenericsParserPlugin } from "./generics-plugin";
 import { SugarEngine } from "../sugars/engine";
+import { ALLOWED_NAME_KEYWORDS } from "../language/keywords";
 import { parseNamespace } from "./declaration-parsers/namespace-parser";
 import { parseClass } from "./declaration-parsers/class-parser";
 import { parseMethod } from "./declaration-parsers/method-parser";
@@ -266,40 +267,7 @@ export class Parser {
     }
     if (next.kind === "keyword") {
       const val = next.value.toLowerCase();
-      if (
-        [
-          "new",
-          "get",
-          "set",
-          "continue",
-          "option",
-          "default",
-          "error",
-          "shadows",
-          "shared",
-          "readonly",
-          "mustoverride",
-          "type",
-          "value",
-          "alias",
-          "lib",
-          "declare",
-          "date",
-          "integer",
-          "string",
-          "boolean",
-          "long",
-          "double",
-          "char",
-          "sbyte",
-          "short",
-          "single",
-          "decimal",
-          "object",
-          "byref",
-          "byval",
-        ].includes(val)
-      ) {
+      if (ALLOWED_NAME_KEYWORDS.has(val)) {
         return this.advance();
       }
     }
