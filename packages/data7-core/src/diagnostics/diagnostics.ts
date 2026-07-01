@@ -21,6 +21,12 @@ import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "./
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 import { readConfiguration, resolveDiagnosticSeverity } from "../infra/configuration";
 import { extractSuppressedCodes, listSuppressionDirectives } from "../utils/suppression-comments";
+import {
+  extractExternalTypeDirectives,
+  isExternalTypeAllowedByDirectives,
+  type ExternalTypeActiveScope,
+  type ExternalTypeDirective,
+} from "../utils/external-type-comments";
 import { LanguageProcessor } from "../analysis/language-processor";
 import {
   validateDuplicateDeclarations,
@@ -210,13 +216,11 @@ export class DiagnosticsLinter {
         }
       }
       const suggestions = findClosest(typeName, Array.from(allTypes));
-      if (suggestions.length > 0) {
-        setDiagnosticPayload(diag, {
-          code: DiagnosticCodes.UnknownType,
-          typeName,
-          suggestions,
-        });
-      }
+      setDiagnosticPayload(diag, {
+        code: DiagnosticCodes.UnknownType,
+        typeName,
+        suggestions,
+      });
 
       diagnostics.push(diag);
       return;
@@ -662,6 +666,16 @@ export class DiagnosticsLinter {
   }
 }
 
+function nodeScopeFromLoc(
+  node: { readonly loc?: Node["loc"] } | undefined,
+): ExternalTypeActiveScope | undefined {
+  if (!node?.loc) return undefined;
+  return {
+    startLine: Math.max(0, node.loc.startLine - 1),
+    endLine: Math.max(0, node.loc.endLine - 1),
+  };
+}
+
 export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
   public activeClass: ClassDeclaration | undefined;
   public activeClassInheritedNames: Set<string> | undefined;
@@ -673,6 +687,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
   private readonly scopes: Set<string>[] = [new Set()];
   private readonly allowedTernariesInternal = new Set<Node>();
   private readonly typeParamStack: Set<string>[] = [];
+  private readonly externalTypeDirectives: readonly ExternalTypeDirective[];
   private readonly rules: readonly Rule[];
 
   constructor(
@@ -683,6 +698,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     public readonly diagnostics: vscode.Diagnostic[],
   ) {
     super();
+    this.externalTypeDirectives = extractExternalTypeDirectives(text);
     this.rules = [
       new ImportsRule(),
       new MembersRule(),
@@ -727,6 +743,25 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
 
   public isLocalDeclared(name: string): boolean {
     return this.scopes.some((scope) => scope.has(name.toLowerCase()));
+  }
+
+  public isExternalTypeAllowed(typeName: string, lineIdx: number): boolean {
+    return isExternalTypeAllowedByDirectives(
+      this.externalTypeDirectives,
+      typeName,
+      lineIdx,
+      this.getExternalTypeActiveScope(),
+    );
+  }
+
+  private getExternalTypeActiveScope(): ExternalTypeActiveScope | undefined {
+    const methodScope = nodeScopeFromLoc(this.activeMethod);
+    if (methodScope) return methodScope;
+
+    const propertyScope = nodeScopeFromLoc(this.activeProperty);
+    if (propertyScope) return propertyScope;
+
+    return nodeScopeFromLoc(this.activeClass);
   }
 
   public override walk(node: Node): void {

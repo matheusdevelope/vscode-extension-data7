@@ -462,6 +462,8 @@ export interface MissingMyBaseNewPayload {
   code: typeof DiagnosticCodes.MissingMyBaseNew;
   /** Name of the class whose `Sub New` is missing `MyBase.New()`. */
   className: string;
+  /** Whether the quick fix should create a constructor or patch an existing one. */
+  action?: "create-constructor" | "insert-mybase-new";
 }
 
 /**

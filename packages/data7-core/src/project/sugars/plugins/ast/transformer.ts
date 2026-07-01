@@ -1154,6 +1154,11 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
           ];
         }
         if (s.expression) {
+          const functionalExpansion = this.expandFunctionalListReturn(
+            s,
+            this.activeMethod?.returnType,
+          );
+          if (functionalExpansion) return functionalExpansion;
           s.expression = this.transformExpression(s.expression, false, s.loc?.startLine);
         }
         return s;

@@ -2,7 +2,7 @@ import "../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { TypeResolver } from "../../analysis/type-resolver";
-import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+import { WorkspaceSymbolIndexer, type FileSymbols } from "../../analysis/symbol-indexer";
 import { expectMembers } from "../_helpers/assertions";
 
 describe("TypeResolver", () => {
@@ -89,6 +89,117 @@ End Namespace`;
 
       const pos = { line: 5, character: 10 } as any;
       assert.equal(TypeResolver.getVariableType("list", mockDoc, pos, indexer), "StringList");
+    });
+
+    test("uses the innermost active class when indexed class ranges overlap", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => any;
+      };
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///overlapping_class_ranges.bas";
+      const code = `Namespace mod_enum
+   Class BaseEnum
+      Protected _value As Integer
+   End Class
+
+   Class TEnum
+      Private _value As BaseEnum
+      Public Sub Run()
+         Dim current = me._value
+      End Sub
+   End Class
+End Namespace`;
+      const parsed: FileSymbols = {
+        fileUri: uri,
+        filePath: "/overlapping_class_ranges.bas",
+        content: code,
+        imports: [],
+        symbols: [
+          {
+            name: "BaseEnum",
+            kind: "class",
+            type: "BaseEnum",
+            isShared: false,
+            isPrivate: false,
+            range: { startLine: 1, startChar: 3, endLine: 10, endChar: 12 },
+            fileUri: uri,
+            containerName: "mod_enum",
+          },
+          {
+            name: "_value",
+            kind: "variable",
+            type: "Integer",
+            isShared: false,
+            isPrivate: false,
+            range: { startLine: 2, startChar: 6, endLine: 2, endChar: 12 },
+            fileUri: uri,
+            containerName: "BaseEnum",
+          },
+          {
+            name: "TEnum",
+            kind: "class",
+            type: "TEnum",
+            isShared: false,
+            isPrivate: false,
+            range: { startLine: 5, startChar: 3, endLine: 10, endChar: 12 },
+            fileUri: uri,
+            containerName: "mod_enum",
+          },
+          {
+            name: "_value",
+            kind: "variable",
+            type: "BaseEnum",
+            isShared: false,
+            isPrivate: true,
+            range: { startLine: 6, startChar: 6, endLine: 6, endChar: 12 },
+            fileUri: uri,
+            containerName: "TEnum",
+          },
+        ],
+      };
+      indexer.updateFileContentFromParsed(uri, code, parsed);
+      const doc = createMockDoc(uri, code);
+
+      assert.equal(TypeResolver.inferExpressionType("me._value", doc, 8, indexer), "BaseEnum");
+    });
+
+    test("prefers same-file members for Me when duplicate class names exist", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => any;
+      };
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(
+        "file:///data7_modules/core_modules/mod_tenum.bas",
+        `Namespace mod_tenum
+   Class TEnum
+      Protected _value As Integer
+   End Class
+End Namespace`,
+      );
+
+      const uri = "file:///src/helpers/mod_enum.bas";
+      const code = `Namespace mod_enum
+   Class BaseEnum
+   End Class
+
+   Class TEnum
+      Private _value As BaseEnum
+      Public Sub Run()
+         Dim current = me._value
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const fileSymbols = indexer.getFileSymbols(uri);
+      const activeClass = TypeResolver.findInnermostClassSymbol(fileSymbols?.symbols, 7);
+      assert.ok(activeClass);
+
+      assert.equal(TypeResolver.inferExpressionType("me._value", doc, 7, indexer), "BaseEnum");
+      assert.equal(
+        TypeResolver.findMemberOnClassSymbol(activeClass, "_value", indexer)?.type,
+        "BaseEnum",
+      );
     });
 
     test('falls back to "Variant" when "For Each x In ..." omits the explicit type', () => {

@@ -21,6 +21,10 @@ function buildPattern(
   lines.push("");
   lines.push(`   Private Shared _Initialized As Boolean`);
   lines.push("");
+  lines.push("   Private Sub New(pValue As Integer, pDescription As String)");
+  lines.push("      MyBase.New(pValue, pDescription)");
+  lines.push("   End Sub");
+  lines.push("");
   lines.push("   Private Shared Sub Initialize()");
   lines.push("      If _Initialized Then Exit Sub");
   for (const v of values) {

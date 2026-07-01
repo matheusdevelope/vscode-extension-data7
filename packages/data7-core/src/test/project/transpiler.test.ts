@@ -1503,6 +1503,43 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /products\.Push\(__src\d+\)/);
   });
 
+  test("expands map and filter block arrows over TTList", () => {
+    const code = [
+      `Dim nums[] As Integer = [1, 2, 3]`,
+      `Dim doubled[] As Integer = nums.map((x As Integer, idx As Integer) => {`,
+      `   Dim value As Integer = x + idx`,
+      `   Return value * 2`,
+      `})`,
+      `Dim even[] As Integer = nums.filter((x As Integer) => {`,
+      `   Dim keep As Boolean = x Mod 2 = 0`,
+      `   Return keep`,
+      `})`,
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+
+    assert.doesNotMatch(out, /=>/);
+    assert.match(out, /Dim idx As Integer = __idx\d+/);
+    assert.match(out, /Dim value As Integer = x \+ idx[\s\S]*doubled\.Push\(value \* 2\)/);
+    assert.match(out, /Dim keep As Boolean = x Mod 2 = 0[\s\S]*If keep Then[\s\S]*even\.Push\(x\)/);
+  });
+
+  test("expands returned map over TTList into a temporary result", () => {
+    const code = [
+      `Function Build() As TTList_Integer`,
+      `   Dim nums[] As Integer = [1, 2, 3]`,
+      `   Return nums.map(x => x * 2)`,
+      `End Function`,
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+
+    assert.doesNotMatch(out, /=>/);
+    assert.match(out, /Dim __src\d+ As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /__src\d+\.Push\(x \* 2\)/);
+    assert.match(out, /Return __src\d+/);
+  });
+
   test("does not synthesize non-capturing arrow functions inside method calls", () => {
     const code = [
       "Class TTest",

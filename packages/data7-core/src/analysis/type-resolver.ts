@@ -10,6 +10,11 @@ import { inferLiteralType } from "../utils/literal-type-infer";
 import { getNonNullVariablesAt } from "./flow-analyzer";
 import { findInnerMostGenericUsage, flatNameOf } from "./generics-analyzer";
 import { LanguageProcessor } from "./language-processor";
+import {
+  extractExternalTypeDirectives,
+  isExternalTypeAllowedByDirectives,
+  type ExternalTypeActiveScope,
+} from "../utils/external-type-comments";
 import type {
   Expression,
   TypeReference,
@@ -29,6 +34,26 @@ const rawExpressionTypeCache = new WeakMap<object, string | undefined>();
 const genericParamsCache = new WeakMap<object, Map<string, Map<string, string>>>();
 
 export class TypeResolver {
+  public static findInnermostClassSymbol(
+    symbols: readonly SymbolInfo[] | undefined,
+    lineIdx: number,
+  ): SymbolInfo | undefined {
+    return (symbols ?? [])
+      .filter(
+        (s) =>
+          s.kind === "class" &&
+          !s.isSyntheticGenericInstantiation &&
+          lineIdx >= s.range.startLine &&
+          lineIdx <= s.range.endLine,
+      )
+      .sort((left, right) => {
+        const leftSpan = left.range.endLine - left.range.startLine;
+        const rightSpan = right.range.endLine - right.range.startLine;
+        if (leftSpan !== rightSpan) return leftSpan - rightSpan;
+        return right.range.startLine - left.range.startLine;
+      })[0];
+  }
+
   /**
    * Resolves the static type of a local variable, parameter, field or
    * namespace-level variable by walking the AST of the active document.
@@ -179,7 +204,16 @@ export class TypeResolver {
     );
     if (currentMethod?.parameters) {
       const param = currentMethod.parameters.find((p) => p.name.toLowerCase() === varLower);
-      if (param) return param.type;
+      if (param) {
+        return isExternalTypeAcceptedByDeclaration(
+          document,
+          param.type,
+          currentMethod.range.startLine,
+          position.line,
+        )
+          ? "Variant"
+          : param.type;
+      }
     }
     if (currentMethod?.name.toLowerCase() === varLower) {
       return currentMethod.type;
@@ -193,55 +227,47 @@ export class TypeResolver {
     );
     if (currentProperty?.parameters) {
       const param = currentProperty.parameters.find((p) => p.name.toLowerCase() === varLower);
-      if (param) return param.type;
+      if (param) {
+        return isExternalTypeAcceptedByDeclaration(
+          document,
+          param.type,
+          currentProperty.range.startLine,
+          position.line,
+        )
+          ? "Variant"
+          : param.type;
+      }
     }
     if (currentProperty?.name.toLowerCase() === varLower) {
       return currentProperty.type;
     }
 
-    const currentClass = fileSyms.symbols.find(
-      (s) =>
-        s.kind === "class" &&
-        position.line >= s.range.startLine &&
-        position.line <= s.range.endLine,
-    );
+    const currentClass = TypeResolver.findInnermostClassSymbol(fileSyms.symbols, position.line);
     if (currentClass) {
-      const allWorkspaceSymbols = indexer.getSymbolsByName(varName);
-      const visited = new Set<string>();
-      let cls: SymbolInfo | undefined = currentClass;
-
-      while (cls && !visited.has(cls.name.toLowerCase())) {
-        visited.add(cls.name.toLowerCase());
-        const classLower = cls.name.toLowerCase();
-        const isMember = (s: SymbolInfo): boolean =>
-          s.containerName?.toLowerCase() === classLower &&
-          s.name.toLowerCase() === varLower &&
-          (s.kind === "variable" ||
-            s.kind === "property" ||
-            s.kind === "indexed-property" ||
-            s.kind === "method");
-
-        const wsMember = allWorkspaceSymbols.find(isMember);
-        if (wsMember) return wsMember.type;
-
-        const sysMember = lookupSystemByContainer(cls.name).find(
-          (s) =>
-            s.name.toLowerCase() === varLower &&
-            (s.kind === "variable" ||
-              s.kind === "property" ||
-              s.kind === "indexed-property" ||
-              s.kind === "method"),
-        );
-        if (sysMember) return sysMember.type;
-
-        cls = cls.inheritsFrom
-          ? TypeResolver.findClassSymbol(cls.inheritsFrom, indexer)
-          : undefined;
+      const member = TypeResolver.findMemberOnClassSymbol(currentClass, varName, indexer);
+      if (member) {
+        return isExternalTypeAcceptedByDeclaration(
+          document,
+          member.type,
+          member.range.startLine,
+          position.line,
+        )
+          ? "Variant"
+          : member.type;
       }
     }
 
     const globalVar = TypeResolver.findVariableSymbol(varName, document, position, indexer);
-    if (globalVar) return globalVar.type;
+    if (globalVar) {
+      return isExternalTypeAcceptedByDeclaration(
+        document,
+        globalVar.type,
+        globalVar.range.startLine,
+        position.line,
+      )
+        ? "Variant"
+        : globalVar.type;
+    }
 
     return undefined;
   }
@@ -372,9 +398,7 @@ export class TypeResolver {
 
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     const fileCandidates = fileSyms?.symbols.filter(isCallable) ?? [];
-    const activeClass = fileSyms?.symbols.find(
-      (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-    );
+    const activeClass = TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, lineIdx);
     if (activeClass) {
       const classHit = select(
         fileCandidates.filter(
@@ -436,6 +460,16 @@ export class TypeResolver {
       case "Identifier":
         return TypeResolver.resolveIdentifierType(expr.name, document, lineIdx, indexer);
       case "MemberAccess": {
+        const contextualMember = TypeResolver.findMemberForReceiverExpression(
+          expr.target,
+          expr.member,
+          document,
+          lineIdx,
+          indexer,
+          0,
+        );
+        if (contextualMember) return contextualMember.type;
+
         const targetType = TypeResolver.resolveExpressionType(
           expr.target,
           document,
@@ -495,9 +529,7 @@ export class TypeResolver {
           return member.type;
         }
         const fileSyms = indexer.getFileSymbols(document.uri.toString());
-        const activeClass = fileSyms?.symbols.find(
-          (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-        );
+        const activeClass = TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, lineIdx);
 
         // A local variable named the same as the invocation takes priority over global callables.
         // e.g. `Dim retorno As Foo` followed by `retorno()` — the parens are a no-op property-default
@@ -682,9 +714,7 @@ export class TypeResolver {
 
     if (lower === "me" || lower === "mybase") {
       const fileSyms = indexer.getFileSymbols(document.uri.toString());
-      const activeClass = fileSyms?.symbols.find(
-        (s) => s.kind === "class" && lineIdx >= s.range.startLine && lineIdx <= s.range.endLine,
-      );
+      const activeClass = TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, lineIdx);
       if (lower === "me") {
         return activeClass?.name;
       } else {
@@ -798,53 +828,38 @@ export class TypeResolver {
     className: string,
     indexer: WorkspaceSymbolIndexer,
   ): SymbolInfo[] {
+    const startClass = TypeResolver.findClassSymbol(className, indexer);
+    if (!startClass) return [];
+    return TypeResolver.getInheritedMembersForClassSymbol(startClass, indexer);
+  }
+
+  public static getInheritedMembersForClassSymbol(
+    classSymbol: SymbolInfo,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo[] {
     const membersMap = new Map<string, SymbolInfo>();
     const visited = new Set<string>();
 
-    const collect = (currentClassName: string): void => {
-      const key = currentClassName.toLowerCase();
+    const collect = (currentClass: SymbolInfo): void => {
+      const key = classIdentityKey(currentClass);
       if (visited.has(key)) return;
       visited.add(key);
 
-      const classSymbol = TypeResolver.findClassSymbol(currentClassName, indexer);
-      if (!classSymbol) return;
-
-      const shortName = currentClassName.includes(".")
-        ? (currentClassName.split(".").pop() ?? currentClassName).toLowerCase()
-        : currentClassName.toLowerCase();
-
-      const containerMatch = (containerName: string | undefined): boolean =>
-        containerName !== undefined &&
-        (containerName.toLowerCase() === key || containerName.toLowerCase() === shortName);
-
-      const addSymbol = (s: SymbolInfo): void => {
-        const namePart = s.name.toLowerCase();
-        let paramsPart = "";
-        if (s.parameters && s.parameters.length > 0) {
-          paramsPart = s.parameters.map((p) => p.type.toLowerCase()).join(",");
-        }
-        const signatureKey = `${namePart}#${paramsPart}`;
+      for (const s of TypeResolver.getOwnMembersForClassSymbol(currentClass, indexer)) {
+        const signatureKey = memberSignatureKey(s);
         if (!membersMap.has(signatureKey)) {
           membersMap.set(signatureKey, s);
         }
-      };
+      }
 
-      SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
-      // Coletamos candidatos apenas dos containers indexados
-      const candidates = [
-        ...indexer.getSymbolsByContainer(key),
-        ...(key !== shortName ? indexer.getSymbolsByContainer(shortName) : []),
-      ];
-      candidates.filter((s) => containerMatch(s.containerName)).forEach(addSymbol);
-
-      const parent = TypeResolver.resolveParent(classSymbol);
-      if (parent) collect(parent);
+      const parent = TypeResolver.resolveParent(currentClass);
+      const parentClass = parent ? TypeResolver.findClassSymbol(parent, indexer) : undefined;
+      if (parentClass) collect(parentClass);
     };
 
-    const startClass = TypeResolver.findClassSymbol(className, indexer);
-    if (!startClass) return [];
-    const parent = TypeResolver.resolveParent(startClass);
-    if (parent) collect(parent);
+    const parent = TypeResolver.resolveParent(classSymbol);
+    const parentClass = parent ? TypeResolver.findClassSymbol(parent, indexer) : undefined;
+    if (parentClass) collect(parentClass);
     return Array.from(membersMap.values());
   }
 
@@ -900,6 +915,77 @@ export class TypeResolver {
 
     const resolved = TypeResolver.findMemberInternal(typeName, memberName, indexer, arity);
     indexer.findMemberCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
+  public static findMemberOnClassSymbol(
+    classSymbol: SymbolInfo,
+    memberName: string,
+    indexer: WorkspaceSymbolIndexer,
+    arity?: number,
+  ): SymbolInfo | undefined {
+    const cacheKey = `class:${classIdentityKey(classSymbol)}#${memberName.toLowerCase()}#${
+      arity ?? "any"
+    }`;
+    if (indexer.findMemberCache.has(cacheKey)) {
+      return indexer.findMemberCache.get(cacheKey);
+    }
+
+    const memberLower = memberName.toLowerCase();
+    const visited = new Set<string>();
+
+    let current: SymbolInfo | undefined = classSymbol;
+    while (current && !visited.has(classIdentityKey(current))) {
+      visited.add(classIdentityKey(current));
+
+      const ownHits = TypeResolver.getOwnMembersForClassSymbol(current, indexer).filter(
+        (s) => s.name.toLowerCase() === memberLower,
+      );
+      const arityHit =
+        arity !== undefined ? ownHits.find((s) => isArityMatch(s.parameters, arity)) : undefined;
+      const hit = arityHit ?? ownHits[0];
+      if (hit) {
+        indexer.findMemberCache.set(cacheKey, hit);
+        return hit;
+      }
+
+      const parent = TypeResolver.resolveParent(current);
+      current = parent ? TypeResolver.findClassSymbol(parent, indexer) : undefined;
+    }
+
+    indexer.findMemberCache.set(cacheKey, undefined);
+    return undefined;
+  }
+
+  public static getAllMembersForClassSymbol(
+    classSymbol: SymbolInfo,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo[] {
+    const cacheKey = `class:${classIdentityKey(classSymbol)}`;
+    if (indexer.allMembersForTypeCache.has(cacheKey)) {
+      return indexer.allMembersForTypeCache.get(cacheKey)!;
+    }
+
+    const membersMap = new Map<string, SymbolInfo>();
+    const visited = new Set<string>();
+
+    let current: SymbolInfo | undefined = classSymbol;
+    while (current && !visited.has(classIdentityKey(current))) {
+      visited.add(classIdentityKey(current));
+
+      for (const s of TypeResolver.getOwnMembersForClassSymbol(current, indexer)) {
+        const signatureKey = memberSignatureKey(s);
+        if (!membersMap.has(signatureKey)) {
+          membersMap.set(signatureKey, s);
+        }
+      }
+
+      const parent = TypeResolver.resolveParent(current);
+      current = parent ? TypeResolver.findClassSymbol(parent, indexer) : undefined;
+    }
+
+    const resolved = Array.from(membersMap.values());
+    indexer.allMembersForTypeCache.set(cacheKey, resolved);
     return resolved;
   }
 
@@ -975,6 +1061,67 @@ export class TypeResolver {
     };
 
     return search(typeName);
+  }
+
+  public static findMemberForReceiverExpression(
+    receiver: Expression,
+    memberName: string,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+    arity?: number,
+  ): SymbolInfo | undefined {
+    if (receiver.kind !== "Identifier") return undefined;
+    const lower = receiver.name.toLowerCase();
+    if (lower !== "me" && lower !== "mybase") return undefined;
+
+    const fileSyms = indexer.getFileSymbols(document.uri.toString());
+    const activeClass = TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, lineIdx);
+    if (!activeClass) return undefined;
+
+    if (lower === "me") {
+      return TypeResolver.findMemberOnClassSymbol(activeClass, memberName, indexer, arity);
+    }
+
+    const parent = TypeResolver.resolveParent(activeClass);
+    const parentClass = parent ? TypeResolver.findClassSymbol(parent, indexer) : undefined;
+    return parentClass
+      ? TypeResolver.findMemberOnClassSymbol(parentClass, memberName, indexer, arity)
+      : undefined;
+  }
+
+  private static getOwnMembersForClassSymbol(
+    classSymbol: SymbolInfo,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo[] {
+    const typeName = classSymbol.name;
+    const lookupTypeName = normalizeGenericTypeName(typeName);
+    const key = lookupTypeName.toLowerCase();
+    const shortName = lookupTypeName.includes(".")
+      ? (lookupTypeName.split(".").pop() ?? lookupTypeName).toLowerCase()
+      : lookupTypeName.toLowerCase();
+
+    const containerMatch = (containerName: string | undefined): boolean => {
+      if (containerName === undefined) return false;
+      const c = containerName.toLowerCase();
+      return c === key || c === shortName || c.endsWith("." + shortName);
+    };
+
+    if (classSymbol.fileUri.startsWith("system://")) {
+      return SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName));
+    }
+
+    const candidates = [
+      ...indexer.getSymbolsByContainer(key),
+      ...(key !== shortName ? indexer.getSymbolsByContainer(shortName) : []),
+    ].filter((s) => containerMatch(s.containerName));
+
+    const sameFileCandidates = candidates.filter((s) =>
+      sameFileUri(s.fileUri, classSymbol.fileUri),
+    );
+    if (sameFileCandidates.length > 0) return sameFileCandidates;
+
+    return candidates;
   }
 
   public static findMemberWithArgumentTypes(
@@ -1183,12 +1330,7 @@ export class TypeResolver {
         position.line >= s.range.startLine &&
         position.line <= s.range.endLine,
     );
-    const currentClass = fileSyms.symbols.find(
-      (s) =>
-        s.kind === "class" &&
-        position.line >= s.range.startLine &&
-        position.line <= s.range.endLine,
-    );
+    const currentClass = TypeResolver.findInnermostClassSymbol(fileSyms.symbols, position.line);
 
     const scopeKey = `${currentClass?.name ?? ""}-${currentMethod?.name ?? ""}`;
     const cachedParams = fileCache.get(scopeKey);
@@ -1276,10 +1418,110 @@ export class TypeResolver {
   }
 }
 
+function isExternalTypeAcceptedByDeclaration(
+  document: vscode.TextDocument,
+  typeName: string,
+  declarationLine: number,
+  usageLine: number,
+): boolean {
+  const text = document.getText();
+  const directives = extractExternalTypeDirectives(text);
+  if (isExternalTypeAllowedByDirectives(directives, typeName, declarationLine)) return true;
+
+  const blockDirectives = directives.filter((directive) => directive.scope === "block");
+  if (blockDirectives.length === 0) return false;
+
+  const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+  const scopes = collectExternalTypeScopes(cached.unit);
+  return scopes.some(
+    (scope) =>
+      isExternalTypeAllowedByDirectives(blockDirectives, typeName, usageLine, scope) &&
+      declarationLine >= scope.startLine &&
+      declarationLine <= scope.endLine,
+  );
+}
+
+function collectExternalTypeScopes(node: Node): ExternalTypeActiveScope[] {
+  const scopes: ExternalTypeActiveScope[] = [];
+
+  const visit = (current: Node): void => {
+    const scope = externalTypeScopeFromNode(current);
+    if (scope) scopes.push(scope);
+
+    for (const child of getNodeChildren(current)) {
+      visit(child);
+    }
+  };
+
+  visit(node);
+  return scopes;
+}
+
+function externalTypeScopeFromNode(node: Node): ExternalTypeActiveScope | undefined {
+  if (
+    node.kind !== "ClassDeclaration" &&
+    node.kind !== "MethodDeclaration" &&
+    node.kind !== "PropertyDeclaration"
+  ) {
+    return undefined;
+  }
+  if (!node.loc) return undefined;
+  return {
+    startLine: Math.max(0, node.loc.startLine - 1),
+    endLine: Math.max(0, node.loc.endLine - 1),
+  };
+}
+
+function getNodeChildren(node: Node): readonly Node[] {
+  switch (node.kind) {
+    case "CompilationUnit":
+      return node.members;
+    case "NamespaceDeclaration":
+      return node.members;
+    case "ClassDeclaration":
+      return node.members;
+    case "MethodDeclaration":
+      return node.body;
+    case "PropertyDeclaration":
+      return [node.getter, node.setter].filter(
+        (child): child is NonNullable<typeof child> => child !== undefined,
+      );
+    default:
+      return [];
+  }
+}
+
 function classSymbolKey(symbol: SymbolInfo): string {
   const name = symbol.name.toLowerCase();
   const container = symbol.containerName?.toLowerCase();
   return container ? `${container}.${name}` : name;
+}
+
+function classIdentityKey(symbol: SymbolInfo): string {
+  return `${normalizeFileUriForComparison(symbol.fileUri)}#${classSymbolKey(symbol)}#${
+    symbol.range.startLine
+  }`;
+}
+
+function memberSignatureKey(symbol: SymbolInfo): string {
+  const namePart = symbol.name.toLowerCase();
+  const paramsPart =
+    symbol.parameters && symbol.parameters.length > 0
+      ? symbol.parameters.map((p) => p.type.toLowerCase()).join(",")
+      : "";
+  return `${namePart}#${paramsPart}`;
+}
+
+function sameFileUri(left: string, right: string): boolean {
+  return normalizeFileUriForComparison(left) === normalizeFileUriForComparison(right);
+}
+
+function normalizeFileUriForComparison(fileUri: string): string {
+  try {
+    return decodeURIComponent(fileUri).replace(/\\/g, "/").toLowerCase();
+  } catch {
+    return fileUri.replace(/\\/g, "/").toLowerCase();
+  }
 }
 
 function buildClassComparisonKeys(
@@ -1797,7 +2039,12 @@ function collectLocalDeclarations(
     case "VariableDeclaration": {
       const explicitType = typeRefToString(node.type);
       if (explicitType) {
-        locals.set(node.name.toLowerCase(), explicitType);
+        locals.set(
+          node.name.toLowerCase(),
+          isExternalTypeAcceptedByDeclaration(document, explicitType, nodeLine, lineIdx)
+            ? "Variant"
+            : explicitType,
+        );
       } else {
         const inferredType = node.initializer
           ? TypeResolver.resolveExpressionType(node.initializer, document, nodeLine, indexer)

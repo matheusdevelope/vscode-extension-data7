@@ -249,6 +249,8 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 | H2 | function reference (convenção: nome direto) | [`function-ref/`](../example/sugar/function-ref) |
 | H3 | lambda sem captura (convenção: Shared Function nomeada) | [`lambda/`](../example/sugar/lambda) |
 
+`array-list` tambem cobre operacoes funcionais sobre `TTList`: `map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce` e `forEach`. `map` e `filter` podem usar arrow de expressao (`x => x * 2`) ou bloco (`(x As Integer, idx As Integer) => { ... Return valor }`). Em bloco, o ultimo statement precisa ser `Return <expr>`; esse valor e convertido para `Push(<expr>)` no `map` ou para a condicao do `If` no `filter`. Funcoes que retornam `TTList_*` tambem podem retornar diretamente `lista.map(...)` ou `lista.filter(...)`; o transpiler cria uma temporaria, emite o loop nativo e retorna essa temporaria.
+
 ### Fase I — Tipos só design-time
 
 | ID | Sintaxe | Exemplo |

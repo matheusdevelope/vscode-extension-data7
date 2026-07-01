@@ -23,19 +23,28 @@ export interface ModuleReference {
 
 export class DependencyScanner {
   public static collectModuleReferences(content: string): ModuleReference[] {
-    return [];
+    try {
+      const { unit } = parseBasic(content, {
+        plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
+      });
+      const references: ModuleReference[] = [];
+      collectImportReferences(unit, references);
+      return references;
+    } catch {
+      return [];
+    }
   }
   public static scanSharedModules(sharedDir: string): Map<string, SharedModuleInfo> {
     return new Map();
   }
   public static getLocalModuleNames(srcDir: string): Set<string> {
-    return new Set();
+    return collectNamesFromBasFiles(srcDir, (content) => this.getDeclaredNamespaces(content));
   }
   public static getLocalTypeNames(srcDir: string): Set<string> {
-    return new Set();
+    return collectNamesFromBasFiles(srcDir, (content) => this.getDeclaredTypeNames(content));
   }
   public static getLocalValueNames(srcDir: string): Set<string> {
-    return new Set();
+    return collectNamesFromBasFiles(srcDir, (content) => this.getDeclaredValueNames(content));
   }
   public static hasModuleImportedMarker(content: string): boolean {
     return false;
@@ -69,9 +78,6 @@ export class DependencyScanner {
 
   public static isIgnoredNamespace(name: string): boolean {
     const lower = name.toLowerCase();
-    if (lower.startsWith("system.") || lower.startsWith("vcl.")) {
-      return true;
-    }
     const ignoredNames = new Set([
       "system",
       "forms",
@@ -151,6 +157,49 @@ export class DependencyScanner {
     collectDeclaredValueNames(unit, names);
     return names;
   }
+}
+
+function collectImportReferences(node: Node | undefined, references: ModuleReference[]): void {
+  if (!node) return;
+  switch (node.kind) {
+    case "CompilationUnit":
+      for (const member of node.members) collectImportReferences(member, references);
+      break;
+    case "ImportsDeclaration":
+      if (node.target.trim().length > 0) {
+        references.push({
+          name: node.target,
+          isExplicit: false,
+          loc: node.loc
+            ? {
+                line: node.loc.startLine - 1,
+                character: node.loc.startChar,
+              }
+            : undefined,
+        });
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+function collectNamesFromBasFiles(
+  srcDir: string,
+  collect: (content: string) => readonly string[],
+): Set<string> {
+  const names = new Set<string>();
+  for (const filePath of DependencyScanner.getFilesRecursive(srcDir, [".bas", ".d7b"])) {
+    try {
+      const content = fs.readFileSync(filePath, "utf-8");
+      for (const name of collect(content)) {
+        if (name.trim().length > 0) names.add(name.toLowerCase());
+      }
+    } catch {
+      continue;
+    }
+  }
+  return names;
 }
 
 function collectDeclaredTypeNames(node: Node | undefined, names: string[]): void {

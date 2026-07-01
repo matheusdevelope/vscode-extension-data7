@@ -25,7 +25,8 @@ export class DependencySynchronizer {
       const coreSrc = getCoreModulesPath();
       const coreDest = path.join(data7ModulesDir, "core_modules");
       if (fs.existsSync(coreSrc)) {
-        this.copyDirectorySync(coreSrc, coreDest);
+        this.replaceDirectorySync(coreSrc, coreDest);
+        synced.push("core_modules");
       }
     } catch (err) {
       logger.error("Erro ao sincronizar módulos core padrão", err);
@@ -40,7 +41,7 @@ export class DependencySynchronizer {
         // Step A: Check local private repo
         const localPrivate = RepositoryQueryService.findLocalPrivateModule(depName);
         if (localPrivate) {
-          this.copyDirectorySync(localPrivate.dirPath, depDestDir);
+          this.replaceDirectorySync(localPrivate.dirPath, depDestDir);
           synced.push(`${depName} (💻 Local v${localPrivate.manifest.version})`);
           continue;
         }
@@ -95,6 +96,11 @@ export class DependencySynchronizer {
         fs.copyFileSync(srcPath, destPath);
       }
     }
+  }
+
+  private static replaceDirectorySync(src: string, dest: string): void {
+    this.deleteDirectorySync(dest);
+    this.copyDirectorySync(src, dest);
   }
 
   private static deleteDirectorySync(dirPath: string): void {

@@ -180,7 +180,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       if (!targetSymbol) {
         const activeClass = ast.getActiveClassSymbol();
         if (activeClass) {
-          const member = TypeResolver.findMember(activeClass.name, word, this.indexer);
+          const member = TypeResolver.findMemberOnClassSymbol(activeClass, word, this.indexer);
           if (member) {
             targetSymbol = member;
           }

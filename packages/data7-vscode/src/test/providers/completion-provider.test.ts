@@ -466,5 +466,47 @@ End Namespace`;
       assertBefore(labels, "ClassZulu", "BaseAlpha");
       assertBefore(labels, "BaseAlpha", "BaseZulu");
     });
+
+    test("uses the member chain under the cursor when a line has multiple chains", async () => {
+      const code = `Namespace mod_dense_member_completion
+   Class BaseEnum
+      Property AsInteger As Integer
+         Get
+         End Get
+      End Property
+      Property AsString As String
+         Get
+         End Get
+      End Property
+   End Class
+
+   Class C
+      Private _value As BaseEnum
+
+      Public Sub Run()
+         Dim text As String = me._value.ToString() & me._value.AsInteger.ToString()
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///cp_dense_member_completion.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "me._value."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("AsInteger"), `AsInteger must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("AsString"), `AsString must appear; got ${labels.join(", ")}`);
+    });
   });
 });

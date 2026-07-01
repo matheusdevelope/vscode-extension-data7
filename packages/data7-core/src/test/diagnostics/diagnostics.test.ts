@@ -54,6 +54,10 @@ End Namespace`;
     test("emits no diagnostic when only primitives and global classes are used", () => {
       const diags = runLinter(`Namespace my_app
    Class TTest
+      Public Sub New()
+         MyBase.New()
+      End Sub
+
       Public Sub Run()
          Dim s As String
          Dim client As THTTP
@@ -112,6 +116,35 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingImport);
     });
 
+    test("does not require explicit mod_tlist import for TTList when array-list sugar is enabled", () => {
+      const indexer = setupResources();
+      const listUri = "file:///dummy/mod_tlist.bas";
+      const listCode = `Namespace mod_tlist
+   Class TTList<T>
+      Public Sub New()
+         MyBase.New()
+      End Sub
+      Public Sub Push(pValue As T)
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(listUri, listCode);
+      registerOpenDocument(listUri, "dummy/mod_tlist.bas");
+
+      const uri = "file:///dummy/test_file.bas";
+      const code = `Namespace my_app
+   Public Dim minhaList As TTList<String>
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code, { register: false });
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingImport);
+    });
+
     test("emits no diagnostic when inheriting a global Principal.bas class", () => {
       const diags = runLinter(`Namespace my_app
    Class TTest
@@ -158,6 +191,42 @@ End Namespace`;
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       const dup = expectDiagnostic(diags, DiagnosticCodes.DuplicateImport, "linha 1");
       assert.equal((dup as { data?: { code?: string } }).data?.code, DiagnosticCodes.UnusedImport);
+    });
+  });
+
+  describe("unused-import", () => {
+    test("does not emit unused-import for an unknown namespace", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///unknown_import.bas";
+      const code = `Imports modulo_que_nao_existe
+Namespace mod_test
+   Class C
+      Public Sub Run()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnusedImport);
+    });
+
+    test("still emits unused-import for a known but unreferenced System Library namespace", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///known_unused_import.bas";
+      const code = `Imports Forms
+Namespace mod_test
+   Class C
+      Public Sub Run()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectDiagnostic(diags, DiagnosticCodes.UnusedImport, "Forms");
     });
   });
 
@@ -1116,6 +1185,101 @@ End Namespace`);
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
     });
+
+    test("emits unknown-member when accessing a member on a variable with unknown type", () => {
+      const diags = runLinter(`Namespace my_app
+   Class TTest
+      Public Sub New()
+         MyBase.New()
+      End Sub
+
+      Public Sub Run()
+         Dim retorno As Retorno
+         Dim codigo As Integer = retorno.Codigo
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.UnknownType, "Retorno");
+      expectDiagnostic(diags, DiagnosticCodes.UnknownMember, "Retorno");
+    });
+
+    test("accepts an external type only for the declared variable line", () => {
+      const diags = runLinter(`Namespace my_app
+   Class TTest
+      Public Sub New()
+         MyBase.New()
+      End Sub
+
+      Public Sub Run()
+         Dim retorno As Retorno ' data7:external-type Retorno
+         retorno.Codigo = 10
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+
+    test("accepts an external type for the current method scope", () => {
+      const diags = runLinter(`Namespace my_app
+   Class TTest
+      Public Sub New()
+         MyBase.New()
+      End Sub
+
+      ' data7:external-type Retorno scope=block
+      Public Sub Run()
+         Dim retorno As Retorno
+         retorno.Codigo = 10
+      End Sub
+
+      Public Sub Other()
+         Dim retorno As Retorno
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.UnknownType, "Retorno");
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+
+    test("accepts an external type for the whole file", () => {
+      const diags = runLinter(`' data7:external-type Retorno scope=file
+Namespace my_app
+   Class TTest
+      Public Sub New()
+         MyBase.New()
+      End Sub
+
+      Public Sub Run()
+         Dim retorno As Retorno
+         retorno.Codigo = 10
+      End Sub
+
+      Public Sub Other()
+         Dim outro As Retorno
+         outro.Descricao = "ok"
+      End Sub
+
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -1130,7 +1294,7 @@ End Namespace`);
       return DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
     };
 
-    test("emits warning when Sub New does not call MyBase.New()", () => {
+    test("emits when Sub New does not call MyBase.New()", () => {
       const diags = runLinter(`Namespace mod_ctor
    Class TProduto
       Public Codigo As String
@@ -1161,7 +1325,7 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
     });
 
-    test("does NOT emit for regular Subs without 'New' name", () => {
+    test("emits when class has regular Subs but no constructor", () => {
       const diags = runLinter(`Namespace mod_ctor_sub
    Class THelper
       Sub Initialize()
@@ -1169,7 +1333,10 @@ End Namespace`);
       End Sub
    End Class
 End Namespace`);
-      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+      const payload = (diag as { data?: { action?: string; className?: string } }).data;
+      assert.equal(payload?.className, "THelper");
+      assert.equal(payload?.action, "create-constructor");
     });
 
     test("does NOT emit for Structure Sub New", () => {
@@ -1953,6 +2120,7 @@ Dim value As Product = Fetch()`;
    End Class
 End Namespace`,
       );
+      registerOpenDocument("file:///modelo_usuario.bas", "modelo_usuario.bas");
       indexer.updateFileContent(
         "file:///modeloConciliacaoCartoes.bas",
         `Namespace modeloConciliacaoCartoes
@@ -1961,6 +2129,7 @@ End Namespace`,
    End Class
 End Namespace`,
       );
+      registerOpenDocument("file:///modeloConciliacaoCartoes.bas", "modeloConciliacaoCartoes.bas");
       indexer.updateFileContent(
         "file:///Principal.bas",
         `Imports modelo_usuario
@@ -2858,6 +3027,10 @@ End Namespace`;
    Class Test
       Public CreatedAt As TDateTime
       Public ExpiresAt As TDateTime
+
+      Public Sub New()
+         MyBase.New()
+      End Sub
       
       Public Sub Run(pPath As String, pQuery As SQL.Command)
          ' Implicit conversion of numeric to TDateTime
@@ -2919,6 +3092,10 @@ End Namespace`;
    End Function
 
    Class Test
+      Public Sub New()
+         MyBase.New()
+      End Sub
+
       Public Sub Run(pPath As String)
          ' Clipboard
          Dim _clip As New Clipboard()
@@ -3027,6 +3204,74 @@ End Namespace`;
     indexer.updateFileContent(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
     expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+  });
+
+  test("keeps same-named fields scoped to the active class in enum wrapper patterns", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    indexer.updateFileContent(
+      "file:///data7_modules/core_modules/mod_tenum.bas",
+      `Namespace mod_tenum
+   Class TEnum
+      Protected _value As Integer
+      Property AsInteger As Integer
+         Get
+            AsInteger = me._value
+         End Get
+      End Property
+   End Class
+End Namespace`,
+    );
+
+    const uri = "file:///enum_wrapper_fields.bas";
+    const code = `Namespace mod_enum
+   Class BaseEnum
+      Protected _value As Integer
+      Property AsInteger As Integer
+         Get
+            AsInteger = me._value
+         End Get
+      End Property
+      Property AsString As String
+         Get
+            AsString = ""
+         End Get
+      End Property
+   End Class
+
+   Class TEnum
+      Private _value As BaseEnum
+
+      Property Value As BaseEnum
+         Get
+            Value = me._value
+         End Get
+      End Property
+
+      Property AsOption As String
+         Get
+            AsOption = me._value.AsString & "=" & me._value.AsInteger.ToString()
+         End Get
+      End Property
+
+      Sub New(pValue As BaseEnum)
+         me._value = pValue
+      End Sub
+
+      Sub New(pValue As TEnum)
+         me._value = pValue.Value
+      End Sub
+
+      Function GetID() As String
+         GetID = me._value.AsString
+      End Function
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
     expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
   });

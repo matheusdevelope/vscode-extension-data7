@@ -56,6 +56,12 @@ export class MembersRule implements Rule {
     const startChar = memberRange.start.character;
 
     const prefixLower = exprToString(node.target)?.toLowerCase() ?? "";
+    if (
+      node.target.kind === "Identifier" &&
+      context.isExternalTypeAllowed(node.target.name, lineIdx)
+    ) {
+      return;
+    }
 
     if (prefixLower === "me" || prefixLower === "mybase") {
       if (context.activeClass) {
@@ -109,7 +115,7 @@ export class MembersRule implements Rule {
       isStaticAccess = staticAccess.isStaticAccess;
     }
 
-    if (typeName && DiagnosticsLinter.isKnownMemberContainer(typeName, context.indexer)) {
+    if (typeName && this.isResolvableMemberContainer(typeName, context)) {
       const resolved = TypeResolver.findMember(typeName, node.member, context.indexer);
       if (
         !resolved &&
@@ -188,6 +194,8 @@ export class MembersRule implements Rule {
           context.report(diag);
         }
       }
+    } else if (typeName && this.shouldReportUnknownReceiverType(typeName, lineIdx, context)) {
+      this.pushUnknownReceiverTypeDiagnostic(node.member, typeName, memberRange, context);
     }
 
     const isAddressOf =
@@ -225,6 +233,12 @@ export class MembersRule implements Rule {
       const prefixLower = exprToString(node.callee)?.toLowerCase() ?? "";
       let isStaticAccess = false;
       let typeName: string | undefined;
+      if (
+        node.callee.kind === "Identifier" &&
+        context.isExternalTypeAllowed(node.callee.name, lineIdx)
+      ) {
+        return;
+      }
       if (prefixLower === "me") {
         typeName = context.activeClass?.name;
       } else if (prefixLower === "mybase") {
@@ -255,7 +269,7 @@ export class MembersRule implements Rule {
             argumentTypes,
           ) ?? TypeResolver.findMember(typeName, node.methodName, context.indexer, arity);
 
-        if (DiagnosticsLinter.isKnownMemberContainer(typeName, context.indexer)) {
+        if (this.isResolvableMemberContainer(typeName, context)) {
           const exists =
             resolvedMethod ?? TypeResolver.findMember(typeName, node.methodName, context.indexer);
           if (
@@ -304,6 +318,14 @@ export class MembersRule implements Rule {
             diag.code = DiagnosticCodes.InstanceMemberAccessOnType;
             context.report(diag);
           }
+        } else if (this.shouldReportUnknownReceiverType(typeName, lineIdx, context)) {
+          const range = new vscode.Range(
+            lineIdx,
+            startChar,
+            lineIdx,
+            startChar + node.methodName.length,
+          );
+          this.pushUnknownReceiverTypeDiagnostic(node.methodName, typeName, range, context);
         }
       }
     } else {
@@ -489,6 +511,7 @@ export class MembersRule implements Rule {
 
     let shouldSkip =
       PRIMITIVE_TYPES.has(nameLower) ||
+      context.isExternalTypeAllowed(name, node.loc.startLine - 1) ||
       nameLower === "variant" ||
       nameLower === "tobject" ||
       nameLower === "void" ||
@@ -602,6 +625,46 @@ export class MembersRule implements Rule {
       typeName: systemSymbol.name,
       isStaticAccess: systemSymbol.kind === "class" || systemSymbol.kind === "structure",
     };
+  }
+
+  private isResolvableMemberContainer(typeName: string, context: RuleContext): boolean {
+    return (
+      DiagnosticsLinter.isKnownMemberContainer(typeName, context.indexer) ||
+      TypeResolver.findClassSymbol(typeName, context.indexer) !== undefined ||
+      TypeResolver.getAllMembersForType(typeName, context.indexer).length > 0
+    );
+  }
+
+  private shouldReportUnknownReceiverType(
+    typeName: string,
+    lineIdx: number,
+    context: RuleContext,
+  ): boolean {
+    const lower = typeName.toLowerCase();
+    return (
+      lower !== "variant" &&
+      lower !== "tobject" &&
+      lower !== "void" &&
+      !PRIMITIVE_TYPES.has(lower) &&
+      !context.isGenericTypeParameter(typeName) &&
+      !context.isExternalTypeAllowed(typeName, lineIdx) &&
+      !this.isResolvableMemberContainer(typeName, context)
+    );
+  }
+
+  private pushUnknownReceiverTypeDiagnostic(
+    memberName: string,
+    typeName: string,
+    range: vscode.Range,
+    context: RuleContext,
+  ): void {
+    const diag = new vscode.Diagnostic(
+      range,
+      `Membro "${memberName}" nÃ£o pode ser resolvido porque o tipo "${typeName}" nÃ£o foi encontrado ou nÃ£o estÃ¡ acessÃ­vel neste escopo.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.UnknownMember;
+    context.report(diag);
   }
 
   private resolveParameterlessFinalCall(

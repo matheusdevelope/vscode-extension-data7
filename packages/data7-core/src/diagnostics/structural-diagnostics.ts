@@ -409,6 +409,32 @@ export function validateMyBaseNewCalls(
         const prevIsStructure = this.currentClassIsStructure;
         this.currentClassName = node.name;
         this.currentClassIsStructure = isStructureDeclaration(node);
+        if (!this.currentClassIsStructure) {
+          const constructors = node.members.filter(
+            (member): member is MethodDeclaration =>
+              member.kind === "MethodDeclaration" && !!member.isConstructor,
+          );
+          if (constructors.length === 0 && node.loc) {
+            const range = new vscode.Range(
+              node.loc.startLine - 1,
+              node.loc.startChar,
+              node.loc.startLine - 1,
+              node.loc.endChar,
+            );
+            const diag = new vscode.Diagnostic(
+              range,
+              `Classe '${node.name}' deve declarar pelo menos um construtor 'Sub New'. Toda classe Data7 deve inicializar o objeto base no construtor.`,
+              vscode.DiagnosticSeverity.Error,
+            );
+            diag.code = DiagnosticCodes.MissingMyBaseNew;
+            setDiagnosticPayload(diag, {
+              code: DiagnosticCodes.MissingMyBaseNew,
+              className: node.name,
+              action: "create-constructor",
+            });
+            diagnostics.push(diag);
+          }
+        }
         super.walk(node);
         this.currentClassName = prev;
         this.currentClassIsStructure = prevIsStructure;
@@ -445,11 +471,12 @@ export function validateMyBaseNewCalls(
               `Construtor 'Sub New' da classe '${this.currentClassName || "desconhecida"}' não chama ` +
               `'MyBase.New()'. Toda classe Data7 deve inicializar o objeto base no construtor. ` +
               `Se a classe herda de outra, passe os argumentos necessários: 'MyBase.New(pParam As String)'.`;
-            const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+            const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Error);
             diag.code = DiagnosticCodes.MissingMyBaseNew;
             setDiagnosticPayload(diag, {
               code: DiagnosticCodes.MissingMyBaseNew,
               className: this.currentClassName || "",
+              action: "insert-mybase-new",
             });
             diagnostics.push(diag);
           }

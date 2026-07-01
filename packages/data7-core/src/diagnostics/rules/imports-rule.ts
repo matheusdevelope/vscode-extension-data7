@@ -4,7 +4,7 @@ import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import { ASTWordCollector } from "../ast-collectors";
 import { collectTransitivelyRequiredImports } from "../import-usage";
 import type { Rule, RuleContext } from "./base-rule";
-import { lookupSystemByContainer } from "../../system-library";
+import { lookupSystemByContainer, lookupSystemNamespaceOrClassByName } from "../../system-library";
 
 export class ImportsRule implements Rule {
   public readonly name = "unused-imports";
@@ -63,7 +63,7 @@ export class ImportsRule implements Rule {
       const isReferenced =
         directlyReferencedImports.has(key) || transitivelyRequiredImports.has(key);
 
-      if (!isReferenced) {
+      if (!isReferenced && this.isKnownImportNamespace(imp.name, context)) {
         const diag = new vscode.Diagnostic(
           range,
           `Imports não utilizado: "${imp.name}" não é referenciado no código.`,
@@ -98,5 +98,17 @@ export class ImportsRule implements Rule {
     return symbolsInNamespace.some((symbol) =>
       wordCollector.usedWords.has(symbol.name.toLowerCase()),
     );
+  }
+
+  private isKnownImportNamespace(name: string, context: RuleContext): boolean {
+    if (lookupSystemNamespaceOrClassByName(name).length > 0) return true;
+    if (lookupSystemByContainer(name).length > 0) return true;
+
+    const workspaceMatches = context.indexer.getSymbolsByName(name);
+    if (workspaceMatches.some((symbol) => symbol.kind === "namespace" || symbol.kind === "class")) {
+      return true;
+    }
+
+    return context.indexer.getSymbolsByContainer(name).length > 0;
   }
 }

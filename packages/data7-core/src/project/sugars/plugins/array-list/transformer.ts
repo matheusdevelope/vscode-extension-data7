@@ -7,6 +7,7 @@ import {
   type MethodInvocation,
   type Node,
   type ParameterDeclaration,
+  type ReturnStatement,
   type Statement,
   type TypeReference,
   type VariableDeclaration,
@@ -15,6 +16,8 @@ interface ListVariableInfo {
   readonly type: TypeReference;
   readonly elementType?: TypeReference;
 }
+
+type ArrowFunctionExpression = Extract<Expression, { kind: "ArrowFunctionExpression" }>;
 
 /**
  * Owns lowering of TTList<T>, collection literals, spreads and functional
@@ -54,27 +57,18 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     if (!sourceInfo) return undefined;
     const arrow = call.arguments[0];
     if (arrow?.kind !== "ArrowFunctionExpression") return undefined;
-    if (Array.isArray(arrow.body) && methodName !== "foreach") return undefined;
 
     this.usedSugars.add("array-list");
 
     switch (methodName) {
       case "map":
-        if (
-          !declaration.type ||
-          !this.isTTListType(declaration.type) ||
-          Array.isArray(arrow.body)
-        ) {
+        if (!declaration.type || !this.isTTListType(declaration.type)) {
           return undefined;
         }
         this.rememberListVariable(declaration.name, declaration.type);
         return this.expandMapDeclaration(declaration, call.callee, sourceInfo, arrow);
       case "filter":
-        if (
-          !declaration.type ||
-          !this.isTTListType(declaration.type) ||
-          Array.isArray(arrow.body)
-        ) {
+        if (!declaration.type || !this.isTTListType(declaration.type)) {
           return undefined;
         }
         this.rememberListVariable(declaration.name, declaration.type);
@@ -103,6 +97,34 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
       default:
         return undefined;
     }
+  }
+
+  protected expandFunctionalListReturn(
+    statement: ReturnStatement,
+    targetType: TypeReference | undefined,
+  ): Statement[] | undefined {
+    if (!this.isSugarEnabled("array-list")) return undefined;
+    if (!targetType || statement.expression?.kind !== "MethodInvocation") return undefined;
+
+    const tempName = this.freshSource();
+    const tempDeclaration: VariableDeclaration = {
+      kind: "VariableDeclaration",
+      name: tempName,
+      type: targetType,
+      initializer: statement.expression,
+      loc: statement.loc,
+    };
+    const expanded = this.expandFunctionalListDeclaration(tempDeclaration);
+    if (!expanded) return undefined;
+
+    return [
+      ...expanded,
+      {
+        kind: "ReturnStatement",
+        expression: { kind: "Identifier", name: tempName, loc: statement.loc },
+        loc: statement.loc,
+      },
+    ];
   }
 
   protected expandFunctionalForEachStatement(
@@ -144,8 +166,11 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
-  ): Statement[] {
+    arrow: ArrowFunctionExpression,
+  ): Statement[] | undefined {
+    const returnBody = this.getArrowReturnBody(arrow);
+    if (!returnBody) return undefined;
+
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
     const targetRef: Identifier = {
       kind: "Identifier",
@@ -153,6 +178,9 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
       loc: declaration.loc,
     };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
+    if (returnBody.prefix.length > 0) {
+      body.push(...this.transformStatements(returnBody.prefix));
+    }
     body.push({
       kind: "ExpressionStatement",
       expression: {
@@ -161,7 +189,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
         methodName: "Push",
         typeArguments: [],
         arguments: [
-          this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+          this.transformExpression(returnBody.expression, false, declaration.loc?.startLine),
         ],
         loc: declaration.loc,
       },
@@ -175,8 +203,11 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
-  ): Statement[] {
+    arrow: ArrowFunctionExpression,
+  ): Statement[] | undefined {
+    const returnBody = this.getArrowReturnBody(arrow);
+    if (!returnBody) return undefined;
+
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
     const targetRef: Identifier = {
       kind: "Identifier",
@@ -185,13 +216,12 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     const itemExpr = this.getLambdaItemReference(source, sourceInfo, arrow, loop.idxVar, 0);
+    if (returnBody.prefix.length > 0) {
+      body.push(...this.transformStatements(returnBody.prefix));
+    }
     body.push({
       kind: "IfStatement",
-      condition: this.transformExpression(
-        arrow.body as Expression,
-        false,
-        declaration.loc?.startLine,
-      ),
+      condition: this.transformExpression(returnBody.expression, false, declaration.loc?.startLine),
       thenBranch: [
         {
           kind: "ExpressionStatement",
@@ -217,7 +247,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
     const targetRef: Identifier = {
@@ -242,7 +272,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
     const targetRef: Identifier = {
@@ -274,7 +304,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
     const targetRef: Identifier = {
@@ -303,7 +333,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
   ): Statement[] {
     const loop = this.createFunctionalLoop(source, sourceInfo, arrow, declaration.loc);
     const targetRef: Identifier = {
@@ -341,7 +371,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     declaration: VariableDeclaration,
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
     initialValue: Expression | undefined,
   ): Statement[] {
     const loopStart = initialValue ? 0 : 1;
@@ -479,6 +509,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
       methodName === "map"
         ? this.expandMapDeclaration(tempDeclaration, expression.callee, sourceInfo, arrow)
         : this.expandFilterDeclaration(tempDeclaration, expression.callee, sourceInfo, arrow);
+    if (!expanded) return undefined;
 
     return [
       ...expanded,
@@ -506,7 +537,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   protected createFunctionalLoop(
     source: Expression,
     _sourceInfo: ListVariableInfo,
-    _arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    _arrow: ArrowFunctionExpression,
     loc: Node["loc"],
     startIndex = 0,
   ): {
@@ -542,7 +573,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   protected createLambdaParameterDeclarations(
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
     idxVar: Identifier,
     itemParamOffset: number,
   ): Statement[] {
@@ -581,7 +612,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   protected getLambdaItemReference(
     source: Expression,
     sourceInfo: ListVariableInfo,
-    arrow: Extract<Expression, { kind: "ArrowFunctionExpression" }>,
+    arrow: ArrowFunctionExpression,
     idxVar: Identifier,
     itemParamOffset: number,
   ): Expression {
@@ -619,6 +650,24 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
             loc: declaration.loc,
           }
         : undefined,
+    };
+  }
+
+  private getArrowReturnBody(
+    arrow: ArrowFunctionExpression,
+  ): { readonly prefix: Statement[]; readonly expression: Expression } | undefined {
+    if (!Array.isArray(arrow.body)) {
+      return { prefix: [], expression: arrow.body };
+    }
+
+    const lastStatement = arrow.body[arrow.body.length - 1];
+    if (lastStatement?.kind !== "ReturnStatement" || !lastStatement.expression) {
+      return undefined;
+    }
+
+    return {
+      prefix: arrow.body.slice(0, -1),
+      expression: lastStatement.expression,
     };
   }
 

@@ -1248,7 +1248,6 @@ const events: readonly EventSpec[] = [
     params: [
       { name: "Sender", type: "TObject" },
       { name: "ARow", type: "Integer" },
-      { name: "Marcado", type: "Boolean" },
     ],
     description: "Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão.",
   },

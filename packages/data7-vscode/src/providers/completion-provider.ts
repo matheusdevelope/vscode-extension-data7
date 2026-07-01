@@ -165,7 +165,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
           });
         }
 
-        TypeResolver.getInheritedMembers(activeClass.name, this.indexer)
+        TypeResolver.getInheritedMembersForClassSymbol(activeClass, this.indexer)
           .filter((s) => !s.isPrivate)
           .forEach((s) => {
             entries.push(
@@ -235,7 +235,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         );
       });
 
-      TypeResolver.getInheritedMembers(activeClass.name, this.indexer).forEach((s) => {
+      TypeResolver.getInheritedMembersForClassSymbol(activeClass, this.indexer).forEach((s) => {
         if (s.isPrivate) return;
         entries.push(
           this.createRankedSymbolItem(

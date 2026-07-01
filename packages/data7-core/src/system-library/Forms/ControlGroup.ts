@@ -35,4 +35,20 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "ControlGroup",
     description: "Texto associado ao agrupador visual.",
   },
+  {
+    name: "Caption",
+    kind: "property",
+    type: "String",
+    isShared: false,
+    isPrivate: false,
+    range: {
+      startLine: 0,
+      startChar: 0,
+      endLine: 0,
+      endChar: 0,
+    },
+    fileUri: "system://library",
+    containerName: "ControlGroup",
+    description: "Texto associado ao agrupador visual, exibido em tela.",
+  },
 ];

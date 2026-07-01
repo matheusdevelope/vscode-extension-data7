@@ -8,6 +8,9 @@ Namespace mod_demo
    Class CardAdm
       Inherits TEnum
       Private Shared _Initialized As Boolean
+      Private Sub New(pValue As Integer, pDescription As String)
+         MyBase.New(pValue, pDescription)
+      End Sub
       Private Shared Sub Initialize()
          If _Initialized Then Exit Sub
          TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))

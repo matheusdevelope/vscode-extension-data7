@@ -26,6 +26,7 @@ export interface RuleContext {
   report(diagnostic: vscode.Diagnostic): void;
   isLocalDeclared(name: string): boolean;
   isGenericTypeParameter(name: string): boolean;
+  isExternalTypeAllowed(typeName: string, lineIdx: number): boolean;
 }
 
 export interface Rule {

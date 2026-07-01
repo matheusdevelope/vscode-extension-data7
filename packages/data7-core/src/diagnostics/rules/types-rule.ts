@@ -16,6 +16,8 @@ import { typeRefToString, exprToString } from "../diagnostic-helpers";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
 import { lookupSystemByName } from "../../system-library";
+import { readConfiguration } from "../../infra/configuration";
+import { SugarEngine } from "../../project/sugars";
 
 export class TypesRule implements Rule {
   public readonly name = "types";
@@ -63,8 +65,10 @@ export class TypesRule implements Rule {
   private checkTypeReference(node: TypeReference, context: RuleContext): void {
     if (!node.loc) return;
     if (context.isGenericTypeParameter(node.name)) return;
+    if (this.isArrayListRuntimeType(node.name) && this.isArrayListSugarEnabled()) return;
     const lineIdx = node.loc.startLine - 1;
     const col = node.loc.startChar;
+    if (context.isExternalTypeAllowed(node.name, lineIdx)) return;
 
     DiagnosticsLinter.validateTypeReference(
       node.name,
@@ -74,6 +78,20 @@ export class TypesRule implements Rule {
       context.indexer,
       context.diagnostics,
     );
+  }
+
+  private isArrayListRuntimeType(typeName: string): boolean {
+    const lower = typeName.toLowerCase();
+    return lower === "ttlist" || lower.startsWith("ttlist_");
+  }
+
+  private isArrayListSugarEnabled(): boolean {
+    const config = readConfiguration();
+    return new SugarEngine({
+      enabled: config.features.language.sugars && config.sugars.enabled,
+      enabledSugarIds: config.sugars.enabledIds,
+      disabledSugarIds: config.sugars.disabledIds,
+    }).isEnabled("array-list");
   }
 
   private checkVariableDeclaration(node: VariableDeclaration, context: RuleContext): void {
@@ -289,7 +307,7 @@ export class TypesRule implements Rule {
     const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
     const diag = new vscode.Diagnostic(
       range,
-      `Assinatura incompatÃ­vel: o evento "${eventName}" espera ${delegate.parameters.length} parÃ¢metro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
+      `Assinatura incompativel: o evento "${eventName}" espera ${delegate.parameters.length} parametro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.EventSignatureMismatch;

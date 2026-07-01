@@ -30,6 +30,36 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
     },
   ];
 
+  classMembers.push({
+    kind: "MethodDeclaration",
+    name: "New",
+    isConstructor: true,
+    typeParameters: [],
+    parameters: [
+      {
+        kind: "ParameterDeclaration",
+        name: "pValue",
+        type: { kind: "TypeReference", name: "Integer", typeArguments: [], loc: declaration.loc },
+        loc: declaration.loc,
+      },
+      {
+        kind: "ParameterDeclaration",
+        name: "pDescription",
+        type: { kind: "TypeReference", name: "String", typeArguments: [], loc: declaration.loc },
+        loc: declaration.loc,
+      },
+    ],
+    body: [
+      {
+        kind: "OpaqueStatement",
+        text: "MyBase.New(pValue, pDescription)",
+        loc: declaration.loc,
+      },
+    ],
+    modifiers: ["Private"],
+    loc: declaration.loc,
+  });
+
   const initBody: Statement[] = [
     { kind: "OpaqueStatement", text: "If _Initialized Then Exit Sub", loc: declaration.loc },
   ];

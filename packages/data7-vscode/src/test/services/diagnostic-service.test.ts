@@ -179,6 +179,64 @@ describe("DiagnosticService live lifecycle", () => {
     );
   });
 
+  test("emits module-not-found instead of unused-import for unknown Imports", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    const basPath = path.join(srcDir, "mod_actions.bas");
+    const code = [
+      "Imports Vcl.Dialogs",
+      "Imports modulo_que_nao_existe",
+      "Namespace mod_actions",
+      "Class Actions",
+      "  Public Sub Run()",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    fs.writeFileSync(basPath, code, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(uri.toString().toLowerCase(), diags);
+      },
+      get: (uri: vscode.Uri) => entries.get(uri.toString().toLowerCase()),
+      delete: (uri: vscode.Uri) => {
+        entries.delete(uri.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    const doc = createMockDoc(vscode.Uri.file(basPath).toString(), code);
+
+    DiagnosticService.refreshDiagnostics(doc);
+
+    const diags = entries.get(doc.uri.toString().toLowerCase()) ?? [];
+    assert.deepEqual(
+      diags
+        .filter((diag) => diag.code === DiagnosticCodes.ModuleNotFound)
+        .map((diag) => diag.message.match(/"([^"]+)"/)?.[1])
+        .sort(),
+      ["Vcl.Dialogs", "modulo_que_nao_existe"].sort(),
+    );
+    assert.equal(
+      diags.some((diag) => diag.code === DiagnosticCodes.UnusedImport),
+      false,
+    );
+  });
+
   test("does not emit module-not-found for project globals declared in Principal.bas", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
     const srcDir = path.join(tmpDir, "src");
@@ -433,6 +491,9 @@ describe("DiagnosticService live lifecycle", () => {
       "Imports ControleTitulos",
       "Namespace frmConciliacao",
       "  Class Form",
+      "    Public Sub New()",
+      "      MyBase.New()",
+      "    End Sub",
       "    Public Sub Free()",
       "      MyBase.Free()",
       "    End Sub",
@@ -446,6 +507,9 @@ describe("DiagnosticService live lifecycle", () => {
     const codeY = [
       "Namespace ControleTitulos",
       "  Class ControleTitulos",
+      "    Public Sub New()",
+      "      MyBase.New()",
+      "    End Sub",
       "    Public Sub Free()",
       "      MyBase.Free()",
       "    End Sub",
@@ -497,6 +561,9 @@ describe("DiagnosticService live lifecycle", () => {
       const codeYChanged = [
         "Namespace OutroNome",
         "  Class OutroNome",
+        "    Public Sub New()",
+        "      MyBase.New()",
+        "    End Sub",
         "    Public Sub Free()",
         "      MyBase.Free()",
         "    End Sub",
@@ -544,6 +611,9 @@ describe("DiagnosticService live lifecycle", () => {
       "Imports ControleTitulos",
       "Namespace frmConciliacao",
       "  Class Form",
+      "    Public Sub New()",
+      "      MyBase.New()",
+      "    End Sub",
       "    Public Sub Free()",
       "      MyBase.Free()",
       "    End Sub",
@@ -606,6 +676,9 @@ describe("DiagnosticService live lifecycle", () => {
       const codeYFixed = [
         "Namespace ControleTitulos",
         "  Class Titulo",
+        "    Public Sub New()",
+        "      MyBase.New()",
+        "    End Sub",
         "    Public Sub Free()",
         "      MyBase.Free()",
         "    End Sub",

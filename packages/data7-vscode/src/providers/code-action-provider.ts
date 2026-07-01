@@ -63,6 +63,10 @@ import {
   addReturnAssignmentInCatchFix,
   addReturnAssignmentInCatchBulkFix,
 } from "./quick-fixes/return-assignment-in-catch";
+import {
+  addSharedReturnGlobalFunctionFix,
+  addSharedReturnGlobalFunctionBulkFix,
+} from "./quick-fixes/shared-return-global-function";
 import { addInlineIfThenFix, addInlineIfThenBulkFix } from "./quick-fixes/inline-if-then";
 import {
   addFinallyBlockUnsupportedFix,
@@ -81,6 +85,7 @@ import {
 
 const DIAGNOSTIC_PRIORITY: Record<string, number> = {
   [DiagnosticCodes.RedundantTerminalExit]: 0,
+  [DiagnosticCodes.SharedReturnGlobalFunction]: 0,
   [DiagnosticCodes.ReturnUnrecommended]: 1,
   [DiagnosticCodes.ReturnAssignmentInCatch]: 1,
   [DiagnosticCodes.InlineIfThen]: 2,
@@ -217,6 +222,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         addReturnAssignmentInCatchFix(actions, document, diagnostic);
         addReturnAssignmentInCatchBulkFix(actions, document, diagnostic);
         break;
+      case DiagnosticCodes.SharedReturnGlobalFunction:
+        addSharedReturnGlobalFunctionFix(actions, document, diagnostic);
+        addSharedReturnGlobalFunctionBulkFix(actions, document, diagnostic);
+        break;
       case DiagnosticCodes.InlineIfThen:
         addInlineIfThenFix(actions, document, diagnostic);
         addInlineIfThenBulkFix(actions, document, diagnostic);
@@ -256,8 +265,10 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     const actions: vscode.CodeAction[] = [];
     try {
+      const diagnostics = collectContextDiagnostics(document, range, context);
+
       // Per-diagnostic QuickFixes.
-      for (const diagnostic of context.diagnostics) {
+      for (const diagnostic of diagnostics) {
         actions.push(...this.getQuickFixesForDiagnostic(document, diagnostic));
       }
 
@@ -267,7 +278,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
       // Source actions (always available; VS Code filters by `only` when relevant).
       addOrganizeImportsAction(actions, document);
-      addFixAllAction(actions, document, context.diagnostics, this);
+      addFixAllAction(actions, document, diagnostics, this);
 
       return actions;
     } catch (e) {
@@ -310,6 +321,39 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     return mergeActionEdits(collected);
   }
+}
+
+function collectContextDiagnostics(
+  document: vscode.TextDocument,
+  range: vscode.Range | vscode.Selection,
+  context: vscode.CodeActionContext,
+): vscode.Diagnostic[] {
+  if (context.diagnostics.length > 0) return [...context.diagnostics];
+
+  return vscode.languages
+    .getDiagnostics(document.uri)
+    .filter((diagnostic) => rangesTouch(diagnostic.range, range));
+}
+
+function rangesTouch(left: vscode.Range, right: vscode.Range | vscode.Selection): boolean {
+  const startsAfterRightEnds =
+    left.start.line > right.end.line ||
+    (left.start.line === right.end.line && left.start.character > right.end.character);
+  const endsBeforeRightStarts =
+    left.end.line < right.start.line ||
+    (left.end.line === right.start.line && left.end.character < right.start.character);
+
+  if (!startsAfterRightEnds && !endsBeforeRightStarts) return true;
+
+  const rightIsEmpty =
+    right.start.line === right.end.line && right.start.character === right.end.character;
+  if (!rightIsEmpty) return false;
+
+  return (
+    right.start.line === left.start.line &&
+    right.start.character >= left.start.character &&
+    right.start.character <= left.end.character
+  );
 }
 
 function addGeneratedBulkFixFromUnitFixes(

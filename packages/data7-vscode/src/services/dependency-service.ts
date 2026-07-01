@@ -3,7 +3,6 @@ import { ProjectService } from "./project-service";
 import { DiagnosticService } from "./diagnostic-service";
 import {
   Builder,
-  PROJECT_CONFIG_FILENAME,
   WorkspaceSymbolIndexer,
   logger,
   ModuleOrchestrator,
@@ -18,20 +17,24 @@ export interface DependencyDetectionResult {
 }
 
 export class DependencyService {
-  public static syncProjectData7Modules(
+  public static async syncProjectData7Modules(
     workspaceDir: string,
-    dependencies?: Record<string, string>,
-  ): string[] {
-    // Deprecated. Logic moved to the Package Manager.
-    return [];
+    _dependencies?: Record<string, string>,
+  ): Promise<string[]> {
+    const synced = await ModuleOrchestrator.syncDependencies(workspaceDir);
+    await this.indexData7Modules(workspaceDir);
+    return synced;
   }
 
   public static async detectAndSyncProjectDependencies(
     workspaceDir: string,
     opts: { silent?: boolean } = {},
   ): Promise<DependencyDetectionResult> {
-    // Deprecated. Auto-scan is disabled. Returns empty results to satisfy old callers.
-    return { synced: [], missing: [] };
+    const synced = await this.syncProjectData7Modules(workspaceDir);
+    if (!opts.silent && synced.length > 0) {
+      vscode.window.showInformationMessage(`MÃ³dulos sincronizados: ${synced.join(", ")}`);
+    }
+    return { synced, missing: [] };
   }
 
   public static async refreshActiveProject(opts: { silent?: boolean } = {}): Promise<void> {
@@ -40,11 +43,8 @@ export class DependencyService {
     if (!project) return;
 
     try {
+      await this.syncProjectData7Modules(project.workspaceDir);
       Builder.buildProject(project.workspaceDir, project.projectFilePath);
-      const data7ModulesDir = path.join(project.workspaceDir, "data7_modules");
-      if (fs.existsSync(data7ModulesDir)) {
-        await WorkspaceSymbolIndexer.getInstance().indexDirectory(data7ModulesDir);
-      }
       DiagnosticService.refreshAllActive();
     } catch (err) {
       logger.error("Falha ao atualizar projeto.", err);
@@ -58,8 +58,7 @@ export class DependencyService {
   public static async refreshWorkspaceDependencies(
     workspaceDir: string,
   ): Promise<DependencyDetectionResult> {
-    // Deprecated.
-    return { synced: [], missing: [] };
+    return this.detectAndSyncProjectDependencies(workspaceDir, { silent: true });
   }
 
   public static async installModule(moduleName?: string): Promise<void> {
@@ -170,5 +169,12 @@ export class DependencyService {
         }
       },
     );
+  }
+
+  private static async indexData7Modules(workspaceDir: string): Promise<void> {
+    const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+    if (fs.existsSync(data7ModulesDir)) {
+      await WorkspaceSymbolIndexer.getInstance().indexDirectory(data7ModulesDir);
+    }
   }
 }

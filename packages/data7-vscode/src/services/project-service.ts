@@ -410,7 +410,7 @@ export class ProjectService {
         "utf-8",
       );
       await this.protectProjectFolder(projectDir);
-      DependencyService.syncProjectData7Modules(projectDir, {});
+      await DependencyService.syncProjectData7Modules(projectDir, {});
 
       const projectFilePath = path.join(projectDir, `${projectName}.7Proj`);
       try {
@@ -667,26 +667,6 @@ export class ProjectService {
 
           Decompiler.decompileProject(targetProjFile, targetWorkspace, knownSharedModules);
 
-          let dependencies: Record<string, string> = {};
-          const configJsonPath = path.join(targetWorkspace, PROJECT_CONFIG_FILENAME);
-          try {
-            const cfg = readProjectConfig(configJsonPath);
-            if (cfg) dependencies = { ...cfg.dependencies };
-          } catch (err) {
-            logger.warn(
-              `Falha ao ler data7.json após decompile: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-
-          if (repoBasPath && fs.existsSync(repoBasPath)) {
-            DependencyScanner.syncDependencies(
-              path.join(targetWorkspace, "src"),
-              path.join(targetWorkspace, "data7_modules"),
-              repoBasPath,
-              dependencies,
-              { alwaysSyncDirs: [getCoreModulesPath()] },
-            );
-          }
           await DependencyService.detectAndSyncProjectDependencies(targetWorkspace, {
             silent: true,
           });

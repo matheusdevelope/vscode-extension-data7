@@ -224,7 +224,7 @@ describe("BuildService pre-build auto-fix", () => {
   function stubBuildDependencies(): void {
     ProjectService.getActiveProject = () => ({ workspaceDir, projectFilePath });
     WorkspaceTrustService.ensureTrusted = () => true;
-    DependencyService.syncProjectData7Modules = () => [];
+    DependencyService.syncProjectData7Modules = async () => [];
     BuildService._ensureProjectBuilt = (): EnsureProjectBuiltResult => ({
       outputFilePath: projectFilePath,
       skipped: false,
@@ -308,7 +308,7 @@ describe("BuildService.run build output", () => {
       ProjectService.getActiveProject = () => ({ workspaceDir: tmp, projectFilePath });
       ProjectService.ensureExecutorPath = async () => path.join(tmp, "Executor.exe");
       WorkspaceTrustService.ensureTrusted = () => true;
-      DependencyService.syncProjectData7Modules = () => [];
+      DependencyService.syncProjectData7Modules = async () => [];
       vscode.workspace.getConfiguration = (() => ({
         get: (key: string): unknown => {
           if (key === "databaseConnectionId") return "config-db";
@@ -370,7 +370,7 @@ describe("BuildService.run build output", () => {
       ProjectService.getActiveProject = () => ({ workspaceDir: tmp, projectFilePath });
       ProjectService.ensureExecutorPath = async () => path.join(tmp, "Executor.exe");
       WorkspaceTrustService.ensureTrusted = () => true;
-      DependencyService.syncProjectData7Modules = () => [];
+      DependencyService.syncProjectData7Modules = async () => [];
       BuildService._ensureProjectBuilt = (_workspaceDir, output): EnsureProjectBuiltResult => ({
         outputFilePath: output,
         skipped: false,
@@ -435,7 +435,7 @@ describe("BuildService.run build output", () => {
       ProjectService.getActiveProject = () => ({ workspaceDir: tmp, projectFilePath });
       ProjectService.ensureExecutorPath = async () => path.join(tmp, "Executor.exe");
       WorkspaceTrustService.ensureTrusted = () => true;
-      DependencyService.syncProjectData7Modules = () => [];
+      DependencyService.syncProjectData7Modules = async () => [];
       DiagnosticService.lintWorkspaceForRun = async () => ({
         errorCount: 1,
         warningCount: 0,

@@ -45,9 +45,14 @@ describe("DependencyScanner", () => {
   });
 
   describe("isIgnoredNamespace", () => {
-    test("ignores Delphi/VCL/Collections platform namespaces", () => {
-      assert.equal(DependencyScanner.isIgnoredNamespace("system.xml"), true);
-      assert.equal(DependencyScanner.isIgnoredNamespace("vcl.forms"), true);
+    test("does not ignore qualified platform namespaces by prefix alone", () => {
+      assert.equal(DependencyScanner.isIgnoredNamespace("system.xml"), false);
+      assert.equal(DependencyScanner.isIgnoredNamespace("vcl.dialogs"), false);
+    });
+
+    test("ignores known native roots handled outside dependency validation", () => {
+      assert.equal(DependencyScanner.isIgnoredNamespace("system"), true);
+      assert.equal(DependencyScanner.isIgnoredNamespace("vcl"), true);
       assert.equal(DependencyScanner.isIgnoredNamespace("collections"), true);
     });
 
@@ -57,6 +62,29 @@ describe("DependencyScanner", () => {
 
     test("does NOT ignore arbitrary user namespaces", () => {
       assert.equal(DependencyScanner.isIgnoredNamespace("my_own_ns"), false);
+    });
+  });
+
+  describe("collectModuleReferences", () => {
+    test("collects Imports declarations with source location", () => {
+      const references = DependencyScanner.collectModuleReferences(
+        ["Imports Vcl.Dialogs", "Imports mod_pipeline", "", "Namespace app", "End Namespace"].join(
+          "\n",
+        ),
+      );
+
+      assert.deepEqual(
+        references.map((reference) => ({
+          name: reference.name,
+          isExplicit: reference.isExplicit,
+          line: reference.loc?.line,
+          character: reference.loc?.character,
+        })),
+        [
+          { name: "Vcl.Dialogs", isExplicit: false, line: 0, character: 8 },
+          { name: "mod_pipeline", isExplicit: false, line: 1, character: 8 },
+        ],
+      );
     });
   });
 });

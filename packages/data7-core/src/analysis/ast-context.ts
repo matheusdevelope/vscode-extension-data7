@@ -46,6 +46,12 @@ interface MemberCandidate {
   memberName: string;
   receiver?: Expression;
   arity?: number;
+  loc?: {
+    startLine: number;
+    startChar: number;
+    endLine: number;
+    endChar: number;
+  };
 }
 
 export class D7AstContext {
@@ -100,12 +106,7 @@ export class D7AstContext {
 
   public getActiveClassSymbol(): SymbolInfo | undefined {
     const fileSyms = this.indexer.getFileSymbols(this.document.uri.toString());
-    return fileSyms?.symbols.find(
-      (s) =>
-        s.kind === "class" &&
-        this.position.line >= s.range.startLine &&
-        this.position.line <= s.range.endLine,
-    );
+    return TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, this.position.line);
   }
 
   public getActiveMethodSymbol(): SymbolInfo | undefined {
@@ -227,8 +228,23 @@ export class D7AstContext {
     }
 
     const symbol =
-      receiverType !== undefined
-        ? TypeResolver.findMember(receiverType, candidate.memberName, this.indexer, candidate.arity)
+      candidate.receiver !== undefined
+        ? (TypeResolver.findMemberForReceiverExpression(
+            candidate.receiver,
+            candidate.memberName,
+            this.document,
+            this.position.line,
+            this.indexer,
+            candidate.arity,
+          ) ??
+          (receiverType !== undefined
+            ? TypeResolver.findMember(
+                receiverType,
+                candidate.memberName,
+                this.indexer,
+                candidate.arity,
+              )
+            : undefined))
         : undefined;
 
     return {
@@ -293,22 +309,36 @@ export class D7AstContext {
 
     const candidates: MemberCandidate[] = [];
     walkStatementExpressions(statement, (expr) => {
+      if (!expressionContainsPosition(expr, this.position)) return;
+
       if (expr.kind === "MemberAccess") {
-        candidates.push({ memberName: expr.member, receiver: expr.target, arity: 0 });
+        candidates.push({
+          memberName: expr.member,
+          receiver: expr.target,
+          arity: 0,
+          loc: expr.loc,
+        });
       } else if (expr.kind === "MethodInvocation" && expr.callee) {
         candidates.push({
           memberName: expr.methodName,
           receiver: expr.callee,
           arity: expr.arguments.length,
+          loc: expr.loc,
         });
       } else if (expr.kind === "OptionalChainingExpression") {
         if (expr.member.kind === "MemberAccess") {
-          candidates.push({ memberName: expr.member.member, receiver: expr.target, arity: 0 });
+          candidates.push({
+            memberName: expr.member.member,
+            receiver: expr.target,
+            arity: 0,
+            loc: expr.member.loc ?? expr.loc,
+          });
         } else if (expr.member.kind === "MethodInvocation") {
           candidates.push({
             memberName: expr.member.methodName,
             receiver: expr.target,
             arity: expr.member.arguments.length,
+            loc: expr.member.loc ?? expr.loc,
           });
         }
       }
@@ -870,4 +900,21 @@ function isBeforeOrAt(
   if (!loc) return true;
   const line = locLine(loc);
   return line < position.line || (line === position.line && loc.startChar <= position.character);
+}
+
+function expressionContainsPosition(expr: Expression, position: vscode.Position): boolean {
+  const loc = expr.loc;
+  if (!loc) return true;
+  const startLine = Math.max(0, loc.startLine - 1);
+  const endLine = Math.max(0, loc.endLine - 1);
+  if (position.line < startLine || position.line > endLine) return false;
+  if (position.line === startLine && position.character < loc.startChar) return false;
+  if (
+    position.line === endLine &&
+    loc.endChar > loc.startChar &&
+    position.character > loc.endChar
+  ) {
+    return false;
+  }
+  return true;
 }

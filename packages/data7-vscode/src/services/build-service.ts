@@ -87,7 +87,7 @@ export class BuildService {
           await this.applyAutoFixBeforeBuild(project.workspaceDir);
 
           const dependencies = this.readDependencies(project.workspaceDir);
-          DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+          await DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
 
           const result = this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath);
           vscode.window.showInformationMessage(
@@ -173,7 +173,7 @@ export class BuildService {
 
     try {
       await this.applyAutoFixBeforeBuild(project.workspaceDir);
-      DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+      await DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
       const lintSummary = await DiagnosticService.lintWorkspaceForRun(project.workspaceDir);
       if (lintSummary.errorCount > 0) {
         vscode.window.showErrorMessage(
@@ -309,15 +309,14 @@ export class BuildService {
       return;
     }
 
-    if (this._getFreshProjectBuild(project.workspaceDir, project.projectFilePath)) {
-      await this.openInDevStudioDirectly(project.projectFilePath);
-      return;
-    }
-
     try {
       await this.applyAutoFixBeforeBuild(project.workspaceDir);
       const dependencies = this.readDependencies(project.workspaceDir);
-      DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+      await DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
+      if (this._getFreshProjectBuild(project.workspaceDir, project.projectFilePath)) {
+        await this.openInDevStudioDirectly(project.projectFilePath);
+        return;
+      }
       this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
