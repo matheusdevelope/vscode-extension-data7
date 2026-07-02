@@ -392,6 +392,284 @@ End Namespace`;
   // -------------------------------------------------------------------------
   // unsupported-member — System Library marks a symbol with isUnsupported=true
   // -------------------------------------------------------------------------
+  describe("lambda-signature-mismatch", () => {
+    test("emits when lambda declares more parameters than the delegate accepts", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = loadExample("diagnostics/lambda-signature-mismatch/trigger.bas");
+      indexer.updateFileContent("file:///lambda_sig.bas", code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///lambda_sig.bas", code),
+        indexer,
+      );
+      const diag = expectDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+      assert.match(diag.message, /2 par/i);
+      assert.match(diag.message, /declarou 3/i);
+    });
+
+    test("accepts a VB-like lambda whose prefix signature matches the delegate", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_lambda_ok
+   Delegate Function TPredicate(value As String, i As Integer) As Boolean
+   Class Runner
+      Inherits TObject
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Run(handler As TPredicate)
+         Me.Run(Function(value As String) value <> "")
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///lambda_ok.bas", code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///lambda_ok.bas", code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+    });
+
+    test("resolves lambda parameters inside multiline TTList delegate calls", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_lambda_list
+   Delegate Function TMapDel<T, TOut>(pValue As T, i As Integer, extra As Variant) As TOut
+   Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
+
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Map<TOut>(pHandler As TMapDel<T, TOut>) As TTList<TOut>
+         Map = Nothing
+      End Function
+      Sub ForEach(pHandler As TForEachDel<T>)
+      End Sub
+      Function Last() As T
+         Last = Nothing
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Product
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Name() As String
+         Name = ""
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim products As TTList<Product> = New TTList<Product>()
+   Dim names As TTList<String> = products.Map(
+      Function(pItem As Product) As String
+         Return pItem.Name()
+      End Function
+   )
+   Dim lastName As String = products.Last().Name()
+   products.ForEach(Sub(pItem As Product)
+      pItem.Clone()
+   End Sub)
+End Namespace`;
+      const uri = "file:///lambda_list.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      const unknownMember = expectDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      assert.match(unknownMember.message, /Clone/);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.ReturnUnrecommended);
+    });
+
+    test("resolves chained TTList lambda calls across flat generic intermediate types", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_lambda_chain
+   Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
+   Delegate Function TMapDel<T, TOut>(pValue As T, i As Integer, extra As Variant) As TOut
+   Delegate Function TReduceDel<T, TAcc>(pAcc As TAcc, pItem As T, extra As Variant) As TAcc
+
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Filter(pHandler As TFindDel<T>) As TTList<T>
+         Filter = Nothing
+      End Function
+      Function Map<TOut>(pHandler As TMapDel<T, TOut>) As TTList<TOut>
+         Map = Nothing
+      End Function
+      Function Reduce<TAcc>(pHandler As TReduceDel<T, TAcc>, pInitial As TAcc, extra As Variant) As TAcc
+         Reduce = pInitial
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Produto
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function GetPreco() As Double
+         GetPreco = 1.0
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim produtos As TTList<Produto> = New TTList<Produto>()
+   Dim total As Double = produtos.
+Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).
+Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco()).
+Reduce<Double>(
+Function(pAcc As Double, pItem As Double) As Double
+Return pAcc + pItem
+End Function,
+0.0
+)
+End Namespace`;
+      const uri = "file:///lambda_chain.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.ReturnUnrecommended);
+    });
+
+    test("accepts delegate assignments with Sub side-effect lambdas and Function block lambdas", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_lambda_delegate_assignment
+   Delegate Sub TShowHandler(pSender As TObject)
+   Delegate Function TExecuteHandler(pItem As TObject, pIdx As Integer) As Boolean
+
+   Class Form
+      OnShow As TShowHandler
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Teste
+      OnExecute As TExecuteHandler
+      Private _form As Form
+
+      Sub New()
+         MyBase.New()
+         Me._form = New Form()
+         Me._form.OnShow = Sub(pSender As TObject) Me.Execute(pSender, 1)
+      End Sub
+
+      Function Execute(pItem As TObject, pIdx As Integer) As Boolean
+         Execute = True
+      End Function
+
+      Sub Free()
+         Me._form.Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim teste As New Teste()
+   teste.OnExecute = Function(pItem As TObject, pIdx As Integer) As Boolean
+      Return True
+   End Function
+
+   Dim form2 As New Form()
+   form2.OnShow = Sub(pSender As TObject) teste.Execute(form2, 1)
+End Namespace`;
+      const uri = "file:///lambda_delegate_assignment.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("emits type-mismatch for invalid method arguments inside delegate lambdas", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_lambda_delegate_body_mismatch
+   Delegate Sub TShowHandler(pSender As TObject)
+
+   Class Form
+      OnShow As TShowHandler
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Teste
+      Function Execute(pItem As TObject, pIdx As Integer) As Boolean
+         Execute = True
+      End Function
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim teste As New Teste()
+   Dim form2 As New Form()
+   form2.OnShow = Sub(pSender As TObject) teste.Execute("Teste", 1)
+End Namespace`;
+      const uri = "file:///lambda_delegate_body_mismatch.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+      expectDiagnostic(diags, DiagnosticCodes.TypeMismatch, "pItem");
+    });
+
+    test("does not compare lambdas to flat materialized delegate names by return type", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_flat_delegate_lambda
+   Delegate Function TFindDel_Integer(pValue As Integer, i As Integer, extra As Variant) As Boolean
+
+   Class TTList_Integer
+      Function Find(pHandler As TFindDel_Integer) As Integer
+         Find = 0
+      End Function
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim numeros As New TTList_Integer()
+   Dim found As Integer = numeros.Find(Function(pItem As Integer) As Boolean
+      Return pItem > 0
+   End Function)
+End Namespace`;
+      const uri = "file:///flat_delegate_lambda.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+  });
+
   describe("unsupported-member", () => {
     // Loaded from `docs/example/diagnostics/unsupported-member/trigger.bas`.
     // The example header also asserts the diagnostic line — drift between the
@@ -3076,6 +3354,21 @@ End Namespace`;
     indexer.updateFileContent(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
     assert.deepEqual(diags, []);
+  });
+
+  test("allows global Print with non-string values", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const code = `Namespace mod_print_values
+   Sub Run()
+      Print(1)
+      Print(True)
+   End Sub
+End Namespace`;
+    const uri = "file:///print_values.bas";
+    indexer.updateFileContent(uri, code);
+
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
   });
 
   test("supports Clipboard, Math, String.Insert, Variant arrays, scoping and hex parsing", () => {

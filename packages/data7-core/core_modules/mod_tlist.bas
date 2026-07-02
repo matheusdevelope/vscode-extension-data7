@@ -1,11 +1,11 @@
 Imports mod_tobject
 
-'@Module
 Namespace mod_tlist
 
    Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
-   Delegate Function TMapDel<T>(pValue As T, i As Integer, extra As Variant) As T
+   Delegate Function TMapDel<T, TOut>(pValue As T, i As Integer, extra As Variant) As TOut
    Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
+   Delegate Function TReduceDel<T, TAcc>(pAcc As TAcc, pItem As T, extra As Variant) As TAcc
 
    <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>
    Class TTItem<T>
@@ -74,7 +74,7 @@ Namespace mod_tlist
          <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
          If Assigned(me.Value) Then
             me.Value.Free()
-            me.Value = NULL
+            me.Value = Null
          End If
          <# Else #>
          me.Value = Unassigned
@@ -161,7 +161,7 @@ Namespace mod_tlist
          <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>
          If Assigned(_extracted) Then
             <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
-            TTItem<T>(_extracted).Value = NULL
+            TTItem<T>(_extracted).Value = Null
             <# End If #>
             _extracted.Free()
          End If
@@ -174,7 +174,7 @@ Namespace mod_tlist
          <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>
          If Assigned(_extracted) Then
             <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
-            TTItem<T>(_extracted).Value = NULL
+            TTItem<T>(_extracted).Value = Null
             <# End If #>
             _extracted.Free()
          End If
@@ -214,7 +214,9 @@ Namespace mod_tlist
          Dim _str As String = ""
          Dim i As Integer, _len As Integer = me.Length
          For i = 0 To _len - 1
-            If i > 0 Then _str = _str & pSeparator
+            If i > 0 Then
+               _str = _str & pSeparator
+            End If
             Dim _val As T = me.Take(i)
             _str = _str & me.GetToString(_val)
          Next
@@ -264,7 +266,7 @@ Namespace mod_tlist
       End Function
 
       Function IndexOf(pHandler As TFindDel<T>) As Integer
-         IndexOf = me.IndexOf(pHandler, "")
+         IndexOf = me.IndexOf(pHandler, Unassigned)
       End Function
 
       Function IndexOf(pHandler As TFindDel<T>, extra As Variant) As Integer
@@ -280,7 +282,7 @@ Namespace mod_tlist
       End Function
 
       Function Find(pHandler As TFindDel<T>) As T
-         Find = me.Find(pHandler, "")
+         Find = me.Find(pHandler, Unassigned)
       End Function
 
       Function Find(pHandler As TFindDel<T>, extra As Variant) As T
@@ -295,7 +297,7 @@ Namespace mod_tlist
       End Function
 
       Function Filter(pHandler As TFindDel<T>) As TTList<T>
-         Filter = me.Filter(pHandler, "")
+         Filter = me.Filter(pHandler, Unassigned)
       End Function
 
       Function Filter(pHandler As TFindDel<T>, extra As Variant) As TTList<T>
@@ -312,7 +314,7 @@ Namespace mod_tlist
       End Function
 
       Sub ForEach(pHandler As TForEachDel<T>)
-         me.ForEach(pHandler, "")
+         me.ForEach(pHandler, Unassigned)
       End Sub
 
       Sub ForEach(pHandler As TForEachDel<T>, extra As Variant)
@@ -322,12 +324,12 @@ Namespace mod_tlist
          Next
       End Sub
 
-      Function Map(pHandler As TMapDel<T>) As TTList<T>
-         Map = me.Map(pHandler, "")
+      Function Map<TOut>(pHandler As TMapDel<T, TOut>) As TTList<TOut>
+         Map = me.Map(pHandler, Unassigned)
       End Function
 
-      Function Map(pHandler As TMapDel<T>, extra As Variant) As TTList<T>
-         Dim _new As New TTList<T>()
+      Function Map<TOut>(pHandler As TMapDel<T, TOut>, extra As Variant) As TTList<TOut>
+         Dim _new As New TTList<TOut>()
          Dim i As Integer, _length As Integer = me.Length
          For i = 0 To _length - 1
             Dim _value As T = me.Take(i)
@@ -335,6 +337,59 @@ Namespace mod_tlist
             _new.Push(_id, pHandler(_value, i, extra))
          Next
          Map = _new
+      End Function
+
+      Function Reduce<TAcc>(pHandler As TReduceDel<T, TAcc>) As TAcc
+         Reduce = me.Reduce(pHandler, Unassigned, Unassigned)
+      End Function
+
+      Function Reduce<TAcc>(pHandler As TReduceDel<T, TAcc>, pInitial As TAcc) As TAcc
+         Reduce = me.Reduce(pHandler, pInitial, Unassigned)
+      End Function
+
+      Function Reduce<TAcc>(pHandler As TReduceDel<T, TAcc>, pInitial As TAcc, extra As Variant) As TAcc
+         Dim _acc As TAcc = pInitial
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
+            Dim _value As T = me.Take(i)
+            _acc = pHandler(_acc, _value, extra)
+         Next
+         Reduce = _acc
+      End Function
+
+      Function Every(pHandler As TFindDel<T>) As Boolean
+         Every = me.Every(pHandler, Unassigned)
+      End Function
+
+      Function Every(pHandler As TFindDel<T>, extra As Variant) As Boolean
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
+            If Not pHandler(me.Take(i), i, extra) Then
+               Every = False
+               Exit Function
+            End If
+         Next
+         Every = True
+      End Function
+
+      Function Some(pHandler As TFindDel<T>) As Boolean
+         Some = me.Some(pHandler, Unassigned)
+      End Function
+
+      Function Some(pHandler As TFindDel<T>, extra As Variant) As Boolean
+         Dim i As Integer, _length As Integer = me.Length
+         For i = 0 To _length - 1
+            If pHandler(me.Take(i), i, extra) Then
+               Some = True
+               Exit Function
+            End If
+         Next
+         Some = False
+      End Function
+
+      Function Reverse() As TTList<T>
+         me._base.Reverse()
+         Reverse = me
       End Function
 
       Sub Free()

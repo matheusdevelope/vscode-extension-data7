@@ -7,6 +7,9 @@ import type {
   ClassDeclaration,
   ObjectCreationExpression,
   Expression,
+  MethodInvocation,
+  ArrowFunctionExpression,
+  Statement,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
@@ -38,6 +41,9 @@ export class TypesRule implements Rule {
         break;
       case "ObjectCreationExpression":
         this.checkObjectCreationExpression(node, context);
+        break;
+      case "MethodInvocation":
+        this.checkLambdaArguments(node, context);
         break;
     }
   }
@@ -106,6 +112,8 @@ export class TypesRule implements Rule {
       context.indexer,
     );
 
+    if (lhsType && this.isLambdaAssignedToDelegate(lhsType, node.initializer, context)) return;
+
     if (lhsType && rhsType && rhsType.toLowerCase() !== "void") {
       if (!DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, context.indexer)) {
         const range = new vscode.Range(
@@ -130,6 +138,7 @@ export class TypesRule implements Rule {
     const lineIdx = node.loc.startLine - 1;
 
     this.checkEventSignatureMismatch(node, lineIdx, context);
+    this.checkLambdaAssignment(node, lineIdx, context);
 
     const lhsType = TypeResolver.resolveExpressionType(
       node.target,
@@ -233,7 +242,8 @@ export class TypesRule implements Rule {
       lhsType &&
       rhsType &&
       rhsType.toLowerCase() !== "void" &&
-      lhsType.toLowerCase() !== "void"
+      lhsType.toLowerCase() !== "void" &&
+      !this.isLambdaAssignedToDelegate(lhsType, node.value, context)
     ) {
       if (!DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, context.indexer)) {
         const range = new vscode.Range(
@@ -314,6 +324,398 @@ export class TypesRule implements Rule {
     context.report(diag);
   }
 
+  private checkLambdaAssignment(node: Assignment, lineIdx: number, context: RuleContext): void {
+    if (node.value.kind !== "ArrowFunctionExpression") return;
+    if (node.target.kind !== "MemberAccess") return;
+
+    const targetType = TypeResolver.resolveExpressionType(
+      node.target.target,
+      context.document,
+      lineIdx,
+      context.indexer,
+    );
+    if (!targetType) return;
+
+    const eventMember = TypeResolver.findMember(targetType, node.target.member, context.indexer);
+    if (!eventMember || !this.isDelegateType(eventMember.type, context)) return;
+
+    this.validateLambdaAgainstDelegate(
+      node.value,
+      eventMember.type,
+      context,
+      lineIdx,
+      `atribuição ao membro "${node.target.member}"`,
+      targetType,
+    );
+  }
+
+  private checkLambdaArguments(node: MethodInvocation, context: RuleContext): void {
+    if (!node.loc || !node.arguments.some((arg) => arg.kind === "ArrowFunctionExpression")) return;
+    const lineIdx = node.loc.startLine - 1;
+    const resolved = this.resolveInvocationForLambda(node, context, lineIdx);
+    if (!resolved?.symbol.parameters) return;
+
+    for (let i = 0; i < node.arguments.length; i++) {
+      const arg = node.arguments[i];
+      if (arg?.kind !== "ArrowFunctionExpression") continue;
+      const param = resolved.symbol.parameters[i];
+      if (!param || !this.isDelegateType(param.type, context)) continue;
+      this.validateLambdaAgainstDelegate(
+        arg,
+        param.type,
+        context,
+        lineIdx,
+        `parÃ¢metro "${param.name}" de "${node.methodName}"`,
+        resolved.receiverType,
+      );
+    }
+  }
+
+  private resolveInvocationForLambda(
+    node: MethodInvocation,
+    context: RuleContext,
+    lineIdx: number,
+  ): { readonly symbol: SymbolInfo; readonly receiverType?: string } | undefined {
+    const argumentTypes = node.arguments.map((arg) =>
+      arg.kind === "ArrowFunctionExpression"
+        ? undefined
+        : TypeResolver.resolveExpressionType(arg, context.document, lineIdx, context.indexer),
+    );
+
+    if (node.callee) {
+      const calleeText = exprToString(node.callee)?.toLowerCase() ?? "";
+      let receiverType: string | undefined;
+      if (calleeText === "me") {
+        receiverType = context.activeClass?.name;
+      } else if (calleeText === "mybase") {
+        receiverType = context.activeClass?.baseType?.name ?? "TObject";
+      } else {
+        receiverType = TypeResolver.resolveExpressionType(
+          node.callee,
+          context.document,
+          lineIdx,
+          context.indexer,
+        );
+      }
+      if (!receiverType) return undefined;
+      const symbol =
+        TypeResolver.findMemberWithArgumentTypes(
+          receiverType,
+          node.methodName,
+          context.indexer,
+          argumentTypes,
+        ) ??
+        TypeResolver.findMember(
+          receiverType,
+          node.methodName,
+          context.indexer,
+          node.arguments.length,
+        );
+      return symbol ? { symbol, receiverType } : undefined;
+    }
+
+    let symbol: SymbolInfo | undefined;
+    if (context.activeClass) {
+      symbol = TypeResolver.findMember(
+        context.activeClass.name,
+        node.methodName,
+        context.indexer,
+        node.arguments.length,
+      );
+    }
+    symbol ??= TypeResolver.findUnqualifiedCallable(
+      node.methodName,
+      context.document,
+      lineIdx,
+      context.indexer,
+      argumentTypes,
+    );
+    return symbol ? { symbol, receiverType: context.activeClass?.name } : undefined;
+  }
+
+  private validateLambdaAgainstDelegate(
+    lambda: ArrowFunctionExpression,
+    delegateType: string,
+    context: RuleContext,
+    lineIdx: number,
+    usageLabel: string,
+    receiverType?: string,
+  ): void {
+    const resolvedDelegate = this.resolveDelegateSignature(delegateType, receiverType, context);
+    if (!resolvedDelegate) return;
+
+    const expectedKind = resolvedDelegate.returnType.toLowerCase() === "void" ? "Sub" : "Function";
+    const actualKind = lambda.lambdaKind ?? (lambda.returnType ? "Function" : "Function");
+    if (actualKind !== expectedKind) {
+      this.reportLambdaMismatch(
+        lambda,
+        lineIdx,
+        context,
+        `Assinatura de lambda incompatÃ­vel em ${usageLabel}: esperado ${expectedKind}, mas recebido ${actualKind}.`,
+      );
+      return;
+    }
+
+    if (lambda.parameters.length > resolvedDelegate.parameters.length) {
+      this.reportLambdaMismatch(
+        lambda,
+        lineIdx,
+        context,
+        `Assinatura de lambda incompatÃ­vel em ${usageLabel}: o delegate "${resolvedDelegate.name}" aceita no máximo ${resolvedDelegate.parameters.length} parÃ¢metro(s), mas a lambda declarou ${lambda.parameters.length}.`,
+      );
+      return;
+    }
+
+    for (let i = 0; i < lambda.parameters.length; i++) {
+      const actual = lambda.parameters[i];
+      const expected = resolvedDelegate.parameters[i];
+      if (!actual || !expected) continue;
+      const actualType = typeRefToString(actual.type) ?? "Variant";
+      if (actualType.toLowerCase() === "variant") continue;
+      if (!DiagnosticsLinter.isTypeCompatible(actualType, expected.type, context.indexer)) {
+        this.reportLambdaMismatch(
+          actual,
+          lineIdx,
+          context,
+          `Tipo incompatÃ­vel no parÃ¢metro "${actual.name}" da lambda em ${usageLabel}: esperado "${expected.type}", mas recebido "${actualType}".`,
+        );
+        return;
+      }
+    }
+
+    if (expectedKind === "Function") {
+      const explicitReturn = typeRefToString(lambda.returnType);
+      if (
+        explicitReturn &&
+        !DiagnosticsLinter.isTypeCompatible(
+          explicitReturn,
+          resolvedDelegate.returnType,
+          context.indexer,
+        )
+      ) {
+        this.reportLambdaMismatch(
+          lambda.returnType ?? lambda,
+          lineIdx,
+          context,
+          `Retorno incompatÃ­vel na lambda em ${usageLabel}: o delegate "${resolvedDelegate.name}" espera "${resolvedDelegate.returnType}", mas a lambda declarou "${explicitReturn}".`,
+        );
+        return;
+      }
+
+      const returnedTypes = this.collectLambdaReturnTypes(lambda, context, lineIdx);
+      if (returnedTypes.length === 0) {
+        this.reportLambdaMismatch(
+          lambda,
+          lineIdx,
+          context,
+          `Retorno ausente na lambda em ${usageLabel}: o delegate "${resolvedDelegate.name}" retorna "${resolvedDelegate.returnType}".`,
+        );
+        return;
+      }
+      for (const returnedType of returnedTypes) {
+        if (
+          returnedType &&
+          !DiagnosticsLinter.isTypeCompatible(
+            returnedType,
+            resolvedDelegate.returnType,
+            context.indexer,
+          )
+        ) {
+          this.reportLambdaMismatch(
+            lambda,
+            lineIdx,
+            context,
+            `Retorno incompatÃ­vel na lambda em ${usageLabel}: esperado "${resolvedDelegate.returnType}", mas recebido "${returnedType}".`,
+          );
+          return;
+        }
+      }
+    } else if (this.subLambdaReturnsValue(lambda)) {
+      this.reportLambdaMismatch(
+        lambda,
+        lineIdx,
+        context,
+        `Lambda Sub em ${usageLabel} não pode retornar valor.`,
+      );
+    }
+  }
+
+  private resolveDelegateSignature(
+    delegateType: string,
+    receiverType: string | undefined,
+    context: RuleContext,
+  ):
+    | {
+        readonly name: string;
+        readonly returnType: string;
+        readonly parameters: readonly { readonly name: string; readonly type: string }[];
+      }
+    | undefined {
+    const delegateRef = parseGenericTypeName(delegateType);
+    const delegate =
+      context.indexer.findSymbolByName(delegateRef.name, context.document.uri.toString()) ??
+      context.indexer.findSymbolByName(delegateRef.name) ??
+      lookupSystemByName(delegateRef.name).find((s) => s.kind === "delegate");
+    if (delegate?.kind !== "delegate") return undefined;
+
+    const substitutions = new Map<string, string>();
+    const receiverRef = receiverType ? parseGenericTypeName(receiverType) : undefined;
+    if (receiverRef) {
+      const receiverSymbol = TypeResolver.findClassSymbol(receiverRef.name, context.indexer);
+      receiverSymbol?.genericTypeParameters?.forEach((param, idx) => {
+        const arg = receiverRef.typeArguments[idx];
+        if (arg) substitutions.set(param.toLowerCase(), arg);
+      });
+    }
+    delegate.genericTypeParameters?.forEach((param, idx) => {
+      const arg = delegateRef.typeArguments[idx];
+      if (arg) substitutions.set(param.toLowerCase(), substituteGenericType(arg, substitutions));
+    });
+
+    return {
+      name: delegate.name,
+      returnType: substituteGenericType(delegate.type, substitutions),
+      parameters: (delegate.parameters ?? []).map((param) => ({
+        name: param.name,
+        type: substituteGenericType(param.type, substitutions),
+      })),
+    };
+  }
+
+  private collectLambdaReturnTypes(
+    lambda: ArrowFunctionExpression,
+    context: RuleContext,
+    lineIdx: number,
+  ): string[] {
+    if (!Array.isArray(lambda.body)) {
+      const type = TypeResolver.resolveExpressionType(
+        lambda.body,
+        context.document,
+        lineIdx,
+        context.indexer,
+      );
+      return [type ?? "Variant"];
+    }
+    const result: string[] = [];
+    const visit = (statements: readonly Statement[]): void => {
+      for (const statement of statements) {
+        switch (statement.kind) {
+          case "ReturnStatement":
+            result.push(
+              statement.expression
+                ? (TypeResolver.resolveExpressionType(
+                    statement.expression,
+                    context.document,
+                    Math.max(0, (statement.loc?.startLine ?? lineIdx + 1) - 1),
+                    context.indexer,
+                  ) ?? "Variant")
+                : "Void",
+            );
+            break;
+          case "IfStatement":
+            visit(statement.thenBranch);
+            for (const branch of statement.elseIfBranches) visit(branch.body);
+            if (statement.elseBranch) visit(statement.elseBranch);
+            break;
+          case "WhileStatement":
+          case "ForStatement":
+          case "ForEachStatement":
+          case "WithStatement":
+          case "Block":
+            visit(statement.kind === "Block" ? statement.statements : statement.body);
+            break;
+          case "TryCatchStatement":
+            visit(statement.tryBody);
+            visit(statement.catchBody);
+            if (statement.finallyBody) visit(statement.finallyBody);
+            break;
+          case "UsingStatement":
+            visit(statement.body);
+            break;
+          case "SelectCaseStatement":
+            for (const c of statement.cases) visit(c.body);
+            break;
+        }
+      }
+    };
+    visit(lambda.body);
+    return result;
+  }
+
+  private subLambdaReturnsValue(lambda: ArrowFunctionExpression): boolean {
+    if (!Array.isArray(lambda.body)) return false;
+    const visit = (statements: readonly Statement[]): boolean => {
+      for (const statement of statements) {
+        switch (statement.kind) {
+          case "ReturnStatement":
+            if (statement.expression) return true;
+            break;
+          case "IfStatement":
+            if (visit(statement.thenBranch)) return true;
+            for (const branch of statement.elseIfBranches) {
+              if (visit(branch.body)) return true;
+            }
+            if (statement.elseBranch && visit(statement.elseBranch)) return true;
+            break;
+          case "WhileStatement":
+          case "ForStatement":
+          case "ForEachStatement":
+          case "WithStatement":
+          case "Block":
+            if (visit(statement.kind === "Block" ? statement.statements : statement.body)) {
+              return true;
+            }
+            break;
+          case "TryCatchStatement":
+            if (
+              visit(statement.tryBody) ||
+              visit(statement.catchBody) ||
+              (statement.finallyBody ? visit(statement.finallyBody) : false)
+            ) {
+              return true;
+            }
+            break;
+          case "UsingStatement":
+            if (visit(statement.body)) return true;
+            break;
+          case "SelectCaseStatement":
+            for (const c of statement.cases) {
+              if (visit(c.body)) return true;
+            }
+            break;
+        }
+      }
+      return false;
+    };
+    return visit(lambda.body);
+  }
+
+  private reportLambdaMismatch(
+    node: {
+      readonly loc?: {
+        readonly startLine: number;
+        readonly startChar: number;
+        readonly endLine: number;
+        readonly endChar: number;
+      };
+    },
+    fallbackLineIdx: number,
+    context: RuleContext,
+    message: string,
+  ): void {
+    const range = node.loc
+      ? new vscode.Range(
+          node.loc.startLine - 1,
+          node.loc.startChar,
+          node.loc.endLine - 1,
+          node.loc.endChar,
+        )
+      : new vscode.Range(fallbackLineIdx, 0, fallbackLineIdx, 1);
+    const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+    diag.code = DiagnosticCodes.LambdaSignatureMismatch;
+    context.report(diag);
+  }
+
   private getAssignedHandlerName(value: Expression): string {
     if (
       value.kind === "MethodInvocation" &&
@@ -336,6 +738,14 @@ export class TypesRule implements Rule {
       context.indexer.findSymbolByName(typeName)?.kind === "delegate" ||
       lookupSystemByName(typeName).some((symbol) => symbol.kind === "delegate")
     );
+  }
+
+  private isLambdaAssignedToDelegate(
+    targetType: string,
+    value: Expression,
+    context: RuleContext,
+  ): boolean {
+    return value.kind === "ArrowFunctionExpression" && this.isDelegateType(targetType, context);
   }
 
   private checkClassMustOverride(node: ClassDeclaration, context: RuleContext): void {
@@ -387,4 +797,49 @@ export class TypesRule implements Rule {
     const activePropertyName = context.activeProperty?.name.toLowerCase() ?? "";
     return targetName === activeMethodName || targetName === activePropertyName;
   }
+}
+
+function parseGenericTypeName(typeName: string): {
+  readonly name: string;
+  readonly typeArguments: string[];
+} {
+  const trimmed = typeName.trim();
+  const lt = trimmed.indexOf("<");
+  if (lt < 0 || !trimmed.endsWith(">")) return { name: trimmed, typeArguments: [] };
+  return {
+    name: trimmed.slice(0, lt).trim(),
+    typeArguments: splitGenericArguments(trimmed.slice(lt + 1, -1)),
+  };
+}
+
+function splitGenericArguments(value: string): string[] {
+  const result: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of value) {
+    if (ch === "<") depth++;
+    if (ch === ">") depth--;
+    if (ch === "," && depth === 0) {
+      const item = current.trim();
+      if (item) result.push(item);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  const tail = current.trim();
+  if (tail) result.push(tail);
+  return result;
+}
+
+function substituteGenericType(
+  typeName: string,
+  substitutions: ReadonlyMap<string, string>,
+): string {
+  const parsed = parseGenericTypeName(typeName);
+  const direct = substitutions.get(parsed.name.toLowerCase());
+  if (direct && parsed.typeArguments.length === 0) return direct;
+  if (parsed.typeArguments.length === 0) return direct ?? parsed.name;
+  const args = parsed.typeArguments.map((arg) => substituteGenericType(arg, substitutions));
+  return `${direct ?? parsed.name}<${args.join(", ")}>`;
 }

@@ -35,6 +35,7 @@ export interface AstMemberAccessContext {
   memberName: string;
   receiver?: Expression;
   receiverType?: string;
+  receiverTypeSymbol?: SymbolInfo;
   symbol?: SymbolInfo;
 }
 
@@ -226,6 +227,9 @@ export class D7AstContext {
     if (candidate.receiver) {
       receiverType = this.resolveExpressionType(candidate.receiver);
     }
+    const receiverTypeSymbol = receiverType
+      ? this.findContextualTypeSymbol(receiverType)
+      : undefined;
 
     const symbol =
       candidate.receiver !== undefined
@@ -237,6 +241,14 @@ export class D7AstContext {
             this.indexer,
             candidate.arity,
           ) ??
+          (receiverTypeSymbol !== undefined
+            ? TypeResolver.findMemberOnClassSymbol(
+                receiverTypeSymbol,
+                candidate.memberName,
+                this.indexer,
+                candidate.arity,
+              )
+            : undefined) ??
           (receiverType !== undefined
             ? TypeResolver.findMember(
                 receiverType,
@@ -251,6 +263,7 @@ export class D7AstContext {
       memberName: candidate.memberName,
       receiver: candidate.receiver,
       receiverType,
+      receiverTypeSymbol,
       symbol,
     };
   }
@@ -456,6 +469,7 @@ export class D7AstContext {
       switch (statement.kind) {
         case "VariableDeclaration":
           out.push(this.bindingFromVariable(statement, lexicalScope));
+          this.collectExpressionBindings(statement.initializer, out, "block");
           break;
         case "DestructuredVariableDeclaration":
           for (const b of statement.bindings) {
@@ -538,11 +552,46 @@ export class D7AstContext {
           this.collectStatementBindings(statement.statements, out, rootScope, depth + 1);
           break;
         case "Assignment":
+          this.collectExpressionBindings(statement.target, out, "block");
+          this.collectExpressionBindings(statement.value, out, "block");
+          break;
         case "ExpressionStatement":
+          this.collectExpressionBindings(statement.expression, out, "block");
+          break;
         case "OpaqueStatement":
+          break;
         case "ReturnStatement":
+          this.collectExpressionBindings(statement.expression, out, "block");
           break;
       }
+    }
+  }
+
+  private collectExpressionBindings(
+    expression: Expression | undefined,
+    out: AstLocalBinding[],
+    scope: AstBindingScope,
+  ): void {
+    if (!expression) return;
+
+    if (expression.kind === "ArrowFunctionExpression") {
+      if (expression.loc && !positionWithinLoc(this.position, expression.loc)) return;
+      addParameters(out, expression.parameters, "Parametro de lambda", scope);
+      if (Array.isArray(expression.body)) {
+        this.collectStatementBindings(
+          expression.body,
+          out,
+          scope === "top-level" ? "top-level" : "routine",
+          1,
+        );
+      } else {
+        this.collectExpressionBindings(expression.body, out, scope);
+      }
+      return;
+    }
+
+    for (const child of expressionChildren(expression)) {
+      this.collectExpressionBindings(child, out, scope);
     }
   }
 
@@ -581,6 +630,19 @@ export class D7AstContext {
   private findStatementAtLine(line: number): Statement | undefined {
     const candidates = this.getAllStatements().filter((s) => locLine(s.loc) === line);
     return candidates[candidates.length - 1];
+  }
+
+  private findContextualTypeSymbol(typeName: string): SymbolInfo | undefined {
+    if (typeName.includes("<")) return undefined;
+
+    const symbol = this.indexer.findSymbolByName(typeName, this.document.uri.toString());
+    if (
+      symbol &&
+      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate")
+    ) {
+      return symbol;
+    }
+    return undefined;
   }
 }
 
@@ -749,13 +811,33 @@ function collectStatements(statements: readonly Statement[], out: Statement[]): 
         collectStatements(statement.statements, out);
         break;
       case "Assignment":
+        collectStatementsFromExpression(statement.target, out);
+        collectStatementsFromExpression(statement.value, out);
+        break;
       case "ExpressionStatement":
+        collectStatementsFromExpression(statement.expression, out);
+        break;
       case "OpaqueStatement":
+        break;
       case "ReturnStatement":
+        if (statement.expression) collectStatementsFromExpression(statement.expression, out);
+        break;
       case "VariableDeclaration":
+        if (statement.initializer) collectStatementsFromExpression(statement.initializer, out);
+        break;
       case "DestructuredVariableDeclaration":
+        collectStatementsFromExpression(statement.initializer, out);
         break;
     }
+  }
+}
+
+function collectStatementsFromExpression(expr: Expression, out: Statement[]): void {
+  if (expr.kind === "ArrowFunctionExpression" && Array.isArray(expr.body)) {
+    collectStatements(expr.body, out);
+  }
+  for (const child of expressionChildren(expr)) {
+    collectStatementsFromExpression(child, out);
   }
 }
 
@@ -900,6 +982,52 @@ function isBeforeOrAt(
   if (!loc) return true;
   const line = locLine(loc);
   return line < position.line || (line === position.line && loc.startChar <= position.character);
+}
+
+function positionWithinLoc(
+  position: vscode.Position,
+  loc: { readonly startLine: number; readonly endLine: number },
+): boolean {
+  const startLine = Math.max(0, loc.startLine - 1);
+  const endLine = Math.max(0, loc.endLine - 1);
+  return position.line >= startLine && position.line <= endLine;
+}
+
+function expressionChildren(expression: Expression): readonly Expression[] {
+  switch (expression.kind) {
+    case "ObjectCreationExpression":
+      return expression.arguments;
+    case "MethodInvocation":
+      return [expression.callee, ...expression.arguments].filter(
+        (child): child is Expression => child !== undefined,
+      );
+    case "MemberAccess":
+      return [expression.target];
+    case "ArrayAccessExpression":
+      return [expression.target, ...(expression.indices ?? [expression.index])];
+    case "BinaryExpression":
+      return [expression.left, expression.right];
+    case "UnaryExpression":
+      return [expression.argument];
+    case "TernaryExpression":
+      return [expression.condition, expression.trueExpr, expression.falseExpr];
+    case "NullCoalescingExpression":
+    case "PipeExpression":
+      return [expression.left, expression.right];
+    case "OptionalChainingExpression":
+      return [expression.target, expression.member];
+    case "ObjectInitializerExpression":
+      return [
+        ...expression.arguments,
+        ...expression.assignments.map((assignment) => assignment.value),
+      ];
+    case "ArrayLiteralExpression":
+      return expression.elements;
+    case "SpreadExpression":
+      return [expression.expression];
+    default:
+      return [];
+  }
 }
 
 function expressionContainsPosition(expr: Expression, position: vscode.Position): boolean {

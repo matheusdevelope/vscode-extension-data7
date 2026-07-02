@@ -191,7 +191,10 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       if (memberAccess.receiverType) {
         const receiverType = memberAccess.receiverType;
         const entries: RankedCompletionItem[] = [];
-        TypeResolver.getAllMembersForType(receiverType, this.indexer).forEach((s) => {
+        const members = memberAccess.receiverTypeSymbol
+          ? TypeResolver.getAllMembersForClassSymbol(memberAccess.receiverTypeSymbol, this.indexer)
+          : TypeResolver.getAllMembersForType(receiverType, this.indexer);
+        members.forEach((s) => {
           if (!isSymbolVisible(s, activeClass, this.indexer)) return;
           const bucket = matchesContainer(s.containerName, receiverType)
             ? CompletionBucket.Class

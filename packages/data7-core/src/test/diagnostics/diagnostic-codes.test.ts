@@ -19,6 +19,7 @@ describe("DiagnosticCodes", () => {
       "unknown-member",
       "private-member-access",
       "event-signature-mismatch",
+      "lambda-signature-mismatch",
       "unsupported-member",
       "line-continuation-without-break",
     ]) {

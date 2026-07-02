@@ -90,6 +90,12 @@ export function parseLocalVariableDeclarationAfterDim(
       loc: locOf(startLoc, parser.peek().loc),
     };
   } else {
+    if (
+      first.initializer?.kind === "ArrowFunctionExpression" &&
+      Array.isArray(first.initializer.body)
+    ) {
+      return first;
+    }
     const comment = parser.skipToEndOfLine();
     first.comment = comment;
     return first;

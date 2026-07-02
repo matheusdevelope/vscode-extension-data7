@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (131 arquivos)
+## Índice de exemplos (132 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -193,7 +193,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (62)
+### diagnostics (63)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -224,6 +224,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/invalid-assignment-target/trigger.bas`](./diagnostics/invalid-assignment-target/trigger.bas) | assigning to another function name | `invalid-assignment-target@13` | `linter implementation for invalid assignment target` |
 | [`diagnostics/invalid-interpolation/trigger.bas`](./diagnostics/invalid-interpolation/trigger.bas) | string interpolada com `{}` vazio — parser não consegue produzir expansão | `invalid-interpolation@8` | — |
 | [`diagnostics/lambda-capture-unsupported/trigger.bas`](./diagnostics/lambda-capture-unsupported/trigger.bas) | lambda referencia variável local — captura não suportada em Data7 | `lambda-capture-unsupported@7` | `emissão futura do linter quando lambdas inline forem implementados (H3)` |
+| [`diagnostics/lambda-signature-mismatch/trigger.bas`](./diagnostics/lambda-signature-mismatch/trigger.bas) | lambda with more parameters than the delegate accepts | `lambda-signature-mismatch@15` | — |
 | [`diagnostics/line-continuation-without-break/trigger.bas`](./diagnostics/line-continuation-without-break/trigger.bas) | marcador de continuacao de linha sem quebra efetiva | `line-continuation-without-break@16` | — |
 | [`diagnostics/loose-type-statement/trigger.bas`](./diagnostics/loose-type-statement/trigger.bas) | loose type statement | `loose-type-statement@8` | `linter implementation for loose types` |
 | [`diagnostics/missing-import/after-quickfix.bas`](./diagnostics/missing-import/after-quickfix.bas) | resultado de aplicar o Quick Fix "Importar mod_resources" sobre diagnostics/missing-import/trigger | `none` | — |

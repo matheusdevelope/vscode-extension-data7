@@ -19,6 +19,8 @@ export const DiagnosticCodes = {
   PrivateMemberAccess: "private-member-access",
   /** A handler assigned to an `OnXxx` event has a signature incompatible with the delegate. */
   EventSignatureMismatch: "event-signature-mismatch",
+  /** A lambda expression used where a delegate is expected has an incompatible signature. */
+  LambdaSignatureMismatch: "lambda-signature-mismatch",
   /**
    * The referenced member exists in the System Library but is flagged
    * `isUnsupported` because the Data7 compiler does not translate it. Surfaced

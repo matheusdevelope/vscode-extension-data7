@@ -6,6 +6,7 @@ import type {
   ClassDeclaration,
   DelegateDeclaration,
   FieldDeclaration,
+  MethodInvocation,
   MethodDeclaration,
   NamespaceDeclaration,
   VariableDeclaration,
@@ -330,6 +331,110 @@ describe("parser/parser", () => {
 
     const d4 = m.body[3] as VariableDeclaration;
     assert.equal(d4.initializer?.kind, "TaggedTemplateExpression");
+  });
+
+  test("parses VB-like lambda expressions", () => {
+    const src = [
+      "Sub TestLambdas()",
+      "   Dim fn = Function(x As Integer) x * 2",
+      "   Dim block = Function(x As Integer) As Integer",
+      "      Return x + 1",
+      "   End Function",
+      "   Dim cb = Sub(x As Integer)",
+      "      Print(x)",
+      "   End Sub",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+
+    const shortLambda = (m.body[0] as VariableDeclaration).initializer;
+    assert.equal(shortLambda?.kind, "ArrowFunctionExpression");
+    if (shortLambda?.kind === "ArrowFunctionExpression") {
+      assert.equal(shortLambda.lambdaKind, "Function");
+      assert.equal(Array.isArray(shortLambda.body), false);
+    }
+
+    const blockLambda = (m.body[1] as VariableDeclaration).initializer;
+    assert.equal(blockLambda?.kind, "ArrowFunctionExpression");
+    if (blockLambda?.kind === "ArrowFunctionExpression") {
+      assert.equal(blockLambda.lambdaKind, "Function");
+      assert.equal(Array.isArray(blockLambda.body), true);
+      assert.equal(blockLambda.returnType?.name, "Integer");
+    }
+
+    const subLambda = (m.body[2] as VariableDeclaration).initializer;
+    assert.equal(subLambda?.kind, "ArrowFunctionExpression");
+    if (subLambda?.kind === "ArrowFunctionExpression") {
+      assert.equal(subLambda.lambdaKind, "Sub");
+      assert.equal(Array.isArray(subLambda.body), true);
+    }
+  });
+
+  test("parses VB-like lambdas as multiline call arguments", () => {
+    const src = [
+      "Sub TestList()",
+      "   Dim names[] As String = products.Map(",
+      "      Function(pItem As Product) As String",
+      "         Return pItem.Name",
+      "      End Function",
+      "   )",
+      "   total = products.Reduce<Double>(Function(pAcc As Double, pItem As Product) As Double",
+      "      Return pAcc + pItem.Price",
+      "   End Function, 0.0)",
+      "   products.ForEach(Sub(pItem As Product) Print(pItem.Name))",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+
+    const mapDecl = m.body[0] as VariableDeclaration;
+    assert.equal(mapDecl.initializer?.kind, "MethodInvocation");
+    if (mapDecl.initializer?.kind === "MethodInvocation") {
+      assert.equal(mapDecl.initializer.arguments[0]?.kind, "ArrowFunctionExpression");
+    }
+
+    const reduceAssignment = m.body[1] as any;
+    assert.equal(reduceAssignment.value?.kind, "MethodInvocation");
+    assert.equal(reduceAssignment.value.typeArguments.length, 1);
+    assert.equal(reduceAssignment.value.arguments.length, 2);
+
+    const forEachStatement = m.body[2] as any;
+    assert.equal(forEachStatement.expression?.kind, "MethodInvocation");
+    assert.equal(forEachStatement.expression.arguments[0]?.kind, "ArrowFunctionExpression");
+  });
+
+  test("parses chained multiline lambda calls after trailing dots", () => {
+    const src = [
+      "Sub TestChain()",
+      "   Dim total As Double = produtos.",
+      "Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).",
+      "Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco()).",
+      "Reduce<Double>(",
+      "Function(pAcc As Double, pItem As Double) As Double",
+      "Return pAcc + pItem",
+      "End Function,",
+      "0.0",
+      ")",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const method = r.unit.members[0] as MethodDeclaration;
+    const declaration = method.body[0] as VariableDeclaration;
+    const reduce = declaration.initializer as MethodInvocation;
+    assert.equal(reduce.kind, "MethodInvocation");
+    assert.equal(reduce.methodName, "Reduce");
+
+    const map = reduce.callee as MethodInvocation;
+    assert.equal(map.kind, "MethodInvocation");
+    assert.equal(map.methodName, "Map");
+
+    const filter = map.callee as MethodInvocation;
+    assert.equal(filter.kind, "MethodInvocation");
+    assert.equal(filter.methodName, "Filter");
   });
 
   // -------------------------------------------------------------------------

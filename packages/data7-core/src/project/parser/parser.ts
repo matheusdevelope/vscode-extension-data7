@@ -943,12 +943,27 @@ export class Parser {
     return { params, hasParentheses: true };
   }
 
-  public isGenericTypeArgumentsLookahead(): boolean {
-    const next = this.peek(1);
-    if (next.kind !== "punct" || next.value !== "<") return false;
+  /**
+   * Returns `true` when the token sequence starting at `ltOffset` looks like a
+   * generic type-argument list (`<TypeName, ...>`), not a comparison operator.
+   *
+   * `ltOffset` is the peek-offset of the `<` token:
+   *  - Pass `1` (default) when the cursor is on the *identifier* before `<`.
+   *  - Pass `0` when the cursor is already sitting *on* the `<` (e.g. after a
+   *    member-name has been consumed and we want to check what follows).
+   *
+   * The heuristic mirrors the one used in TypeScript / Roslyn:
+   * - A literal number or string token inside the angle brackets → operator.
+   * - A control-flow keyword inside the brackets → operator.
+   * - Any other unexpected punctuation → operator.
+   * - A balanced `>` closes the argument list → type arguments.
+   */
+  public isGenericTypeArgumentsLookahead(ltOffset = 1): boolean {
+    const lt = this.peek(ltOffset);
+    if (lt.kind !== "punct" || lt.value !== "<") return false;
 
     let depth = 1;
-    let idx = 2;
+    let idx = ltOffset + 1;
     for (;;) {
       const t = this.peek(idx);
       if (t.kind === "eof" || t.kind === "newline") return false;

@@ -111,12 +111,23 @@ function resolveMissingMyBaseFreeInsertion(
   const eol = getDocumentEol(document);
 
   if (targetClass?.loc) {
-    const classIndent = lineText.substring(0, lineText.length - lineText.trimStart().length);
+    // const classIndent = lineText.substring(0, lineText.length - lineText.trimStart().length);
+    // const endClassLine = targetClass.loc.endLine - 1;
+    // return {
+    //   kind: "method",
+    //   position: new vscode.Position(endClassLine, 0),
+    //   text: `${classIndent}  Public Sub Free()${eol}${classIndent}    MyBase.Free()${eol}${classIndent}  End Sub${eol}${eol}`,
+    // };
+    const classLine = diagnostic.range.start.line;
+    const classLineText = document.lineAt(classLine).text;
+    const classIndent = /^(\s*)/.exec(classLineText)?.[1] ?? "";
     const endClassLine = targetClass.loc.endLine - 1;
+    const memberIndent = `${classIndent}   `;
+    const bodyIndent = `${memberIndent}   `;
     return {
       kind: "method",
       position: new vscode.Position(endClassLine, 0),
-      text: `${classIndent}  Public Sub Free()${eol}${classIndent}    MyBase.Free()${eol}${classIndent}  End Sub${eol}${eol}`,
+      text: `${memberIndent}Sub Free()\n${bodyIndent}MyBase.Free()\n${memberIndent}End Sub\n\n`,
     };
   }
 

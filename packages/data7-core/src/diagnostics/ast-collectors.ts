@@ -32,6 +32,9 @@ export class LocalDeclarationCollector extends ASTWalker {
   }
 
   public override walk(node: Node): void {
+    if (node.kind === "ArrowFunctionExpression") {
+      return;
+    }
     if (node.kind === "VariableDeclaration" && node.loc) {
       this.declarations.push({ name: node.name, loc: node.loc, isParameter: false });
     } else if (node.kind === "DestructuredVariableDeclaration" && node.loc) {

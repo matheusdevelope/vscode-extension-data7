@@ -28,6 +28,10 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   protected readonly listVariableScopes: Map<string, ListVariableInfo>[] = [
     new Map<string, ListVariableInfo>(),
   ];
+  private readonly lambdaParameterReplacements = new WeakMap<
+    ArrowFunctionExpression,
+    Map<string, Expression>
+  >();
 
   protected createListScope(): Map<string, ListVariableInfo> {
     return new Map<string, ListVariableInfo>();
@@ -150,11 +154,15 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     );
 
     if (Array.isArray(arrow.body)) {
-      body.push(...this.transformStatements(arrow.body));
+      body.push(...this.transformStatements(this.rewriteLambdaStatements(arrow, arrow.body)));
     } else {
       body.push({
         kind: "ExpressionStatement",
-        expression: this.transformExpression(arrow.body, true, statement.loc?.startLine),
+        expression: this.transformExpression(
+          this.rewriteLambdaExpression(arrow, arrow.body),
+          true,
+          statement.loc?.startLine,
+        ),
         loc: arrow.body.loc ?? statement.loc,
       });
     }
@@ -179,7 +187,9 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     };
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     if (returnBody.prefix.length > 0) {
-      body.push(...this.transformStatements(returnBody.prefix));
+      body.push(
+        ...this.transformStatements(this.rewriteLambdaStatements(arrow, returnBody.prefix)),
+      );
     }
     body.push({
       kind: "ExpressionStatement",
@@ -189,7 +199,11 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
         methodName: "Push",
         typeArguments: [],
         arguments: [
-          this.transformExpression(returnBody.expression, false, declaration.loc?.startLine),
+          this.transformExpression(
+            this.rewriteLambdaExpression(arrow, returnBody.expression),
+            false,
+            declaration.loc?.startLine,
+          ),
         ],
         loc: declaration.loc,
       },
@@ -217,11 +231,17 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     const itemExpr = this.getLambdaItemReference(source, sourceInfo, arrow, loop.idxVar, 0);
     if (returnBody.prefix.length > 0) {
-      body.push(...this.transformStatements(returnBody.prefix));
+      body.push(
+        ...this.transformStatements(this.rewriteLambdaStatements(arrow, returnBody.prefix)),
+      );
     }
     body.push({
       kind: "IfStatement",
-      condition: this.transformExpression(returnBody.expression, false, declaration.loc?.startLine),
+      condition: this.transformExpression(
+        this.rewriteLambdaExpression(arrow, returnBody.expression),
+        false,
+        declaration.loc?.startLine,
+      ),
       thenBranch: [
         {
           kind: "ExpressionStatement",
@@ -258,7 +278,11 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push(
       this.createIfAssignAndExit(
-        this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+        this.transformExpression(
+          this.rewriteLambdaExpression(arrow, arrow.body as Expression),
+          false,
+          declaration.loc?.startLine,
+        ),
         targetRef,
         this.getLambdaItemReference(source, sourceInfo, arrow, loop.idxVar, 0),
         declaration.loc,
@@ -283,7 +307,11 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push(
       this.createIfAssignAndExit(
-        this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+        this.transformExpression(
+          this.rewriteLambdaExpression(arrow, arrow.body as Expression),
+          false,
+          declaration.loc?.startLine,
+        ),
         targetRef,
         loop.idxVar,
         declaration.loc,
@@ -315,7 +343,11 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     const body = this.createLambdaParameterDeclarations(source, sourceInfo, arrow, loop.idxVar, 0);
     body.push(
       this.createIfAssignAndExit(
-        this.transformExpression(arrow.body as Expression, false, declaration.loc?.startLine),
+        this.transformExpression(
+          this.rewriteLambdaExpression(arrow, arrow.body as Expression),
+          false,
+          declaration.loc?.startLine,
+        ),
         targetRef,
         { kind: "Literal", value: true, loc: declaration.loc },
         declaration.loc,
@@ -348,7 +380,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
           kind: "UnaryExpression",
           operator: "Not",
           argument: this.transformExpression(
-            arrow.body as Expression,
+            this.rewriteLambdaExpression(arrow, arrow.body as Expression),
             false,
             declaration.loc?.startLine,
           ),
@@ -385,10 +417,10 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     const accumulatorParam = arrow.parameters[0];
     const nextValue = accumulatorParam
       ? this.replaceIdentifiers(
-          arrow.body as Expression,
+          this.rewriteLambdaExpression(arrow, arrow.body as Expression),
           new Map([[accumulatorParam.name.toLowerCase(), targetRef]]),
         )
-      : (arrow.body as Expression);
+      : this.rewriteLambdaExpression(arrow, arrow.body as Expression);
     body.push({
       kind: "Assignment",
       target: targetRef,
@@ -578,11 +610,18 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     itemParamOffset: number,
   ): Statement[] {
     const statements: Statement[] = [];
+    const replacements = new Map<string, Expression>();
     const itemParam = arrow.parameters[itemParamOffset];
     if (itemParam) {
+      const itemName = this.freshSource();
+      replacements.set(itemParam.name.toLowerCase(), {
+        kind: "Identifier",
+        name: itemName,
+        loc: itemParam.loc ?? arrow.loc,
+      });
       statements.push({
         kind: "VariableDeclaration",
-        name: itemParam.name,
+        name: itemName,
         type: this.resolveLambdaItemType(itemParam, sourceInfo),
         initializer: this.createGetItemCall(source, idxVar, itemParam.loc ?? arrow.loc),
         loc: itemParam.loc ?? arrow.loc,
@@ -590,14 +629,21 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     }
     const indexParam = arrow.parameters[itemParamOffset + 1];
     if (indexParam) {
+      const indexName = this.freshSource();
+      replacements.set(indexParam.name.toLowerCase(), {
+        kind: "Identifier",
+        name: indexName,
+        loc: indexParam.loc ?? arrow.loc,
+      });
       statements.push({
         kind: "VariableDeclaration",
-        name: indexParam.name,
+        name: indexName,
         type: { kind: "TypeReference", name: "Integer", typeArguments: [], loc: indexParam.loc },
         initializer: idxVar,
         loc: indexParam.loc ?? arrow.loc,
       });
     }
+    this.lambdaParameterReplacements.set(arrow, replacements);
     return statements;
   }
 
@@ -618,6 +664,10 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   ): Expression {
     const itemParam = arrow.parameters[itemParamOffset];
     if (itemParam) {
+      const replacement = this.lambdaParameterReplacements
+        .get(arrow)
+        ?.get(itemParam.name.toLowerCase());
+      if (replacement) return deepClone(replacement);
       return { kind: "Identifier", name: itemParam.name, loc: itemParam.loc ?? arrow.loc };
     }
     void sourceInfo;
@@ -715,6 +765,116 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     const match = /^TTList_(.+)$/i.exec(type.name);
     if (!match?.[1]) return undefined;
     return { kind: "TypeReference", name: match[1], typeArguments: [], loc: type.loc };
+  }
+
+  protected rewriteLambdaExpression(
+    arrow: ArrowFunctionExpression,
+    expression: Expression,
+  ): Expression {
+    const replacements = this.lambdaParameterReplacements.get(arrow);
+    if (!replacements || replacements.size === 0) return expression;
+    return this.replaceIdentifiers(expression, replacements);
+  }
+
+  protected rewriteLambdaStatements(
+    arrow: ArrowFunctionExpression,
+    statements: readonly Statement[],
+  ): Statement[] {
+    const replacements = this.lambdaParameterReplacements.get(arrow);
+    if (!replacements || replacements.size === 0) return [...statements];
+    return statements.map((statement) =>
+      this.replaceIdentifiersInStatement(statement, replacements),
+    );
+  }
+
+  protected replaceIdentifiersInStatement(
+    statement: Statement,
+    replacements: ReadonlyMap<string, Expression>,
+  ): Statement {
+    const cloned = deepClone(statement);
+    const visitExpression = (expr: Expression): Expression =>
+      this.replaceIdentifiers(expr, replacements);
+    const visitStatements = (statements: Statement[]): Statement[] =>
+      statements.map((s) => this.replaceIdentifiersInStatement(s, replacements));
+
+    switch (cloned.kind) {
+      case "ExpressionStatement":
+        cloned.expression = visitExpression(cloned.expression);
+        return cloned;
+      case "Assignment":
+        cloned.target = visitExpression(cloned.target);
+        cloned.value = visitExpression(cloned.value);
+        return cloned;
+      case "VariableDeclaration":
+        if (cloned.initializer) cloned.initializer = visitExpression(cloned.initializer);
+        return cloned;
+      case "IfStatement":
+        cloned.condition = visitExpression(cloned.condition);
+        cloned.thenBranch = visitStatements(cloned.thenBranch);
+        cloned.elseIfBranches = cloned.elseIfBranches.map((branch) => ({
+          ...branch,
+          condition: visitExpression(branch.condition),
+          body: visitStatements(branch.body),
+        }));
+        if (cloned.elseBranch) cloned.elseBranch = visitStatements(cloned.elseBranch);
+        return cloned;
+      case "ForStatement":
+        cloned.start = visitExpression(cloned.start);
+        cloned.end = visitExpression(cloned.end);
+        if (cloned.step) cloned.step = visitExpression(cloned.step);
+        cloned.body = visitStatements(cloned.body);
+        return cloned;
+      case "ForEachStatement":
+        cloned.enumerable = visitExpression(cloned.enumerable);
+        cloned.body = visitStatements(cloned.body);
+        return cloned;
+      case "WhileStatement":
+        cloned.condition = visitExpression(cloned.condition);
+        cloned.body = visitStatements(cloned.body);
+        return cloned;
+      case "TryCatchStatement":
+        cloned.tryBody = visitStatements(cloned.tryBody);
+        cloned.catchBody = visitStatements(cloned.catchBody);
+        if (cloned.finallyBody) cloned.finallyBody = visitStatements(cloned.finallyBody);
+        return cloned;
+      case "UsingStatement":
+        cloned.resourceArgs = cloned.resourceArgs.map(visitExpression);
+        cloned.body = visitStatements(cloned.body);
+        return cloned;
+      case "ReturnStatement":
+        if (cloned.expression) cloned.expression = visitExpression(cloned.expression);
+        return cloned;
+      case "ThrowStatement":
+        cloned.expression = visitExpression(cloned.expression);
+        return cloned;
+      case "Block":
+        cloned.statements = visitStatements(cloned.statements);
+        return cloned;
+      case "WithStatement":
+        cloned.expression = visitExpression(cloned.expression);
+        cloned.body = visitStatements(cloned.body);
+        return cloned;
+      case "SelectCaseStatement":
+        cloned.expression = visitExpression(cloned.expression);
+        cloned.cases = cloned.cases.map((branch) => ({
+          ...branch,
+          values: branch.values.map(visitExpression),
+          body: visitStatements(branch.body),
+        }));
+        return cloned;
+      case "DestructuredVariableDeclaration":
+        cloned.initializer = visitExpression(cloned.initializer);
+        cloned.bindings = cloned.bindings.map((binding) => ({
+          ...binding,
+          defaultValue: binding.defaultValue ? visitExpression(binding.defaultValue) : undefined,
+        }));
+        return cloned;
+      case "OpaqueStatement":
+      case "ExitStatement":
+      case "ContinueStatement":
+      case "EnumDeclaration":
+        return cloned;
+    }
   }
 
   protected replaceIdentifiers(

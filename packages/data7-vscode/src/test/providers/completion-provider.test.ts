@@ -133,7 +133,7 @@ End Namespace`;
       const items = (await Promise.resolve(
         provider.provideCompletionItems(
           doc,
-          pos(12, 20),
+          positionAfterToken(GENERIC_FIXTURE, "_products."),
           noopToken,
           {} as vscode.CompletionContext,
         ),
@@ -507,6 +507,54 @@ End Namespace`;
       const labels = items.map(labelOf);
       assert.ok(labels.includes("AsInteger"), `AsInteger must appear; got ${labels.join(", ")}`);
       assert.ok(labels.includes("AsString"), `AsString must appear; got ${labels.join(", ")}`);
+    });
+
+    test("completes only receiver members for lambda parameters", async () => {
+      const code = `Namespace mod_lambda_member_completion
+   Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
+
+   Class TTList<T>
+      Sub ForEach(pHandler As TForEachDel<T>)
+      End Sub
+   End Class
+
+   Class Produto
+      Function GetNome() As String
+      End Function
+      Function GetPreco() As Double
+      End Function
+   End Class
+
+   Class Other
+      Function Clone() As Other
+      End Function
+   End Class
+
+   Dim produtos As TTList<Produto>
+   produtos.ForEach(Sub(pItem As Produto, pIdx As Integer)
+      pItem.
+   End Sub)
+End Namespace`;
+      const uri = "file:///cp_lambda_member.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "pItem."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("GetNome"), `GetNome must appear; got ${labels.join(", ")}`);
+      assert.ok(labels.includes("GetPreco"), `GetPreco must appear; got ${labels.join(", ")}`);
+      assert.ok(!labels.includes("pIdx"), `pIdx must not appear in member completion`);
+      assert.ok(!labels.includes("Clone"), `Clone from another type must not appear`);
     });
   });
 });

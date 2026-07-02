@@ -148,7 +148,7 @@ export class ControlFlowRule implements Rule {
     const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
     const diag = new vscode.Diagnostic(
       range,
-      `Ternário \`?:\` fora de contexto de assignment. O Builder sÃ³ expande ternários em \`Dim x = c ? a : b\`, \`x = c ? a : b\` ou \`obj.prop = c ? a : b\` (forma nativa é \`If/Then/Else/End If\`).`,
+      `Ternário \`?:\` fora de contexto de assignment. O Builder só expande ternários em \`Dim x = c ? a : b\`, \`x = c ? a : b\` ou \`obj.prop = c ? a : b\` (forma nativa é \`If/Then/Else/End If\`).`,
       vscode.DiagnosticSeverity.Warning,
     );
     diag.code = DiagnosticCodes.TernaryContextUnsupported;
@@ -237,7 +237,7 @@ export class ControlFlowRule implements Rule {
             );
             const diag = new vscode.Diagnostic(
               range,
-              `Leitura do nome da função "${idNode.name}" dentro de seu prÃ³prio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
+              `Leitura do nome da função "${idNode.name}" dentro de seu próprio corpo não é permitida. Para chamar recursivamente, use parênteses.`,
               vscode.DiagnosticSeverity.Error,
             );
             diag.code = DiagnosticCodes.FunctionReadSelf;
@@ -495,6 +495,7 @@ export class ControlFlowRule implements Rule {
     if (!node.loc) return;
 
     if (context.activeProperty) return;
+    if (this.isInsideLambdaFunction(context)) return;
     const lineIdx = node.loc.startLine - 1;
 
     let isSingleLineIf = false;
@@ -699,6 +700,14 @@ export class ControlFlowRule implements Rule {
       if (!first || !last) return false;
       return line >= first.startLine && line <= last.endLine;
     });
+  }
+
+  private isInsideLambdaFunction(context: RuleContext): boolean {
+    return context.parentStack.some(
+      (parent) =>
+        parent.kind === "ArrowFunctionExpression" &&
+        (parent.lambdaKind ?? (parent.returnType ? "Function" : "Function")) === "Function",
+    );
   }
 
   private resolveSharedReturnGlobalFunction(

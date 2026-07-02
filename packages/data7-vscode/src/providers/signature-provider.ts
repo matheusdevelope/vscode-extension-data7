@@ -130,6 +130,8 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
         }
         if (typeName) {
           targetSymbol = this.findClassMember(typeName, sigCtx.name, document);
+        } else {
+          targetSymbol = this.findUniqueIndexedDocumentCallable(sigCtx.name, document);
         }
       }
     } else {

@@ -471,6 +471,7 @@ export interface SpreadExpression extends BaseNode {
 
 export interface ArrowFunctionExpression extends BaseNode {
   readonly kind: "ArrowFunctionExpression";
+  readonly lambdaKind?: "Function" | "Sub";
   readonly parameters: ParameterDeclaration[];
   readonly body: Expression | Statement[];
   readonly returnType?: TypeReference;

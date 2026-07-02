@@ -11,8 +11,10 @@ import {
   WorkspaceSymbolIndexer,
   buildMockDocument,
   debounceKeyed,
+  extractSuppressedCodes,
   getCoreModulesPath,
   isExcluded,
+  isSuppressed,
   isReadOnlyModuleFile,
   logger,
   lookupSystemNamespaceOrClassByName,
@@ -277,80 +279,13 @@ export class DiagnosticService {
       return;
     }
 
-    const diagnostics: vscode.Diagnostic[] = [];
-    const text = document.getText();
+    // Delegate the full diagnostics pipeline (module refs, parse errors, advanced
+    // diagnostics, suppression filtering, and indexer update) to
+    // collectDiagnosticsFromMockDocument so the logic stays in one place
+    // regardless of whether we come from the live-editor or batch-from-disk path.
+    const unsuppressed = this.collectDiagnosticsFromMockDocument(document);
 
-    // 1. Unify parsing: parse the document once and obtain the AST
-    let cachedDoc: ReturnType<LanguageProcessor["getOrParse"]>;
-    try {
-      cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
-    } catch (err) {
-      logger.error("Falha ao obter AST do LanguageProcessor.", err);
-      return;
-    }
-
-    // 2. Feed the indexer only at debounce time, using the pre-parsed AST to avoid double parses
-    if (vscode.workspace.getWorkspaceFolder(document.uri)) {
-      const parsedSymbols = SymbolParser.parseFromAst(
-        document.uri.toString(),
-        text,
-        cachedDoc.unit,
-      );
-      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(
-        document.uri.toString(),
-        text,
-        parsedSymbols,
-      );
-    }
-
-    const wsCache = this.getWorkspaceCache(paths.workspaceDir);
-
-    try {
-      for (const reference of DependencyScanner.collectModuleReferences(text)) {
-        const namespace = reference.isExplicit
-          ? (reference.name.split(".")[0] ?? reference.name)
-          : reference.name;
-        this.validateModuleReference(
-          namespace,
-          reference.loc?.line ?? 0,
-          reference.loc?.character ?? 0,
-          diagnostics,
-          wsCache,
-          reference.isExplicit,
-          document.uri.toString(),
-        );
-      }
-    } catch (err: unknown) {
-      logger.error("Falha ao coletar referências de módulos via AST.", err);
-    }
-
-    // Process cached document syntactical parse errors
-    cachedDoc.errors.forEach((err) => {
-      const line = Math.max(0, err.loc.line - 1);
-      const col = Math.max(0, err.loc.column);
-      const range = new vscode.Range(line, col, line, col + 1);
-      const isMissingThen =
-        err.code === "expected-token" && err.message.toLowerCase().includes("expected 'then'");
-      const severity = isMissingThen
-        ? vscode.DiagnosticSeverity.Warning
-        : vscode.DiagnosticSeverity.Error;
-      const diag = new vscode.Diagnostic(range, err.message, severity);
-      diag.code = err.code;
-      diag.source = DIAGNOSTIC_SOURCE;
-      diagnostics.push(diag);
-    });
-
-    try {
-      const advanced = DiagnosticsLinter.runAdvancedDiagnostics(
-        document,
-        WorkspaceSymbolIndexer.getInstance(),
-      );
-      diagnostics.push(...advanced);
-    } catch (err: unknown) {
-      logger.error("Falha ao executar diagnósticos avançados.", err);
-    }
-
-    this._collection?.set(document.uri, diagnostics);
+    this._collection?.set(document.uri, unsuppressed);
     this.liveDiagnosticUris.set(document.uri.toString().toLowerCase(), document.uri);
     this.workspaceDiagnosticUris.delete(document.uri.toString().toLowerCase());
 
@@ -548,6 +483,12 @@ export class DiagnosticService {
     const localModules = DependencyScanner.getLocalModuleNames(srcDir);
     const localTypes = DependencyScanner.getLocalTypeNames(srcDir);
     const data7ModulesDir = path.join(workspaceDir, "data7_modules");
+    // Modules installed under data7_modules/ are valid local references: add
+    // their declared namespaces to localModules so validateModuleReference does
+    // not flag them as module-not-found.
+    for (const modName of DependencyScanner.getLocalModuleNames(data7ModulesDir)) {
+      localModules.add(modName);
+    }
     for (const typeName of DependencyScanner.getLocalTypeNames(data7ModulesDir)) {
       localTypes.add(typeName);
     }
@@ -833,6 +774,10 @@ export class DiagnosticService {
 
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);
 
+    // Compute suppression map once so that `disable-next-line` / `disable-line`
+    // comments are honoured in both the live-editor and the batch-from-disk paths.
+    const suppressions = extractSuppressedCodes(text);
+
     try {
       for (const reference of DependencyScanner.collectModuleReferences(text)) {
         const namespace = reference.isExplicit
@@ -868,17 +813,35 @@ export class DiagnosticService {
       diagnostics.push(diag);
     });
 
+    // Filter module-not-found and parse-error diagnostics against suppression
+    // comments before merging with advanced diagnostics (which are already
+    // filtered internally by postProcessDiagnostics).
+    const unsuppressed = diagnostics.filter((diag) => {
+      const rawCode = diag.code;
+      let codeStr: string;
+      if (typeof rawCode === "string") {
+        codeStr = rawCode;
+      } else if (typeof rawCode === "number") {
+        codeStr = String(rawCode);
+      } else if (rawCode && typeof rawCode === "object" && "value" in rawCode) {
+        codeStr = String(rawCode.value);
+      } else {
+        codeStr = "";
+      }
+      return !isSuppressed(suppressions, diag.range.start.line, codeStr);
+    });
+
     try {
       const advanced = DiagnosticsLinter.runAdvancedDiagnostics(
         document,
         WorkspaceSymbolIndexer.getInstance(),
       );
-      diagnostics.push(...advanced);
+      unsuppressed.push(...advanced);
     } catch (err: unknown) {
       logger.error("Falha ao executar diagnósticos avançados.", err);
     }
 
-    return diagnostics;
+    return unsuppressed;
   }
 
   /** Test-only hook: clears all cached state. */

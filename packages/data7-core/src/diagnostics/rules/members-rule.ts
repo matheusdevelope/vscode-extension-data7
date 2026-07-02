@@ -393,7 +393,130 @@ export class MembersRule implements Rule {
         diag.code = DiagnosticCodes.SubUsedAsFunction;
         context.report(diag);
       }
+
+      this.checkMethodArgumentTypes(node, resolvedMethod, lineIdx, context);
     }
+  }
+
+  private checkMethodArgumentTypes(
+    node: MethodInvocation,
+    method: SymbolInfo,
+    lineIdx: number,
+    context: RuleContext,
+  ): void {
+    const argumentTypes = node.arguments.map((arg) =>
+      TypeResolver.resolveExpressionType(arg, context.document, lineIdx, context.indexer),
+    );
+    const signatures = [method.parameters, ...(method.overloads ?? [])].filter(
+      (parameters): parameters is NonNullable<SymbolInfo["parameters"]> =>
+        !!parameters && this.isArityMatch(parameters, argumentTypes.length),
+    );
+    if (signatures.length === 0) return;
+    const genericSubstitutions = this.buildMethodGenericSubstitutions(method, node);
+
+    const acceptsAnySignature = signatures.some((parameters) =>
+      parameters.every((parameter, index) => {
+        const expectedType = this.substituteMethodGenericType(parameter.type, genericSubstitutions);
+        if (node.arguments[index]?.kind === "ArrowFunctionExpression") {
+          return this.isDelegateType(expectedType, context);
+        }
+        const argumentType = argumentTypes[index];
+        if (!argumentType) return true;
+        return DiagnosticsLinter.isTypeCompatible(argumentType, expectedType, context.indexer);
+      }),
+    );
+    if (acceptsAnySignature) return;
+
+    const signature = signatures[0];
+    if (!signature) return;
+    for (let i = 0; i < node.arguments.length; i++) {
+      const argument = node.arguments[i];
+      const argumentType = argumentTypes[i];
+      const parameter = signature[i];
+      if (!argument || !argumentType || !parameter) continue;
+      const expectedType = this.substituteMethodGenericType(parameter.type, genericSubstitutions);
+      if (
+        argument.kind === "ArrowFunctionExpression" &&
+        this.isDelegateType(expectedType, context)
+      ) {
+        continue;
+      }
+      if (DiagnosticsLinter.isTypeCompatible(argumentType, expectedType, context.indexer)) {
+        continue;
+      }
+
+      const range = argument.loc
+        ? new vscode.Range(
+            argument.loc.startLine - 1,
+            argument.loc.startChar,
+            argument.loc.endLine - 1,
+            argument.loc.endChar,
+          )
+        : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
+      const diag = new vscode.Diagnostic(
+        range,
+        `Incompatibilidade de tipos no argumento "${parameter.name}" de "${method.name}": esperado "${expectedType}", mas recebido "${argumentType}".`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.TypeMismatch;
+      context.report(diag);
+    }
+  }
+
+  private isArityMatch(
+    parameters: readonly {
+      readonly isOptional?: boolean;
+      readonly defaultValue?: string;
+    }[],
+    argumentCount: number,
+  ): boolean {
+    if (argumentCount > parameters.length) return false;
+    for (let i = argumentCount; i < parameters.length; i++) {
+      const parameter = parameters[i];
+      if (parameter && !parameter.isOptional && parameter.defaultValue === undefined) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private buildMethodGenericSubstitutions(
+    method: SymbolInfo,
+    node: MethodInvocation,
+  ): ReadonlyMap<string, string> {
+    const substitutions = new Map<string, string>();
+    method.genericTypeParameters?.forEach((parameter, index) => {
+      const argument = node.typeArguments[index];
+      if (argument?.name) {
+        substitutions.set(parameter.toLowerCase(), argument.name);
+      }
+    });
+    return substitutions;
+  }
+
+  private substituteMethodGenericType(
+    typeName: string,
+    substitutions: ReadonlyMap<string, string>,
+  ): string {
+    return substitutions.get(typeName.toLowerCase()) ?? typeName;
+  }
+
+  private isDelegateType(typeName: string, context: RuleContext): boolean {
+    const baseName = typeName.split("<", 1)[0] ?? typeName;
+    const lower = baseName.toLowerCase();
+    return (
+      context.indexer.findSymbolByName(baseName)?.kind === "delegate" ||
+      lookupSystemByName(baseName).some((symbol) => symbol.kind === "delegate") ||
+      context.indexer
+        .getAllSymbols()
+        .some(
+          (symbol) =>
+            symbol.kind === "delegate" && lower.startsWith(`${symbol.name.toLowerCase()}_`),
+        ) ||
+      SYSTEM_SYMBOLS.filter((symbol) => symbol.kind === "delegate").some((symbol) =>
+        lower.startsWith(`${symbol.name.toLowerCase()}_`),
+      )
+    );
   }
 
   private checkAssignment(node: Assignment, context: RuleContext): void {
@@ -660,7 +783,7 @@ export class MembersRule implements Rule {
   ): void {
     const diag = new vscode.Diagnostic(
       range,
-      `Membro "${memberName}" nÃ£o pode ser resolvido porque o tipo "${typeName}" nÃ£o foi encontrado ou nÃ£o estÃ¡ acessÃ­vel neste escopo.`,
+      `Membro "${memberName}" não pode ser resolvido porque o tipo "${typeName}" não foi encontrado ou não está acessÃ­vel neste escopo.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.UnknownMember;

@@ -119,6 +119,9 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       const memberAccess = ast.getMemberAccessContext();
       if (memberAccess) {
         targetSymbol = memberAccess.symbol;
+        if (!targetSymbol && memberAccess.receiver) {
+          return undefined;
+        }
       }
     }
 

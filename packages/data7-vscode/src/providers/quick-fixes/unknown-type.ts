@@ -16,13 +16,13 @@ export function addUnknownTypeDidYouMeanFixes(
   const typeName = getUnknownTypeName(document, diagnostic, payload);
 
   if (payload && payload.suggestions.length > 0) {
-    payload.suggestions.forEach((suggestion, idx) => {
+    payload.suggestions.forEach((suggestion, index) => {
       const action = new vscode.CodeAction(
         `Você quis dizer "${suggestion}"?`,
         vscode.CodeActionKind.QuickFix,
       );
       action.diagnostics = [diagnostic];
-      if (idx === 0) action.isPreferred = true;
+      action.isPreferred = index === 0;
       const edit = new vscode.WorkspaceEdit();
       edit.replace(document.uri, diagnostic.range, suggestion);
       action.edit = edit;
@@ -53,7 +53,7 @@ function createExternalTypeLineFix(
   typeName: string,
 ): vscode.CodeAction {
   const action = new vscode.CodeAction(
-    `Aceitar tipo externo "${typeName}" nesta declaraÃƒÂ§ÃƒÂ£o`,
+    `Aceitar tipo externo "${typeName}" nesta declaração`,
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
@@ -147,7 +147,7 @@ export function addUnknownTypeDidYouMeanBulkFix(
   if (mismatches.length <= 1) return;
 
   const action = new vscode.CodeAction(
-    "Corrigir todos os tipos desconhecidos neste arquivo com a primeira sugestÃ£o",
+    "Corrigir todos os tipos desconhecidos neste arquivo com a primeira sugestão",
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];

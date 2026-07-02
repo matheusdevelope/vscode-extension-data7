@@ -89,7 +89,7 @@ function formatGenericWarningMessage(warning: GenericsPassWarning): string {
     case "generic-arity-mismatch":
       return `Generics: '${warning.templateName ?? ""}' espera ${String(warning.expected ?? 0)} argumento(s) de tipo, mas recebeu ${String(warning.actual ?? 0)}.`;
     case "duplicate-template":
-      return `Generics: template '${warning.templateName ?? ""}' declarado mais de uma vez; a Ãºltima declaração prevalece.`;
+      return `Generics: template '${warning.templateName ?? ""}' declarado mais de uma vez; a última declaração prevalece.`;
     case "class-generic-method-unsupported":
       return `Generics: método genérico '${warning.templateName ?? ""}' dentro de classe não é suportado pelo monomorphizer; a declaração será removida do output do Builder.`;
     case "flat-name-collision":

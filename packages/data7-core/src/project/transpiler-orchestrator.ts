@@ -163,6 +163,7 @@ export class SugarTranspiler {
 
         const prefixLines = outputLines.slice(0, syntheticStartIdx);
         const bodyLines = outputLines.slice(syntheticStartIdx + 1, syntheticEndIdx);
+        const suffixLines = outputLines.slice(syntheticEndIdx + 1);
         const unindented = bodyLines.map((line) => {
           let cleanLine = line;
           if (line.startsWith("   ")) {
@@ -171,12 +172,13 @@ export class SugarTranspiler {
           return originalIndent + cleanLine;
         });
         serializeResult = {
-          code: [...prefixLines, ...unindented].join(eol),
+          code: [...prefixLines, ...unindented, ...suffixLines].join(eol),
           lineMap: [
             ...serializeResult.lineMap.slice(0, syntheticStartIdx),
             ...serializeResult.lineMap
               .slice(syntheticStartIdx + 1, syntheticEndIdx)
               .map((x) => x - 1),
+            ...serializeResult.lineMap.slice(syntheticEndIdx + 1),
           ],
         };
       }

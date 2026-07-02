@@ -2,7 +2,7 @@
   "name": "vscode-extension-data7",
   "displayName": "Data7 DevStudio",
   "description": "Ferramentas para desenvolvimento, sincronização e execução de projetos Data7 (.7Proj) no VS Code.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "matheusdevelope",
   "license": "MIT",
   "repository": {
@@ -28,7 +28,7 @@
     "docs:examples": "node ../../scripts/generate-examples-index.js",
     "docs:examples:check": "node ../../scripts/generate-examples-index.js --check",
     "verify": "npm run compile && npm run lint && npm run format:check && npm run test && node ../../scripts/audit-system-library.js && node ../../scripts/generate-examples-index.js --check",
-    "build:extension": "npx @vscode/vsce package --no-dependencies"
+    "build:extension": "npx @vscode/vsce package --no-dependencies --allow-package-env-file"
   },
   "bugs": {
     "url": "https://github.com/matheusdevelope/vscode-extension-data7/issues"
@@ -639,7 +639,7 @@
       "properties": {
         "data7.executorPath": {
           "type": "string",
-          "default": "C:\\Data7\\bin\\[Executor.exe ou D7MG.exe]",
+          "default": "C:\\Data7\\bin\\Executor.exe",
           "description": "Caminho absoluto para o executável do Executor do Data7 (ex: C:\\Data7\\bin\\Executor.exe)."
         },
         "data7.sharedModulesPath": {

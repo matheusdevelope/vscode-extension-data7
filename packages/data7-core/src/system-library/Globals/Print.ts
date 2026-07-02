@@ -10,7 +10,7 @@ export const symbols: SystemSymbolInfo[] = [
     parameters: [
       {
         name: "Msg",
-        type: "String",
+        type: "Variant",
         isOptional: false,
         isByRef: false,
       },

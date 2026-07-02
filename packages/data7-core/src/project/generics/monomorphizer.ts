@@ -57,6 +57,7 @@ import {
   type OpaqueStatement,
   type Statement,
   type TopLevelMember,
+  type TypeParameter,
   type TypeReference,
   type Expression,
 } from "../ast/ast";
@@ -128,6 +129,10 @@ export class GenericsMonomorphizer {
       options: this.options,
       externalTemplates: buildExternalTemplateMap(this.options.externalTemplates ?? []),
       requestableTemplateNames: new Set<string>(),
+      concreteInstantiations: new Map<string, ConcreteInstantiation>(),
+      classGenericMethods: new Map<string, ClassGenericMethodTemplate[]>(),
+      classMethodRequests: new Map<string, ClassGenericMethodRequest>(),
+      classMethodEmitted: new Set<string>(),
     };
 
     // Pre-populate templates from sugar utility modules.
@@ -225,6 +230,10 @@ interface MonoContext {
   readonly options: MonomorphizerOptions;
   readonly externalTemplates: ReadonlyMap<string, ExternalGenericTemplate>;
   readonly requestableTemplateNames: Set<string>;
+  readonly concreteInstantiations: Map<string, ConcreteInstantiation>;
+  readonly classGenericMethods: Map<string, ClassGenericMethodTemplate[]>;
+  readonly classMethodRequests: Map<string, ClassGenericMethodRequest>;
+  readonly classMethodEmitted: Set<string>;
 }
 
 interface PendingInstantiation {
@@ -238,6 +247,28 @@ interface KnownTemplate {
   readonly name: string;
   readonly typeParamCount: number;
   readonly internal: boolean;
+}
+
+interface ConcreteInstantiation {
+  readonly templateName: string;
+  readonly concreteArgs: readonly TypeReference[];
+  readonly flatName: string;
+}
+
+interface ClassGenericMethodTemplate {
+  readonly ownerClassName: string;
+  readonly ownerTypeParameters: readonly TypeParameter[];
+  readonly ordinal: number;
+  readonly method: MethodDeclaration;
+}
+
+interface ClassGenericMethodRequest {
+  readonly ownerClassName: string;
+  readonly ownerFlatName: string;
+  readonly ownerConcreteArgs: readonly TypeReference[];
+  readonly methodName: string;
+  readonly methodFlatName: string;
+  readonly methodConcreteArgs: readonly TypeReference[];
 }
 
 function warn(
@@ -289,9 +320,10 @@ function validate(unit: CompilationUnit, ctx: MonoContext): void {
  *     be injected back into the same scope.
  *
  * Non-generic top-level declarations are kept untouched. For non-generic
- * classes, `pruneClassGenericMethods` scans their members and removes any
- * generic method declaration with a `class-generic-method-unsupported`
- * warning (see `Out of scope` in `ast.ts`).
+ * classes, `collectClassGenericMethods` scans their members and removes any
+ * generic method declaration from the source class body. Those methods are
+ * kept as member templates and are re-injected as concrete overloads when a
+ * call such as `list.Map<String>(...)` is observed against a concrete receiver.
  */
 function collectAndPrune(unit: CompilationUnit, ctx: MonoContext): void {
   collectAndPruneIn(unit.members, ctx, true);
@@ -312,7 +344,7 @@ function collectAndPruneIn(
     }
 
     if (member.kind === "ClassDeclaration") {
-      pruneClassGenericMethods(member, ctx);
+      collectClassGenericMethods(member, ctx);
 
       if (member.typeParameters.length > 0) {
         if (member.name.length === 0) {
@@ -341,19 +373,22 @@ function collectAndPruneIn(
   }
 }
 
-function pruneClassGenericMethods(klass: ClassDeclaration, ctx: MonoContext): void {
+function collectClassGenericMethods(klass: ClassDeclaration, ctx: MonoContext): void {
+  const methods = ctx.classGenericMethods.get(klass.name.toLowerCase()) ?? [];
   for (let j = klass.members.length - 1; j >= 0; j--) {
     const cm = klass.members[j];
     if (cm?.kind === "MethodDeclaration" && cm.typeParameters.length > 0) {
-      const qualified = `${klass.name}.${cm.name}`;
-      warn(
-        ctx,
-        "class-generic-method-unsupported",
-        `Generic method '${qualified}' inside a class is not supported by the current engine; declaration was removed.`,
-        { templateName: qualified },
-      );
+      methods.push({
+        ownerClassName: klass.name,
+        ownerTypeParameters: klass.typeParameters.map(deepClone),
+        ordinal: methods.length,
+        method: deepClone(cm),
+      });
       klass.members.splice(j, 1);
     }
+  }
+  if (methods.length > 0) {
+    ctx.classGenericMethods.set(klass.name.toLowerCase(), methods);
   }
 }
 
@@ -422,8 +457,97 @@ function rewriteGenericUsages(root: Node, ctx: MonoContext): void {
 }
 
 class GenericUsageRewriter extends ASTWalker {
+  private readonly scopes: Map<string, string>[] = [new Map()];
+  private readonly expressionTypes = new WeakMap<Expression, string>();
+
   constructor(private readonly ctx: MonoContext) {
     super();
+  }
+
+  override walk(node: Node): void {
+    switch (node.kind) {
+      case "CompilationUnit":
+        for (const member of node.members) this.walk(member);
+        return;
+      case "NamespaceDeclaration":
+        for (const member of node.members) this.walk(member);
+        return;
+      case "ClassDeclaration":
+        if (node.baseType) this.walk(node.baseType);
+        this.pushScope();
+        try {
+          for (const member of node.members) {
+            this.walk(member);
+          }
+        } finally {
+          this.popScope();
+        }
+        return;
+      case "MethodDeclaration":
+        for (const typeParameter of node.typeParameters) this.walk(typeParameter);
+        for (const parameter of node.parameters) this.walk(parameter);
+        if (node.returnType) this.walk(node.returnType);
+        this.pushScope();
+        try {
+          for (const parameter of node.parameters) {
+            this.registerSymbol(parameter.name, typeRefToSource(parameter.type));
+          }
+          for (const statement of node.body) this.walk(statement);
+        } finally {
+          this.popScope();
+        }
+        return;
+      case "VariableDeclaration": {
+        for (const dimension of node.nativeArrayDimensions ?? []) this.walk(dimension);
+        if (node.type) this.walk(node.type);
+        if (node.initializer) this.walk(node.initializer);
+        const inferred =
+          node.type !== undefined
+            ? typeRefToSource(node.type)
+            : node.initializer
+              ? this.expressionTypes.get(node.initializer)
+              : undefined;
+        if (inferred) this.registerSymbol(node.name, inferred);
+        return;
+      }
+      case "FieldDeclaration":
+        this.walk(node.type);
+        if (node.initializer) this.walk(node.initializer);
+        this.registerSymbol(node.name, typeRefToSource(node.type));
+        return;
+      case "ForEachStatement":
+        if (node.elementType) this.walk(node.elementType);
+        this.walk(node.enumerable);
+        this.pushScope();
+        try {
+          if (node.elementType) {
+            this.registerSymbol(node.elementVar.name, typeRefToSource(node.elementType));
+          }
+          for (const statement of node.body) this.walk(statement);
+        } finally {
+          this.popScope();
+        }
+        return;
+      case "ObjectCreationExpression":
+        this.walk(node.type);
+        for (const argument of node.arguments) this.walk(argument);
+        this.expressionTypes.set(node, typeRefToSource(node.type));
+        return;
+      case "MethodInvocation":
+        if (node.callee) this.walk(node.callee);
+        for (const typeArgument of node.typeArguments) this.walk(typeArgument);
+        for (const argument of node.arguments) this.walk(argument);
+        this.visitMethodInvocation(node);
+        return;
+      case "Identifier": {
+        const resolved = this.lookupSymbol(node.name);
+        if (resolved) this.expressionTypes.set(node, resolved);
+        return;
+      }
+      default:
+        super.walk(node);
+        return;
+    }
   }
 
   protected override visitTypeReference(node: TypeReference): void {
@@ -466,6 +590,8 @@ class GenericUsageRewriter extends ASTWalker {
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
     if (node.typeArguments.length === 0) return;
+    if (this.rewriteClassGenericMethodInvocation(node)) return;
+
     const template = getKnownTemplate(this.ctx, node.methodName);
     if (!template) {
       warn(
@@ -508,6 +634,105 @@ class GenericUsageRewriter extends ASTWalker {
 
     node.methodName = flat;
     node.typeArguments = [];
+  }
+
+  private rewriteClassGenericMethodInvocation(node: MethodInvocation): boolean {
+    if (!node.callee) return false;
+    const receiverType = this.expressionTypes.get(node.callee);
+    if (!receiverType) return false;
+    const owner = this.resolveOwner(receiverType);
+    if (!owner) return false;
+
+    const candidates = this.ctx.classGenericMethods
+      .get(owner.ownerClassName.toLowerCase())
+      ?.filter(
+        (template) =>
+          template.method.name.toLowerCase() === node.methodName.toLowerCase() &&
+          template.method.typeParameters.length === node.typeArguments.length,
+      );
+    if (!candidates || candidates.length === 0) return false;
+
+    const synthetic: TypeReference = {
+      kind: "TypeReference",
+      name: node.methodName,
+      typeArguments: node.typeArguments,
+    };
+    const canonical = canonicalNameOf(synthetic);
+    const flat = flatNameOf(synthetic);
+    detectCollision(this.ctx, flat, canonical);
+
+    const concreteArgs = node.typeArguments.map(deepClone);
+    this.ctx.classMethodRequests.set(
+      classMethodRequestKey(owner.ownerFlatName, node.methodName, flat),
+      {
+        ownerClassName: owner.ownerClassName,
+        ownerFlatName: owner.ownerFlatName,
+        ownerConcreteArgs: owner.ownerConcreteArgs.map(deepClone),
+        methodName: node.methodName,
+        methodFlatName: flat,
+        methodConcreteArgs: concreteArgs,
+      },
+    );
+
+    const inferredReturn = inferClassGenericMethodReturnType(
+      this.ctx,
+      candidates[0],
+      owner.ownerConcreteArgs,
+      concreteArgs,
+    );
+
+    node.methodName = flat;
+    node.typeArguments = [];
+    if (inferredReturn) {
+      this.expressionTypes.set(node, inferredReturn);
+    }
+    return true;
+  }
+
+  private resolveOwner(receiverType: string):
+    | {
+        readonly ownerClassName: string;
+        readonly ownerFlatName: string;
+        readonly ownerConcreteArgs: readonly TypeReference[];
+      }
+    | undefined {
+    const concrete = this.ctx.concreteInstantiations.get(receiverType.toLowerCase());
+    if (concrete) {
+      return {
+        ownerClassName: concrete.templateName,
+        ownerFlatName: concrete.flatName,
+        ownerConcreteArgs: concrete.concreteArgs,
+      };
+    }
+    if (this.ctx.classGenericMethods.has(receiverType.toLowerCase())) {
+      return {
+        ownerClassName: receiverType,
+        ownerFlatName: receiverType,
+        ownerConcreteArgs: [],
+      };
+    }
+    return undefined;
+  }
+
+  private pushScope(): void {
+    this.scopes.push(new Map());
+  }
+
+  private popScope(): void {
+    this.scopes.pop();
+  }
+
+  private registerSymbol(name: string, typeName: string): void {
+    this.scopes[this.scopes.length - 1]?.set(name.toLowerCase(), typeName);
+  }
+
+  private lookupSymbol(name: string): string | undefined {
+    for (let i = this.scopes.length - 1; i >= 0; i--) {
+      const scope = this.scopes[i];
+      const resolved = scope?.get(name.toLowerCase());
+      if (resolved) return resolved;
+    }
+    return undefined;
   }
 
   protected override visitOpaqueStatement(node: OpaqueStatement): void {
@@ -627,6 +852,49 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
     const flatName = flatNameFromParts(template.name, flatNameArgs);
     enqueue(ctx, { templateName: template.name, concreteArgs, flatName });
   }
+
+  for (const request of ctx.options.requestedInstantiations ?? []) {
+    const methodTypeArgs = request.typeArgs.map((arg) => ({
+      kind: "TypeReference" as const,
+      name: arg,
+      typeArguments: [],
+    }));
+    const methodFlatNameArgs = (request.flatTypeArgs ?? request.typeArgs).map((arg) => ({
+      kind: "TypeReference" as const,
+      name: arg,
+      typeArguments: [],
+    }));
+
+    for (const [ownerClassKey, templates] of ctx.classGenericMethods) {
+      const candidates = templates.filter(
+        (template) =>
+          template.method.name.toLowerCase() === request.templateName.toLowerCase() &&
+          template.method.typeParameters.length === methodTypeArgs.length,
+      );
+      if (candidates.length === 0) continue;
+
+      const concreteOwners = Array.from(ctx.concreteInstantiations.values()).filter(
+        (instantiation) => instantiation.templateName.toLowerCase() === ownerClassKey,
+      );
+      for (const owner of concreteOwners) {
+        const methodFlatName = flatNameFromParts(
+          candidates[0]?.method.name ?? request.templateName,
+          methodFlatNameArgs,
+        );
+        ctx.classMethodRequests.set(
+          classMethodRequestKey(owner.flatName, request.templateName, methodFlatName),
+          {
+            ownerClassName: owner.templateName,
+            ownerFlatName: owner.flatName,
+            ownerConcreteArgs: owner.concreteArgs.map(deepClone),
+            methodName: request.templateName,
+            methodFlatName,
+            methodConcreteArgs: methodTypeArgs.map(deepClone),
+          },
+        );
+      }
+    }
+  }
 }
 
 function hasOpenTemplateTypeArgument(
@@ -640,6 +908,14 @@ function hasOpenTemplateTypeArgument(
 function enqueue(ctx: MonoContext, pending: PendingInstantiation): void {
   if (ctx.instantiated.has(pending.flatName)) return;
   if (ctx.enqueued.has(pending.flatName)) return;
+  const template = ctx.templates.get(pending.templateName);
+  if (template?.kind === "ClassDeclaration") {
+    ctx.concreteInstantiations.set(pending.flatName.toLowerCase(), {
+      templateName: template.name,
+      concreteArgs: pending.concreteArgs.map(deepClone),
+      flatName: pending.flatName,
+    });
+  }
   ctx.enqueued.add(pending.flatName);
   ctx.worklist.push(pending);
 }
@@ -664,7 +940,12 @@ function enqueue(ctx: MonoContext, pending: PendingInstantiation): void {
 function drainWorklist(ctx: MonoContext): void {
   let processed = 0;
 
-  while (ctx.worklist.length > 0) {
+  while (true) {
+    if (ctx.worklist.length === 0) {
+      if (!materializePendingClassGenericMethods(ctx)) return;
+      continue;
+    }
+
     if (processed >= MAX_INSTANTIATIONS) {
       warn(
         ctx,
@@ -726,6 +1007,160 @@ function drainWorklist(ctx: MonoContext): void {
 
     processed += 1;
   }
+}
+
+function materializePendingClassGenericMethods(ctx: MonoContext): boolean {
+  let changed = false;
+
+  for (const request of ctx.classMethodRequests.values()) {
+    const ownerClass = findClassDeclarationByName(ctx.unit.members, request.ownerFlatName);
+    if (!ownerClass) continue;
+
+    const candidates = ctx.classGenericMethods
+      .get(request.ownerClassName.toLowerCase())
+      ?.filter(
+        (template) =>
+          template.method.name.toLowerCase() === request.methodName.toLowerCase() &&
+          template.method.typeParameters.length === request.methodConcreteArgs.length,
+      );
+    if (!candidates || candidates.length === 0) continue;
+
+    for (const template of candidates) {
+      const emittedKey = classMethodEmittedKey(
+        request.ownerFlatName,
+        request.methodFlatName,
+        template.ordinal,
+      );
+      if (ctx.classMethodEmitted.has(emittedKey)) continue;
+
+      const clone = deepClone(template.method);
+      const substitution = buildClassMethodSubstitution(
+        template,
+        request.ownerConcreteArgs,
+        request.methodConcreteArgs,
+      );
+      applySubstitution(clone, substitution, ctx.templates);
+      evaluateMetaProgramming(clone, substitution, ctx);
+      renameMethodInvocations(clone, request.methodName, request.methodFlatName);
+      clone.name = request.methodFlatName;
+      clone.typeParameters = [];
+      ownerClass.members.push(clone);
+      ctx.classMethodEmitted.add(emittedKey);
+      rewriteGenericUsages(clone, ctx);
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+function buildClassMethodSubstitution(
+  template: ClassGenericMethodTemplate,
+  ownerConcreteArgs: readonly TypeReference[],
+  methodConcreteArgs: readonly TypeReference[],
+): Map<string, TypeReference> {
+  const substitution = new Map<string, TypeReference>();
+  for (let i = 0; i < template.ownerTypeParameters.length; i++) {
+    const param = template.ownerTypeParameters[i];
+    const arg = ownerConcreteArgs[i];
+    if (param?.name && arg) substitution.set(param.name, arg);
+  }
+  for (let i = 0; i < template.method.typeParameters.length; i++) {
+    const param = template.method.typeParameters[i];
+    const arg = methodConcreteArgs[i];
+    if (param?.name && arg) substitution.set(param.name, arg);
+  }
+  return substitution;
+}
+
+function inferClassGenericMethodReturnType(
+  ctx: MonoContext,
+  template: ClassGenericMethodTemplate | undefined,
+  ownerConcreteArgs: readonly TypeReference[],
+  methodConcreteArgs: readonly TypeReference[],
+): string | undefined {
+  if (!template?.method.returnType) return undefined;
+  const substitution = buildClassMethodSubstitution(
+    template,
+    ownerConcreteArgs,
+    methodConcreteArgs,
+  );
+  const returnType = deepClone(template.method.returnType);
+  applySubstitution(returnType, substitution, ctx.templates);
+  if (returnType.typeArguments.length > 0) {
+    const known = getKnownTemplate(ctx, returnType.name);
+    if (known) return flatNameOf(returnType);
+  }
+  return typeRefToSource(returnType);
+}
+
+function findClassDeclarationByName(
+  members: readonly TopLevelMember[],
+  name: string,
+): ClassDeclaration | undefined {
+  for (const member of members) {
+    if (member.kind === "ClassDeclaration" && member.name.toLowerCase() === name.toLowerCase()) {
+      return member;
+    }
+    if (member.kind === "NamespaceDeclaration") {
+      const nested = findClassDeclarationByName(member.members, name);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
+function renameMethodInvocations(
+  method: MethodDeclaration,
+  sourceName: string,
+  targetName: string,
+): void {
+  new MethodInvocationNameRewriter(sourceName, targetName).walk(method);
+}
+
+class MethodInvocationNameRewriter extends ASTWalker {
+  constructor(
+    private readonly sourceName: string,
+    private readonly targetName: string,
+  ) {
+    super();
+  }
+
+  protected override visitMethodInvocation(node: MethodInvocation): void {
+    if (
+      node.typeArguments.length === 0 &&
+      node.methodName.toLowerCase() === this.sourceName.toLowerCase()
+    ) {
+      node.methodName = this.targetName;
+    }
+  }
+
+  override walk(node: Node): void {
+    if (
+      node.kind === "Assignment" &&
+      node.target.kind === "Identifier" &&
+      node.target.name.toLowerCase() === this.sourceName.toLowerCase()
+    ) {
+      node.target.name = this.targetName;
+    }
+    super.walk(node);
+  }
+}
+
+function classMethodRequestKey(
+  ownerFlatName: string,
+  methodName: string,
+  methodFlatName: string,
+): string {
+  return `${ownerFlatName.toLowerCase()}|${methodName.toLowerCase()}|${methodFlatName.toLowerCase()}`;
+}
+
+function classMethodEmittedKey(
+  ownerFlatName: string,
+  methodFlatName: string,
+  ordinal: number,
+): string {
+  return `${ownerFlatName.toLowerCase()}|${methodFlatName.toLowerCase()}|${String(ordinal)}`;
 }
 
 /**

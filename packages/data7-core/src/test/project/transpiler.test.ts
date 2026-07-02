@@ -1458,39 +1458,44 @@ describe("SugarTranspiler — array-list", () => {
   test("expands map/filter/find/findIndex/some/every/reduce/forEach over TTList", () => {
     const code = [
       `Dim nums[] As Integer = [1, 2, 3]`,
-      `Dim doubled[] As Integer = nums.map(x => x * 2)`,
-      `Dim even[] As Integer = nums.filter(x => x Mod 2 = 0)`,
-      `Dim found As Integer = nums.find(x => x > 1)`,
-      `Dim foundIndex As Integer = nums.findIndex(x => x > 1)`,
-      `Dim hasEven As Boolean = nums.some(x => x Mod 2 = 0)`,
-      `Dim allPositive As Boolean = nums.every(x => x > 0)`,
-      `Dim total As Integer = nums.reduce((acc As Integer, x As Integer) => acc + x, 0)`,
-      `nums.forEach(x => print(x))`,
+      `Dim doubled[] As Integer = nums.map(Function(x As Integer) x * 2)`,
+      `Dim even[] As Integer = nums.filter(Function(x As Integer) x Mod 2 = 0)`,
+      `Dim found As Integer = nums.find(Function(x As Integer) x > 1)`,
+      `Dim foundIndex As Integer = nums.findIndex(Function(x As Integer) x > 1)`,
+      `Dim hasEven As Boolean = nums.some(Function(x As Integer) x Mod 2 = 0)`,
+      `Dim allPositive As Boolean = nums.every(Function(x As Integer) x > 0)`,
+      `Dim total As Integer = nums.reduce(Function(acc As Integer, x As Integer) acc + x, 0)`,
+      `nums.forEach(Sub(x As Integer)`,
+      `   print(x)`,
+      `End Sub)`,
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
 
     assert.match(out, /Dim doubled As TTList_Integer = New TTList_Integer\(\)/);
-    assert.match(out, /Dim x As Integer = nums\.GetItem\(__idx\d+\)/);
-    assert.match(out, /doubled\.Push\(x \* 2\)/);
+    assert.match(out, /Dim __src\d+ As Integer = nums\.GetItem\(__idx\d+\)/);
+    assert.match(out, /doubled\.Push\(__src\d+ \* 2\)/);
     assert.match(out, /Dim even As TTList_Integer = New TTList_Integer\(\)/);
-    assert.match(out, /If x Mod 2 = 0 Then[\s\S]*even\.Push\(x\)/);
-    assert.match(out, /Dim found As Integer[\s\S]*If x > 1 Then[\s\S]*found = x[\s\S]*Exit For/);
+    assert.match(out, /If __src\d+ Mod 2 = 0 Then[\s\S]*even\.Push\(__src\d+\)/);
+    assert.match(
+      out,
+      /Dim found As Integer[\s\S]*If __src\d+ > 1 Then[\s\S]*found = __src\d+[\s\S]*Exit For/,
+    );
     assert.match(out, /Dim foundIndex As Integer = -1[\s\S]*foundIndex = __idx\d+/);
     assert.match(out, /Dim hasEven As Boolean = False[\s\S]*hasEven = True/);
     assert.match(
       out,
-      /Dim allPositive As Boolean = True[\s\S]*If Not x > 0 Then[\s\S]*allPositive = False/,
+      /Dim allPositive As Boolean = True[\s\S]*If Not __src\d+ > 0 Then[\s\S]*allPositive = False/,
     );
-    assert.match(out, /Dim total As Integer = 0[\s\S]*total = total \+ x/);
-    assert.match(out, /mod_logger\.Printe\(x\)/);
+    assert.match(out, /Dim total As Integer = 0[\s\S]*total = total \+ __src\d+/);
+    assert.match(out, /mod_logger\.Printe\(__src\d+\)/);
     assert.doesNotMatch(out, /^\s*print\(x\)$/m);
   });
 
   test("expands map spread inside array literals", () => {
     const code = [
       `Dim names[] As String = ["A", "B"]`,
-      `Dim products[] As Product = [New Product(0, "Manual"), ...names.map((name As String, idx As Integer) => New Product(idx + 1, name))]`,
+      `Dim products[] As Product = [New Product(0, "Manual"), ...names.map(Function(name As String, idx As Integer) New Product(idx + 1, name))]`,
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
@@ -1499,36 +1504,42 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /products\.Push\(New Product\(0, "Manual"\)\)/);
     assert.match(out, /Dim __src\d+ As TTList_Product = New TTList_Product\(\)/);
     assert.match(out, /For __idx\d+ = 0 To names\.Length - 1/);
-    assert.match(out, /__src\d+\.Push\(New Product\(idx \+ 1, name\)\)/);
+    assert.match(out, /__src\d+\.Push\(New Product\(__src\d+ \+ 1, __src\d+\)\)/);
     assert.match(out, /products\.Push\(__src\d+\)/);
   });
 
-  test("expands map and filter block arrows over TTList", () => {
+  test("expands map and filter block lambdas over TTList", () => {
     const code = [
       `Dim nums[] As Integer = [1, 2, 3]`,
-      `Dim doubled[] As Integer = nums.map((x As Integer, idx As Integer) => {`,
+      `Dim doubled[] As Integer = nums.map(Function(x As Integer, idx As Integer)`,
       `   Dim value As Integer = x + idx`,
       `   Return value * 2`,
-      `})`,
-      `Dim even[] As Integer = nums.filter((x As Integer) => {`,
+      `End Function)`,
+      `Dim even[] As Integer = nums.filter(Function(x As Integer)`,
       `   Dim keep As Boolean = x Mod 2 = 0`,
       `   Return keep`,
-      `})`,
+      `End Function)`,
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
 
     assert.doesNotMatch(out, /=>/);
-    assert.match(out, /Dim idx As Integer = __idx\d+/);
-    assert.match(out, /Dim value As Integer = x \+ idx[\s\S]*doubled\.Push\(value \* 2\)/);
-    assert.match(out, /Dim keep As Boolean = x Mod 2 = 0[\s\S]*If keep Then[\s\S]*even\.Push\(x\)/);
+    assert.match(out, /Dim __src\d+ As Integer = __idx\d+/);
+    assert.match(
+      out,
+      /Dim value As Integer = __src\d+ \+ __src\d+[\s\S]*doubled\.Push\(value \* 2\)/,
+    );
+    assert.match(
+      out,
+      /Dim keep As Boolean = __src\d+ Mod 2 = 0[\s\S]*If keep Then[\s\S]*even\.Push\(__src\d+\)/,
+    );
   });
 
   test("expands returned map over TTList into a temporary result", () => {
     const code = [
       `Function Build() As TTList_Integer`,
       `   Dim nums[] As Integer = [1, 2, 3]`,
-      `   Return nums.map(x => x * 2)`,
+      `   Return nums.map(Function(x As Integer) x * 2)`,
       `End Function`,
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
@@ -1536,42 +1547,141 @@ describe("SugarTranspiler — array-list", () => {
 
     assert.doesNotMatch(out, /=>/);
     assert.match(out, /Dim __src\d+ As TTList_Integer = New TTList_Integer\(\)/);
-    assert.match(out, /__src\d+\.Push\(x \* 2\)/);
+    assert.match(out, /__src\d+\.Push\(__src\d+ \* 2\)/);
     assert.match(out, /Return __src\d+/);
   });
 
-  test("does not synthesize non-capturing arrow functions inside method calls", () => {
+  test("materializes non-list delegate lambdas inside method calls", () => {
     const code = [
       "Class TTest",
       "   Sub Run()",
       "      Dim lista As TList_String",
-      '      Dim f = lista.Filter((x As String) => x = "Item 1")',
+      '      Dim f = lista.Filter(Function(x As String) x = "Item 1")',
       "   End Sub",
       "End Class",
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /lista\.Filter\(\(x As String\) => x = "Item 1"\)/);
-    assert.doesNotMatch(out, /__lambda0/);
+    assert.match(out, /lista\.Filter\(__data7_lambda_\d+\)/);
+    assert.match(out, /Private Function __data7_lambda_\d+\(x As String\) As Variant/);
+    assert.match(out, /Dim __ret\d+ As Variant = x = "Item 1"/);
+    assert.match(out, /__data7_lambda_\d+ = __ret\d+/);
+    assert.match(out, /Exit Function/);
     assert.doesNotMatch(out, /core_sugars_list/);
   });
 
-  test("does not synthesize capturing arrow functions or closure classes", () => {
+  test("materializes capturing delegate lambdas without closure classes", () => {
     const code = [
       "Class TTest",
       "   Sub Run()",
       "      Dim lista As TList_String",
       '      Dim target = "Item 1"',
-      "      Dim f = lista.Filter((x As String) => x = target)",
+      "      Dim f = lista.Filter(Function(x As String) x = target)",
       "   End Sub",
       "End Class",
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /lista\.Filter\(\(x As String\) => x = target\)/);
+    assert.match(out, /lista\.Filter\(__data7_lambda_\d+\)/);
+    assert.match(out, /Dim __ret\d+ As Variant = x = target/);
+    assert.match(out, /__data7_lambda_\d+ = __ret\d+/);
+    assert.match(out, /Exit Function/);
     assert.doesNotMatch(out, /__LambdaClosure/);
-    assert.doesNotMatch(out, /__lambda0/);
     assert.doesNotMatch(out, /__closure/);
+  });
+
+  test("materializes list delegate lambdas with the complete specialized delegate signature", () => {
+    const code = [
+      "Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean",
+      "Class TTList<T>",
+      "   Function Find(pHandler As TFindDel<T>) As T",
+      "   End Function",
+      "End Class",
+      "Dim numeros As TTList<Integer>",
+      "Dim found As Integer = numeros.Find(",
+      "Function(pItem As Integer, pIdx As Integer) As Boolean",
+      "Return pIdx > 0",
+      "End Function",
+      ")",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Shared Function __data7_lambda_\d+\(pItem As Integer, pIdx As Integer, extra As Variant\) As Boolean/,
+    );
+    assert.match(out, /Dim __ret\d+ As Boolean = pIdx > 0/);
+    assert.match(out, /__data7_lambda_\d+ = __ret\d+/);
+    assert.match(out, /Exit Function/);
+    assert.doesNotMatch(out, /Return pIdx > 0/);
+  });
+
+  test("materializes reduce lambdas with the complete accumulator delegate signature", () => {
+    const code = [
+      "Delegate Function TReduceDel<T, TAcc>(pAcc As TAcc, pItem As T, extra As Variant) As TAcc",
+      "Class TTList<T>",
+      "   Function Reduce<TAcc>(pHandler As TReduceDel<T, TAcc>, pInitial As TAcc, extra As Variant) As TAcc",
+      "      Reduce = pInitial",
+      "   End Function",
+      "End Class",
+      "Dim numeros[] As Integer = [1, 2, 3]",
+      "Dim total As Double = numeros.Reduce<Double>(",
+      "Function(pAcc As Double, pItem As Integer) As Double",
+      "Return pAcc + pItem",
+      "End Function,",
+      "0.0,",
+      "10",
+      ")",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Shared Function __data7_lambda_\d+\(pAcc As Double, pItem As Integer, extra As Variant\) As Double/,
+    );
+    assert.match(out, /Dim __ret\d+ As Double = pAcc \+ pItem/);
+  });
+
+  test("materializes a lambda helper class for global-only lambda code", () => {
+    const code = [
+      "Dim numeros[] As Integer = [1, 2, 3, 4, 5]",
+      "Dim primeiro As Integer = numeros.Find(",
+      "Function(pItem As Integer, pIdx As Integer) As Boolean",
+      "Return pIdx > 2 And pItem Mod 2 = 0",
+      "End Function",
+      ")",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /numeros\.Find\(__Data7LambdaHost\.__data7_lambda_\d+\)/);
+    assert.match(out, /Public Class __Data7LambdaHost/);
+  });
+
+  test("materializes namespace-level event lambdas inside the namespace with exact delegate parameters", () => {
+    const code = [
+      "Namespace mod_events",
+      "   Delegate Sub TShowHandler(pSender As TObject)",
+      "   Class Form",
+      "      OnShow As TShowHandler",
+      "   End Class",
+      "   Class Teste",
+      "      Function Execute(pItem As TObject, pIdx As Integer) As Boolean",
+      "         Execute = True",
+      "      End Function",
+      "   End Class",
+      "   Dim _teste As Teste = New Teste()",
+      "   Dim _form2 As Form = New Form()",
+      '   _form2.OnShow = Sub(pSender As TObject) _teste.Execute("Teste", 1)',
+      "End Namespace",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Namespace mod_events[\s\S]*Public Class __Data7LambdaHost[\s\S]*End Namespace/,
+    );
+    assert.match(out, /Public Shared Sub __data7_lambda_\d+\(pSender As TObject\)/);
+    assert.doesNotMatch(out, /__data7_lambda_\d+\(pSender As TObject, pExtra As Variant\)/);
   });
 
   test("preserves Declare DLL statements verbatim during transpile", () => {

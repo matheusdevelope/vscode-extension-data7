@@ -32,7 +32,7 @@ export class DependencyService {
   ): Promise<DependencyDetectionResult> {
     const synced = await this.syncProjectData7Modules(workspaceDir);
     if (!opts.silent && synced.length > 0) {
-      vscode.window.showInformationMessage(`MÃ³dulos sincronizados: ${synced.join(", ")}`);
+      vscode.window.showInformationMessage(`Módulos sincronizados: ${synced.join(", ")}`);
     }
     return { synced, missing: [] };
   }

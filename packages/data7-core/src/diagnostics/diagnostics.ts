@@ -391,6 +391,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.UnknownMember]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.PrivateMemberAccess]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.EventSignatureMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.LambdaSignatureMismatch]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.UnsupportedMember]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ModuleNotFound]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.ModuleNotDeclared]: vscode.DiagnosticSeverity.Error,

@@ -588,10 +588,12 @@ function emitExpressionRaw(expr: Expression): string {
     case "ArrowFunctionExpression": {
       const params = expr.parameters.map(emitParameter).join(", ");
       const retType = expr.returnType ? ` As ${emitTypeRef(expr.returnType)}` : "";
+      const keyword = expr.lambdaKind ?? (expr.returnType ? "Function" : "Function");
       if (Array.isArray(expr.body)) {
-        return `(${params})${retType} => { ... }`;
+        const endKeyword = keyword === "Sub" ? "Sub" : "Function";
+        return `${keyword}(${params})${retType} ... End ${endKeyword}`;
       }
-      return `(${params})${retType} => ${emitExpression(expr.body)}`;
+      return `${keyword}(${params})${retType} ${emitExpression(expr.body)}`;
     }
     case "TypeReferenceExpression":
       return emitTypeRef(expr.type);

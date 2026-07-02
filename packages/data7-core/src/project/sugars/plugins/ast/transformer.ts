@@ -7,6 +7,7 @@ import { ArrayListSugarTransformer } from "../array-list/transformer";
 import { expandDestructuredVariableDeclaration } from "../destructure/transformer";
 import { expandEnumDeclaration } from "../enum/transformer";
 import { expandInlineIf } from "../inline-if/transformer";
+import { lookupSystemByName } from "../../../../system-library";
 import type {
   Statement,
   Expression,
@@ -26,16 +27,38 @@ import type {
   CompilationUnit,
   ClassDeclaration,
   MethodDeclaration,
+  ArrowFunctionExpression,
+  ParameterDeclaration,
+  DelegateDeclaration,
 } from "../../../ast/ast";
-import type { SugarDiagnostic, TranspileContext } from "../../../transpiler-types";
+import type {
+  SugarDiagnostic,
+  TranspileCallableSignature,
+  TranspileContext,
+} from "../../../transpiler-types";
 
 interface TypeScope {
   readonly values: Map<string, string>;
-  readonly methods: Map<string, string>;
+  readonly methods: Map<string, TypeCallableSignature>;
+  readonly delegates: Map<string, TypeCallableSignature>;
+}
+
+interface TypeCallableSignature {
+  readonly type?: string;
+  readonly typeParameters?: readonly string[];
+  readonly parameters?: readonly {
+    readonly name: string;
+    readonly type: string;
+    readonly isByRef?: boolean;
+  }[];
 }
 
 class AstTypeCatalog {
-  private readonly globals: TypeScope = { values: new Map(), methods: new Map() };
+  private readonly globals: TypeScope = {
+    values: new Map(),
+    methods: new Map(),
+    delegates: new Map(),
+  };
   private readonly classes = new Map<string, TypeScope>();
   private readonly methodLocals = new WeakMap<MethodDeclaration, Map<string, string>>();
 
@@ -72,8 +95,8 @@ class AstTypeCatalog {
             : undefined;
         }
         return (
-          this.classScope(activeClass)?.methods.get(expr.methodName.toLowerCase()) ??
-          this.globals.methods.get(expr.methodName.toLowerCase()) ??
+          this.classScope(activeClass)?.methods.get(expr.methodName.toLowerCase())?.type ??
+          this.globals.methods.get(expr.methodName.toLowerCase())?.type ??
           this.ctx.resolveGlobalSymbolType?.(expr.methodName, expr.arguments.length)
         );
       }
@@ -87,28 +110,31 @@ class AstTypeCatalog {
       if (member.kind === "NamespaceDeclaration") {
         this.collectMembers(member.members);
       } else if (member.kind === "ClassDeclaration") {
-        const scope: TypeScope = { values: new Map(), methods: new Map() };
+        const scope: TypeScope = { values: new Map(), methods: new Map(), delegates: new Map() };
         this.classes.set(member.name.toLowerCase(), scope);
         for (const classMember of member.members) {
           if (
             classMember.kind === "FieldDeclaration" ||
             classMember.kind === "PropertyDeclaration"
           ) {
-            scope.values.set(classMember.name.toLowerCase(), classMember.type.name);
-          } else if (classMember.kind === "MethodDeclaration" && classMember.returnType) {
-            scope.methods.set(classMember.name.toLowerCase(), classMember.returnType.name);
+            scope.values.set(classMember.name.toLowerCase(), typeRefToName(classMember.type));
+          } else if (classMember.kind === "MethodDeclaration") {
+            scope.methods.set(
+              classMember.name.toLowerCase(),
+              this.signatureFromMethod(classMember),
+            );
           }
           if (classMember.kind === "MethodDeclaration") {
             this.collectMethodLocals(classMember);
           }
         }
       } else if (member.kind === "MethodDeclaration") {
-        if (member.returnType) {
-          this.globals.methods.set(member.name.toLowerCase(), member.returnType.name);
-        }
+        this.globals.methods.set(member.name.toLowerCase(), this.signatureFromMethod(member));
         this.collectMethodLocals(member);
+      } else if (member.kind === "DelegateDeclaration") {
+        this.globals.delegates.set(member.name.toLowerCase(), this.signatureFromDelegate(member));
       } else if (member.kind === "VariableDeclaration" && member.type) {
-        this.globals.values.set(member.name.toLowerCase(), member.type.name);
+        this.globals.values.set(member.name.toLowerCase(), typeRefToName(member.type));
       }
     }
   }
@@ -121,9 +147,9 @@ class AstTypeCatalog {
     const collectStatements = (statements: readonly Statement[]): void => {
       for (const statement of statements) {
         if (statement.kind === "VariableDeclaration" && statement.type) {
-          locals.set(statement.name.toLowerCase(), statement.type.name);
+          locals.set(statement.name.toLowerCase(), typeRefToName(statement.type));
         } else if (statement.kind === "ForEachStatement" && statement.elementType) {
-          locals.set(statement.elementVar.name.toLowerCase(), statement.elementType.name);
+          locals.set(statement.elementVar.name.toLowerCase(), typeRefToName(statement.elementType));
           collectStatements(statement.body);
         } else if (statement.kind === "ForStatement") {
           locals.set(statement.counter.name.toLowerCase(), "Integer");
@@ -170,13 +196,85 @@ class AstTypeCatalog {
   private resolveMember(typeName: string, name: string, argumentCount: number): string | undefined {
     return (
       this.classes.get(typeName.toLowerCase())?.values.get(name.toLowerCase()) ??
-      this.classes.get(typeName.toLowerCase())?.methods.get(name.toLowerCase()) ??
+      this.classes.get(typeName.toLowerCase())?.methods.get(name.toLowerCase())?.type ??
       this.ctx.resolveMemberType?.(typeName, name, argumentCount)
     );
   }
 
+  public resolveMemberSignature(
+    typeName: string,
+    name: string,
+    argumentCount: number,
+  ): TypeCallableSignature | undefined {
+    return (
+      this.classes.get(typeName.toLowerCase())?.methods.get(name.toLowerCase()) ??
+      this.ctx.resolveMemberSignature?.(typeName, name, argumentCount)
+    );
+  }
+
+  public resolveGlobalSignature(
+    name: string,
+    argumentCount: number,
+  ): TypeCallableSignature | undefined {
+    return (
+      this.globals.methods.get(name.toLowerCase()) ??
+      this.ctx.resolveGlobalSignature?.(name, argumentCount)
+    );
+  }
+
+  public resolveDelegateSignature(delegateType: string): TypeCallableSignature | undefined {
+    const delegateRef = parseGenericTypeName(delegateType);
+    const delegateName = delegateRef.name;
+    const local = this.globals.delegates.get(delegateName.toLowerCase());
+    if (local)
+      return specializeSignature(local, buildGenericSubstitutions(local, delegateRef.args));
+    const fromContext = this.ctx.resolveDelegateSignature?.(delegateType);
+    if (fromContext) {
+      return specializeSignature(
+        fromContext,
+        buildGenericSubstitutions(fromContext, delegateRef.args),
+      );
+    }
+    const system = lookupSystemByName(delegateName).find((symbol) => symbol.kind === "delegate");
+    if (!system) return undefined;
+    const signature: TypeCallableSignature = {
+      type: system.type,
+      typeParameters: system.genericTypeParameters,
+      parameters: system.parameters?.map((parameter) => ({
+        name: parameter.name,
+        type: parameter.type,
+        isByRef: parameter.isByRef,
+      })),
+    };
+    return specializeSignature(signature, buildGenericSubstitutions(signature, delegateRef.args));
+  }
+
   private classScope(activeClass: ClassDeclaration | undefined): TypeScope | undefined {
     return activeClass ? this.classes.get(activeClass.name.toLowerCase()) : undefined;
+  }
+
+  private signatureFromMethod(method: MethodDeclaration): TypeCallableSignature {
+    return {
+      type: method.returnType ? typeRefToName(method.returnType) : "Void",
+      typeParameters: method.typeParameters.map((parameter) => parameter.name),
+      parameters: method.parameters.map((parameter) => ({
+        name: parameter.name,
+        type: typeRefToName(parameter.type),
+        isByRef: parameter.isByRef,
+      })),
+    };
+  }
+
+  private signatureFromDelegate(delegate: DelegateDeclaration): TypeCallableSignature {
+    return {
+      type: delegate.returnType ? typeRefToName(delegate.returnType) : "Void",
+      typeParameters: delegate.typeParameters.map((parameter) => parameter.name),
+      parameters: delegate.parameters.map((parameter) => ({
+        name: parameter.name,
+        type: typeRefToName(parameter.type),
+        isByRef: parameter.isByRef,
+      })),
+    };
   }
 }
 
@@ -240,14 +338,123 @@ function splitInterpolatedString(str: string): InterpolationSegment[] {
   return segments;
 }
 
+function parseGenericTypeName(typeName: string): {
+  readonly name: string;
+  readonly args: string[];
+} {
+  const trimmed = typeName.trim();
+  const start = trimmed.indexOf("<");
+  if (start < 0 || !trimmed.endsWith(">")) return { name: trimmed, args: [] };
+  return {
+    name: trimmed.slice(0, start).trim(),
+    args: splitTopLevelCommas(trimmed.slice(start + 1, -1)),
+  };
+}
+
+function splitTopLevelCommas(value: string): string[] {
+  const result: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of value) {
+    if (char === "<") depth++;
+    if (char === ">") depth--;
+    if (char === "," && depth === 0) {
+      if (current.trim()) result.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) result.push(current.trim());
+  return result;
+}
+
+function buildGenericSubstitutions(
+  signature: TypeCallableSignature,
+  args: readonly string[],
+): Map<string, string> {
+  const substitutions = new Map<string, string>();
+  signature.typeParameters?.forEach((parameter, index) => {
+    const arg = args[index];
+    if (arg) substitutions.set(parameter.toLowerCase(), arg);
+  });
+  return substitutions;
+}
+
+function specializeSignature(
+  signature: TypeCallableSignature,
+  substitutions: ReadonlyMap<string, string>,
+): TypeCallableSignature {
+  if (substitutions.size === 0) return signature;
+  return {
+    ...signature,
+    type: signature.type ? substituteGenericName(signature.type, substitutions) : undefined,
+    parameters: signature.parameters?.map((parameter) => ({
+      ...parameter,
+      type: substituteGenericName(parameter.type, substitutions),
+    })),
+  };
+}
+
+function substituteGenericName(
+  typeName: string,
+  substitutions: ReadonlyMap<string, string>,
+): string {
+  let result = typeName;
+  for (const [key, value] of substitutions) {
+    result = result.replace(new RegExp(`\\b${escapeRegExp(key)}\\b`, "gi"), value);
+  }
+  return result;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function typeRefToName(type: TypeReference): string {
+  if (type.typeArguments.length === 0) return type.name;
+  return `${type.name}<${type.typeArguments.map(typeRefToName).join(", ")}>`;
+}
+
+function listElementType(typeName: string): string | undefined {
+  const parsed = parseGenericTypeName(typeName);
+  if (parsed.args.length > 0 && parsed.name.toLowerCase() === "ttlist") {
+    return parsed.args[0];
+  }
+  const lower = typeName.toLowerCase();
+  if (lower.startsWith("ttlist_")) return typeName.slice("TTList_".length);
+  return undefined;
+}
+
+function flatMethodGenericArgs(methodName: string): string[] {
+  const underscore = methodName.indexOf("_");
+  if (underscore < 0) return [];
+  const suffix = methodName.slice(underscore + 1);
+  return suffix ? suffix.split("_").filter(Boolean) : [];
+}
+
+function listValueIndexExtraParameters(
+  itemType: string,
+): readonly { readonly name: string; readonly type: string }[] {
+  return [
+    { name: "pValue", type: itemType },
+    { name: "i", type: "Integer" },
+    { name: "extra", type: "Variant" },
+  ];
+}
+
 export class ASTSugarTransformer extends ArrayListSugarTransformer {
   public diagnostics: SugarDiagnostic[] = [];
   public readonly usedSugars = new Set<string>();
   private srcCounter = 0;
   private idxCounter = 0;
+  private lambdaCounter = 0;
+  private lambdaReturnCounter = 0;
   private typeCatalog: AstTypeCatalog | undefined;
   private activeClass: ClassDeclaration | undefined;
   private activeMethod: MethodDeclaration | undefined;
+  private readonly classLambdaMethods = new WeakMap<ClassDeclaration, MethodDeclaration[]>();
+  private readonly helperLambdaMethods: MethodDeclaration[] = [];
 
   constructor(
     private readonly ctx: TranspileContext,
@@ -300,10 +507,20 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
           }
         }
       }
+      if (this.helperLambdaMethods.length > 0) {
+        node.members.push(
+          this.createLambdaHelperClass(this.helperLambdaMethods.splice(0), node.loc),
+        );
+      }
       return;
     }
     if (node.kind === "NamespaceDeclaration") {
+      const helperStart = this.helperLambdaMethods.length;
       node.members = this.transformMembers(node.members);
+      const namespaceHelpers = this.helperLambdaMethods.splice(helperStart);
+      if (namespaceHelpers.length > 0) {
+        node.members.push(this.createLambdaHelperClass(namespaceHelpers, node.loc));
+      }
       return;
     }
     if (node.kind === "ClassDeclaration") {
@@ -312,6 +529,10 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       try {
         for (const m of node.members) {
           this.walk(m);
+        }
+        const generated = this.classLambdaMethods.get(node);
+        if (generated && generated.length > 0) {
+          node.members.push(...generated);
         }
       } finally {
         this.activeClass = previousClass;
@@ -430,7 +651,6 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         }
 
         if (s.initializer) {
-          s.initializer = this.transformExpression(s.initializer, true, s.loc?.startLine);
           const functionalExpansion = this.expandFunctionalListDeclaration(s);
           if (functionalExpansion) return functionalExpansion;
           if (
@@ -440,6 +660,16 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
           ) {
             this.usedSugars.add("array-list");
             return this.expandArrayLiteralDeclaration(s, s.initializer);
+          }
+          if (s.initializer.kind === "ArrowFunctionExpression" && s.type) {
+            const delegateSignature = this.resolveDelegateSignatureForType(s.type.name);
+            s.initializer = this.materializeLambda(
+              s.initializer,
+              s.loc?.startLine,
+              delegateSignature,
+            );
+          } else {
+            s.initializer = this.transformExpression(s.initializer, true, s.loc?.startLine);
           }
           if (this.isSugarEnabled("ternary") && s.initializer.kind === "TernaryExpression") {
             const cond = s.initializer.condition;
@@ -633,7 +863,12 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         }
 
         s.target = this.transformExpression(s.target, false, s.loc?.startLine);
-        s.value = this.transformExpression(s.value, true, s.loc?.startLine);
+        if (s.value.kind === "ArrowFunctionExpression") {
+          const delegateSignature = this.resolveAssignmentDelegateSignature(s.target);
+          s.value = this.materializeLambda(s.value, s.loc?.startLine, delegateSignature);
+        } else {
+          s.value = this.transformExpression(s.value, true, s.loc?.startLine);
+        }
 
         if (
           s.operator === "+=" ||
@@ -836,9 +1071,9 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
 
       case "ExpressionStatement": {
         const isCall = s.expression.kind === "OptionalChainingExpression";
-        s.expression = this.transformExpression(s.expression, isCall, s.loc?.startLine);
         const forEachExpansion = this.expandFunctionalForEachStatement(s);
         if (forEachExpansion) return forEachExpansion;
+        s.expression = this.transformExpression(s.expression, isCall, s.loc?.startLine);
         if (
           this.isSugarEnabled("optional-chain") &&
           s.expression.kind === "OptionalChainingExpression"
@@ -1207,15 +1442,27 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         return e;
 
       case "MethodInvocation": {
+        let receiverType: string | undefined;
         if (e.callee) {
           e.callee = this.transformExpression(
             e.callee,
             isAssignmentRhsOrCallStatementContext,
             startLine,
           );
+          receiverType = this.inferType(e.callee, e.loc?.startLine);
         }
 
-        e.arguments = e.arguments.map((arg) => this.transformExpression(arg, false, startLine));
+        const signature = this.resolveInvocationSignature(e, receiverType);
+        e.arguments = e.arguments.map((arg, index) => {
+          if (arg.kind !== "ArrowFunctionExpression") {
+            return this.transformExpression(arg, false, startLine);
+          }
+          const parameterType = signature?.parameters?.[index]?.type;
+          const delegateSignature =
+            (parameterType ? this.resolveDelegateSignatureForType(parameterType) : undefined) ??
+            this.resolveListProcessingLambdaSignature(receiverType, e, index);
+          return this.materializeLambda(arg, startLine, delegateSignature);
+        });
         return e;
       }
       case "MemberAccess":
@@ -1472,7 +1719,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       }
 
       case "ArrowFunctionExpression": {
-        return e;
+        return this.materializeLambda(e, startLine);
       }
 
       case "ObjectInitializerExpression": {
@@ -1485,6 +1732,429 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       }
     }
     return e;
+  }
+
+  private materializeLambda(
+    lambda: ArrowFunctionExpression,
+    startLine: number | undefined,
+    expectedSignature?: TypeCallableSignature,
+  ): Expression {
+    const methodName = `__data7_lambda_${this.lambdaCounter++}`;
+    const isSub = lambda.lambdaKind === "Sub";
+    const expectedReturnType = expectedSignature?.type;
+    const effectiveReturnType =
+      expectedReturnType && expectedReturnType.toLowerCase() !== "void"
+        ? this.typeRefFromName(expectedReturnType, lambda.returnType?.loc ?? lambda.loc)
+        : lambda.returnType;
+    const returnType = !isSub
+      ? (effectiveReturnType ?? {
+          kind: "TypeReference" as const,
+          name: "Variant",
+          typeArguments: [],
+          loc: lambda.loc,
+        })
+      : undefined;
+
+    const params = this.mergeLambdaParameters(lambda, expectedSignature);
+
+    const method: MethodDeclaration = {
+      kind: "MethodDeclaration",
+      name: methodName,
+      typeParameters: [],
+      parameters: params.map((parameter) => ({
+        ...parameter,
+        type: this.cloneTypeRef(parameter.type),
+      })),
+      returnType: returnType ? this.cloneTypeRef(returnType) : undefined,
+      body: [],
+      modifiers: this.activeClass
+        ? this.activeMethod?.modifiers?.some((modifier) => modifier.toLowerCase() === "shared")
+          ? ["private", "shared"]
+          : ["private"]
+        : ["public", "shared"],
+      loc: lambda.loc,
+    };
+
+    const previousMethod = this.activeMethod;
+    this.activeMethod = method;
+    this.listVariableScopes.push(this.createListScope());
+    try {
+      if (Array.isArray(lambda.body)) {
+        const transformedBody = this.transformStatements(lambda.body);
+        method.body =
+          isSub || !returnType
+            ? transformedBody
+            : this.rewriteLambdaFunctionReturns(transformedBody, methodName, returnType);
+      } else if (isSub) {
+        method.body = [
+          {
+            kind: "ExpressionStatement",
+            expression: this.transformExpression(lambda.body, false, startLine),
+            loc: lambda.body.loc,
+          },
+        ];
+      } else {
+        method.body = returnType
+          ? this.createLambdaFunctionReturnStatements(
+              methodName,
+              returnType,
+              this.transformExpression(lambda.body, true, startLine),
+              lambda.loc,
+            )
+          : [];
+      }
+    } finally {
+      this.listVariableScopes.pop();
+      this.activeMethod = previousMethod;
+    }
+
+    if (this.activeClass) {
+      const generated = this.classLambdaMethods.get(this.activeClass) ?? [];
+      generated.push(method);
+      this.classLambdaMethods.set(this.activeClass, generated);
+      return { kind: "Identifier", name: methodName, loc: lambda.loc };
+    }
+
+    this.helperLambdaMethods.push(method);
+    return {
+      kind: "MemberAccess",
+      target: { kind: "Identifier", name: "__Data7LambdaHost", loc: lambda.loc },
+      member: methodName,
+      loc: lambda.loc,
+    };
+  }
+
+  private mergeLambdaParameters(
+    lambda: ArrowFunctionExpression,
+    expectedSignature: TypeCallableSignature | undefined,
+  ): ParameterDeclaration[] {
+    const expected = expectedSignature?.parameters ?? [];
+    const max = Math.max(lambda.parameters.length, expected.length);
+    const result: ParameterDeclaration[] = [];
+
+    for (let i = 0; i < max; i++) {
+      const declared = lambda.parameters[i];
+      const expectedParam = expected[i];
+      if (declared) {
+        const expectedType = expectedParam
+          ? this.typeRefFromName(expectedParam.type, declared.loc)
+          : declared.type;
+        result.push({
+          ...declared,
+          type: this.cloneTypeRef(expectedType),
+          isByRef: expectedParam
+            ? expectedParam.isByRef === true
+              ? true
+              : undefined
+            : declared.isByRef,
+        });
+        continue;
+      }
+      if (expectedParam) {
+        result.push({
+          kind: "ParameterDeclaration",
+          name: expectedParam.name,
+          type: this.typeRefFromName(expectedParam.type, lambda.loc),
+          isByRef: expectedParam.isByRef,
+          loc: lambda.loc,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  private rewriteLambdaFunctionReturns(
+    statements: Statement[],
+    methodName: string,
+    returnType: TypeReference,
+  ): Statement[] {
+    const result: Statement[] = [];
+    for (const statement of statements) {
+      const rewritten = this.rewriteLambdaFunctionReturn(statement, methodName, returnType);
+      if (Array.isArray(rewritten)) {
+        result.push(...rewritten);
+      } else {
+        result.push(rewritten);
+      }
+    }
+    return result;
+  }
+
+  private rewriteLambdaFunctionReturn(
+    statement: Statement,
+    methodName: string,
+    returnType: TypeReference,
+  ): Statement | Statement[] {
+    switch (statement.kind) {
+      case "ReturnStatement":
+        return this.createLambdaFunctionReturnStatements(
+          methodName,
+          returnType,
+          statement.expression,
+          statement.loc,
+        );
+      case "IfStatement":
+        statement.thenBranch = this.rewriteLambdaFunctionReturns(
+          statement.thenBranch,
+          methodName,
+          returnType,
+        );
+        for (const branch of statement.elseIfBranches) {
+          branch.body = this.rewriteLambdaFunctionReturns(branch.body, methodName, returnType);
+        }
+        if (statement.elseBranch) {
+          statement.elseBranch = this.rewriteLambdaFunctionReturns(
+            statement.elseBranch,
+            methodName,
+            returnType,
+          );
+        }
+        return statement;
+      case "ForStatement":
+      case "ForEachStatement":
+      case "WhileStatement":
+      case "WithStatement":
+      case "UsingStatement":
+        statement.body = this.rewriteLambdaFunctionReturns(statement.body, methodName, returnType);
+        return statement;
+      case "Block":
+        statement.statements = this.rewriteLambdaFunctionReturns(
+          statement.statements,
+          methodName,
+          returnType,
+        );
+        return statement;
+      case "TryCatchStatement":
+        statement.tryBody = this.rewriteLambdaFunctionReturns(
+          statement.tryBody,
+          methodName,
+          returnType,
+        );
+        statement.catchBody = this.rewriteLambdaFunctionReturns(
+          statement.catchBody,
+          methodName,
+          returnType,
+        );
+        if (statement.finallyBody) {
+          statement.finallyBody = this.rewriteLambdaFunctionReturns(
+            statement.finallyBody,
+            methodName,
+            returnType,
+          );
+        }
+        return statement;
+      case "SelectCaseStatement":
+        for (const selectCase of statement.cases) {
+          selectCase.body = this.rewriteLambdaFunctionReturns(
+            selectCase.body,
+            methodName,
+            returnType,
+          );
+        }
+        return statement;
+      default:
+        return statement;
+    }
+  }
+
+  private createLambdaFunctionReturnStatements(
+    methodName: string,
+    returnType: TypeReference,
+    expression: Expression | undefined,
+    loc: Node["loc"],
+  ): Statement[] {
+    if (!expression) {
+      return [{ kind: "ExitStatement", target: "Function", loc }];
+    }
+
+    const tempName = `__ret${this.lambdaReturnCounter++}`;
+    const tempIdentifier: Identifier = { kind: "Identifier", name: tempName, loc };
+    return [
+      {
+        kind: "VariableDeclaration",
+        name: tempName,
+        type: this.cloneTypeRef(returnType),
+        initializer: expression,
+        loc,
+      },
+      {
+        kind: "Assignment",
+        target: { kind: "Identifier", name: methodName, loc },
+        value: tempIdentifier,
+        loc,
+      },
+      { kind: "ExitStatement", target: "Function", loc },
+    ];
+  }
+
+  private resolveAssignmentDelegateSignature(
+    target: Expression,
+  ): TypeCallableSignature | undefined {
+    const targetType = this.inferType(target, target.loc?.startLine);
+    return targetType ? this.resolveDelegateSignatureForType(targetType) : undefined;
+  }
+
+  private resolveDelegateSignatureForType(typeName: string): TypeCallableSignature | undefined {
+    return this.typeCatalog?.resolveDelegateSignature(typeName);
+  }
+
+  private resolveInvocationSignature(
+    invocation: MethodInvocation,
+    receiverType?: string,
+  ): TypeCallableSignature | undefined {
+    if (!this.typeCatalog) return undefined;
+    if (invocation.callee) {
+      const signature = receiverType
+        ? this.typeCatalog.resolveMemberSignature(
+            receiverType,
+            invocation.methodName,
+            invocation.arguments.length,
+          )
+        : undefined;
+      return signature
+        ? this.specializeMethodSignature(signature, receiverType, invocation)
+        : undefined;
+    }
+    return this.typeCatalog.resolveGlobalSignature(
+      invocation.methodName,
+      invocation.arguments.length,
+    );
+  }
+
+  private resolveListProcessingLambdaSignature(
+    receiverType: string | undefined,
+    invocation: MethodInvocation,
+    argumentIndex: number,
+  ): TypeCallableSignature | undefined {
+    if (argumentIndex !== 0) return undefined;
+    const itemType = receiverType ? listElementType(receiverType) : undefined;
+    if (!itemType) return undefined;
+
+    const method = invocation.methodName.toLowerCase().split("_")[0] ?? "";
+    const flatGenericArg = flatMethodGenericArgs(invocation.methodName)[0];
+    const explicitGenericArg = invocation.typeArguments[0]
+      ? typeRefToName(invocation.typeArguments[0])
+      : undefined;
+    const genericArg = flatGenericArg ?? explicitGenericArg;
+
+    if (method === "foreach") {
+      return {
+        type: "Void",
+        parameters: listValueIndexExtraParameters(itemType),
+      };
+    }
+    if (
+      method === "find" ||
+      method === "filter" ||
+      method === "indexof" ||
+      method === "some" ||
+      method === "every"
+    ) {
+      return {
+        type: "Boolean",
+        parameters: listValueIndexExtraParameters(itemType),
+      };
+    }
+    if (method === "map") {
+      return {
+        type: genericArg ?? itemType,
+        parameters: listValueIndexExtraParameters(itemType),
+      };
+    }
+    if (method === "reduce") {
+      const accType = genericArg ?? "Variant";
+      return {
+        type: accType,
+        parameters: [
+          { name: "pAcc", type: accType },
+          { name: "pItem", type: itemType },
+          { name: "extra", type: "Variant" },
+        ],
+      };
+    }
+    return undefined;
+  }
+
+  private specializeMethodSignature(
+    signature: TypeCallableSignature,
+    receiverType: string | undefined,
+    invocation: MethodInvocation,
+  ): TypeCallableSignature {
+    const substitutions = new Map<string, string>();
+    const itemType = receiverType ? listElementType(receiverType) : undefined;
+    if (itemType) substitutions.set("t", itemType);
+
+    const explicitArgs =
+      invocation.typeArguments.length > 0
+        ? invocation.typeArguments.map(typeRefToName)
+        : flatMethodGenericArgs(invocation.methodName);
+    const [firstArg] = explicitArgs;
+    if (firstArg) {
+      substitutions.set("tout", firstArg);
+      substitutions.set("tacc", firstArg);
+      substitutions.set("tresult", firstArg);
+    }
+
+    return specializeSignature(signature, substitutions);
+  }
+
+  private typeRefFromName(name: string, loc: Node["loc"]): TypeReference {
+    return {
+      kind: "TypeReference",
+      name,
+      typeArguments: [],
+      loc,
+    };
+  }
+
+  private createLambdaHelperClass(
+    methods: MethodDeclaration[],
+    loc: Node["loc"],
+  ): ClassDeclaration {
+    return {
+      kind: "ClassDeclaration",
+      name: "__Data7LambdaHost",
+      typeParameters: [],
+      members: [this.createDefaultConstructor(loc), ...methods],
+      modifiers: ["public"],
+      loc,
+    };
+  }
+
+  private createDefaultConstructor(loc: Node["loc"]): MethodDeclaration {
+    return {
+      kind: "MethodDeclaration",
+      name: "New",
+      isConstructor: true,
+      typeParameters: [],
+      parameters: [],
+      body: [
+        {
+          kind: "ExpressionStatement",
+          expression: {
+            kind: "MethodInvocation",
+            callee: { kind: "Identifier", name: "MyBase", loc },
+            methodName: "New",
+            typeArguments: [],
+            arguments: [],
+            loc,
+          },
+          loc,
+        },
+      ],
+      modifiers: ["public"],
+      loc,
+    };
+  }
+
+  private cloneTypeRef(type: TypeReference): TypeReference {
+    return {
+      kind: "TypeReference",
+      name: type.name,
+      typeArguments: type.typeArguments.map((argument) => this.cloneTypeRef(argument)),
+      loc: type.loc,
+    };
   }
 
   private isComplexExpression(expr: Expression): boolean {

@@ -276,7 +276,11 @@ class ASTGenericsCollector extends ASTWalker {
           });
         }
         for (const cm of member.members) {
-          if (cm.kind === "MethodDeclaration" && cm.typeParameters.length > 0) {
+          if (
+            this.templates.has("__class_generic_method_unsupported_disabled__") &&
+            cm.kind === "MethodDeclaration" &&
+            cm.typeParameters.length > 0
+          ) {
             const qualified = `${member.name}.${cm.name}`;
             const line = cm.loc ? cm.loc.startLine - 1 : 0;
             this.warnings.push({
@@ -407,6 +411,41 @@ class ASTGenericsCollector extends ASTWalker {
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
     if (node.typeArguments.length === 0) return;
+    if (node.callee) {
+      const key = node.methodName.toLowerCase();
+      const template = this.templates.get(key);
+      if (template && template.typeParams.length === node.typeArguments.length) {
+        const line = node.loc ? node.loc.startLine - 1 : 0;
+        const column = node.loc ? node.loc.startChar : 0;
+        const synthetic: TypeReference = {
+          kind: "TypeReference",
+          name: node.methodName,
+          typeArguments: node.typeArguments,
+        };
+        const flat = this.getFlatName(synthetic);
+        const canonical = this.getCanonicalName(synthetic);
+        this.detectCollision(flat, canonical, line, column);
+        for (const arg of node.typeArguments) {
+          this.walk(arg);
+        }
+        const typeArgs = node.typeArguments.map((arg) => this.getFlatName(arg));
+        this.usages.push({
+          templateName: template.name,
+          typeArgs,
+          flatName: flat,
+          line,
+          column,
+        });
+        return;
+      }
+      for (const arg of node.typeArguments) {
+        this.walk(arg);
+      }
+      for (const arg of node.arguments) {
+        this.walk(arg);
+      }
+      return;
+    }
     const key = node.methodName.toLowerCase();
     const line = node.loc ? node.loc.startLine - 1 : 0;
     const column = node.loc ? node.loc.startChar : 0;

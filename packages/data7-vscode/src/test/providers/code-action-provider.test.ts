@@ -379,7 +379,7 @@ describe("D7BasicCodeActionProvider", () => {
   });
 
   describe("unknown-member did-you-mean", () => {
-    test('emits one "VocÃª quis dizer X?" replacement per Levenshtein suggestion (max 3)', async () => {
+    test('emits one "Você quis dizer X?" replacement per Levenshtein suggestion (max 3)', async () => {
       const doc = mockDoc("me.Aling()\n");
       const payload: UnknownMemberPayload = {
         code: DiagnosticCodes.UnknownMember,
@@ -705,7 +705,7 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(actions.length >= 1);
       const fix = actions.find((a) => a.title.includes("Sub Free"));
       assert.ok(fix);
-      expectEdit(fix.edit, { type: "insert", textIncludes: "Public Sub Free()" });
+      expectEdit(fix.edit, { type: "insert", textIncludes: "Sub Free()" });
     });
 
     test("emits insert MyBase.Free() inside existing Sub Free", async () => {
@@ -1867,7 +1867,7 @@ describe("D7BasicCodeActionProvider", () => {
       const range1 = new vscode.Range(0, 9, 0, 56);
       const diag1 = new vscode.Diagnostic(
         range1,
-        "A sintaxe 'If ... Then' inline nÃ£o Ã© recomendada.",
+        "A sintaxe 'If ... Then' inline não é recomendada.",
         vscode.DiagnosticSeverity.Warning,
       );
       diag1.code = DiagnosticCodes.InlineIfThen;
@@ -1879,7 +1879,7 @@ describe("D7BasicCodeActionProvider", () => {
       const range2 = new vscode.Range(0, 45, 0, 56);
       const diag2 = new vscode.Diagnostic(
         range2,
-        "O uso de 'Return' nÃ£o Ã© recomendado.",
+        "O uso de 'Return' não é recomendado.",
         vscode.DiagnosticSeverity.Warning,
       );
       diag2.code = DiagnosticCodes.ReturnUnrecommended;

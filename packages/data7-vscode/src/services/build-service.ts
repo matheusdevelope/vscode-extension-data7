@@ -179,6 +179,7 @@ export class BuildService {
         vscode.window.showErrorMessage(
           `Execução cancelada. O linter encontrou ${lintSummary.errorCount} erro(s) no projeto.`,
         );
+        void vscode.commands.executeCommand("workbench.actions.view.problems");
         return;
       }
       this._ensureProjectBuilt(project.workspaceDir, runProjectFilePath, {

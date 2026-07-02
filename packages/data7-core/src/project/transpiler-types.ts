@@ -22,6 +22,18 @@ export interface SugarDiagnostic {
   readonly typeName: string;
 }
 
+export interface TranspileCallableParameter {
+  readonly name: string;
+  readonly type: string;
+  readonly isByRef?: boolean;
+}
+
+export interface TranspileCallableSignature {
+  readonly type?: string;
+  readonly typeParameters?: readonly string[];
+  readonly parameters?: readonly TranspileCallableParameter[];
+}
+
 /** Services supplied by the project layer to the transpilation pipeline. */
 export interface TranspileContext {
   detectEnumerable(typeName: string, preferredElementType?: string): EnumerableInfo | undefined;
@@ -29,6 +41,16 @@ export interface TranspileContext {
   resolveTypeImport?(typeName: string): string | undefined;
   resolveGlobalSymbolType?(name: string, argumentCount: number): string | undefined;
   resolveMemberType?(typeName: string, name: string, argumentCount: number): string | undefined;
+  resolveGlobalSignature?(
+    name: string,
+    argumentCount: number,
+  ): TranspileCallableSignature | undefined;
+  resolveMemberSignature?(
+    typeName: string,
+    name: string,
+    argumentCount: number,
+  ): TranspileCallableSignature | undefined;
+  resolveDelegateSignature?(delegateType: string): TranspileCallableSignature | undefined;
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
   /** Enables generic monomorphization. Parsing remains enabled when false so

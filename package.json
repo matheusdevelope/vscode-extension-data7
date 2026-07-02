@@ -8,8 +8,8 @@
     "packages/*"
   ],
   "scripts": {
-    "compile": "npm run compile -w @data7/core && node scripts/update-grammar-keywords.js && node scripts/update-grammar-types.js && npm run compile -w vscode-extension-data7 && npm run compile -w @data7/cli",
-    "watch": "node scripts/watch-workspaces.js",
+    "compile": "npm run compile -w @data7/core && node scripts/update-grammar-keywords.js && node scripts/update-grammar-types.js && npm run vscode:prepublish -w vscode-extension-data7 && npm run compile -w vscode-extension-data7 && npm run compile -w @data7/cli",
+    "watch": "npm run vscode:prepublish -w vscode-extension-data7 && node scripts/watch-workspaces.js",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "format": "prettier --write \".\"",

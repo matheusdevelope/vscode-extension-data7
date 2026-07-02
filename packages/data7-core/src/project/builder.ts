@@ -222,6 +222,57 @@ export class Builder {
         )?.type,
       resolveMemberType: (typeName: string, name: string, argumentCount: number) =>
         TypeResolver.findMember(typeName, name, indexer, argumentCount)?.type,
+      resolveGlobalSignature: (name: string, argumentCount: number) => {
+        const symbol =
+          indexer.findSymbolByName(name) ??
+          lookupSystemByName(name).find(
+            (candidate) =>
+              !candidate.containerName &&
+              (!candidate.parameters || candidate.parameters.length === argumentCount),
+          );
+        return symbol
+          ? {
+              type: symbol.type,
+              typeParameters: symbol.genericTypeParameters,
+              parameters: symbol.parameters?.map((parameter) => ({
+                name: parameter.name,
+                type: parameter.type,
+                isByRef: parameter.isByRef,
+              })),
+            }
+          : undefined;
+      },
+      resolveMemberSignature: (typeName: string, name: string, argumentCount: number) => {
+        const symbol = TypeResolver.findMember(typeName, name, indexer, argumentCount);
+        return symbol
+          ? {
+              type: symbol.type,
+              typeParameters: symbol.genericTypeParameters,
+              parameters: symbol.parameters?.map((parameter) => ({
+                name: parameter.name,
+                type: parameter.type,
+                isByRef: parameter.isByRef,
+              })),
+            }
+          : undefined;
+      },
+      resolveDelegateSignature: (delegateType: string) => {
+        const name = delegateType.replace(/<.*>$/, "");
+        const symbol =
+          indexer.getSymbolsByName(name).find((candidate) => candidate.kind === "delegate") ??
+          lookupSystemByName(name).find((candidate) => candidate.kind === "delegate");
+        return symbol
+          ? {
+              type: symbol.type,
+              typeParameters: symbol.genericTypeParameters,
+              parameters: symbol.parameters?.map((parameter) => ({
+                name: parameter.name,
+                type: parameter.type,
+                isByRef: parameter.isByRef,
+              })),
+            }
+          : undefined;
+      },
       externalGenericTemplates,
       requestedGenericInstantiations,
       genericsEnabled,

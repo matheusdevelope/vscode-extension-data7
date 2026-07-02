@@ -56,6 +56,11 @@ export function areResolvedTypeNamesEquivalent(
   indexer: WorkspaceSymbolIndexer,
 ): boolean {
   if (rhsType.toLowerCase() === lhsType.toLowerCase()) return true;
+  if (
+    flattenGenericTypeName(rhsType).toLowerCase() === flattenGenericTypeName(lhsType).toLowerCase()
+  ) {
+    return true;
+  }
   if (simpleTypeName(rhsType).toLowerCase() !== simpleTypeName(lhsType).toLowerCase()) return false;
   const rhsClass = TypeResolver.findClassSymbol(rhsType, indexer);
   const lhsClass = TypeResolver.findClassSymbol(lhsType, indexer);
@@ -188,4 +193,10 @@ function parseGenericTypeName(typeName: string): { base: string; args: string[] 
   }
   args.push(inner.slice(start).trim());
   return { base, args: args.filter((argument) => argument.length > 0) };
+}
+
+function flattenGenericTypeName(typeName: string): string {
+  const parsed = parseGenericTypeName(typeName);
+  if (!parsed) return typeName.trim();
+  return `${parsed.base}_${parsed.args.map(flattenGenericTypeName).join("_")}`;
 }

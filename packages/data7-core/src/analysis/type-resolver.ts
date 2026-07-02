@@ -20,6 +20,7 @@ import type {
   TypeReference,
   Node,
   BinaryExpression,
+  MethodInvocation,
   UnaryExpression,
 } from "../project/ast/ast";
 
@@ -526,7 +527,14 @@ export class TypeResolver {
               return delegateSym.type;
             }
           }
-          return member.type;
+          return applyMethodGenericSubstitutions(
+            member.type,
+            member,
+            expr,
+            document,
+            lineIdx,
+            indexer,
+          );
         }
         const fileSyms = indexer.getFileSymbols(document.uri.toString());
         const activeClass = TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, lineIdx);
@@ -579,7 +587,14 @@ export class TypeResolver {
               return delegateSym.type;
             }
           }
-          return member.type;
+          return applyMethodGenericSubstitutions(
+            member.type,
+            member,
+            expr,
+            document,
+            lineIdx,
+            indexer,
+          );
         }
         return undefined;
       }
@@ -651,11 +666,13 @@ export class TypeResolver {
     const lowerTargetType = targetType.toLowerCase();
     if (lowerTargetType === "variant") return "Variant";
     if (lowerTargetType === "string") return "String";
+    const genericElementType = parseGenericTypeReference(targetType)?.args[0];
+    if (genericElementType && isListLikeType(targetType)) return genericElementType;
     const item = TypeResolver.findMember(targetType, "Item", indexer, arity);
     if (item?.kind === "indexed-property") return item.type;
     const take = TypeResolver.findMember(targetType, "Take", indexer, arity);
     if (take?.kind === "indexed-property") return take.type;
-    return parseGenericTypeReference(targetType)?.args[0];
+    return genericElementType;
   }
 
   private static resolveArrayLiteralType(
@@ -1546,7 +1563,8 @@ function getGenericTemplateMembersForType(
   typeName: string,
   indexer: WorkspaceSymbolIndexer,
 ): SymbolInfo[] {
-  const parsed = parseGenericTypeReference(typeName);
+  const parsed =
+    parseGenericTypeReference(typeName) ?? parseFlatGenericTypeReference(typeName, indexer);
   if (!parsed) return [];
 
   const template = indexer
@@ -1590,6 +1608,41 @@ function getGenericTemplateMembersForType(
     }
     return clone;
   });
+}
+
+function parseFlatGenericTypeReference(
+  typeName: string,
+  indexer: WorkspaceSymbolIndexer,
+): { base: string; args: string[] } | undefined {
+  const trimmed = typeName.trim();
+  const underscore = trimmed.indexOf("_");
+  if (underscore <= 0) return undefined;
+
+  const lower = trimmed.toLowerCase();
+  const candidates = indexer
+    .getAllSymbols()
+    .filter(
+      (s) =>
+        (s.kind === "class" || s.kind === "delegate" || s.kind === "method") &&
+        (s.genericTypeParameters?.length ?? 0) > 0 &&
+        lower.startsWith(`${s.name.toLowerCase()}_`),
+    )
+    .sort((left, right) => right.name.length - left.name.length);
+
+  for (const candidate of candidates) {
+    const paramCount = candidate.genericTypeParameters?.length ?? 0;
+    const rest = trimmed.slice(candidate.name.length + 1);
+    if (!rest) continue;
+    if (paramCount === 1) {
+      return { base: candidate.name, args: [rest] };
+    }
+    const parts = rest.split("_").filter(Boolean);
+    if (parts.length === paramCount) {
+      return { base: candidate.name, args: parts };
+    }
+  }
+
+  return undefined;
 }
 
 function getGenericTemplateParentForType(
@@ -1667,6 +1720,15 @@ function parseGenericTypeReference(typeName: string): { base: string; args: stri
   args.push(inner.slice(start).trim());
   if (args.some((arg) => arg.length === 0)) return undefined;
   return { base, args };
+}
+
+function isListLikeType(typeName: string): boolean {
+  const parsed = parseGenericTypeReference(typeName);
+  if (!parsed) return false;
+  const base = parsed.base.includes(".")
+    ? (parsed.base.split(".").pop() ?? parsed.base)
+    : parsed.base;
+  return base.toLowerCase() === "ttlist" || base.toLowerCase() === "ttobjectlist";
 }
 
 /**
@@ -1915,6 +1977,150 @@ function expressionToTypeString(expr: Expression): string | undefined {
   return undefined;
 }
 
+function applyMethodGenericSubstitutions(
+  typeName: string,
+  method: SymbolInfo,
+  invocation: MethodInvocation,
+  document: vscode.TextDocument,
+  lineIdx: number,
+  indexer: WorkspaceSymbolIndexer,
+): string {
+  const substitutions = inferMethodGenericSubstitutions(
+    method,
+    invocation,
+    document,
+    lineIdx,
+    indexer,
+  );
+  if (substitutions.size === 0) return typeName;
+  return substituteGenericParametersInFlatType(typeName, substitutions);
+}
+
+function inferMethodGenericSubstitutions(
+  method: SymbolInfo,
+  invocation: MethodInvocation,
+  document: vscode.TextDocument,
+  lineIdx: number,
+  indexer: WorkspaceSymbolIndexer,
+): Map<string, string> {
+  const substitutions = new Map<string, string>();
+  const genericParams = method.genericTypeParameters ?? [];
+  if (genericParams.length === 0) return substitutions;
+
+  genericParams.forEach((param, index) => {
+    const explicit = invocation.typeArguments[index];
+    const explicitType = typeRefToString(explicit);
+    if (param && explicitType) substitutions.set(param.toLowerCase(), explicitType);
+  });
+
+  for (let i = 0; i < invocation.arguments.length; i++) {
+    const arg = invocation.arguments[i];
+    const parameter = method.parameters?.[i];
+    if (!arg || !parameter) continue;
+
+    if (arg.kind === "ArrowFunctionExpression") {
+      const lambdaReturn =
+        typeRefToString(arg.returnType) ??
+        (Array.isArray(arg.body)
+          ? undefined
+          : TypeResolver.resolveExpressionType(arg.body, document, lineIdx, indexer));
+      if (lambdaReturn) {
+        const delegateReturn = resolveDelegateReturnType(parameter.type, indexer);
+        if (delegateReturn) {
+          inferGenericTypePattern(delegateReturn, lambdaReturn, genericParams, substitutions);
+        }
+        inferGenericSegmentsFromFlatType(
+          parameter.type,
+          lambdaReturn,
+          genericParams,
+          substitutions,
+        );
+      }
+      continue;
+    }
+
+    const argType = TypeResolver.resolveExpressionType(arg, document, lineIdx, indexer);
+    if (argType) {
+      inferGenericSegmentsFromFlatType(parameter.type, argType, genericParams, substitutions);
+    }
+  }
+
+  return substitutions;
+}
+
+function resolveDelegateReturnType(
+  delegateType: string,
+  indexer: WorkspaceSymbolIndexer,
+): string | undefined {
+  const parsed = parseGenericTypeReference(delegateType);
+  const delegateName = parsed?.base ?? delegateType;
+  const delegate =
+    indexer.getSymbolsByName(delegateName).find((symbol) => symbol.kind === "delegate") ??
+    lookupSystemByName(delegateName).find((symbol) => symbol.kind === "delegate");
+  if (delegate?.kind !== "delegate") return undefined;
+
+  const substitutions = new Map<string, string>();
+  delegate.genericTypeParameters?.forEach((param, index) => {
+    const arg = parsed?.args[index];
+    if (arg) substitutions.set(param.toLowerCase(), arg);
+  });
+  return substituteGenericParametersPreservingSyntax(delegate.type, substitutions);
+}
+
+function inferGenericTypePattern(
+  expectedType: string,
+  actualType: string,
+  genericParams: readonly string[],
+  substitutions: Map<string, string>,
+): void {
+  const generic = genericParams.find((param) => param.toLowerCase() === expectedType.toLowerCase());
+  if (generic) {
+    substitutions.set(generic.toLowerCase(), actualType);
+    return;
+  }
+
+  const expected = parseGenericTypeReference(expectedType);
+  const actual = parseGenericTypeReference(actualType);
+  if (!expected || !actual || expected.base.toLowerCase() !== actual.base.toLowerCase()) return;
+  for (let i = 0; i < expected.args.length; i++) {
+    const expectedArg = expected.args[i];
+    const actualArg = actual.args[i];
+    if (expectedArg && actualArg) {
+      inferGenericTypePattern(expectedArg, actualArg, genericParams, substitutions);
+    }
+  }
+}
+
+function inferGenericSegmentsFromFlatType(
+  expectedType: string,
+  actualType: string,
+  genericParams: readonly string[],
+  substitutions: Map<string, string>,
+): void {
+  const expectedSegments = expectedType.split("_");
+  const actualSegments = actualType.split("_");
+  for (let i = 0; i < expectedSegments.length; i++) {
+    const segment = expectedSegments[i];
+    if (!segment) continue;
+    const generic = genericParams.find((param) => param.toLowerCase() === segment.toLowerCase());
+    if (!generic) continue;
+    const actual = actualSegments[i] ?? actualType;
+    if (actual) substitutions.set(generic.toLowerCase(), actual);
+  }
+}
+
+function substituteGenericParametersInFlatType(
+  typeName: string,
+  substitutions: ReadonlyMap<string, string>,
+): string {
+  let current = substituteGenericParametersPreservingSyntax(typeName, substitutions);
+  for (const [param, concrete] of substitutions.entries()) {
+    const escaped = param.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    current = current.replace(new RegExp(`(^|_)${escaped}(?=_|$)`, "gi"), `$1${concrete}`);
+  }
+  return current;
+}
+
 function qualifiedTypeNameFromInvocation(
   expr: Expression,
   indexer: WorkspaceSymbolIndexer,
@@ -2051,6 +2257,16 @@ function collectLocalDeclarations(
           : undefined;
         locals.set(node.name.toLowerCase(), inferredType ?? "Variant");
       }
+      if (node.initializer) {
+        collectExpressionLocalDeclarations(
+          node.initializer,
+          position,
+          locals,
+          indexer,
+          document,
+          lineIdx,
+        );
+      }
       break;
     }
 
@@ -2157,5 +2373,117 @@ function collectLocalDeclarations(
         collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
       }
       break;
+
+    case "ExpressionStatement":
+      collectExpressionLocalDeclarations(
+        node.expression,
+        position,
+        locals,
+        indexer,
+        document,
+        lineIdx,
+      );
+      break;
+
+    case "Assignment":
+      collectExpressionLocalDeclarations(node.target, position, locals, indexer, document, lineIdx);
+      collectExpressionLocalDeclarations(node.value, position, locals, indexer, document, lineIdx);
+      break;
+
+    case "ReturnStatement":
+      if (node.expression) {
+        collectExpressionLocalDeclarations(
+          node.expression,
+          position,
+          locals,
+          indexer,
+          document,
+          lineIdx,
+        );
+      }
+      break;
   }
+}
+
+function collectExpressionLocalDeclarations(
+  expression: Expression | undefined,
+  position: vscode.Position,
+  locals: Map<string, string>,
+  indexer: WorkspaceSymbolIndexer,
+  document: vscode.TextDocument,
+  lineIdx: number,
+): void {
+  if (!expression) return;
+
+  if (expression.kind === "ArrowFunctionExpression") {
+    if (expression.loc && !positionWithinLoc(position, expression.loc)) return;
+    for (const parameter of expression.parameters) {
+      locals.set(parameter.name.toLowerCase(), typeRefToString(parameter.type) ?? "Variant");
+    }
+    if (Array.isArray(expression.body)) {
+      for (const statement of expression.body) {
+        collectLocalDeclarations(statement, position, locals, indexer, document, lineIdx);
+      }
+    } else {
+      collectExpressionLocalDeclarations(
+        expression.body,
+        position,
+        locals,
+        indexer,
+        document,
+        lineIdx,
+      );
+    }
+    return;
+  }
+
+  for (const child of expressionChildren(expression)) {
+    collectExpressionLocalDeclarations(child, position, locals, indexer, document, lineIdx);
+  }
+}
+
+function expressionChildren(expression: Expression): readonly Expression[] {
+  switch (expression.kind) {
+    case "ObjectCreationExpression":
+      return expression.arguments;
+    case "MethodInvocation":
+      return [expression.callee, ...expression.arguments].filter(
+        (child): child is Expression => child !== undefined,
+      );
+    case "MemberAccess":
+      return [expression.target];
+    case "ArrayAccessExpression":
+      return [expression.target, ...(expression.indices ?? [expression.index])];
+    case "BinaryExpression":
+      return [expression.left, expression.right];
+    case "UnaryExpression":
+      return [expression.argument];
+    case "TernaryExpression":
+      return [expression.condition, expression.trueExpr, expression.falseExpr];
+    case "NullCoalescingExpression":
+    case "PipeExpression":
+      return [expression.left, expression.right];
+    case "OptionalChainingExpression":
+      return [expression.target, expression.member];
+    case "ObjectInitializerExpression":
+      return [
+        ...expression.arguments,
+        ...expression.assignments.map((assignment) => assignment.value),
+      ];
+    case "ArrayLiteralExpression":
+      return expression.elements;
+    case "SpreadExpression":
+      return [expression.expression];
+    default:
+      return [];
+  }
+}
+
+function positionWithinLoc(
+  position: vscode.Position,
+  loc: { readonly startLine: number; readonly endLine: number },
+): boolean {
+  const start = Math.max(0, loc.startLine - 1);
+  const end = Math.max(0, loc.endLine - 1);
+  return position.line >= start && position.line <= end;
 }

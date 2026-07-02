@@ -4,7 +4,6 @@ Imports mod_tlist
 Imports Collections
 Imports mod_tobject
 
-'@Module
 Namespace mod_logger
 
    Delegate Sub LogTransportWriter(pInfo As LogInfo, pFormatted As String)

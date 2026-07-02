@@ -1,7 +1,6 @@
 
 Imports Collections
 
-'@Module
 Namespace mod_tobject
 
    Delegate Function FindDel(pValue As TTObject, i As Integer, extra As Variant) As Boolean
@@ -112,8 +111,8 @@ Namespace mod_tobject
       End Sub
 
       Private Sub TriggerEvent(pList As TTObjectList, pItem As TTObject, pIndex As Integer, pMethod As OnActionListDel, pDelegate As OnActionListDel)
-         If pMethod <> NULL Then pMethod(pList, pItem, pIndex)
-         If pDelegate <> NULL Then pDelegate(pList, pItem, pIndex)
+         If pMethod <> Null Then pMethod(pList, pItem, pIndex)
+         If pDelegate <> Null Then pDelegate(pList, pItem, pIndex)
       End Sub
 
       Sub DispatchBeforePush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
@@ -157,9 +156,9 @@ Namespace mod_tobject
          BuildLogger = New TTObjectPrinter(pTitle, pSize)
       End Function
 
-     Public Sub Free()
-       MyBase.Free()
-     End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
 
    End Class
 
@@ -258,7 +257,7 @@ Namespace mod_tobject
       Sub Push(pValues As TTComposerList)
          Dim i As Integer, _length As Integer = pValues.Length
          For i = 0 To _length - 1
-             me.Push(pValues.Take(i))
+            me.Push(pValues.Take(i))
          Next
       End Sub
 
@@ -267,20 +266,20 @@ Namespace mod_tobject
       End Sub
 
       Sub Unshift(pIndex As Integer, pID As String, pValue As TTObject)
-          me.DispatchBeforePush(me, pValue, pIndex)
-          pID = UCase(pID)
-          me._list.InsertObject(pIndex, pID, pValue)
-          me.DispatchAfterPush(me, pValue, pIndex)
+         me.DispatchBeforePush(me, pValue, pIndex)
+         pID = UCase(pID)
+         me._list.InsertObject(pIndex, pID, pValue)
+         me.DispatchAfterPush(me, pValue, pIndex)
       End Sub
 
       Sub Unshift(pIndex As Integer, pValue As TTObject)
-          me.Unshift(pIndex, pValue.GetID, pValue)
+         me.Unshift(pIndex, pValue.GetID, pValue)
       End Sub
 
       Sub Unshift(pIndex As Integer, pValues As TTComposerList)
          Dim i As Integer, _length As Integer = pValues.Length - 1
          For i = 0 To _length
-             me.Unshift(pIndex + i, pValues.Item(i))
+            me.Unshift(pIndex + i, pValues.Item(i))
          Next
       End Sub
 
@@ -306,72 +305,72 @@ Namespace mod_tobject
       End Function
 
       Function IndexOf(pHandler As FindDel) As Integer
-         IndexOf = me.IndexOf(pHandler, "")
+         IndexOf = me.IndexOf(pHandler, Unassigned)
       End Function
 
       Function IndexOf(pHandler As FindDel, extra As Variant) As Integer
          Dim value As Integer = -1
          Dim i As Integer, _length As Integer = me.Length()
          For i = 0 To _length - 1
-             If pHandler(me.Take(i), i, extra) Then
-                value = i
-                Exit For
-             End IF
+            If pHandler(me.Take(i), i, extra) Then
+               value = i
+               Exit For
+            End If
          Next
          IndexOf = value
       End Function
 
       Function Find(pHandler As FindDel) As TObject
-         Find = me.Find(pHandler, "")
+         Find = me.Find(pHandler, Unassigned)
       End Function
 
       Function Find(pHandler As FindDel, extra As Variant) As TObject
          Dim value As TObject
          Dim i As Integer, _length As Integer = me.Length()
          For i = 0 To _length - 1
-             If pHandler(me.Take(i), i, extra) Then
-                value = me.Take(i)
-                Exit For
-             End IF
+            If pHandler(me.Take(i), i, extra) Then
+               value = me.Take(i)
+               Exit For
+            End If
          Next
          Find = value
       End Function
 
       Function Filter(pHandler As FindDel) As TTObjectList
-         Filter = me.Filter(pHandler, "")
+         Filter = me.Filter(pHandler, Unassigned)
       End Function
 
       Function Filter(pHandler As FindDel, extra As Variant) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
          Dim i As Integer, _length As Integer = me.Length()
          For i = 0 To _length - 1
-             If pHandler(me.Take(i), i, extra) Then
-                _new.Push(me.Take(i))
-             End IF
+            If pHandler(me.Take(i), i, extra) Then
+               _new.Push(me.Take(i))
+            End If
          Next
          Filter = _new
       End Function
 
       Sub ForEach(pHandler As FindDel)
-         me.ForEach(pHandler, "")
+         me.ForEach(pHandler, Unassigned)
       End Sub
 
       Sub ForEach(pHandler As ForEachDel, extra As Variant)
          Dim i As Integer, _length As Integer = me.Length()
          For i = 0 To _length - 1
-             pHandler(me.Take(i), i, extra)
+            pHandler(me.Take(i), i, extra)
          Next
       End Sub
 
       Function Map(pHandler As FindDel) As TTObjectList
-         Map = me.Map(pHandler, "")
+         Map = me.Map(pHandler, Unassigned)
       End Function
 
       Function Map(pHandler As MapDel, extra As Variant) As TTObjectList
          Dim _new As TTObjectList = me.CreateInstance()
          Dim i As Integer, _length As Integer = me.Length()
          For i = 0 To _length - 1
-             _new.Push(pHandler(me.Take(i), i, extra))
+            _new.Push(pHandler(me.Take(i), i, extra))
          Next
          Map = _new
       End Function
@@ -381,7 +380,7 @@ Namespace mod_tobject
             First = me.Take(0)
             Exit Function
          End If
-         First = NULL
+         First = Null
       End Function
 
       Function Last() As TTObject
@@ -390,7 +389,7 @@ Namespace mod_tobject
             Last = me.Take(_length - 1)
             Exit Function
          End If
-         Last = NULL
+         Last = Null
       End Function
 
       Function Clone() As TTObjectList
@@ -436,7 +435,7 @@ Namespace mod_tobject
          If _len > 0 Then
             Pop = me.Extract(_len - 1)
          Else
-            Pop = NULL
+            Pop = Null
          End If
       End Function
 
@@ -445,7 +444,7 @@ Namespace mod_tobject
          If _len > 0 Then
             Shift = me.Extract(0)
          Else
-            Shift = NULL
+            Shift = Null
          End If
       End Function
 
@@ -480,7 +479,7 @@ Namespace mod_tobject
          Slice = _new
       End Function
 
-      Sub Reverse()
+      Function Reverse() As TTObjectList
          Dim i As Integer = 0
          Dim j As Integer = me.Length() - 1
          While i < j
@@ -488,7 +487,8 @@ Namespace mod_tobject
             i = i + 1
             j = j - 1
          End While
-      End Sub
+         Reverse = me
+      End Function
 
       Function Extract(pIndex As Integer) As TTObject
          Dim _item As TTObject = me.Take(pIndex)
@@ -501,7 +501,7 @@ Namespace mod_tobject
          Extract = _item
       End Function
 
-      Sub Delete(pIndex as Integer)
+      Sub Delete(pIndex As Integer)
          Dim _item As TTObject = me.Take(pIndex)
          me.DispatchBeforeDelete(me, _item, pIndex)
          Dim _id As String = UCase(_item.GetID)
@@ -514,13 +514,13 @@ Namespace mod_tobject
       End Sub
 
       Sub Clean(pDispose As Boolean = True)
-         me.DispatchBeforeClean(me, NULL, -1)
+         me.DispatchBeforeClean(me, Null, -1)
          If pDispose Then
             me.Dispose()
             me._disposed = False
          End If
          me._list.Clear()
-         me.DispatchAfterClean(me, NULL, -1)
+         me.DispatchAfterClean(me, Null, -1)
       End Sub
 
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True)
@@ -528,7 +528,7 @@ Namespace mod_tobject
       End Sub
 
       Sub Sort(pHandler As SortPropDel, pAsc As Boolean = True, pExtra As Variant)
-         If pHandler <> NULL Then
+         If pHandler <> Null Then
             Dim listTemp As New StringList, i As Integer
             Dim _length As Integer = me.Length()
             For i = 0 To _length - 1
@@ -569,27 +569,27 @@ Namespace mod_tobject
       End Function
 
       Private Sub TriggerEvent(pList As TTObjectList, pItem As TTObject, pIndex As Integer, pMethod As OnActionListDel, pDelegate As OnActionListDel)
-         If pMethod <> NULL Then pMethod(pList, pItem, pIndex)
-         If pDelegate <> NULL Then pDelegate(pList, pItem, pIndex)
+         If pMethod <> Null Then pMethod(pList, pItem, pIndex)
+         If pDelegate <> Null Then pDelegate(pList, pItem, pIndex)
       End Sub
 
       Private Sub DispatchBeforePush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchBeforePush(pList, pItem, pIndex)
+         If pItem <> Null Then pItem.DispatchBeforePush(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforePush, me.OnBeforePush)
       End Sub
 
       Private Sub DispatchAfterPush(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchAfterPush(pList, pItem, pIndex)
+         If pItem <> Null Then pItem.DispatchAfterPush(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterPush, me.OnAfterPush)
       End Sub
 
       Private Sub DispatchBeforeDelete(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchBeforeDelete(pList, pItem, pIndex)
+         If pItem <> Null Then pItem.DispatchBeforeDelete(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeDelete, me.OnBeforeDelete)
       End Sub
 
       Private Sub DispatchAfterDelete(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchAfterDelete(pList, pItem, pIndex)
+         If pItem <> Null Then pItem.DispatchAfterDelete(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterDelete, me.OnAfterDelete)
       End Sub
 
@@ -602,12 +602,12 @@ Namespace mod_tobject
       End Sub
 
       Private Sub DispatchBeforeDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchBeforeDispose(pList, pItem, pIndex)
+         If pItem <> Null Then pItem.DispatchBeforeDispose(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.BeforeDispose, me.OnBeforeDispose)
       End Sub
 
       Private Sub DispatchAfterDispose(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-         If pItem <> NULL Then pItem.DispatchAfterDispose(pList, pItem, pIndex)
+         If pItem <> Null Then pItem.DispatchAfterDispose(pList, pItem, pIndex)
          me.TriggerEvent(pList, pItem, pIndex, me.AfterDispose, me.OnAfterDispose)
       End Sub
 

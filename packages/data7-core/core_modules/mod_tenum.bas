@@ -1,6 +1,6 @@
 Imports Collections
 Imports mod_tobject
-'@Module-Imported
+
 Namespace mod_tenum
    Class TEnum
       Inherits TTObject

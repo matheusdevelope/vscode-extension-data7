@@ -371,6 +371,100 @@ describe("GenericsMonomorphizer — generic methods, delegates and return types"
 
     assert.equal(consumer.parameters[0]?.type.name, "Handler_Integer");
   });
+
+  test("monomorphizes overloaded generic member methods and rewrites self-overload calls", () => {
+    const T = typeParam("T");
+    const U = typeParam("U");
+    const list = classDecl("List", {
+      typeParameters: [T],
+      members: [
+        method("Map", {
+          typeParameters: [U],
+          parameters: [param("handler", typeRef("Variant"))],
+          returnType: typeRef("List", [typeRef("U")]),
+          body: [
+            assign(id("Map"), {
+              kind: "MethodInvocation",
+              callee: id("me"),
+              methodName: "Map",
+              typeArguments: [],
+              arguments: [id("handler"), lit(0)],
+            }),
+          ],
+        }),
+        method("Map", {
+          typeParameters: [U],
+          parameters: [param("handler", typeRef("Variant")), param("extra", typeRef("Variant"))],
+          returnType: typeRef("List", [typeRef("U")]),
+        }),
+      ],
+    });
+    const callSite: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: id("items"),
+      methodName: "Map",
+      typeArguments: [typeRef("String")],
+      arguments: [id("handler")],
+    };
+    const u = unit([
+      list,
+      dim("items", typeRef("List", [typeRef("Integer")])),
+      dim("handler", typeRef("Variant")),
+      dim("mapped", undefined, callSite),
+    ]);
+    const result = new GenericsMonomorphizer().monomorphize(u);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    const concrete = findClass(u.members, "List_Integer");
+    assert.ok(concrete);
+    const overloads = concrete.members.filter(
+      (member): member is MethodDeclaration =>
+        member.kind === "MethodDeclaration" && member.name === "Map_String",
+    );
+    assert.equal(overloads.length, 2);
+    assert.ok(findClass(u.members, "List_String"));
+    assert.equal(callSite.methodName, "Map_String");
+    assert.equal(callSite.typeArguments.length, 0);
+
+    const overloadWithBody = overloads.find((overload) => overload.body.length > 0);
+    const firstBody = overloadWithBody?.body[0];
+    assert.ok(firstBody?.kind === "Assignment");
+    assert.equal(firstBody.value.kind, "MethodInvocation");
+    if (firstBody.value.kind === "MethodInvocation") {
+      assert.equal(firstBody.value.methodName, "Map_String");
+    }
+  });
+
+  test("materializes requested generic member methods in template-only modules", () => {
+    const T = typeParam("T");
+    const U = typeParam("U");
+    const list = classDecl("List", {
+      typeParameters: [T],
+      members: [
+        method("Map", {
+          typeParameters: [U],
+          parameters: [param("handler", typeRef("Variant"))],
+          returnType: typeRef("List", [typeRef("U")]),
+        }),
+      ],
+    });
+    const u = unit([list]);
+    const result = new GenericsMonomorphizer({
+      requestedInstantiations: [
+        { templateName: "List", typeArgs: ["Integer"] },
+        { templateName: "List", typeArgs: ["String"] },
+        { templateName: "Map", typeArgs: ["String"] },
+      ],
+    }).monomorphize(u);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    const concrete = findClass(u.members, "List_Integer");
+    assert.ok(concrete);
+    const mapString = classMethod(concrete, "Map_String");
+    assert.ok(mapString);
+    assert.equal(mapString.returnType?.name, "List_String");
+    assert.ok(findClass(u.members, "List_String"));
+  });
 });
 
 describe("GenericsMonomorphizer — multi-parameter generics", () => {
@@ -586,7 +680,7 @@ describe("GenericsMonomorphizer — typed warnings", () => {
     assert.ok(warningCodes(result.warnings).includes("duplicate-template"));
   });
 
-  test("`class-generic-method-unsupported`: generic method inside a non-generic class", () => {
+  test("monomorphizes a generic method inside a non-generic class when invoked", () => {
     const T = typeParam("T");
     const fooClass = classDecl("Foo", {
       members: [
@@ -596,20 +690,36 @@ describe("GenericsMonomorphizer — typed warnings", () => {
         }),
       ],
     });
-    const u = unit([fooClass]);
+    const callSite: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: id("foo"),
+      methodName: "Process",
+      typeArguments: [typeRef("Integer")],
+      arguments: [lit(1)],
+    };
+    const u = unit([
+      fooClass,
+      dim("foo", typeRef("Foo")),
+      { kind: "ExpressionStatement", expression: callSite },
+    ]);
     const result = new GenericsMonomorphizer().monomorphize(u);
 
-    const w = result.warnings.find((x) => x.code === "class-generic-method-unsupported");
-    assert.ok(w);
-    assert.equal(w.templateName, "Foo.Process");
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
 
     // The generic method must have been removed from the class.
     const foo = findClass(u.members, "Foo");
     assert.ok(foo);
-    assert.equal(foo.members.length, 0, "generic method must be pruned from class");
+    assert.equal(classMethod(foo, "Process"), undefined);
+
+    const concrete = classMethod(foo, "Process_Integer");
+    assert.ok(concrete);
+    assert.equal(concrete.typeParameters.length, 0);
+    assert.equal(concrete.parameters[0]?.type.name, "Integer");
+    assert.equal(callSite.methodName, "Process_Integer");
+    assert.equal(callSite.typeArguments.length, 0);
   });
 
-  test("`class-generic-method-unsupported`: also pruned inside a generic class template", () => {
+  test("monomorphizes a generic method inside a generic class template when invoked", () => {
     // Class Box<T>
     //   Sub Process<U>(item As U)   ' generic method inside generic class
     // End Class
@@ -625,21 +735,34 @@ describe("GenericsMonomorphizer — typed warnings", () => {
         }),
       ],
     });
-    const u = unit([box, dim("b", typeRef("Box", [typeRef("Integer")]))]);
+    const callSite: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: id("b"),
+      methodName: "Process",
+      typeArguments: [typeRef("String")],
+      arguments: [lit("x")],
+    };
+    const u = unit([
+      box,
+      dim("b", typeRef("Box", [typeRef("Integer")])),
+      { kind: "ExpressionStatement", expression: callSite },
+    ]);
     const result = new GenericsMonomorphizer().monomorphize(u);
 
-    assert.ok(
-      result.warnings.some(
-        (w) => w.code === "class-generic-method-unsupported" && w.templateName === "Box.Process",
-      ),
-    );
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
 
     const concrete = findClass(u.members, "Box_Integer");
     assert.ok(concrete);
     // Process<U> must NOT be on the concrete class.
     assert.equal(classMethod(concrete, "Process"), undefined);
+    const concreteMethod = classMethod(concrete, "Process_String");
+    assert.ok(concreteMethod);
+    assert.equal(concreteMethod.typeParameters.length, 0);
+    assert.equal(concreteMethod.parameters[0]?.type.name, "String");
     // But the substituted T → Integer field must be there.
     assert.equal(classFieldType(concrete, "Value")?.name, "Integer");
+    assert.equal(callSite.methodName, "Process_String");
+    assert.equal(callSite.typeArguments.length, 0);
   });
 
   test("`flat-name-collision`: two distinct usages produce the same flat name", () => {
