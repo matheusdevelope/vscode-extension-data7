@@ -50,6 +50,7 @@ import { tokenizeLine, type LineToken } from "../project/parser/lexer";
 import type { Rule, RuleContext } from "./rules/base-rule";
 import { ArraysRule } from "./rules/arrays-rule";
 import { ControlFlowRule } from "./rules/control-flow-rule";
+import { DeclarationsRule } from "./rules/declarations-rule";
 import { ImportsRule } from "./rules/imports-rule";
 import { LifecycleRule } from "./rules/lifecycle-rule";
 import { MembersRule } from "./rules/members-rule";
@@ -407,6 +408,17 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.InstantiationLimitExceeded]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.DuplicateDeclaration]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.UnknownType]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.IncompleteMemberAccess]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.UnterminatedBlock]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.TypedConstUnsupported]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.InvalidSharedMember]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.RedundantPublicModifier]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.UnusedDeclaration]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.LooseValueStatement]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.AbstractInstantiation]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.SealedInheritance]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.MustOverrideNotImplemented]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.InvalidClassModifierCombination]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.MissingMyBaseNew]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InstanceMemberAccessOnType]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.SubUsedAsFunction]: vscode.DiagnosticSeverity.Error,
@@ -488,6 +500,20 @@ export class DiagnosticsLinter {
 
       const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
       const unit = cached.unit;
+      cached.errors.forEach((err) => {
+        const line = Math.max(0, err.loc.line - 1);
+        const col = Math.max(0, err.loc.column);
+        const range = new vscode.Range(line, col, line, col + 1);
+        const diag = new vscode.Diagnostic(range, err.message, vscode.DiagnosticSeverity.Error);
+        diag.code =
+          err.code === "incomplete-member-access"
+            ? DiagnosticCodes.IncompleteMemberAccess
+            : err.code === "unterminated-block"
+              ? DiagnosticCodes.UnterminatedBlock
+              : err.code;
+        diag.source = "data7";
+        diagnostics.push(diag);
+      });
 
       // Run the AST-based linter walker
       const tWalker = new TimeTracker(" -> Walker do Linter");
@@ -701,6 +727,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     super();
     this.externalTypeDirectives = extractExternalTypeDirectives(text);
     this.rules = [
+      new DeclarationsRule(),
       new ImportsRule(),
       new MembersRule(),
       new TypesRule(),

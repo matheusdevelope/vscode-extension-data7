@@ -13,11 +13,12 @@ import {
   typeRefToString,
 } from "@data7/core";
 import type { SymbolInfo } from "@data7/core";
+import { isPositionInCommentOrString } from "./provider-context";
 
 export class D7BasicHoverProvider implements vscode.HoverProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
 
-  private static getSymbolSignature(s: SymbolInfo): string {
+  private getSymbolSignature(s: SymbolInfo, uri: string): string {
     let modPart = "";
     if (s.isPrivate) modPart += "Private ";
     else modPart += "Public ";
@@ -49,6 +50,16 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       case "indexed-property":
         return `${modPart}Property ${s.name}${paramsPart} As ${s.type}`;
       case "variable":
+        if (!s.isConst) {
+          const delegate = this.resolveDelegateSymbol(s.type, uri);
+          if (delegate) {
+            const delegateParams = delegate.parameters
+              ? formatParameterList(delegate.parameters)
+              : "";
+            const isSub = delegate.type === "Void";
+            return `${modPart}${isSub ? "Sub" : "Function"} ${s.name}${delegateParams}${!isSub ? ` As ${delegate.type}` : ""}`;
+          }
+        }
         if (s.isConst) {
           const isClassMember =
             s.containerName &&
@@ -64,6 +75,13 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       default:
         return s.name;
     }
+  }
+
+  private resolveDelegateSymbol(typeName: string, uri: string): SymbolInfo | undefined {
+    return (
+      this.indexer.findSymbolByName(typeName, uri) ??
+      lookupSystemByName(typeName).find((s) => s.kind === "delegate")
+    );
   }
 
   public provideHover(
@@ -91,6 +109,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     position: vscode.Position,
     _: vscode.CancellationToken,
   ): vscode.Hover | undefined {
+    if (isPositionInCommentOrString(document, position)) return undefined;
     const ast = new D7AstContext(document, position, this.indexer);
     const range = ast.wordRange;
     const word = ast.word;
@@ -112,7 +131,13 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     const lineText = document.lineAt(position.line).text;
     const qualifiedWord = getQualifiedWordAtPosition(lineText, position.character);
     if (qualifiedWord && qualifiedWord.includes(".")) {
-      targetSymbol = resolveQualifiedSymbol(qualifiedWord, document.uri.toString(), this.indexer);
+      const qualifiedSymbolName =
+        getQualifiedPrefixAtPosition(lineText, position.character) ?? qualifiedWord;
+      targetSymbol = resolveQualifiedSymbol(
+        qualifiedSymbolName,
+        document.uri.toString(),
+        this.indexer,
+      );
     }
 
     if (!targetSymbol) {
@@ -222,7 +247,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
 
     if (!targetSymbol) return undefined;
 
-    const signature = D7BasicHoverProvider.getSymbolSignature(targetSymbol);
+    const signature = this.getSymbolSignature(targetSymbol, document.uri.toString());
     const markdown = new vscode.MarkdownString();
     markdown.appendCodeblock(signature, LANGUAGE_IDS.d7basic);
 
@@ -352,6 +377,26 @@ function getQualifiedWordAtPosition(lineText: string, charIndex: number): string
   }
   const word = lineText.slice(start, end).trim();
   return word.replace(/^\.+|\.+$/g, "") || undefined;
+}
+
+function getQualifiedPrefixAtPosition(lineText: string, charIndex: number): string | undefined {
+  const qualifiedWord = getQualifiedWordAtPosition(lineText, charIndex);
+  if (!qualifiedWord?.includes(".")) return undefined;
+
+  let start = charIndex;
+  while (start > 0 && /[A-Za-z0-9_.]/.test(lineText[start - 1] ?? "")) {
+    start--;
+  }
+  const relative = Math.max(0, charIndex - start);
+  let cursor = 0;
+  let prefix = "";
+  for (const part of qualifiedWord.split(".")) {
+    const nextEnd = cursor + part.length;
+    prefix = prefix ? `${prefix}.${part}` : part;
+    if (relative <= nextEnd) return prefix;
+    cursor = nextEnd + 1;
+  }
+  return qualifiedWord;
 }
 
 function resolveQualifiedSymbol(

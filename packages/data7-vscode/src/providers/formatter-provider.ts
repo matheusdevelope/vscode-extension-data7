@@ -30,9 +30,11 @@ type IndentFrame =
   | "using"
   | "with";
 
+type ExpressionFrame = "paren" | "bracket" | "continuation";
+
 const DEFAULT_TAB_SIZE = 4;
 const DECLARATION_MODIFIERS =
-  "(?:(?:public|private|protected|shared|overrides|overridable|readonly)\\s+)*";
+  "(?:(?:public|private|protected|shared|overrides|overridable|readonly|shadows|mustoverride|mustinherit|notinheritable)\\s+)*";
 
 export class CodeFormatter {
   public static formatKeywordsInLine(lineText: string): string {
@@ -42,9 +44,10 @@ export class CodeFormatter {
   }
 
   public static formatCode(text: string, options: CodeFormatterOptions = {}): string {
-    const lines = text.split(/\r?\n/);
+    const lines = expandFormatterLines(text.split(/\r?\n/));
     const formattedLines: string[] = [];
     const indentStack: IndentFrame[] = [];
+    const expressionStack: ExpressionFrame[] = [];
     const indentUnit = getIndentUnit(options);
 
     for (const lineText of lines) {
@@ -56,19 +59,23 @@ export class CodeFormatter {
 
       const cleanLine = stripTrailingComment(trimmed);
       const lowerClean = cleanLine.toLowerCase();
+      const continuationDepth = getContinuationDepthForLine(expressionStack, cleanLine);
       let handledIndent = false;
 
       if (isCaseLine(lowerClean)) {
         popIfTop(indentStack, ["case"]);
         formattedLines.push(
-          indentUnit.repeat(indentStack.length) + this.formatKeywordsInLine(trimmed),
+          indentUnit.repeat(indentStack.length + continuationDepth) +
+            this.formatKeywordsInLine(trimmed),
         );
         indentStack.push("case");
         handledIndent = true;
       } else {
         const branchDepth = getBranchDepth(lowerClean, indentStack);
         if (branchDepth !== undefined) {
-          formattedLines.push(indentUnit.repeat(branchDepth) + this.formatKeywordsInLine(trimmed));
+          formattedLines.push(
+            indentUnit.repeat(branchDepth + continuationDepth) + this.formatKeywordsInLine(trimmed),
+          );
           handledIndent = true;
         } else {
           const closingFrame = getClosingFrame(lowerClean);
@@ -80,7 +87,8 @@ export class CodeFormatter {
 
       if (!handledIndent) {
         formattedLines.push(
-          indentUnit.repeat(indentStack.length) + this.formatKeywordsInLine(trimmed),
+          indentUnit.repeat(indentStack.length + continuationDepth) +
+            this.formatKeywordsInLine(trimmed),
         );
       }
 
@@ -88,6 +96,7 @@ export class CodeFormatter {
       if (openingFrame) {
         indentStack.push(openingFrame);
       }
+      updateExpressionStack(expressionStack, cleanLine);
     }
 
     return formattedLines.join("\n");
@@ -135,6 +144,57 @@ function stripTrailingComment(line: string): string {
     .trim();
 }
 
+function expandFormatterLines(lines: readonly string[]): string[] {
+  const expandedLines: string[] = [];
+  for (const line of lines) {
+    for (const endSplitLine of splitLambdaEndWithCallClose(line)) {
+      expandedLines.push(...splitInlineBlockLambdaStart(endSplitLine));
+    }
+  }
+  return expandedLines;
+}
+
+function splitInlineBlockLambdaStart(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed) return [line];
+
+  const cleanLine = stripTrailingComment(trimmed);
+  const trailingComment = getTrailingComment(trimmed, cleanLine);
+  const match = cleanLine.match(
+    /^(.*(?:\(|,))\s*((?:sub|function)\s*\([^)]*\)(?:\s+as\s+[a-z_][a-z0-9_.]*(?:<[^>]+>)?(?:\[\])?)?)\s*$/i,
+  );
+  if (!match) return [line];
+
+  const prefix = match[1]?.trimEnd();
+  const lambdaHeader = match[2]?.trim();
+  if (!prefix || !lambdaHeader || !isBlockLambdaHeader(lambdaHeader.toLowerCase())) {
+    return [line];
+  }
+
+  return [prefix, trailingComment ? `${lambdaHeader} ${trailingComment}` : lambdaHeader];
+}
+
+function splitLambdaEndWithCallClose(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed) return [line];
+
+  const cleanLine = stripTrailingComment(trimmed);
+  const trailingComment = getTrailingComment(trimmed, cleanLine);
+  const match = cleanLine.match(/^(end\s+(?:sub|function))\s*([)\]]+)\s*$/i);
+  if (!match) return [line];
+
+  const lambdaEnd = match[1];
+  const closingDelimiters = match[2];
+  if (!lambdaEnd || !closingDelimiters) return [line];
+
+  return [trailingComment ? `${lambdaEnd} ${trailingComment}` : lambdaEnd, closingDelimiters];
+}
+
+function getTrailingComment(trimmedLine: string, cleanLine: string): string {
+  if (cleanLine.length >= trimmedLine.length) return "";
+  return trimmedLine.slice(cleanLine.length).trimStart();
+}
+
 function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
   if (lowerClean.startsWith("namespace ")) return "namespace";
   if (new RegExp(`^${DECLARATION_MODIFIERS}class\\s+`).test(lowerClean)) return "class";
@@ -142,6 +202,8 @@ function getOpeningFrame(lowerClean: string): IndentFrame | undefined {
   if (new RegExp(`^${DECLARATION_MODIFIERS}enum\\s+`).test(lowerClean)) return "enum";
   if (new RegExp(`^${DECLARATION_MODIFIERS}enun\\s+`).test(lowerClean)) return "enun";
   if (new RegExp(`^${DECLARATION_MODIFIERS}property\\s+`).test(lowerClean)) return "property";
+  if (isLambdaBlockDeclaration(lowerClean, "sub")) return "sub";
+  if (isLambdaBlockDeclaration(lowerClean, "function")) return "function";
   if (isSubDeclaration(lowerClean)) return "sub";
   if (isFunctionDeclaration(lowerClean)) return "function";
   if (/^if\s+/i.test(lowerClean)) {
@@ -174,9 +236,27 @@ function isFunctionDeclaration(lowerClean: string): boolean {
   return new RegExp(`^${DECLARATION_MODIFIERS}function\\s+`).test(lowerClean);
 }
 
+function isLambdaBlockDeclaration(lowerClean: string, kind: "sub" | "function"): boolean {
+  return isBlockLambdaHeader(lowerClean, kind);
+}
+
+function isBlockLambdaHeader(lowerClean: string, kind?: "sub" | "function"): boolean {
+  if (kind === "sub") {
+    return /^sub\s*\([^)]*\)\s*$/.test(lowerClean);
+  }
+  if (kind === "function") {
+    return /^function\s*\([^)]*\)(?:\s+as\s+[a-z_][a-z0-9_.]*(?:<[^>]+>)?(?:\[\])?)?\s*$/.test(
+      lowerClean,
+    );
+  }
+  return isBlockLambdaHeader(lowerClean, "sub") || isBlockLambdaHeader(lowerClean, "function");
+}
+
 function getClosingFrame(lowerClean: string): IndentFrame[] | undefined {
   if (lowerClean.startsWith("next ")) return ["for"];
   if (lowerClean.startsWith("loop ")) return ["do"];
+  if (/^end\s+function\s*,?\s*$/.test(lowerClean)) return ["function"];
+  if (/^end\s+sub\s*,?\s*$/.test(lowerClean)) return ["sub"];
 
   switch (lowerClean) {
     case "end namespace":
@@ -195,10 +275,6 @@ function getClosingFrame(lowerClean: string): IndentFrame[] | undefined {
       return ["get"];
     case "end set":
       return ["set"];
-    case "end sub":
-      return ["sub"];
-    case "end function":
-      return ["function"];
     case "end if":
       return ["if"];
     case "next":
@@ -275,5 +351,97 @@ function popFrame(indentStack: IndentFrame[], frame: IndentFrame): void {
 
   if (indentStack.length > 0) {
     indentStack.pop();
+  }
+}
+
+function getContinuationDepthForLine(
+  expressionStack: readonly ExpressionFrame[],
+  cleanLine: string,
+): number {
+  let depth = expressionStack.length;
+  const leadingClosers = getLeadingClosingDelimiters(cleanLine);
+  for (const char of leadingClosers) {
+    if (char !== ")" && char !== "]") break;
+    if (depth === 0) break;
+    const expectedFrame = char === ")" ? "paren" : "bracket";
+    const matchingIndex = findLastFrameIndex(expressionStack.slice(0, depth), expectedFrame);
+    if (matchingIndex === -1) break;
+    depth--;
+  }
+  return Math.max(0, depth);
+}
+
+function getLeadingClosingDelimiters(cleanLine: string): string {
+  const trimmed = cleanLine.trimStart();
+  const lambdaEndMatch = trimmed.match(/^end\s+(?:sub|function)\s*([)\]\s,]*)$/i);
+  if (lambdaEndMatch) {
+    return lambdaEndMatch[1] ?? "";
+  }
+  return trimmed;
+}
+
+function updateExpressionStack(expressionStack: ExpressionFrame[], cleanLine: string): void {
+  if (!cleanLine) {
+    return;
+  }
+
+  const tokens = tokenizeLine(cleanLine, { includeWhitespace: true });
+  for (const token of tokens) {
+    if (token.kind !== "punct") continue;
+    switch (token.value) {
+      case "(":
+        expressionStack.push("paren");
+        break;
+      case "[":
+        expressionStack.push("bracket");
+        break;
+      case ")":
+        popExpressionFrame(expressionStack, "paren");
+        break;
+      case "]":
+        popExpressionFrame(expressionStack, "bracket");
+        break;
+    }
+  }
+
+  if (endsWithContinuation(cleanLine)) {
+    if (!expressionStack.includes("continuation")) {
+      expressionStack.unshift("continuation");
+    }
+    return;
+  }
+
+  if (!expressionStack.some((frame) => frame === "paren" || frame === "bracket")) {
+    removeContinuationFrames(expressionStack);
+  }
+}
+
+function endsWithContinuation(cleanLine: string): boolean {
+  const trimmed = cleanLine.trimEnd();
+  return trimmed.endsWith(".") || trimmed.endsWith("_");
+}
+
+function popExpressionFrame(expressionStack: ExpressionFrame[], frame: ExpressionFrame): void {
+  const index = findLastFrameIndex(expressionStack, frame);
+  if (index !== -1) {
+    expressionStack.splice(index, 1);
+  }
+}
+
+function findLastFrameIndex(
+  expressionStack: readonly ExpressionFrame[],
+  frame: ExpressionFrame,
+): number {
+  for (let i = expressionStack.length - 1; i >= 0; i--) {
+    if (expressionStack[i] === frame) return i;
+  }
+  return -1;
+}
+
+function removeContinuationFrames(expressionStack: ExpressionFrame[]): void {
+  for (let i = expressionStack.length - 1; i >= 0; i--) {
+    if (expressionStack[i] === "continuation") {
+      expressionStack.splice(i, 1);
+    }
   }
 }

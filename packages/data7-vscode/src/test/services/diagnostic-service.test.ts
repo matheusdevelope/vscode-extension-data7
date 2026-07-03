@@ -13,6 +13,14 @@ import { createMockDoc, mockTextDocuments, resetMockWorkspace } from "../_helper
 
 describe("DiagnosticService live lifecycle", () => {
   const originalCreateDiagnosticCollection = vscode.languages.createDiagnosticCollection;
+  const withoutDeclarationStyleWarnings = (
+    diagnostics: readonly vscode.Diagnostic[],
+  ): vscode.Diagnostic[] =>
+    diagnostics.filter(
+      (diag) =>
+        diag.code !== DiagnosticCodes.RedundantPublicModifier &&
+        diag.code !== DiagnosticCodes.UnusedDeclaration,
+    );
 
   afterEach(() => {
     (vscode.languages as any).createDiagnosticCollection = originalCreateDiagnosticCollection;
@@ -555,7 +563,11 @@ describe("DiagnosticService live lifecycle", () => {
       const docX = createMockDoc(vscode.Uri.file(fileX).toString(), codeX);
       DiagnosticService.refreshDiagnostics(docX);
       const initialDiagsX = entries.get(docX.uri.toString().toLowerCase()) ?? [];
-      assert.equal(initialDiagsX.length, 0, "Initially X should be error-free");
+      assert.equal(
+        withoutDeclarationStyleWarnings(initialDiagsX).length,
+        0,
+        "Initially X should be dependency-error-free",
+      );
 
       // Now, simulate a change in Y: we rename the namespace of Y to "OutroNome", so X's import becomes unresolved
       const codeYChanged = [

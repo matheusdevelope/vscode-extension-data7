@@ -285,6 +285,7 @@ export class TypeResolver {
     const genericBaseName = genericBaseNameOf(qualifiedOrSimpleName);
     const isGenericReference = genericBaseName !== undefined;
     qualifiedOrSimpleName = normalizeGenericTypeName(qualifiedOrSimpleName);
+    const flatGenericBaseName = parseFlatGenericTypeReference(qualifiedOrSimpleName, indexer)?.base;
     if (qualifiedOrSimpleName.includes(".")) {
       const lastDot = qualifiedOrSimpleName.lastIndexOf(".");
       const namePart = qualifiedOrSimpleName.substring(lastDot + 1);
@@ -309,20 +310,28 @@ export class TypeResolver {
       if (wsMatches.length > 0) {
         return wsMatches[0];
       }
-      return isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer);
+      return isGenericReference || flatGenericBaseName
+        ? findGenericBaseSymbol(genericBaseName ?? flatGenericBaseName, indexer)
+        : undefined;
     }
 
     const sys = lookupSystemClassByName(qualifiedOrSimpleName)[0];
     if (sys) return sys;
 
-    const wsSym = indexer.findSymbolByName(qualifiedOrSimpleName);
+    const wsSym =
+      indexer.findSymbolByName(qualifiedOrSimpleName) ??
+      indexer
+        .getSymbolsByName(qualifiedOrSimpleName)
+        .find((s) => s.kind === "class" || s.kind === "structure" || s.kind === "delegate");
     if (
       wsSym &&
       (wsSym.kind === "class" || wsSym.kind === "structure" || wsSym.kind === "delegate")
     ) {
       return wsSym;
     }
-    return isGenericReference ? undefined : findGenericBaseSymbol(genericBaseName, indexer);
+    return isGenericReference || flatGenericBaseName
+      ? findGenericBaseSymbol(genericBaseName ?? flatGenericBaseName, indexer)
+      : undefined;
   }
 
   /**
@@ -400,6 +409,9 @@ export class TypeResolver {
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
     const fileCandidates = fileSyms?.symbols.filter(isCallable) ?? [];
     const activeClass = TypeResolver.findInnermostClassSymbol(fileSyms?.symbols, lineIdx);
+    const activeNamespace = fileSyms
+      ? findActiveNamespaceName(fileSyms.symbols, lineIdx)
+      : undefined;
     if (activeClass) {
       const classHit = select(
         fileCandidates.filter(
@@ -409,7 +421,14 @@ export class TypeResolver {
       if (classHit) return classHit;
     }
 
-    const localHit = select(fileCandidates);
+    const localHit = select(
+      fileCandidates.filter((symbol) => {
+        if (!symbol.containerName) return true;
+        return (
+          activeNamespace !== undefined && symbol.containerName.toLowerCase() === activeNamespace
+        );
+      }),
+    );
     if (localHit) return localHit;
 
     const allSymbols = indexer.getSymbolsByName(methodName).filter(isCallable);
@@ -426,7 +445,7 @@ export class TypeResolver {
     );
     if (systemHit) return systemHit;
 
-    return select(allSymbols);
+    return select(allSymbols.filter((symbol) => !symbol.containerName));
   }
 
   private static resolveExpressionTypeRaw(
@@ -552,6 +571,18 @@ export class TypeResolver {
           );
           if (localVarType) return localVarType;
         }
+
+        const position = { line: lineIdx, character: 0 } as vscode.Position;
+        const delegateVariableType = TypeResolver.getVariableType(
+          expr.methodName,
+          document,
+          position,
+          indexer,
+        );
+        const delegateReturnType = delegateVariableType
+          ? resolveDelegateReturnType(delegateVariableType, indexer)
+          : undefined;
+        if (delegateReturnType) return delegateReturnType;
 
         let member: SymbolInfo | undefined;
         if (activeClass) {
@@ -2321,8 +2352,23 @@ function collectLocalDeclarations(
       }
       break;
 
-    case "WhileStatement":
     case "UsingStatement":
+      if (node.loc) {
+        const start = Math.max(0, node.loc.startLine - 1);
+        const end = Math.max(0, node.loc.endLine - 1);
+        if (position.line >= start && position.line <= end) {
+          locals.set(
+            node.resourceVar.name.toLowerCase(),
+            typeRefToString(node.resourceType) ?? "Variant",
+          );
+          for (const s of node.body) {
+            collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);
+          }
+        }
+      }
+      break;
+
+    case "WhileStatement":
     case "WithStatement":
       for (const s of node.body) {
         collectLocalDeclarations(s, position, locals, indexer, document, lineIdx);

@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as vscode from "vscode";
 import { LanguageProcessor, WorkspaceSymbolIndexer } from "@data7/core";
 import type { SymbolInfo } from "@data7/core";
+import { isPositionInCommentOrString } from "./provider-context";
 
 const VALID_NEW_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -18,6 +19,8 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Range | { range: vscode.Range; placeholder: string }> {
     if (token.isCancellationRequested) return undefined;
+    if (isPositionInCommentOrString(document, position)) return undefined;
+
     const range = document.getWordRangeAtPosition(position);
     if (!range) throw new Error("Cursor não está sobre um identificador renomeável.");
 
@@ -74,6 +77,7 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.WorkspaceEdit> {
     if (token.isCancellationRequested) return undefined;
+    if (isPositionInCommentOrString(document, position)) return undefined;
 
     if (!VALID_NEW_NAME_RE.test(newName)) {
       throw new Error(

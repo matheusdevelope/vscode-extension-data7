@@ -141,5 +141,128 @@ End Select`;
 End Select`,
       );
     });
+
+    test("indents multiline calls with block Function lambdas", () => {
+      const code = `Dim primeiroParDepoisDoIndice2 As Integer = numeros.Find(
+Function(pItem As Integer, pIdx As Integer) As Boolean
+' data7:disable-next-line return-unrecommended
+Return pIdx > 2 And pItem Mod 2 = 0
+End Function
+)`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Dim primeiroParDepoisDoIndice2 As Integer = numeros.Find(
+    Function(pItem As Integer, pIdx As Integer) As Boolean
+        ' data7:disable-next-line return-unrecommended
+        Return pIdx > 2 And pItem Mod 2 = 0
+    End Function
+)`,
+      );
+    });
+
+    test("indents multiline calls with block Sub lambdas", () => {
+      const code = `produtosRenomeados.ForEach(
+Sub(pItem As Produto, pIdx As Integer)
+' comentario interno
+copiaProdutos.Push(New Produto(pItem.GetNome(), pItem.GetPreco()))
+End Sub
+)`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `produtosRenomeados.ForEach(
+    Sub(pItem As Produto, pIdx As Integer)
+        ' comentario interno
+        copiaProdutos.Push(New Produto(pItem.GetNome(), pItem.GetPreco()))
+    End Sub
+)`,
+      );
+    });
+
+    test("splits inline block lambda arguments into canonical multiline form", () => {
+      const code = `numeros.ForEach(Sub(pItem As Integer)
+Print(pItem)
+End Sub)`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `numeros.ForEach(
+    Sub(pItem As Integer)
+        Print(pItem)
+    End Sub
+)`,
+      );
+    });
+
+    test("keeps the outer method indentation after a badly spaced ForEach block lambda", () => {
+      const code = `Namespace mod_teste
+    Sub Executar()
+        numeros.ForEach(            Sub(pItem As Integer)
+            Print(pItem)
+        End Sub
+    )
+
+    Dim numero3 As Integer = numeros.Find(Function(pItem As Integer) As Boolean pItem = 3)
+    End Sub
+End Namespace`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Namespace mod_teste
+    Sub Executar()
+        numeros.ForEach(
+            Sub(pItem As Integer)
+                Print(pItem)
+            End Sub
+        )
+
+        Dim numero3 As Integer = numeros.Find(Function(pItem As Integer) As Boolean pItem = 3)
+    End Sub
+End Namespace`,
+      );
+    });
+
+    test("indents chained multiline functional calls", () => {
+      const code = `Dim totalProdutosCaros As Double = produtos.
+Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).
+Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco()).
+Reduce<Double>(
+Function(pAcumulador As Double, pItem As Double) As Double
+' data7:disable-next-line return-unrecommended
+Return pAcumulador + pItem
+End Function,
+0.0
+)`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Dim totalProdutosCaros As Double = produtos.
+    Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).
+    Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco()).
+    Reduce<Double>(
+        Function(pAcumulador As Double, pItem As Double) As Double
+            ' data7:disable-next-line return-unrecommended
+            Return pAcumulador + pItem
+        End Function,
+        0.0
+    )`,
+      );
+    });
+
+    test("indents multiline array literals", () => {
+      const code = `Dim produtos[] As Produto = [
+New Produto("Produto 1", 10.0),
+New Produto("Produto 2", 20.0)
+]`;
+      const formatted = CodeFormatter.formatCode(code);
+      assert.equal(
+        formatted,
+        `Dim produtos[] As Produto = [
+    New Produto("Produto 1", 10.0),
+    New Produto("Produto 2", 20.0)
+]`,
+      );
+    });
   });
 });

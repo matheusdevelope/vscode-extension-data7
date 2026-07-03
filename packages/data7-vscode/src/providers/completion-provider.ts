@@ -7,9 +7,11 @@ import {
   TypeResolver,
   WorkspaceSymbolIndexer,
   lookupSystemByContainer,
+  lookupSystemByName,
   lookupSystemNamespaceOrClassByName,
 } from "@data7/core";
 import type { AstBindingScope, SymbolInfo } from "@data7/core";
+import { isPositionInCommentOrString } from "./provider-context";
 
 // Re-export for backwards compatibility with code that imports `TypeResolver`
 // from `./completion-provider`. New code should import directly from `../analysis/type-resolver`.
@@ -134,6 +136,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     _: vscode.CancellationToken,
     _context: vscode.CompletionContext,
   ): vscode.CompletionItem[] | vscode.CompletionList | undefined {
+    if (isPositionInCommentOrString(document, position)) return undefined;
     const ast = new D7AstContext(document, position, this.indexer);
     const importsCtx = ast.getImportsCompletionContext();
     if (importsCtx !== undefined) {
@@ -181,19 +184,16 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         return this.finalizeCompletions(entries);
       }
 
-      const staticCompletions = this.getStaticContainerCompletions(
-        receiverText,
-        activeClass,
-        document,
-      );
-      if (staticCompletions) return staticCompletions;
-
       if (memberAccess.receiverType) {
         const receiverType = memberAccess.receiverType;
         const entries: RankedCompletionItem[] = [];
-        const members = memberAccess.receiverTypeSymbol
+        const classSymbolMembers = memberAccess.receiverTypeSymbol
           ? TypeResolver.getAllMembersForClassSymbol(memberAccess.receiverTypeSymbol, this.indexer)
-          : TypeResolver.getAllMembersForType(receiverType, this.indexer);
+          : [];
+        const members =
+          classSymbolMembers.length > 0
+            ? classSymbolMembers
+            : TypeResolver.getAllMembersForType(receiverType, this.indexer);
         members.forEach((s) => {
           if (!isSymbolVisible(s, activeClass, this.indexer)) return;
           const bucket = matchesContainer(s.containerName, receiverType)
@@ -203,6 +203,13 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         });
         return this.finalizeCompletions(entries);
       }
+
+      const staticCompletions = this.getStaticContainerCompletions(
+        receiverText,
+        activeClass,
+        document,
+      );
+      if (staticCompletions) return staticCompletions;
 
       return [];
     }
@@ -500,19 +507,26 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         kind = vscode.CompletionItemKind.Property;
         break;
       case "variable":
-        kind = vscode.CompletionItemKind.Field;
+        kind = this.resolveDelegateSymbol(s.type, document.uri.toString())
+          ? vscode.CompletionItemKind.Method
+          : vscode.CompletionItemKind.Field;
         break;
     }
 
     let labelInput: string | vscode.CompletionItemLabel = s.name;
+    const variableDelegate =
+      s.kind === "variable"
+        ? this.resolveDelegateSymbol(s.type, document.uri.toString())
+        : undefined;
     const hasParams =
       s.kind === "method" ||
       s.kind === "declare_function" ||
       s.kind === "declare_sub" ||
       s.kind === "delegate" ||
-      s.kind === "indexed-property";
+      s.kind === "indexed-property" ||
+      variableDelegate !== undefined;
     if (hasParams) {
-      const params = s.parameters ?? [];
+      const params = variableDelegate?.parameters ?? s.parameters ?? [];
       const paramsStr = params
         .map((p) => {
           let pStr = "";
@@ -524,8 +538,9 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
         })
         .join(", ");
 
-      const isSubOrVoid = s.type === "Void" || s.kind === "declare_sub";
-      const returnPart = isSubOrVoid ? "" : ` As ${s.type}`;
+      const returnType = variableDelegate?.type ?? s.type;
+      const isSubOrVoid = returnType === "Void" || s.kind === "declare_sub";
+      const returnPart = isSubOrVoid ? "" : ` As ${returnType}`;
       labelInput = { label: s.name, detail: `(${paramsStr})${returnPart}` };
     } else if (s.type && s.type !== "Void") {
       labelInput = { label: s.name, detail: ` As ${s.type}` };
@@ -533,7 +548,10 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
 
     const item = new vscode.CompletionItem(labelInput, kind);
     item.insertText = s.name;
-    item.detail = s.kind.toUpperCase() + (s.type ? `: ${s.type}` : "");
+    item.detail =
+      variableDelegate !== undefined
+        ? `DELEGATE FIELD: ${s.type}`
+        : s.kind.toUpperCase() + (s.type ? `: ${s.type}` : "");
 
     if (s.isUnsupported) {
       item.tags = [vscode.CompletionItemTag.Deprecated];
@@ -549,6 +567,13 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
 
     if (s.description) item.documentation = new vscode.MarkdownString(s.description);
     return item;
+  }
+
+  private resolveDelegateSymbol(typeName: string, uri: string): SymbolInfo | undefined {
+    return (
+      this.indexer.findSymbolByName(typeName, uri) ??
+      lookupSystemByName(typeName).find((s) => s.kind === "delegate")
+    );
   }
 
   private addAutoImportEdit(
@@ -654,6 +679,16 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     trySnippet.documentation = "Tratamento de Excecoes Try Catch";
     pushSnippet(trySnippet);
 
+    const classSnippet = new vscode.CompletionItem(
+      "Class Block",
+      vscode.CompletionItemKind.Snippet,
+    );
+    classSnippet.insertText = new vscode.SnippetString(
+      "Class ${1:ClassName}\n\tSub New()\n\t\tMyBase.New()\n\t\t$0\n\tEnd Sub\n\n\tSub Free()\n\t\tMyBase.Free()\n\tEnd Sub\nEnd Class",
+    );
+    classSnippet.documentation = "Declaração de classe com construtor e Free";
+    pushSnippet(classSnippet);
+
     const enunSnippet = new vscode.CompletionItem(
       "Enun...End Enun",
       vscode.CompletionItemKind.Snippet,
@@ -670,7 +705,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     propSnippet.insertText = new vscode.SnippetString(
       "Property ${1:PropName} As ${2:DataType}\n\tGet\n\t\t${1:PropName} = me._${3:fieldName}\n\tEnd Get\n\tSet(pValue As ${2:DataType})\n\t\tme._${3:fieldName} = pValue\n\tEnd Set\nEnd Property",
     );
-    propSnippet.documentation = "Declaracao de Bloco de Propriedade Completa";
+    propSnippet.documentation = "Declaração de Bloco de Propriedade Completa";
     pushSnippet(propSnippet);
 
     const funcSnippet = new vscode.CompletionItem(
@@ -680,12 +715,12 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     funcSnippet.insertText = new vscode.SnippetString(
       "Function ${1:FuncName}($2) As ${3:DataType}\n\t$0\n\t${1:FuncName} = $4\nEnd Function",
     );
-    funcSnippet.documentation = "Declaracao de Nova Funcao";
+    funcSnippet.documentation = "Declaração de Nova Funcao";
     pushSnippet(funcSnippet);
 
     const subSnippet = new vscode.CompletionItem("Sub Block", vscode.CompletionItemKind.Snippet);
     subSnippet.insertText = new vscode.SnippetString("Sub ${1:SubName}($2)\n\t$0\nEnd Sub");
-    subSnippet.documentation = "Declaracao de Novo Sub/Procedimento";
+    subSnippet.documentation = "Declaração de Novo Sub/Procedimento";
     pushSnippet(subSnippet);
 
     const ctorSnippet = new vscode.CompletionItem(

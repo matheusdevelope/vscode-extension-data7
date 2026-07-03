@@ -551,6 +551,48 @@ describe("D7BasicCodeActionProvider", () => {
     });
   });
 
+  describe("call-parentheses-mismatch", () => {
+    test("wraps the root no-parentheses call arguments without touching inner member chains", async () => {
+      const text = 'Print "Item: " & CStr(Form(pItem).Caption) & ", Indice: " & CStr(pIdx)';
+      const doc = mockDoc(text);
+      const payload: CallParenthesesMismatchPayload = {
+        code: DiagnosticCodes.CallParenthesesMismatch,
+        line: 0,
+        insertColumn: "Print".length,
+        wrapRange: {
+          startChar: "Print".length,
+          endChar: text.length,
+        },
+      };
+      const diagnostic = diagWith(
+        DiagnosticCodes.CallParenthesesMismatch,
+        payload,
+        new vscode.Range(0, 0, 0, "Print".length),
+      );
+      const provider = new D7BasicCodeActionProvider();
+
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(0, 0, 0, "Print".length),
+          { diagnostics: [diagnostic] } as any,
+          noopToken,
+        ),
+      )) as unknown as { title: string; edit?: { edits: any[] } }[];
+
+      const action = onlyQuickFixes(all).find((candidate) =>
+        candidate.title.includes("Adicionar parenteses"),
+      );
+      assert.ok(action);
+      assert.equal(action.edit?.edits.length, 1);
+      const fixed = applyReplaceEdit(text, action.edit.edits[0]);
+      assert.equal(
+        fixed,
+        'Print("Item: " & CStr(Form(pItem).Caption) & ", Indice: " & CStr(pIdx))',
+      );
+    });
+  });
+
   describe("unknown-type spelling suggestions", () => {
     test("emits did-you-mean suggestions for unknown type names", async () => {
       const doc = mockDoc("Class Foo\nEnd Class\n");

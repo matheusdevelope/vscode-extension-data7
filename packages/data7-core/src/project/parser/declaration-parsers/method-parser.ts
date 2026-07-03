@@ -57,6 +57,9 @@ export function parseMethodBody(
       parser.skipToEndOfLine();
       return { stmts, endLoc };
     }
+    if (isMethodDeclarationStart(parser)) {
+      break;
+    }
     const s = parser.parseStatement();
     if (s !== null) stmts.push(s);
     parser.skipStatementSeparator();
@@ -71,4 +74,13 @@ export function parseMethodBody(
           : "Set";
   parser.recordError("unterminated-block", `Method body is missing 'End ${endLabel}'.`, startLoc);
   return { stmts };
+}
+
+function isMethodDeclarationStart(parser: Parser): boolean {
+  let lookahead = 0;
+  while (parser.peekIsModifier(lookahead)) lookahead++;
+  const head = parser.peek(lookahead);
+  if (head.kind !== "keyword" && head.kind !== "identifier") return false;
+  const value = head.value.toLowerCase();
+  return value === "sub" || value === "function";
 }

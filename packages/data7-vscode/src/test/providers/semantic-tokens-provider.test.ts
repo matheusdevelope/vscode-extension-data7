@@ -118,4 +118,29 @@ End Namespace`;
       "should NOT tokenize Foo inside trailing comment on line 4",
     );
   });
+
+  test("tokenises delegate-typed fields as method-like callables", async () => {
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const uri = "file:///sem-delegate-field.bas";
+    const text = `Delegate Function DelOnExecute(pItem As TObject, pIdx As Integer, pTeste As Integer) As Boolean
+Class Teste
+   OnExecute As DelOnExecute
+End Class`;
+    createMockDoc(uri, text);
+    indexer.updateFileContent(uri, text);
+
+    const provider = new D7BasicSemanticTokensProvider();
+    const result = (await Promise.resolve(
+      provider.provideDocumentSemanticTokens(
+        createMockDoc(uri, text, { register: false }),
+        noopToken,
+      ),
+    )) as { data: Uint32Array };
+
+    const methodTypeIndex = D7BasicSemanticTokensLegend.tokenTypes.indexOf("method");
+    assert.ok(
+      Array.from(result.data).some((value, index) => index % 5 === 3 && value === methodTypeIndex),
+      "expected at least one method token for the delegate-typed OnExecute field",
+    );
+  });
 });

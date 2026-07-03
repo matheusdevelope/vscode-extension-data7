@@ -44,6 +44,9 @@ export class UsingParserPlugin implements ParserPlugin {
         if (s !== null) body.push(s);
         parser.skipStatementSeparator();
       }
+      if (endLoc === undefined) {
+        parser.recordError("unterminated-block", "Using block is missing 'End Using'.", startLoc);
+      }
 
       return {
         kind: "UsingStatement" as const,

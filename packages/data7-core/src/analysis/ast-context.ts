@@ -318,7 +318,10 @@ export class D7AstContext {
     if (memberName === undefined) return undefined;
 
     const statement = this.findStatementAtLine(this.position.line);
-    if (!statement) return undefined;
+    if (!statement) return this.findTerminalDotCandidate(memberName);
+
+    const terminalDotCandidate = this.findTerminalDotCandidate(memberName);
+    if (terminalDotCandidate) return terminalDotCandidate;
 
     const candidates: MemberCandidate[] = [];
     walkStatementExpressions(statement, (expr) => {
@@ -360,8 +363,58 @@ export class D7AstContext {
     const lower = memberName.toLowerCase();
     return (
       candidates.reverse().find((c) => c.memberName.toLowerCase() === lower) ??
-      candidates.find((c) => memberName.length === 0 && c.memberName.length === 0)
+      candidates.find((c) => memberName.length === 0 && c.memberName.length === 0) ??
+      terminalDotCandidate
     );
+  }
+
+  private findTerminalDotCandidate(memberName: string): MemberCandidate | undefined {
+    if (memberName.length !== 0) return undefined;
+    const lineText = this.document
+      .lineAt(this.position.line)
+      .text.slice(0, this.position.character);
+    const trimmed = lineText.trimEnd();
+    if (!trimmed.endsWith(".")) return undefined;
+
+    const dotColumn = trimmed.length - 1;
+    const receiverPrefix = lineText.slice(0, dotColumn);
+    const starts = this.tokens
+      .filter(
+        (token) =>
+          token.loc.line === this.position.line + 1 &&
+          token.kind !== "newline" &&
+          token.kind !== "eof" &&
+          (token.kind === "identifier" || token.kind === "keyword") &&
+          token.loc.column < dotColumn,
+      )
+      .map((token) => token.loc.column);
+
+    for (const start of [...new Set(starts)].reverse()) {
+      const rawCandidate = receiverPrefix.slice(start);
+      const leadingWhitespace = rawCandidate.length - rawCandidate.trimStart().length;
+      const receiverText = rawCandidate.trim();
+      if (!receiverText || !hasBalancedDelimiters(receiverText)) continue;
+
+      try {
+        const receiver = LanguageProcessor.getInstance().parseExpression(receiverText);
+        receiver.loc = {
+          startLine: this.position.line + 1,
+          startChar: start + leadingWhitespace,
+          endLine: this.position.line + 1,
+          endChar: dotColumn,
+        };
+        if (this.resolveExpressionType(receiver) === undefined) continue;
+        return {
+          memberName: "",
+          receiver,
+          arity: 0,
+        };
+      } catch {
+        // Try the next wider suffix.
+      }
+    }
+
+    return undefined;
   }
 
   private currentMemberFragment(): string | undefined {
@@ -371,16 +424,15 @@ export class D7AstContext {
         t.loc.line === line &&
         t.kind !== "newline" &&
         t.kind !== "eof" &&
-        t.loc.column <= this.position.character,
+        t.loc.column < this.position.character,
     );
 
     if (this.tokenAtPosition) {
-      const idx = significant.findIndex((t) => t === this.tokenAtPosition);
-      if (
-        idx > 0 &&
-        significant[idx - 1]?.kind === "punct" &&
-        significant[idx - 1]?.value === "."
-      ) {
+      const lineTokens = this.tokens.filter(
+        (t) => t.loc.line === line && t.kind !== "newline" && t.kind !== "eof",
+      );
+      const idx = lineTokens.findIndex((t) => t === this.tokenAtPosition);
+      if (idx > 0 && lineTokens[idx - 1]?.kind === "punct" && lineTokens[idx - 1]?.value === ".") {
         return this.tokenAtPosition.value;
       }
       return undefined;
@@ -991,6 +1043,35 @@ function positionWithinLoc(
   const startLine = Math.max(0, loc.startLine - 1);
   const endLine = Math.max(0, loc.endLine - 1);
   return position.line >= startLine && position.line <= endLine;
+}
+
+function hasBalancedDelimiters(text: string): boolean {
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (inString && text[i + 1] === '"') {
+        i++;
+        continue;
+      }
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "(") {
+      parenDepth++;
+    } else if (ch === ")") {
+      parenDepth--;
+    } else if (ch === "[") {
+      bracketDepth++;
+    } else if (ch === "]") {
+      bracketDepth--;
+    }
+    if (parenDepth < 0 || bracketDepth < 0) return false;
+  }
+  return !inString && parenDepth === 0 && bracketDepth === 0;
 }
 
 function expressionChildren(expression: Expression): readonly Expression[] {

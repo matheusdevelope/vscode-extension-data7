@@ -9,6 +9,7 @@ import {
   typeRefToString,
 } from "@data7/core";
 import type { ClassDeclaration, MethodDeclaration, Node, SymbolInfo } from "@data7/core";
+import { isPositionInCommentOrString } from "./provider-context";
 
 export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -78,6 +79,7 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
     _context: vscode.SignatureHelpContext,
   ): vscode.ProviderResult<vscode.SignatureHelp> {
     if (token.isCancellationRequested) return undefined;
+    if (isPositionInCommentOrString(document, position)) return undefined;
     const lineText = document.lineAt(position.line).text;
     const sigCtx = D7BasicSignatureHelpProvider.getSignatureHelpContext(
       lineText,

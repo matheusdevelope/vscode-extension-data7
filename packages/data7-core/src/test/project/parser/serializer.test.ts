@@ -263,4 +263,20 @@ describe("parser/serializer", () => {
     ].join("\n");
     assert.equal(out.trim(), expected.trim());
   });
+
+  test("omits extension-only abstract modifiers from serialized output", () => {
+    const src = [
+      "MustInherit Class Base",
+      "   MustOverride Overridable Function Name() As String",
+      "   End Function",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const out = serializeUnit(r.unit);
+    assert.doesNotMatch(out, /\bMustInherit\b/);
+    assert.doesNotMatch(out, /\bMustOverride\b/);
+    assert.match(out, /Class Base/);
+    assert.match(out, /Overridable Function Name\(\) As String/);
+  });
 });

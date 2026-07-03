@@ -465,6 +465,160 @@ describe("GenericsMonomorphizer — generic methods, delegates and return types"
     assert.equal(mapString.returnType?.name, "List_String");
     assert.ok(findClass(u.members, "List_String"));
   });
+
+  test("materializes chained generic member methods on mapped list receivers", () => {
+    const T = typeParam("T");
+    const TOut = typeParam("TOut");
+    const TAcc = typeParam("TAcc");
+    const list = classDecl("TTList", {
+      typeParameters: [T],
+      members: [
+        method("Filter", {
+          parameters: [param("handler", typeRef("Variant"))],
+          returnType: typeRef("TTList", [typeRef("T")]),
+        }),
+        method("Map", {
+          typeParameters: [TOut],
+          parameters: [param("handler", typeRef("Variant"))],
+          returnType: typeRef("TTList", [typeRef("TOut")]),
+        }),
+        method("Reduce", {
+          typeParameters: [TAcc],
+          parameters: [param("handler", typeRef("Variant")), param("initial", typeRef("TAcc"))],
+          returnType: typeRef("TAcc"),
+        }),
+      ],
+    });
+    const filterCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: id("produtos"),
+      methodName: "Filter",
+      typeArguments: [],
+      arguments: [id("filterHandler")],
+    };
+    const mapCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: filterCall,
+      methodName: "Map",
+      typeArguments: [typeRef("Double")],
+      arguments: [id("mapHandler")],
+    };
+    const reduceCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: mapCall,
+      methodName: "Reduce",
+      typeArguments: [typeRef("Double")],
+      arguments: [id("reduceHandler"), lit(0)],
+    };
+    const u = unit([
+      list,
+      classDecl("Produto"),
+      dim("produtos", typeRef("TTList", [typeRef("Produto")])),
+      dim("totalProdutosCaros", typeRef("Double"), reduceCall),
+    ]);
+    const result = new GenericsMonomorphizer().monomorphize(u);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    const listProduto = findClass(u.members, "TTList_Produto");
+    assert.ok(listProduto);
+    assert.ok(classMethod(listProduto, "Map_Double"));
+
+    const listDouble = findClass(u.members, "TTList_Double");
+    assert.ok(listDouble);
+    assert.ok(classMethod(listDouble, "Reduce_Double"));
+    assert.equal(mapCall.methodName, "Map_Double");
+    assert.equal(mapCall.typeArguments.length, 0);
+    assert.equal(reduceCall.methodName, "Reduce_Double");
+    assert.equal(reduceCall.typeArguments.length, 0);
+  });
+
+  test("tracks arbitrary fluent generic return types across chained method calls", () => {
+    const T = typeParam("T");
+    const TOut = typeParam("TOut");
+    const validator = delegateDecl("Validador", {
+      typeParameters: [T],
+      parameters: [param("value", typeRef("T"))],
+      returnType: typeRef("Boolean"),
+    });
+    const connector = classDecl("Conector", {
+      typeParameters: [T],
+      members: [
+        method("Validar", {
+          parameters: [param("handler", typeRef("Validador", [typeRef("T")]))],
+          returnType: typeRef("Conector", [typeRef("T")]),
+          body: [opaque("' self type is Conector<T>")],
+        }),
+        method("Parse", {
+          typeParameters: [TOut],
+          parameters: [param("parser", typeRef("Variant"))],
+          returnType: typeRef("Processador", [typeRef("TOut")]),
+        }),
+      ],
+    });
+    const processor = classDecl("Processador", {
+      typeParameters: [T],
+      members: [
+        method("Preparar", {
+          returnType: typeRef("Processador", [typeRef("T")]),
+        }),
+        method("Construir", {
+          returnType: typeRef("T"),
+        }),
+      ],
+    });
+    const validarCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: id("conector"),
+      methodName: "Validar",
+      typeArguments: [],
+      arguments: [id("validator")],
+    };
+    const parseCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: validarCall,
+      methodName: "Parse",
+      typeArguments: [typeRef("Produto")],
+      arguments: [id("parser")],
+    };
+    const prepararCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: parseCall,
+      methodName: "Preparar",
+      typeArguments: [],
+      arguments: [],
+    };
+    const construirCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: prepararCall,
+      methodName: "Construir",
+      typeArguments: [],
+      arguments: [],
+    };
+    const u = unit([
+      validator,
+      connector,
+      processor,
+      classDecl("Produto"),
+      dim("conector", typeRef("Conector", [typeRef("String")])),
+      dim("produtoFinal", typeRef("Produto"), construirCall),
+    ]);
+    const result = new GenericsMonomorphizer().monomorphize(u);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    const connectorString = findClass(u.members, "Conector_String");
+    assert.ok(connectorString);
+    assert.ok(classMethod(connectorString, "Parse_Produto"));
+    assert.ok(findDelegate(u.members, "Validador_String"));
+    assert.equal(findClass(u.members, "Conector_T"), undefined);
+    assert.equal(findDelegate(u.members, "Validador_T"), undefined);
+
+    const processorProduto = findClass(u.members, "Processador_Produto");
+    assert.ok(processorProduto);
+    assert.ok(classMethod(processorProduto, "Preparar"));
+    assert.ok(classMethod(processorProduto, "Construir"));
+    assert.equal(parseCall.methodName, "Parse_Produto");
+    assert.equal(parseCall.typeArguments.length, 0);
+  });
 });
 
 describe("GenericsMonomorphizer — multi-parameter generics", () => {
@@ -958,5 +1112,175 @@ describe("GenericsMonomorphizer — robustness", () => {
 
     assert.equal(stmt0.text, "Push = me.Push(TListSugarPrimitive_Integer_String.Create(pValue))");
     assert.equal(stmt1.text, "PushCType = CType(pValue, TListSugar_Integer_String)");
+  });
+});
+
+// ============================================================================
+// Delegate ordering: must appear before ClassDeclarations in materialized output
+// ============================================================================
+
+describe("GenericsMonomorphizer — delegate ordering before classes", () => {
+  /**
+   * Regression for Data7 compiler hoisting bug: delegates declared after a
+   * class that references them cause runtime errors. The monomorphizer must
+   * always inject materialized DelegateDeclarations before any
+   * ClassDeclaration in the same scope.
+   */
+  test("delegates are placed before classes when templates are declared in class-first order", () => {
+    // Simulate: Class template declared BEFORE delegate template in source.
+    // Without the fix, the class would be pushed first (end of array),
+    // then the delegate would also be pushed to the end — after the class.
+    const T = typeParam("T");
+
+    const listClass = classDecl("MyList", {
+      typeParameters: [T],
+      members: [field("Item", typeRef("T"))],
+    });
+
+    const findDel = delegateDecl("TFindDel", {
+      typeParameters: [T],
+      parameters: [param("pValue", typeRef("T")), param("i", typeRef("Integer"))],
+      returnType: typeRef("Boolean"),
+    });
+
+    // Declare class first, then delegate — this is the "bad" order in source
+    // that previously caused runtime errors.
+    const u = unit([
+      listClass,
+      findDel,
+      dim("_list", typeRef("MyList", [typeRef("Integer")])),
+      dim("_found", undefined, {
+        kind: "MethodInvocation",
+        methodName: "TFindDel",
+        typeArguments: [typeRef("Integer")],
+        arguments: [],
+      }),
+    ]);
+
+    new GenericsMonomorphizer().monomorphize(u);
+
+    // Both should be materialized
+    const concreteClass = findClass(u.members, "MyList_Integer");
+    const concreteDelegate = findDelegate(u.members, "TFindDel_Integer");
+    assert.ok(concreteClass, "MyList_Integer class should be materialized");
+    assert.ok(concreteDelegate, "TFindDel_Integer delegate should be materialized");
+
+    // The delegate must appear BEFORE the class in the output
+    const delegateIdx = u.members.indexOf(concreteDelegate);
+    const classIdx = u.members.indexOf(concreteClass);
+    assert.ok(
+      delegateIdx < classIdx,
+      `TFindDel_Integer (idx ${String(delegateIdx)}) must come before MyList_Integer (idx ${String(classIdx)})`,
+    );
+  });
+
+  test("delegates are placed before classes inside a namespace", () => {
+    const T = typeParam("T");
+
+    const listClass = classDecl("NsList", {
+      typeParameters: [T],
+      members: [field("Value", typeRef("T"))],
+    });
+
+    const forEachDel = delegateDecl("TForEachDel", {
+      typeParameters: [T],
+      parameters: [param("pValue", typeRef("T")), param("i", typeRef("Integer"))],
+    });
+
+    const ns = namespaceDecl("mod_test", [
+      listClass,
+      forEachDel,
+      dim("_ns_list", typeRef("NsList", [typeRef("String")])),
+      dim("_ns_cb", undefined, {
+        kind: "MethodInvocation",
+        methodName: "TForEachDel",
+        typeArguments: [typeRef("String")],
+        arguments: [],
+      }),
+    ]);
+
+    const u = unit([ns]);
+
+    new GenericsMonomorphizer().monomorphize(u);
+
+    const nsDecl = findNamespace(u, "mod_test");
+    assert.ok(nsDecl, "namespace mod_test must exist");
+
+    const concreteClass = findClass(nsDecl.members, "NsList_String");
+    const concreteDelegate = findDelegate(nsDecl.members, "TForEachDel_String");
+    assert.ok(concreteClass, "NsList_String class should be materialized inside namespace");
+    assert.ok(
+      concreteDelegate,
+      "TForEachDel_String delegate should be materialized inside namespace",
+    );
+
+    const delegateIdx = nsDecl.members.indexOf(concreteDelegate);
+    const classIdx = nsDecl.members.indexOf(concreteClass);
+    assert.ok(
+      delegateIdx < classIdx,
+      `TForEachDel_String (idx ${String(delegateIdx)}) must come before NsList_String (idx ${String(classIdx)}) in namespace`,
+    );
+  });
+
+  test("multiple delegates all appear before all classes", () => {
+    const T = typeParam("T");
+
+    const listClass = classDecl("AList", {
+      typeParameters: [T],
+      members: [field("Head", typeRef("T"))],
+    });
+
+    const findDel = delegateDecl("AFindDel", {
+      typeParameters: [T],
+      parameters: [param("v", typeRef("T"))],
+      returnType: typeRef("Boolean"),
+    });
+
+    const mapDel = delegateDecl("AMapDel", {
+      typeParameters: [T],
+      parameters: [param("v", typeRef("T"))],
+      returnType: typeRef("String"),
+    });
+
+    const u = unit([
+      listClass,
+      findDel,
+      mapDel,
+      dim("_al", typeRef("AList", [typeRef("Integer")])),
+      dim("_fd", undefined, {
+        kind: "MethodInvocation",
+        methodName: "AFindDel",
+        typeArguments: [typeRef("Integer")],
+        arguments: [],
+      }),
+      dim("_md", undefined, {
+        kind: "MethodInvocation",
+        methodName: "AMapDel",
+        typeArguments: [typeRef("Integer")],
+        arguments: [],
+      }),
+    ]);
+
+    new GenericsMonomorphizer().monomorphize(u);
+
+    const concreteClass = findClass(u.members, "AList_Integer");
+    const concreteFindDel = findDelegate(u.members, "AFindDel_Integer");
+    const concreteMapDel = findDelegate(u.members, "AMapDel_Integer");
+    assert.ok(concreteClass, "AList_Integer class should be materialized");
+    assert.ok(concreteFindDel, "AFindDel_Integer delegate should be materialized");
+    assert.ok(concreteMapDel, "AMapDel_Integer delegate should be materialized");
+
+    const classIdx = u.members.indexOf(concreteClass);
+    const findDelIdx = u.members.indexOf(concreteFindDel);
+    const mapDelIdx = u.members.indexOf(concreteMapDel);
+
+    assert.ok(
+      findDelIdx < classIdx,
+      `AFindDel_Integer (idx ${String(findDelIdx)}) must come before AList_Integer (idx ${String(classIdx)})`,
+    );
+    assert.ok(
+      mapDelIdx < classIdx,
+      `AMapDel_Integer (idx ${String(mapDelIdx)}) must come before AList_Integer (idx ${String(classIdx)})`,
+    );
   });
 });

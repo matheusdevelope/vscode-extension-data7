@@ -30,6 +30,7 @@ import type {
   ArrowFunctionExpression,
   ParameterDeclaration,
   DelegateDeclaration,
+  NamespaceDeclaration,
 } from "../../../ast/ast";
 import type {
   SugarDiagnostic,
@@ -223,12 +224,14 @@ class AstTypeCatalog {
   }
 
   public resolveDelegateSignature(delegateType: string): TypeCallableSignature | undefined {
-    const delegateRef = parseGenericTypeName(delegateType);
+    const delegateRef = parseGenericTypeName(simpleTypeName(delegateType));
     const delegateName = delegateRef.name;
     const local = this.globals.delegates.get(delegateName.toLowerCase());
     if (local)
       return specializeSignature(local, buildGenericSubstitutions(local, delegateRef.args));
-    const fromContext = this.ctx.resolveDelegateSignature?.(delegateType);
+    const fromContext =
+      this.ctx.resolveDelegateSignature?.(delegateType) ??
+      this.ctx.resolveDelegateSignature?.(delegateName);
     if (fromContext) {
       return specializeSignature(
         fromContext,
@@ -351,6 +354,15 @@ function parseGenericTypeName(typeName: string): {
   };
 }
 
+function simpleTypeName(typeName: string): string {
+  const trimmed = typeName.trim();
+  const genericStart = trimmed.indexOf("<");
+  const prefix = genericStart >= 0 ? trimmed.slice(0, genericStart) : trimmed;
+  const suffix = genericStart >= 0 ? trimmed.slice(genericStart) : "";
+  const dot = prefix.lastIndexOf(".");
+  return `${dot >= 0 ? prefix.slice(dot + 1) : prefix}${suffix}`;
+}
+
 function splitTopLevelCommas(value: string): string[] {
   const result: string[] = [];
   let depth = 0;
@@ -452,6 +464,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
   private lambdaReturnCounter = 0;
   private typeCatalog: AstTypeCatalog | undefined;
   private activeClass: ClassDeclaration | undefined;
+  private activeContainer: CompilationUnit | NamespaceDeclaration | undefined;
   private activeMethod: MethodDeclaration | undefined;
   private readonly classLambdaMethods = new WeakMap<ClassDeclaration, MethodDeclaration[]>();
   private readonly helperLambdaMethods: MethodDeclaration[] = [];
@@ -477,6 +490,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
 
   override walk(node: Node): void {
     if (node.kind === "CompilationUnit") {
+      const previousContainer = this.activeContainer;
+      this.activeContainer = node;
       this.typeCatalog = new AstTypeCatalog(node, this.ctx);
       node.members = this.transformMembers(node.members);
 
@@ -508,19 +523,21 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         }
       }
       if (this.helperLambdaMethods.length > 0) {
-        node.members.push(
-          this.createLambdaHelperClass(this.helperLambdaMethods.splice(0), node.loc),
-        );
+        node.members.push(this.createLambdaHelperClass(this.helperLambdaMethods.splice(0), node));
       }
+      this.activeContainer = previousContainer;
       return;
     }
     if (node.kind === "NamespaceDeclaration") {
+      const previousContainer = this.activeContainer;
+      this.activeContainer = node;
       const helperStart = this.helperLambdaMethods.length;
       node.members = this.transformMembers(node.members);
       const namespaceHelpers = this.helperLambdaMethods.splice(helperStart);
       if (namespaceHelpers.length > 0) {
-        node.members.push(this.createLambdaHelperClass(namespaceHelpers, node.loc));
+        node.members.push(this.createLambdaHelperClass(namespaceHelpers, node));
       }
+      this.activeContainer = previousContainer;
       return;
     }
     if (node.kind === "ClassDeclaration") {
@@ -1771,7 +1788,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         ? this.activeMethod?.modifiers?.some((modifier) => modifier.toLowerCase() === "shared")
           ? ["private", "shared"]
           : ["private"]
-        : ["public", "shared"],
+        : ["shared"],
       loc: lambda.loc,
     };
 
@@ -1816,9 +1833,14 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     }
 
     this.helperLambdaMethods.push(method);
+
+    const hostName = this.activeContainer
+      ? this.createLambdaHelperName(this.activeContainer)
+      : "__Data7LambdaHost";
+
     return {
       kind: "MemberAccess",
-      target: { kind: "Identifier", name: "__Data7LambdaHost", loc: lambda.loc },
+      target: { kind: "Identifier", name: hostName, loc: lambda.loc },
       member: methodName,
       loc: lambda.loc,
     };
@@ -2108,17 +2130,21 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     };
   }
 
-  private createLambdaHelperClass(
-    methods: MethodDeclaration[],
-    loc: Node["loc"],
-  ): ClassDeclaration {
+  private createLambdaHelperName(node: Node): string {
+    const _name = "__Data7LambdaHost";
+    if (node.kind == "CompilationUnit") return _name + "_global";
+    if (node.kind == "NamespaceDeclaration") return _name + "_" + node.name;
+    return _name;
+  }
+
+  private createLambdaHelperClass(methods: MethodDeclaration[], node: Node): ClassDeclaration {
     return {
       kind: "ClassDeclaration",
-      name: "__Data7LambdaHost",
+      name: this.createLambdaHelperName(node),
       typeParameters: [],
-      members: [this.createDefaultConstructor(loc), ...methods],
-      modifiers: ["public"],
-      loc,
+      members: [...methods],
+      modifiers: [],
+      loc: node.loc,
     };
   }
 
@@ -2143,7 +2169,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
           loc,
         },
       ],
-      modifiers: ["public"],
+      modifiers: [],
       loc,
     };
   }
@@ -2209,6 +2235,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     }
     const astType = this.typeCatalog?.resolve(expr, this.activeClass, this.activeMethod);
     if (astType) return astType;
+    const functionalListType = this.inferFunctionalListType(expr, startLine);
+    if (functionalListType) return functionalListType;
     if (expr.kind === "BinaryExpression") {
       if (expr.operator === "&") return "String";
       if (expr.operator === "+") {
@@ -2222,6 +2250,29 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     if (expr.kind === "TaggedTemplateExpression" && expr.tag === "") {
       return "String";
     }
+    return undefined;
+  }
+
+  private inferFunctionalListType(expr: Expression, startLine?: number): string | undefined {
+    if (expr.kind !== "MethodInvocation" || !expr.callee) return undefined;
+
+    const receiverType = this.inferType(expr.callee, startLine);
+    const itemType = receiverType ? listElementType(receiverType) : undefined;
+    if (!itemType) return undefined;
+
+    const method = expr.methodName.toLowerCase().split("_")[0] ?? "";
+    const flatGenericArg = flatMethodGenericArgs(expr.methodName)[0];
+    const explicitGenericArg = expr.typeArguments[0]
+      ? typeRefToName(expr.typeArguments[0])
+      : undefined;
+    const genericArg = flatGenericArg ?? explicitGenericArg;
+
+    if (method === "filter") return receiverType;
+    if (method === "map") return genericArg ? `TTList_${genericArg}` : receiverType;
+    if (method === "reduce") return genericArg ?? "Variant";
+    if (method === "find") return itemType;
+    if (method === "findindex" || method === "indexof") return "Integer";
+    if (method === "some" || method === "every") return "Boolean";
     return undefined;
   }
 

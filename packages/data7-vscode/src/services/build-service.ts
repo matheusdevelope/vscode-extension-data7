@@ -89,7 +89,9 @@ export class BuildService {
           const dependencies = this.readDependencies(project.workspaceDir);
           await DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
 
-          const result = this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath);
+          const result = this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath, {
+            openEditorPaths: this.collectOpenEditorPaths(),
+          });
           vscode.window.showInformationMessage(
             result.skipped
               ? `Projeto já está atualizado: ${project.projectFilePath}`
@@ -184,6 +186,7 @@ export class BuildService {
       }
       this._ensureProjectBuilt(project.workspaceDir, runProjectFilePath, {
         vscodeLoggerFilePath,
+        openEditorPaths: this.collectOpenEditorPaths(),
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -318,7 +321,9 @@ export class BuildService {
         await this.openInDevStudioDirectly(project.projectFilePath);
         return;
       }
-      this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath);
+      this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath, {
+        openEditorPaths: this.collectOpenEditorPaths(),
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("Falha ao compilar antes de abrir no Developer Studio.", err);
@@ -387,6 +392,27 @@ export class BuildService {
       );
       return {};
     }
+  }
+
+  /**
+   * Returns the set of normalized (lower-case) absolute file-system paths of
+   * all files that have an open editor tab in any tab group.
+   * Lower-casing makes the lookup case-insensitive, matching the builder's
+   * own normalization on Windows where drive letters can differ in casing.
+   */
+  private static collectOpenEditorPaths(): ReadonlySet<string> {
+    const paths = new Set<string>();
+    const tabGroups =
+      (vscode.window as unknown as { tabGroups?: { all?: readonly vscode.TabGroup[] } }).tabGroups
+        ?.all ?? [];
+    for (const group of tabGroups) {
+      for (const tab of group.tabs) {
+        if (tab.input instanceof vscode.TabInputText) {
+          paths.add(tab.input.uri.fsPath.toLowerCase());
+        }
+      }
+    }
+    return paths;
   }
 
   private static async applyAutoFixBeforeBuild(workspaceDir: string): Promise<void> {

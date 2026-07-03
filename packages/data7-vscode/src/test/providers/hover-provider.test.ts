@@ -150,6 +150,55 @@ End Namespace`;
       assert.match(JSON.stringify(hover.contents), /pValue\s+As\s+String/i);
     });
 
+    test("renders delegate field hover with the delegate callable signature", async () => {
+      const code = `Delegate Function DelOnExecute(pItem As TObject, pIdx As Integer, pTeste As Integer) As Boolean
+Class Teste
+   OnExecute As DelOnExecute
+End Class
+Dim teste As Teste
+teste.OnExecute = Nothing`;
+      const uri = "file:///hov_delegate_field.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicHoverProvider();
+      const hover = (await Promise.resolve(provider.provideHover(doc, pos(5, 7), noopToken))) as
+        | { contents: readonly ({ value?: string } | string)[] }
+        | undefined;
+
+      assert.ok(hover, "hover must not be undefined for delegate field");
+      const text = JSON.stringify(hover.contents);
+      assert.match(text, /Function\s+OnExecute/i);
+      assert.match(text, /pTeste\s+As\s+Integer/i);
+      assert.match(text, /As\s+Boolean/i);
+    });
+
+    test("hovers the namespace segment instead of the final qualified member", async () => {
+      const code = `Namespace mod_testes_array_primitivo
+   Sub ExecutarTesteArrayPrimitivo()
+   End Sub
+End Namespace
+
+mod_testes_array_primitivo.ExecutarTesteArrayPrimitivo()`;
+      const uri = "file:///hov_namespace_segment.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicHoverProvider();
+      const hover = (await Promise.resolve(provider.provideHover(doc, pos(5, 5), noopToken))) as
+        | { contents: readonly ({ value?: string } | string)[] }
+        | undefined;
+
+      assert.ok(hover, "hover must not be undefined for qualified namespace segment");
+      const text = JSON.stringify(hover.contents);
+      assert.match(text, /Namespace\s+mod_testes_array_primitivo/i);
+      assert.doesNotMatch(text, /Sub\s+ExecutarTesteArrayPrimitivo/i);
+    });
+
     test("does not fall back to unrelated global member when receiver member is missing", async () => {
       const code = `Namespace mod_hover_missing_member
    Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)

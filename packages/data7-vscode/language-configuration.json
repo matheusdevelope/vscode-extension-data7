@@ -14,15 +14,13 @@
     { "open": "{", "close": "}" },
     { "open": "[", "close": "]" },
     { "open": "(", "close": ")" },
-    { "open": "\"", "close": "\"", "notIn": ["string"] },
-    { "open": "'", "close": "'", "notIn": ["string", "comment"] }
+    { "open": "\"", "close": "\"", "notIn": ["string"] }
   ],
   "surroundingPairs": [
     ["{", "}"],
     ["[", "]"],
     ["(", ")"],
-    ["\"", "\""],
-    ["'", "'"]
+    ["\"", "\""]
   ],
   "indentationRules": {
     "increaseIndentPattern": "(?i)^\\s*(Namespace|Class|Structure|Enum|Enun|Sub|Function|Property|Get|Set|For|If|Else|ElseIf|Select\\s+Case|Case|Do|While|With|Using|Match|Try|Catch|Finally)\\b",

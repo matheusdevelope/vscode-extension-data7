@@ -15,6 +15,15 @@ import { loadExample, parseExampleHeader } from "../_helpers/fixtures";
  * adds a new `describe` block.
  */
 describe("DiagnosticsLinter", () => {
+  const withoutDeclarationStyleWarnings = (
+    diagnostics: readonly vscode.Diagnostic[],
+  ): vscode.Diagnostic[] =>
+    diagnostics.filter(
+      (diag) =>
+        diag.code !== DiagnosticCodes.RedundantPublicModifier &&
+        diag.code !== DiagnosticCodes.UnusedDeclaration,
+    );
+
   // -------------------------------------------------------------------------
   // missing-import / Principal.bas / qualified types / Inherits
   // -------------------------------------------------------------------------
@@ -68,7 +77,7 @@ End Namespace`;
       End Sub
    End Class
 End Namespace`);
-      assert.equal(diags.length, 0);
+      assert.equal(withoutDeclarationStyleWarnings(diags).length, 0);
     });
 
     test("emits missing-import for a workspace type whose namespace was not imported", () => {
@@ -528,9 +537,9 @@ End Namespace`;
    End Class
 
    Dim produtos As TTList<Produto> = New TTList<Produto>()
-   Dim total As Double = produtos.
-Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).
-Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco()).
+   Dim total As Double = produtos._
+Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0)._
+Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco())._
 Reduce<Double>(
 Function(pAcc As Double, pItem As Double) As Double
 Return pAcc + pItem
@@ -667,6 +676,213 @@ End Namespace`;
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("does not report dead-code for statements inside delegate lambda bodies", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_lambda_dead_code
+   Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
+   Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
+   Delegate Function TReduceDel<T, TAcc>(pAcc As TAcc, pValue As T, extra As Variant) As TAcc
+
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub ForEach(pHandler As TForEachDel<T>)
+      End Sub
+      Function Find(pHandler As TFindDel<T>) As T
+         Find = Nothing
+      End Function
+      Function Reduce<TAcc>(pHandler As TReduceDel<T, TAcc>, pInitial As TAcc) As TAcc
+         Reduce = pInitial
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Sub Run()
+      Dim numeros As New TTList<Integer>()
+      numeros.ForEach(Sub(pItem As Integer)
+         Print(pItem)
+      End Sub)
+      Dim primeiroParDepoisDoIndice2 As Integer = numeros.Find(
+         Function(pItem As Integer, pIdx As Integer) As Boolean
+            Return pIdx > 2 And pItem Mod 2 = 0
+         End Function
+      )
+      Dim soma As Integer = numeros.Reduce<Integer>(
+         Function(pAcumulador As Integer, pItem As Integer) As Integer
+            Return pAcumulador + pItem
+         End Function,
+         0
+      )
+   End Sub
+End Namespace`;
+      const uri = "file:///lambda_dead_code.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DeadCode);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+    });
+
+    test("accepts method references whose signature matches delegate method arguments", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_delegate_method_reference
+   Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
+
+   Class HelperNumero
+      Sub New()
+         MyBase.New()
+      End Sub
+      Shared Function FindMaiorQue4(pValue As Integer, pIdx As Integer, extra As Variant) As Boolean
+         FindMaiorQue4 = pValue > 4
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Find(pHandler As TFindDel<T>) As T
+         Find = Nothing
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Sub Run()
+      Dim numeros As New TTList<Integer>()
+      Dim numeroEncontradoPorDelegate As Integer = numeros.Find(HelperNumero.FindMaiorQue4)
+   End Sub
+End Namespace`;
+      const uri = "file:///delegate_method_reference.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("accepts method references against flat materialized delegate names", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_flat_delegate_method_reference
+   Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
+
+   Class HelperNumero
+      Sub New()
+         MyBase.New()
+      End Sub
+      Shared Function FindMaiorQue4(pValue As Integer, pIdx As Integer, extra As Variant) As Boolean
+         FindMaiorQue4 = pValue > 4
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTList_Integer
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Find(pHandler As TFindDel_Integer) As Integer
+         Find = 0
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Sub Run()
+      Dim numeros As New TTList_Integer()
+      Dim numeroEncontradoPorDelegate As Integer = numeros.Find(HelperNumero.FindMaiorQue4)
+   End Sub
+End Namespace`;
+      const uri = "file:///flat_delegate_method_reference.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("validates delegate calls and lambda assignments through Using resource variables", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Imports Forms
+
+Delegate Function DelOnExecute(pItem As TObject, pIdx As Integer, pTeste As Integer) As Boolean
+
+Class Teste
+   OnExecute As DelOnExecute
+   Private _form As Form
+   Sub New()
+      MyBase.New()
+      Me._form = New Form()
+   End Sub
+   Function Execute(pIdx As Integer) As Boolean
+      If OnExecute <> Null Then
+         Execute = OnExecute(Me._form, pIdx)
+         Exit Function
+      End If
+      Execute = False
+   End Function
+   Sub Free()
+      Me._form.Free()
+      OnExecute = Null
+      MyBase.Free()
+   End Sub
+End Class
+
+Using teste As New Teste()
+   teste.OnExecute = Function(pItem As TObject, pIdx As Integer) As Boolean True
+   teste.OnExecute = Function(pItem As TObject, pIdx As Integer, pTeste As String) As Boolean True
+End Using`;
+      const uri = "file:///delegate_using_validation.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.TypeMismatch, "OnExecute");
+      expectDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch, "declarou 2");
+      expectDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch, "pTeste");
+    });
+
+    test("emits unknown-symbol for unresolved unqualified invocations", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_unresolved_call
+   Sub Run()
+      Metodo_Nao_Importado()
+   End Sub
+End Namespace`;
+      const uri = "file:///unresolved_call.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.UnknownSymbol, "Metodo_Nao_Importado");
+    });
+
+    test("emits missing-import for unqualified calls from a non-imported namespace", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const otherUri = "file:///mod_outro_napespace.bas";
+      const otherCode = `Namespace mod_outro_napespace
+   Sub ExecutarPipelineGenericoDeOutroNamespace()
+   End Sub
+End Namespace`;
+      indexer.updateFileContent(otherUri, otherCode);
+      registerOpenDocument(otherUri);
+
+      const code = `Imports mod_fluent_generics
+ExecutarPipelineGenericoDeOutroNamespace()`;
+      const uri = "file:///principal_missing_import_callable.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.MissingImport, "mod_outro_napespace");
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
     });
   });
 
@@ -1831,6 +2047,127 @@ End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
     });
 
+    test("does NOT emit unknown-symbol when invoking a delegate parameter", () => {
+      const diags = runLinter(`Namespace mod_test
+   Delegate Function TValidador<T>(pInput As T) As Boolean
+
+   Class C<T>
+      Private _value As T
+
+      Function Validar(pRegra As TValidador<T>) As Boolean
+         If Not pRegra(me._value) Then
+            Return False
+         End If
+         Return True
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    });
+
+    test("accepts generic fluent chains with comment-only lines before lambda arguments", () => {
+      const fluentUri = "file:///mod_fluent_generics.bas";
+      const sourceUri = "file:///principal_fluent_comments.bas";
+      const fluentModule = `Namespace mod_fluent_generics
+   Delegate Function TTransformador<TIn, TOut>(pInput As TIn) As TOut
+   Delegate Function TValidador<T>(pInput As T) As Boolean
+
+   Class PlexConfig
+      Sub New()
+         MyBase.New()
+      End Sub
+   End Class
+
+   Class ConectorDeAPI<T>
+      Private _payloadRaw As T
+
+      Sub New(pDado As T)
+         MyBase.New()
+         me._payloadRaw = pDado
+      End Sub
+
+      Function ValidarPayload(pRegra As TValidador<T>) As ConectorDeAPI<T>
+         If Not pRegra(me._payloadRaw) Then
+            Throw New Exception("Falha")
+         End If
+         ValidarPayload = me
+      End Function
+
+      Function Parse<TOut>(pTransformador As TTransformador<T, TOut>) As ProcessadorDeConfig<TOut>
+         Parse = New ProcessadorDeConfig<TOut>(pTransformador(me._payloadRaw))
+      End Function
+   End Class
+
+   Class ProcessadorDeConfig<T>
+      Private _config As T
+
+      Sub New(pConfig As T)
+         MyBase.New()
+         me._config = pConfig
+      End Sub
+
+      Function InjetarVariaveisDeAmbiente() As ProcessadorDeConfig<T>
+         InjetarVariaveisDeAmbiente = me
+      End Function
+
+      Function Construir() As T
+         Construir = me._config
+      End Function
+   End Class
+End Namespace`;
+      const source = `Imports mod_fluent_generics
+
+Class ConectorDeAPI2<T>
+   Inherits ConectorDeAPI<T>
+
+   Sub New(pDado As T)
+      MyBase.New(pDado)
+   End Sub
+
+   Function ValidarPayload2(pRegra As TValidador<T>, pValor As T) As ConectorDeAPI2<T>
+      If Not pRegra(pValor) Then
+         Throw New Exception("Falha")
+      End If
+      ValidarPayload2 = me
+   End Function
+End Class
+
+Dim rawJsonFromApi As String = "{ port: 32400, multi_user: true }"
+Dim _conector As New ConectorDeAPI2<String>(rawJsonFromApi)
+Dim configFinal As PlexConfig = _conector. _
+   ValidarPayload(
+      Function(texto As String) As Boolean
+         Return texto.Contains("port")
+      End Function
+   ). _
+   Parse<PlexConfig>(
+      ' comments are accepted between the opening paren and lambda argument
+      ' and must not be parsed as expressions
+      Function(texto As String) As PlexConfig
+         Dim isMulti As Boolean = texto.Contains("true")
+         Exit Function
+      End Function
+   ). _
+   InjetarVariaveisDeAmbiente(). _
+   Construir()`;
+
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(fluentUri, fluentModule);
+      registerOpenDocument(fluentUri);
+      indexer.updateFileContent(sourceUri, source);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(sourceUri, source),
+        indexer,
+      );
+
+      expectNoDiagnostic(diags, "expected-token");
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnusedDeclaration);
+      expectNoDiagnostic(diags, DiagnosticCodes.RedundantTerminalExit);
+    });
+
     test("does NOT emit parentheses warning for MyBase.First() or MyBase.Last parameterless calls when overloads exist on base class", () => {
       const diags = runLinter(`Namespace mod_test
    Class BaseClass
@@ -1937,6 +2274,26 @@ End Namespace`;
         diag.range.start.character + "doWork".length,
         "insertColumn should equal start + length of member name",
       );
+    });
+
+    test("wrap range points at root unqualified call when arguments contain member chains", () => {
+      const code = `Imports Forms
+Class C
+   Public Sub Run(pItem As TObject, pIdx As Integer)
+      Print "Item: " & CStr(Form(pItem).Caption) & ", Indice: " & CStr(pIdx)
+   End Sub
+End Class`;
+      const diags = runLinter(code);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "Print");
+      const payload = (
+        diag as vscode.Diagnostic & {
+          data?: { insertColumn?: number; wrapRange?: { startChar: number; endChar: number } };
+        }
+      ).data;
+      assert.ok(payload, "payload should be present");
+      assert.equal(diag.range.start.character, 6);
+      assert.equal(payload.insertColumn, 11);
+      assert.equal(payload.wrapRange?.startChar, 11);
     });
 
     test("warns when a Dim initializer is a parameterless method without parentheses", () => {
@@ -3353,7 +3710,7 @@ End Namespace`;
 End Namespace`;
     indexer.updateFileContent(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-    assert.deepEqual(diags, []);
+    assert.deepEqual(withoutDeclarationStyleWarnings(diags), []);
   });
 
   test("allows global Print with non-string values", () => {
@@ -3424,7 +3781,7 @@ End Namespace`;
 End Namespace`;
     indexer.updateFileContent(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-    assert.deepEqual(diags, []);
+    assert.deepEqual(withoutDeclarationStyleWarnings(diags), []);
   });
 
   test("allows indexing Variant and String expressions", () => {
@@ -4130,6 +4487,221 @@ End Namespace`;
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+  });
+
+  describe("teste_arrays reduced regression", () => {
+    test("emits the canonical diagnostics declared by the reduced demo fixture", () => {
+      const content = loadExample("regression/teste-arrays-reduced.bas");
+      const header = parseExampleHeader(content);
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-reduced.bas";
+      indexer.updateFileContent(uri, content);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, content), indexer);
+      for (const expected of header.diagnostics) {
+        expectDiagnostic(diags, expected.code);
+      }
+    });
+
+    test("does not cascade incomplete member access into comments or unknown empty members", () => {
+      const code = `Imports Forms
+Class C
+   Sub Run(pItem As TObject)
+      CType(pItem, Form).Margins.
+      ' comment after incomplete member access
+      Print("ok")
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-incomplete-member.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.IncompleteMemberAccess);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      assert.ok(
+        !diags.some((diag) => diag.code === "expected-token"),
+        `expected no expected-token after incomplete member access, got: ${diags
+          .map((diag) => `${String(diag.code)}: ${diag.message}`)
+          .join("\n")}`,
+      );
+    });
+
+    test("recovers method declarations after missing End Sub without hiding a later Free method", () => {
+      const code = `Class Teste2
+   Sub New()
+      MyBase.New()
+   End Sub
+
+   Sub BlocoSemFechamentoDeveGerarErro()
+   Private Sub BlocoSemFechamentoDeveGerarErro1()
+
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-method-recovery.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.UnterminatedBlock);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
+    });
+
+    test("flags standalone value member chains on TObject-like receivers", () => {
+      const code = `Class C
+   Sub Run(pItem As TObject)
+      pItem.Margins.Bottom
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-loose-value.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.LooseValueStatement);
+    });
+
+    test("emits invalid-declaration when Overrides is not followed by Sub Function or Property", () => {
+      const code = `Class Base
+   Sub New()
+      MyBase.New()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class
+
+Class Child
+   Inherits Base
+   Overrides MeuSubQueNaoDeveSerSobrescrito()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-invalid-overrides.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      assert.ok(
+        diags.some((diag) => diag.code === DiagnosticCodes.InvalidDeclaration),
+        `expected invalid-declaration, got: ${diags
+          .map((diag) => `${String(diag.code)}: ${diag.message}`)
+          .join("\n")}`,
+      );
+    });
+
+    test("rejects Overrides when inherited member is not overridable", () => {
+      const code = `Class Base
+   Sub New()
+      MyBase.New()
+   End Sub
+   Sub MeuSubQueNaoDeveSerSobrescrito()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class
+
+Class Child
+   Inherits Base
+   Overrides Sub MeuSubQueNaoDeveSerSobrescrito()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-invalid-overrides-base.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      assert.ok(
+        diags.some((diag) => diag.code === DiagnosticCodes.InvalidDeclaration),
+        `expected invalid-declaration, got: ${diags
+          .map((diag) => `${String(diag.code)}: ${diag.message}`)
+          .join("\n")}`,
+      );
+    });
+
+    test("allows Overrides when inherited member is overridable", () => {
+      const code = `Class Base
+   Sub New()
+      MyBase.New()
+   End Sub
+   Overridable Sub PodeSerSobrescrito()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class
+
+Class Child
+   Inherits Base
+   Overrides Sub PodeSerSobrescrito()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-valid-overrides-base.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      assert.ok(
+        !diags.some((diag) => diag.code === DiagnosticCodes.InvalidDeclaration),
+        `expected no invalid-declaration, got: ${diags
+          .map((diag) => `${String(diag.code)}: ${diag.message}`)
+          .join("\n")}`,
+      );
+    });
+
+    test("requires MustInherit subclasses to implement inherited MustOverride members", () => {
+      const code = `Class Teste3
+   MustOverride Overridable Function MinhaFunctionQuePrecisaSerSobrescrita() As String
+   End Function
+End Class
+
+MustInherit Class Teste4
+   Inherits Teste3
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-mustinherit-mustoverride.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.MustOverrideNotImplemented);
+    });
+
+    test("emits unterminated-block for Using without End Using", () => {
+      const code = `Class Disposable
+   Sub New()
+      MyBase.New()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class
+
+Using item As New Disposable()
+   item.Free()`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-arrays-using-recovery.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.UnterminatedBlock);
     });
   });
 });

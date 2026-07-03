@@ -231,6 +231,23 @@ export class Parser {
     while (this.peek().kind === "newline") this.pos++;
   }
 
+  /** Skips newline and whole-line comment trivia inside expression lists. */
+  public skipExpressionTrivia(): void {
+    let advanced = true;
+    while (advanced) {
+      advanced = false;
+      while (this.peek().kind === "newline") {
+        this.pos++;
+        advanced = true;
+      }
+      if (this.peek().kind === "comment") {
+        this.pos++;
+        this.consume("newline");
+        advanced = true;
+      }
+    }
+  }
+
   /** Case-insensitive comparison of a keyword/identifier token's value. */
   public static eq(token: Token, name: string): boolean {
     return token.value.toLowerCase() === name.toLowerCase();
@@ -871,9 +888,14 @@ export class Parser {
   public parseOptionalArgumentList(): Expression[] {
     const args: Expression[] = [];
     if (!this.consume("punct", "(")) return args;
+    this.skipExpressionTrivia();
     while (!this.match("punct", ")") && !this.isEOF()) {
+      this.skipExpressionTrivia();
+      if (this.match("punct", ")")) break;
       args.push(this.parseExpression());
+      this.skipExpressionTrivia();
       if (!this.consume("punct", ",")) break;
+      this.skipExpressionTrivia();
     }
     this.expect("punct", ")", { literal: true });
     return args;
@@ -1152,6 +1174,8 @@ const MODIFIER_KEYWORDS: ReadonlySet<string> = new Set([
   "readonly",
   "shadows",
   "mustoverride",
+  "mustinherit",
+  "notinheritable",
 ]);
 
 export function locOf(

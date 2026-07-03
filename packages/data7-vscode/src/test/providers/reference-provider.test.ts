@@ -46,6 +46,29 @@ End Namespace`;
       assert.deepEqual(locations, []);
     });
 
+    test("returns an empty array when invoked inside comments or strings", async () => {
+      const provider = new D7BasicReferenceProvider();
+      const text = `' Greeter in comment
+Namespace mod_ref_comment
+   Class Greeter
+      Public Sub Run()
+         Dim s As String = "Greeter in string"
+      End Sub
+   End Class
+End Namespace`;
+      const doc = createMockDoc("file:///ref-comment.bas", text);
+
+      const inComment = (await Promise.resolve(
+        provider.provideReferences(doc, pos(0, 3), refContext(true), noopToken),
+      )) as unknown[];
+      const inString = (await Promise.resolve(
+        provider.provideReferences(doc, pos(4, 29), refContext(true), noopToken),
+      )) as unknown[];
+
+      assert.deepEqual(inComment, []);
+      assert.deepEqual(inString, []);
+    });
+
     test("filters out the declaration when includeDeclaration is false", async () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const text = `Namespace mod_refdec

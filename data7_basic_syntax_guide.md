@@ -44,6 +44,14 @@ A precedência de escopos no compilador segue a ordem do mais específico ao mai
   ```
 - **Padrão:** Por padrão o Public é implicito em toda declaração, não sendo obrigatório aplicar esse modicador, então o parser precisa suportar declarações com ou sem modificadores de acesso, sendo o modificador padrão implicito Public, ele também pode ser explicitamente declarado, assim como Private, ReadOnly, Protected etc...
 
+### Constantes
+
+- **Forma canônica:** Declare constantes sem tipo explícito:
+  ```basic
+  Const nome_da_const_e_valor_direto = 1234
+  ```
+- **Constantes tipadas:** `Const Nome As Integer = 1234` é tratado pela extensão como erro, mesmo quando o compilador aceita a sintaxe. Essa forma causa bug no runtime/build Data7 e deve ser evitada.
+
 ### Inicialização de `Dim` no Escopo de Namespace (Pegadinha do Compilador)
 
 - **Variáveis `Dim` no Namespace:** Se uma variável do tipo `Dim` for declarada diretamente sob o escopo de um namespace e receber um valor de inicialização direta (ex: `Dim AlwaysPrint As Boolean = False`), **ela não terá esse valor em tempo de execução**, pois é sempre inicializada vazia/default. O valor deve ser atribuído explicitamente durante a execução do código (ex: em uma subrotina de inicialização).
@@ -128,11 +136,12 @@ End Class
 
 ### Modificadores de Métodos e Sobrescritas
 
-- **`Shared`**: Define membros de classe estáticos.
+- **`Shared`**: Deve ser usado em `Sub` e `Function` para factories e métodos estáticos. Campos estáticos internos devem ser `Private Shared`, como no padrão `TEnum`. Campos/propriedades/delegates/classes/structures com `Shared` não privado são bloqueados pela extensão porque essa forma costuma quebrar no Data7.
 - **`Shadows`**: Redefine um membro herdado ocultando a declaração da classe base, sem polimorfismo dinâmico.
 - **`MustOverride Overridable`**: Define um método abstrato que deve obrigatoriamente ser sobrescrito pelas classes filhas.
 - **`Overrides`**: Sobrescreve um método virtual/abstrato da classe pai.
 - **`Overridable Overrides`**: Sobrescreve o método pai mantendo-o virtual para futuras subclasses.
+- **Regra da extensão para `Overrides`**: `Overrides` deve aparecer em uma declaração completa (`Overrides Sub ...`, `Overrides Function ...` ou `Overrides Property ...`); a forma abreviada `Overrides Nome()` é inválida. A extensão também exige que exista membro herdado compatível marcado como `Overridable` ou `MustOverride`.
 
 ---
 
@@ -244,6 +253,7 @@ End Try
 
 - O caractere oficial para quebra de linha física de código é unicamente o sublinhado **`_`**.
 - Ele pode ser posicionado no final de qualquer linha de expressão para continuar a instrução na linha seguinte, seja no meio de concatenações de strings, chamadas encadeadas de métodos, assinaturas de funções ou listas de parâmetros.
+- Sem `_`, a instrução termina na linha física. Cadeias incompletas como `pItem.` ou `CType(pItem, Form).Margins.` devem ser diagnosticadas como erro local, nunca interpretadas como continuação implícita da linha seguinte.
 
 ```basic
 Dim minhaStr As String = "teste " & _
@@ -255,7 +265,34 @@ Dim valor As String = MinhaClasse.ObterJson() _
 
 ---
 
-## 9. Exemplo Completo Consolidado
+## 9. Regras da Extensão e Supersets Não Nativos
+
+Esta seção separa regras de tooling da extensão de recursos que não são nativos do compilador Data7. Recursos não nativos precisam ser transpilados, removidos ou validados antes do build final.
+
+### Regras aplicadas pela extensão sobre a linguagem nativa
+
+- **Fechamento de blocos:** `Namespace`, `Class`, `Sub`, `Function`, `Property`, `Get`, `Set`, `Select`, `If` multilinha, `For`, `While`, `Do`, `With`, `Try` e `Using` devem ter fechamento explícito (`End ...`, `Next` ou `Loop`). As exceções são `If ... Then` inline e lambda-methods. Blocos sem fechamento devem gerar `unterminated-block`.
+- **Comentários:** comentário de linha usa uma única aspa simples (`'`). Não existe par de aspas para comentário. Providers de autocomplete, hover, navegação e tokens semânticos devem ignorar totalmente texto dentro de comentário.
+- **Chamadas sem parênteses:** o compilador aceita algumas chamadas como `Print "texto"`, mas a extensão deve gerar warning e quick fix para a forma com parênteses: `Print("texto")`.
+- **Callbacks e delegates:** lambdas e referências de método usadas como argumento de delegate são validadas pela assinatura esperada. Campos tipados como delegate também são tratados como callables: `OnExecute(...)` valida aridade/tipos contra a assinatura do delegate, e lambdas atribuídas diretamente ao campo devem declarar a quantidade exata de parâmetros compatíveis. O corpo de uma lambda tem fluxo próprio para o linter; `Return` dentro de `Function(...) ... End Function` não torna inalcançável o código do método externo.
+- **Acesso standalone a valores:** campos, propriedades e constantes não devem ficar soltos como instrução (`obj.Prop`). Eles precisam ser usados em atribuição, expressão, argumento ou leitura válida. Métodos podem ser chamados como instrução standalone porque podem ter efeito colateral.
+- **`Public` redundante:** como `Public` é o padrão, a extensão pode emitir warning e quick fix para remover o modificador explícito.
+- **`Shared` fora de rotina:** `Shared` em campo público/default, propriedade, delegate, classe ou structure gera `invalid-shared-member`; `Private Shared` continua aceito para estado estático interno.
+- **Declarações não usadas:** `Dim`, `Const`, campos e membros privados não utilizados podem gerar warning. A remoção deve ser sempre quick fix explícito do desenvolvedor, nunca autofix automático em save/build/workspace.
+- **Snippets:** o snippet de `Class` deve criar o esqueleto com `Sub New()` chamando `MyBase.New()` e `Sub Free()` chamando `MyBase.Free()`.
+
+### Supersets não nativos implementados pela extensão
+
+- **`Using ... End Using`:** sugar da extensão para escopo de recurso. Deve ser validado como bloco e expandido para forma nativa com liberação (`Free()`/`Dispose`, conforme contrato do sugar).
+- **Lambda-methods:** sugar de declaração curta de delegate/lambda sem fechamento explícito. Essa exceção não se aplica a `Sub`/`Function` normais.
+- **`MustInherit Class`:** modificador de classe abstrata suportado pela extensão para lint e IntelliSense. Uma classe `MustInherit` não pode ser instanciada diretamente.
+- **`NotInheritable Class`:** modificador de classe selada suportado pela extensão para lint e IntelliSense. Uma classe `NotInheritable` pode ser instanciada, mas não pode ser herdada.
+- **Remoção no build:** `MustInherit` e `NotInheritable` não são aceitos nativamente pelo compilador Data7; o build/preview final deve remover esses modificadores do código gerado.
+- **Açúcares modernos:** generics, `For Each`, interpolação, coalescência, optional chaining, destructuring, object initializer e demais sugars documentados em `docs/linguagem-basic/10-acucares-atuais.md` pertencem ao pipeline da extensão e não devem ser confundidos com sintaxe nativa bruta do compilador.
+
+---
+
+## 10. Exemplo Completo Consolidado
 
 Abaixo é apresentado o caso real consolidado unificado da sintaxe do **Data7 Basic**, contendo constantes, variáveis de namespace, enums nativos, structures, funções nativas de API externa, delegates, classes abstratas, classes derivadas, classes aninhadas, herança e polimorfismo (`MustOverride`, `Overrides`, `Shadows`, `Shared`), além de arrays planos, matrizes, arrays variants literais, propriedade indexada retornando `String`, casting dinâmico e o contorno para o bug do `Finally`.
 

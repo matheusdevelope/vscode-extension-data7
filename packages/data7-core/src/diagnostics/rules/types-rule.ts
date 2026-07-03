@@ -5,11 +5,13 @@ import type {
   VariableDeclaration,
   Assignment,
   ClassDeclaration,
+  MethodDeclaration,
   ObjectCreationExpression,
   Expression,
   MethodInvocation,
   ArrowFunctionExpression,
   Statement,
+  PropertyDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
@@ -37,7 +39,9 @@ export class TypesRule implements Rule {
         this.checkAssignmentTypes(node, context);
         break;
       case "ClassDeclaration":
+        this.checkClassModifiers(node, context);
         this.checkClassMustOverride(node, context);
+        this.checkOverrideDeclarations(node, context);
         break;
       case "ObjectCreationExpression":
         this.checkObjectCreationExpression(node, context);
@@ -52,6 +56,26 @@ export class TypesRule implements Rule {
     node: ObjectCreationExpression,
     context: RuleContext,
   ): void {
+    if (node.loc) {
+      const classSymbol = TypeResolver.findClassSymbol(node.type.name, context.indexer);
+      if (classSymbol?.isMustInherit) {
+        const lineIdx = Math.max(0, node.loc.startLine - 1);
+        const range = new vscode.Range(
+          lineIdx,
+          node.loc.startChar,
+          lineIdx,
+          node.loc.startChar + Math.max("New ".length + node.type.name.length, 1),
+        );
+        const diag = new vscode.Diagnostic(
+          range,
+          `A classe "${node.type.name}" esta marcada como MustInherit e nao pode ser instanciada diretamente.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.AbstractInstantiation;
+        context.report(diag);
+      }
+    }
+
     if (!node.noParentheses || !node.type.loc) return;
     const range = new vscode.Range(
       node.type.loc.startLine - 1,
@@ -346,6 +370,7 @@ export class TypesRule implements Rule {
       lineIdx,
       `atribuição ao membro "${node.target.member}"`,
       targetType,
+      { requireExactParameterCount: true },
     );
   }
 
@@ -440,6 +465,7 @@ export class TypesRule implements Rule {
     lineIdx: number,
     usageLabel: string,
     receiverType?: string,
+    options: { readonly requireExactParameterCount?: boolean } = {},
   ): void {
     const resolvedDelegate = this.resolveDelegateSignature(delegateType, receiverType, context);
     if (!resolvedDelegate) return;
@@ -451,7 +477,20 @@ export class TypesRule implements Rule {
         lambda,
         lineIdx,
         context,
-        `Assinatura de lambda incompatÃ­vel em ${usageLabel}: esperado ${expectedKind}, mas recebido ${actualKind}.`,
+        `Assinatura de lambda incompatível em ${usageLabel}: esperado ${expectedKind}, mas recebido ${actualKind}.`,
+      );
+      return;
+    }
+
+    if (
+      options.requireExactParameterCount &&
+      lambda.parameters.length !== resolvedDelegate.parameters.length
+    ) {
+      this.reportLambdaMismatch(
+        lambda,
+        lineIdx,
+        context,
+        `Assinatura de lambda incompatível em ${usageLabel}: o delegate "${resolvedDelegate.name}" exige ${resolvedDelegate.parameters.length} parÃƒÂ¢metro(s), mas a lambda declarou ${lambda.parameters.length}.`,
       );
       return;
     }
@@ -461,7 +500,7 @@ export class TypesRule implements Rule {
         lambda,
         lineIdx,
         context,
-        `Assinatura de lambda incompatÃ­vel em ${usageLabel}: o delegate "${resolvedDelegate.name}" aceita no máximo ${resolvedDelegate.parameters.length} parÃ¢metro(s), mas a lambda declarou ${lambda.parameters.length}.`,
+        `Assinatura de lambda incompatível em ${usageLabel}: o delegate "${resolvedDelegate.name}" aceita no máximo ${resolvedDelegate.parameters.length} parÃ¢metro(s), mas a lambda declarou ${lambda.parameters.length}.`,
       );
       return;
     }
@@ -477,7 +516,7 @@ export class TypesRule implements Rule {
           actual,
           lineIdx,
           context,
-          `Tipo incompatÃ­vel no parÃ¢metro "${actual.name}" da lambda em ${usageLabel}: esperado "${expected.type}", mas recebido "${actualType}".`,
+          `Tipo incompatível no parÃ¢metro "${actual.name}" da lambda em ${usageLabel}: esperado "${expected.type}", mas recebido "${actualType}".`,
         );
         return;
       }
@@ -497,7 +536,7 @@ export class TypesRule implements Rule {
           lambda.returnType ?? lambda,
           lineIdx,
           context,
-          `Retorno incompatÃ­vel na lambda em ${usageLabel}: o delegate "${resolvedDelegate.name}" espera "${resolvedDelegate.returnType}", mas a lambda declarou "${explicitReturn}".`,
+          `Retorno incompatível na lambda em ${usageLabel}: o delegate "${resolvedDelegate.name}" espera "${resolvedDelegate.returnType}", mas a lambda declarou "${explicitReturn}".`,
         );
         return;
       }
@@ -525,7 +564,7 @@ export class TypesRule implements Rule {
             lambda,
             lineIdx,
             context,
-            `Retorno incompatÃ­vel na lambda em ${usageLabel}: esperado "${resolvedDelegate.returnType}", mas recebido "${returnedType}".`,
+            `Retorno incompatível na lambda em ${usageLabel}: esperado "${resolvedDelegate.returnType}", mas recebido "${returnedType}".`,
           );
           return;
         }
@@ -749,9 +788,7 @@ export class TypesRule implements Rule {
   }
 
   private checkClassMustOverride(node: ClassDeclaration, context: RuleContext): void {
-    const modifiers = node.modifiers ?? [];
-    const isAbstract = modifiers.some((m) => m.toLowerCase() === "mustinherit");
-    if (isAbstract || !node.baseType) return;
+    if (!node.baseType) return;
 
     const baseClassName = node.baseType.name;
     const baseClassSyms = context.indexer.getSymbolsByName(baseClassName);
@@ -783,10 +820,93 @@ export class TypesRule implements Rule {
           `Classe concreta "${node.name}" deve implementar o método abstrato "${method.name}" herdado de "${baseClassName}".`,
           vscode.DiagnosticSeverity.Error,
         );
-        diag.code = "must-override-missing";
+        diag.code = DiagnosticCodes.MustOverrideNotImplemented;
         context.report(diag);
       }
     }
+  }
+
+  private checkOverrideDeclarations(node: ClassDeclaration, context: RuleContext): void {
+    if (!node.baseType) return;
+
+    const baseClassName = node.baseType.name;
+    const baseClass = TypeResolver.findClassSymbol(baseClassName, context.indexer);
+    if (!baseClass) return;
+
+    for (const member of node.members) {
+      if (member.kind !== "MethodDeclaration" && member.kind !== "PropertyDeclaration") continue;
+      if (!(member.modifiers ?? []).includes("overrides")) continue;
+
+      const arity =
+        member.kind === "MethodDeclaration"
+          ? member.parameters.length
+          : (member.parameters?.length ?? 0);
+      const inherited = TypeResolver.findMemberOnClassSymbol(
+        baseClass,
+        member.name,
+        context.indexer,
+        arity,
+      );
+      if (inherited && inherited.isOverridable) continue;
+
+      this.reportInvalidOverride(member, baseClassName, inherited, context);
+    }
+  }
+
+  private reportInvalidOverride(
+    member: MethodDeclaration | PropertyDeclaration,
+    baseClassName: string,
+    inherited: SymbolInfo | undefined,
+    context: RuleContext,
+  ): void {
+    const range = member.loc
+      ? new vscode.Range(
+          member.loc.startLine - 1,
+          member.loc.startChar,
+          member.loc.startLine - 1,
+          member.loc.endChar,
+        )
+      : new vscode.Range(0, 0, 0, 1);
+    const reason = inherited
+      ? `o membro herdado em "${baseClassName}" nao é Overridable`
+      : `nenhum membro compatível foi encontrado em "${baseClassName}"`;
+    const diag = new vscode.Diagnostic(
+      range,
+      `Declaração Overrides inválida para "${member.name}": ${reason}.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.InvalidDeclaration;
+    context.report(diag);
+  }
+
+  private checkClassModifiers(node: ClassDeclaration, context: RuleContext): void {
+    if (!node.loc) return;
+    const modifiers = new Set((node.modifiers ?? []).map((m) => m.toLowerCase()));
+    const lineIdx = node.loc.startLine - 1;
+
+    if (modifiers.has("mustinherit") && modifiers.has("notinheritable")) {
+      const diag = new vscode.Diagnostic(
+        new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar),
+        `A classe "${node.name}" nao pode combinar MustInherit e NotInheritable.`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.InvalidClassModifierCombination;
+      context.report(diag);
+    }
+
+    if (!node.baseType) return;
+    const baseSymbol = TypeResolver.findClassSymbol(node.baseType.name, context.indexer);
+    if (!baseSymbol?.isNotInheritable) return;
+
+    const lineText = context.lines[lineIdx] ?? "";
+    const startChar = findTextColumn(lineText, node.baseType.name, node.loc.startChar);
+    const diag = new vscode.Diagnostic(
+      new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.baseType.name.length),
+      `A classe "${node.baseType.name}" esta marcada como NotInheritable e nao pode ser herdada.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.SealedInheritance;
+    context.report(diag);
   }
 
   private isCurrentReturnAssignmentTarget(node: Assignment, context: RuleContext): boolean {
@@ -842,4 +962,9 @@ function substituteGenericType(
   if (parsed.typeArguments.length === 0) return direct ?? parsed.name;
   const args = parsed.typeArguments.map((arg) => substituteGenericType(arg, substitutions));
   return `${direct ?? parsed.name}<${args.join(", ")}>`;
+}
+
+function findTextColumn(lineText: string, text: string, fallback: number): number {
+  const idx = lineText.toLowerCase().indexOf(text.toLowerCase());
+  return idx >= 0 ? idx : fallback;
 }

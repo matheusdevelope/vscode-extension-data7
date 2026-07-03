@@ -194,6 +194,34 @@ End Namespace`;
       assert.match(addLabelDetail, /Integer/);
     });
 
+    test("shows delegate fields as callable signatures in member completion", async () => {
+      const code = `Delegate Function DelOnExecute(pItem As TObject, pIdx As Integer, pTeste As Integer) As Boolean
+Class Teste
+   OnExecute As DelOnExecute
+End Class
+Sub Run()
+   Dim teste As Teste
+   teste.
+End Sub`;
+      const uri = "file:///cp_delegate_field.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(doc, pos(6, 9), noopToken, {} as vscode.CompletionContext),
+      )) as unknown as MockCompletionItem[];
+
+      const onExecute = items.find((i) => labelOf(i) === "OnExecute");
+      assert.ok(onExecute, "completion list should include OnExecute");
+      assert.match(onExecute.detail ?? "", /DELEGATE FIELD/i);
+      const labelDetail = typeof onExecute.label === "string" ? "" : (onExecute.label.detail ?? "");
+      assert.match(labelDetail, /pTeste\s+As\s+Integer/i);
+      assert.match(labelDetail, /As\s+Boolean/i);
+    });
+
     test("lists inherited members for array-sugar TTList<T> even when usage was indexed before the template", async () => {
       const usageCode = `Imports mod_tlist
 Imports mod_product
@@ -555,6 +583,69 @@ End Namespace`;
       assert.ok(labels.includes("GetPreco"), `GetPreco must appear; got ${labels.join(", ")}`);
       assert.ok(!labels.includes("pIdx"), `pIdx must not appear in member completion`);
       assert.ok(!labels.includes("Clone"), `Clone from another type must not appear`);
+    });
+
+    test("completes members after CType and constructor-style casts inside lambdas", async () => {
+      const code = `Namespace mod_lambda_cast_completion
+   Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
+
+   Class TTList<T>
+      Sub ForEach(pHandler As TForEachDel<T>)
+      End Sub
+   End Class
+
+   Class Form
+      Function Caption() As String
+      End Function
+      Function Close() As Void
+      End Function
+   End Class
+
+   Dim forms As TTList<TObject>
+   forms.ForEach(Sub(pItem As TObject, pIdx As Integer)
+      CType(pItem, Form).
+      Form(pItem).
+      Dim text As String = CStr(Form(pItem).)
+      CInt(pItem.)
+   End Sub)
+End Namespace`;
+      const uri = "file:///cp_lambda_cast_member.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+
+      const provider = new D7BasicCompletionProvider();
+      for (const token of ["CType(pItem, Form).", "Form(pItem).", "CStr(Form(pItem)."]) {
+        const items = (await Promise.resolve(
+          provider.provideCompletionItems(
+            doc,
+            positionAfterToken(code, token),
+            noopToken,
+            {} as vscode.CompletionContext,
+          ),
+        )) as unknown as MockCompletionItem[];
+
+        const labels = items.map(labelOf);
+        assert.ok(labels.includes("Caption"), `Caption must appear for ${token}; got ${labels}`);
+        assert.ok(labels.includes("Close"), `Close must appear for ${token}; got ${labels}`);
+        assert.ok(!labels.includes("ForEach"), `TTList members must not appear for ${token}`);
+      }
+
+      const objectItems = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "CInt(pItem."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+      const objectLabels = objectItems.map(labelOf);
+      assert.ok(objectLabels.includes("Free"), `Free must appear for pItem.; got ${objectLabels}`);
+      assert.ok(
+        objectLabels.includes("ToString"),
+        `ToString must appear for pItem.; got ${objectLabels}`,
+      );
+      assert.ok(!objectLabels.includes("Caption"), "Form members must not appear for TObject");
     });
   });
 });

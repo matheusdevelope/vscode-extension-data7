@@ -30,6 +30,7 @@ export type ParseErrorCode =
   | "expected-token"
   | "unexpected-token"
   | "unterminated-block"
+  | "incomplete-member-access"
   | "invalid-type-reference"
   | "invalid-declaration";
 

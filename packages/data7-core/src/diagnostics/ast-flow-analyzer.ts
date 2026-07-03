@@ -64,6 +64,9 @@ export class ASTFlowAnalyzer {
       }
 
       public override walk(node: Node): void {
+        if (node.kind === "ArrowFunctionExpression") {
+          return;
+        }
         if (this.analyzer.isUnreachableStatement(node)) {
           this.analyzer.pushDeadCodeDiagnostic(node);
           return;

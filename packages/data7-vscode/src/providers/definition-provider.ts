@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { D7AstContext, TimeTracker, WorkspaceSymbolIndexer } from "@data7/core";
 import type { SymbolInfo } from "@data7/core";
+import { isPositionInCommentOrString } from "./provider-context";
 
 export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
@@ -30,6 +31,7 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
     position: vscode.Position,
     _: vscode.CancellationToken,
   ): vscode.Definition | vscode.LocationLink[] | undefined {
+    if (isPositionInCommentOrString(document, position)) return undefined;
     const ast = new D7AstContext(document, position, this.indexer);
     const word = ast.word;
     if (!word || !ast.wordRange) return undefined;

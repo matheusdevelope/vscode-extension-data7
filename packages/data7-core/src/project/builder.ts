@@ -42,7 +42,17 @@ function hasOpenGenericTypeArgument(
   typeArgs: readonly string[],
   openTypeParams: ReadonlySet<string>,
 ): boolean {
-  return typeArgs.some((typeArg) => openTypeParams.has(typeArg.toLowerCase()));
+  return typeArgs.some((typeArg) => {
+    const lower = typeArg.toLowerCase();
+    for (const openParam of openTypeParams) {
+      if (new RegExp(`\\b${escapeRegExp(openParam)}\\b`, "i").test(lower)) return true;
+    }
+    return false;
+  });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function qualifyGenericTypeArgument(
@@ -90,6 +100,14 @@ export interface BuildProjectOptions {
     sources: readonly TranspiledBuildSource[],
     indexer: WorkspaceSymbolIndexer,
   ) => void;
+  /**
+   * Conjunto de caminhos absolutos dos arquivos `.bas` atualmente abertos no
+   * editor. Quando fornecido, apenas os módulos cujo arquivo consta nesse
+   * conjunto serão marcados com `<Aberto>true</Aberto>` no XML de saída.
+   * Se ausente, o campo `aberto` do `modulesMetadata` existente é preservado
+   * (ou `false` para módulos novos).
+   */
+  readonly openEditorPaths?: ReadonlySet<string>;
 }
 
 export interface TranspiledBuildSource {
@@ -706,7 +724,7 @@ export class Builder {
 
       const newId = generateProjectGuid();
       const folderName = path.basename(relPath);
-      virtualFolders.push({ nome: folderName, id: newId, pastaId: parentId, aberta: "Sim" });
+      virtualFolders.push({ nome: folderName, id: newId, pastaId: parentId, aberta: "Nao" });
       foldersByPath.set(relPath, newId);
     });
 
@@ -780,9 +798,19 @@ export class Builder {
       const modulesMetadata = metadata.modulesMetadata as
         | Record<string, ModuleMetadata>
         | undefined;
-      const meta = modulesMetadata?.[filename] ?? {
+      const existingMeta = modulesMetadata?.[filename];
+      // When the caller provides the set of open editor paths, use it as the
+      // source of truth for `aberto`. Normalize to lower-case for a
+      // case-insensitive comparison that works correctly on Windows where
+      // `vscode.Uri.fsPath` and `path.join` may differ in drive-letter casing.
+      const normalizedFilePath = path.normalize(filePath).toLowerCase();
+      const resolvedAberto =
+        options.openEditorPaths != null
+          ? options.openEditorPaths.has(normalizedFilePath)
+          : (existingMeta?.aberto ?? false);
+      const meta = existingMeta ?? {
         nome: filename,
-        aberto: true,
+        aberto: resolvedAberto,
         ordemAbertura: 0,
         pastaId: folderId,
       };
@@ -793,7 +821,7 @@ export class Builder {
         code: transpiled.code,
         diagnostics: transpiled.diagnostics,
         folderId,
-        aberto: meta.aberto,
+        aberto: resolvedAberto,
         ordemAbertura: meta.ordemAbertura,
       });
     });

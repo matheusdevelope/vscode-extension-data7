@@ -78,12 +78,30 @@ export function parseClassMember(parser: Parser): ClassMember | null {
   let lookahead = 0;
   while (parser.peekIsModifier(lookahead)) lookahead++;
   const head = parser.peek(lookahead);
+  const modifiers = Array.from({ length: lookahead }, (_, index) =>
+    parser.peek(index).value.toLowerCase(),
+  );
   if (head.kind === "keyword" || head.kind === "identifier") {
     const v = head.value.toLowerCase();
     if (v === "declare") return parseDeclareDeclaration(parser);
     if (v === "sub" || v === "function") return parseMethod(parser);
     if (v === "property") return parseProperty(parser);
     if (v === "class" || v === "structure") return parseClass(parser);
+  }
+
+  if (
+    modifiers.some(
+      (modifier) =>
+        modifier === "overrides" || modifier === "overridable" || modifier === "mustoverride",
+    )
+  ) {
+    parser.recordError(
+      "invalid-declaration",
+      "Modifiers Overrides, Overridable and MustOverride must be followed by Sub, Function or Property.",
+      parser.peek().loc,
+    );
+    parser.skipToEndOfLine();
+    return null;
   }
 
   // Field declaration: `<modifier>* <name> As <Type>`

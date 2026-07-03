@@ -49,6 +49,9 @@ export interface SymbolInfo {
   isConst?: boolean;
   isReadOnly?: boolean;
   isMustOverride?: boolean;
+  isOverridable?: boolean;
+  isMustInherit?: boolean;
+  isNotInheritable?: boolean;
   isShadows?: boolean;
   parameters?: ParameterInfo[];
   nativeArrayRank?: number;
@@ -151,6 +154,8 @@ class SymbolIndexerWalker extends ASTWalker {
       const isPrivate = node.modifiers?.includes("private") ?? false;
       const isProtected = node.modifiers?.includes("protected") ?? false;
       const isShared = node.modifiers?.includes("shared") ?? false;
+      const isMustInherit = node.modifiers?.includes("mustinherit") ?? false;
+      const isNotInheritable = node.modifiers?.includes("notinheritable") ?? false;
 
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
       const classSymbol: SymbolInfo = {
@@ -160,6 +165,8 @@ class SymbolIndexerWalker extends ASTWalker {
         isShared,
         isPrivate,
         isProtected,
+        isMustInherit,
+        isNotInheritable,
         range: {
           startLine: loc.startLine - 1,
           startChar: loc.startChar,
@@ -207,6 +214,7 @@ class SymbolIndexerWalker extends ASTWalker {
         isPrivate,
         isProtected,
         isMustOverride: node.modifiers?.includes("mustoverride") ?? false,
+        isOverridable: node.modifiers?.includes("overridable") ?? false,
         isShadows: node.modifiers?.includes("shadows") ?? false,
         parameters: params,
         range: {
@@ -291,6 +299,7 @@ class SymbolIndexerWalker extends ASTWalker {
         isPrivate,
         isProtected,
         isMustOverride: node.modifiers?.includes("mustoverride") ?? false,
+        isOverridable: node.modifiers?.includes("overridable") ?? false,
         isShadows: node.modifiers?.includes("shadows") ?? false,
         range: {
           startLine: loc.startLine - 1,
@@ -1143,11 +1152,13 @@ function computeGenericInstantiations(
 
   const result: SymbolInfo[] = [];
   const emitted = new Set<string>();
+  const openTypeParams = collectOpenGenericTypeParams(ctx.templates.values());
 
   for (const usage of ctx.usages) {
     const template = ctx.templates.get(usage.templateName.toLowerCase());
     if (template === undefined) continue;
     if (template.typeParams.length !== usage.typeArgs.length) continue;
+    if (hasOpenGenericTypeArgument(usage.typeArgs, openTypeParams)) continue;
     if (emitted.has(usage.flatName)) continue;
     emitted.add(usage.flatName);
 
@@ -1187,6 +1198,7 @@ function collectGenericTemplatesFromSymbols(
   const templates: GenericTemplateInfo[] = [];
   const seen = new Set<string>();
   for (const sym of symbols) {
+    if (sym.isSyntheticGenericInstantiation) continue;
     if (sym.fileUri === currentFileUri) continue;
     if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") {
       continue;
@@ -1227,6 +1239,30 @@ function buildSubstitutions(
     subs.set(tp, ta);
   }
   return subs;
+}
+
+function collectOpenGenericTypeParams(
+  templates: Iterable<GenericTemplateInfo>,
+): ReadonlySet<string> {
+  const result = new Set<string>();
+  for (const template of templates) {
+    for (const typeParam of template.typeParams) {
+      result.add(typeParam.toLowerCase());
+    }
+  }
+  return result;
+}
+
+function hasOpenGenericTypeArgument(
+  typeArgs: readonly string[],
+  openTypeParams: ReadonlySet<string>,
+): boolean {
+  return typeArgs.some((typeArg) => {
+    for (const openParam of openTypeParams) {
+      if (new RegExp(`\\b${escapeRegExp(openParam)}\\b`, "i").test(typeArg)) return true;
+    }
+    return false;
+  });
 }
 
 function appendSyntheticClass(
@@ -1284,6 +1320,7 @@ function appendClonedMembers(
       ...sym,
       type: substituteTypeName(sym.type, subs),
       containerName: usage.flatName,
+      isSyntheticGenericInstantiation: true,
     };
     if (sym.parameters !== undefined) {
       clone.parameters = sym.parameters.map((p) => ({
@@ -1308,6 +1345,10 @@ function substituteTypeName(type: string, subs: ReadonlyMap<string, string>): st
     out = out.replace(new RegExp(`\\b${tp}\\b`, "g"), ta);
   }
   return out;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function resolveParameterIsByRef(p: {

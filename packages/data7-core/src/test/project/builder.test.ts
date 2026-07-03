@@ -560,6 +560,92 @@ End Namespace</Codigo>
   });
 });
 
+describe("Builder — openEditorPaths", () => {
+  afterEach(() => {
+    Builder.__resetBuildCacheForTests();
+  });
+
+  test("marks only the listed module as Aberto when openEditorPaths is provided", async () => {
+    await withTempDir(async (tmp) => {
+      const { destXml } = seedProject(tmp);
+      // Add two extra modules
+      const modAPath = path.join(tmp, "src", "ModuloA.bas");
+      const modBPath = path.join(tmp, "src", "ModuloB.bas");
+      fs.writeFileSync(modAPath, "Namespace ModuloA\nEnd Namespace\n", "utf-8");
+      fs.writeFileSync(modBPath, "Namespace ModuloB\nEnd Namespace\n", "utf-8");
+
+      // Only ModuloA is "open" in the editor
+      Builder.buildProject(tmp, destXml, undefined, {
+        openEditorPaths: new Set([modAPath.toLowerCase()]),
+      });
+
+      const xml = fs.readFileSync(destXml, "utf-8");
+
+      // ModuloA must be open
+      const modAMatch = xml.match(/<ModuloA>([\s\S]*?)<\/ModuloA>/);
+      assert.ok(modAMatch, "ModuloA block must exist in XML");
+      const modAContent = modAMatch[1] ?? "";
+      assert.match(modAContent, /<Aberto>true<\/Aberto>/, "ModuloA must be Aberto=true");
+
+      // ModuloB must be closed
+      const modBMatch = xml.match(/<ModuloB>([\s\S]*?)<\/ModuloB>/);
+      assert.ok(modBMatch, "ModuloB block must exist in XML");
+      const modBContent = modBMatch[1] ?? "";
+      assert.match(modBContent, /<Aberto>false<\/Aberto>/, "ModuloB must be Aberto=false");
+    });
+  });
+
+  test("defaults new modules to Aberto=false when openEditorPaths is not provided", async () => {
+    await withTempDir(async (tmp) => {
+      const { destXml } = seedProject(tmp);
+      fs.writeFileSync(
+        path.join(tmp, "src", "ModuloC.bas"),
+        "Namespace ModuloC\nEnd Namespace\n",
+        "utf-8",
+      );
+
+      Builder.buildProject(tmp, destXml);
+
+      const xml = fs.readFileSync(destXml, "utf-8");
+      const modCMatch = xml.match(/<ModuloC>([\s\S]*?)<\/ModuloC>/);
+      assert.ok(modCMatch, "ModuloC block must exist in XML");
+      const modCContent = modCMatch[1] ?? "";
+      assert.match(
+        modCContent,
+        /<Aberto>false<\/Aberto>/,
+        "new module without openEditorPaths must default to Aberto=false",
+      );
+    });
+  });
+
+  test("preserves saved aberto metadata when openEditorPaths is not provided", async () => {
+    await withTempDir(async (tmp) => {
+      const { destXml } = seedProject(tmp);
+      const modDPath = path.join(tmp, "src", "ModuloD.bas");
+      fs.writeFileSync(modDPath, "Namespace ModuloD\nEnd Namespace\n", "utf-8");
+
+      // First build: pass openEditorPaths so ModuloD is marked open
+      Builder.buildProject(tmp, destXml, undefined, {
+        openEditorPaths: new Set([modDPath.toLowerCase()]),
+      });
+
+      // Second build: no openEditorPaths — saved metadata (aberto=true) must be preserved
+      Builder.__resetBuildCacheForTests();
+      Builder.buildProject(tmp, destXml);
+
+      const xml = fs.readFileSync(destXml, "utf-8");
+      const modDMatch = xml.match(/<ModuloD>([\s\S]*?)<\/ModuloD>/);
+      assert.ok(modDMatch, "ModuloD block must exist in XML");
+      const modDContent = modDMatch[1] ?? "";
+      assert.match(
+        modDContent,
+        /<Aberto>true<\/Aberto>/,
+        "ModuloD must remain Aberto=true from saved metadata",
+      );
+    });
+  });
+});
+
 describe("Builder + Decompiler round-trip", () => {
   test("build → decompile → build preserves the Principal.bas content (idempotency)", async () => {
     await withTempDir(async (tmp) => {

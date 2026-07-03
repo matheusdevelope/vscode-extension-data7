@@ -1485,7 +1485,7 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /Dim hasEven As Boolean = False[\s\S]*hasEven = True/);
     assert.match(
       out,
-      /Dim allPositive As Boolean = True[\s\S]*If Not __src\d+ > 0 Then[\s\S]*allPositive = False/,
+      /Dim allPositive As Boolean = True[\s\S]*If Not \(__src\d+ > 0\) Then[\s\S]*allPositive = False/,
     );
     assert.match(out, /Dim total As Integer = 0[\s\S]*total = total \+ __src\d+/);
     assert.match(out, /mod_logger\.Printe\(__src\d+\)/);
@@ -1642,6 +1642,65 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /Dim __ret\d+ As Double = pAcc \+ pItem/);
   });
 
+  test("materializes reduce lambdas with complete signatures after chained map calls", () => {
+    const code = [
+      "Class Produto",
+      "   Function GetPreco() As Double",
+      "   End Function",
+      "End Class",
+      "Dim produtos As TTList_Produto",
+      "Dim totalProdutosCaros As Double = produtos.Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).Map_Double(Function(pItem As Produto) As Double pItem.GetPreco()).Reduce_Double(",
+      "Function(pAcumulador As Double, pItem As Double) As Double",
+      "Return pAcumulador + pItem",
+      "End Function,",
+      "0.0",
+      ")",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Shared Function __data7_lambda_\d+\(pAcumulador As Double, pItem As Double, extra As Variant\) As Double/,
+    );
+  });
+
+  test("materializes chained reduce lambdas from qualified delegate signatures", () => {
+    const code = [
+      "Namespace mod_testes_array_objetos",
+      "Delegate Function TFindDel_Produto(pValue As Produto, i As Integer, extra As Variant) As Boolean",
+      "Delegate Function TMapDel_Produto_Double(pValue As Produto, i As Integer, extra As Variant) As Double",
+      "Delegate Function TReduceDel_Produto_Double(pAcc As Double, pItem As Produto, extra As Variant) As Double",
+      "Class Produto",
+      "   Function GetPreco() As Double",
+      "   End Function",
+      "End Class",
+      "Class TTList_Produto",
+      "   Function Filter(pHandler As TFindDel_Produto) As TTList_Produto",
+      "   End Function",
+      "   Function Map_Double(pHandler As TMapDel_Produto_Double) As TTList_Double",
+      "   End Function",
+      "End Class",
+      "Class TTList_Double",
+      "   Function Reduce_Double(pHandler As mod_testes_array_objetos.TReduceDel_Produto_Double, pInitial As Double) As Double",
+      "   End Function",
+      "End Class",
+      "Dim produtos As TTList_Produto",
+      "Dim totalProdutosCaros As Double = produtos.Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).Map_Double(Function(pItem As Produto) As Double pItem.GetPreco()).Reduce_Double(",
+      "Function(pAcumulador As Double, pItem As Double) As Double",
+      "Return pAcumulador + pItem",
+      "End Function,",
+      "0.0",
+      ")",
+      "End Namespace",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Shared Function __data7_lambda_\d+\(pAcumulador As Double, pItem As Produto, extra As Variant\) As Double/,
+    );
+  });
+
   test("materializes a lambda helper class for global-only lambda code", () => {
     const code = [
       "Dim numeros[] As Integer = [1, 2, 3, 4, 5]",
@@ -1653,8 +1712,8 @@ describe("SugarTranspiler — array-list", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /numeros\.Find\(__Data7LambdaHost\.__data7_lambda_\d+\)/);
-    assert.match(out, /Public Class __Data7LambdaHost/);
+    assert.match(out, /numeros\.Find\(__Data7LambdaHost_global\.__data7_lambda_\d+\)/);
+    assert.match(out, /Class __Data7LambdaHost_global/);
   });
 
   test("materializes namespace-level event lambdas inside the namespace with exact delegate parameters", () => {
@@ -1678,9 +1737,9 @@ describe("SugarTranspiler — array-list", () => {
     assert.equal(diagnostics.length, 0);
     assert.match(
       out,
-      /Namespace mod_events[\s\S]*Public Class __Data7LambdaHost[\s\S]*End Namespace/,
+      /Namespace mod_events[\s\S]*Class __Data7LambdaHost_mod_events[\s\S]*End Namespace/,
     );
-    assert.match(out, /Public Shared Sub __data7_lambda_\d+\(pSender As TObject\)/);
+    assert.match(out, /Shared Sub __data7_lambda_\d+\(pSender As TObject\)/);
     assert.doesNotMatch(out, /__data7_lambda_\d+\(pSender As TObject, pExtra As Variant\)/);
   });
 

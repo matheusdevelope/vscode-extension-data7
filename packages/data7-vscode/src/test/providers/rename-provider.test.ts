@@ -42,6 +42,21 @@ End Namespace`;
       const provider = new D7BasicRenameProvider();
       assert.throws(() => provider.prepareRename(doc, pos(3, 13), noopToken), /não é renomeável/i);
     });
+    test("does not prepare rename inside comments or strings", () => {
+      const text = `' Greeter in comment
+Namespace mod_rn_comment
+   Class Greeter
+      Public Sub Run()
+         Dim s As String = "Greeter in string"
+      End Sub
+   End Class
+End Namespace`;
+      const doc = createMockDoc("file:///rn-comment.bas", text);
+      const provider = new D7BasicRenameProvider();
+
+      assert.equal(provider.prepareRename(doc, pos(0, 3), noopToken), undefined);
+      assert.equal(provider.prepareRename(doc, pos(4, 29), noopToken), undefined);
+    });
   });
 
   describe("provideRenameEdits", () => {
@@ -58,6 +73,28 @@ End Namespace`;
       assert.throws(
         () => provider.provideRenameEdits(doc, pos(1, 10), "123-invalid", noopToken),
         /começar com letra/i,
+      );
+    });
+
+    test("does not provide rename edits when invoked inside comments or strings", async () => {
+      const text = `' Greeter in comment
+Namespace mod_rn_comment_edits
+   Class Greeter
+      Public Sub Run()
+         Dim s As String = "Greeter in string"
+      End Sub
+   End Class
+End Namespace`;
+      const doc = createMockDoc("file:///rn-comment-edits.bas", text);
+      const provider = new D7BasicRenameProvider();
+
+      assert.equal(
+        await Promise.resolve(provider.provideRenameEdits(doc, pos(0, 3), "Welcomer", noopToken)),
+        undefined,
+      );
+      assert.equal(
+        await Promise.resolve(provider.provideRenameEdits(doc, pos(4, 29), "Welcomer", noopToken)),
+        undefined,
       );
     });
 

@@ -92,6 +92,7 @@ export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTok
         case "property":
           return /^On[A-Z]/.test(s.name) ? "event" : "property";
         case "variable":
+          if (this.isDelegateType(s.type)) return "method";
           return "variable";
         case "delegate":
           return "event";
@@ -109,5 +110,15 @@ export class D7BasicSemanticTokensProvider implements vscode.DocumentSemanticTok
       if (t) remember(s.name, t);
     }
     return lookup;
+  }
+
+  private isDelegateType(typeName: string): boolean {
+    return (
+      this.indexer.findSymbolByName(typeName)?.kind === "delegate" ||
+      SYSTEM_SYMBOLS.some(
+        (symbol) =>
+          symbol.kind === "delegate" && symbol.name.toLowerCase() === typeName.toLowerCase(),
+      )
+    );
   }
 }

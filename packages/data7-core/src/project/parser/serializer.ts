@@ -165,12 +165,17 @@ function capitalize(word: string): string {
   if (!word) return "";
   const lower = word.toLowerCase();
   if (lower === "readonly") return "ReadOnly";
+  if (lower === "mustoverride") return "MustOverride";
+  if (lower === "mustinherit") return "MustInherit";
+  if (lower === "notinheritable") return "NotInheritable";
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 function emitModifiers(mods?: string[]): string {
   if (mods && mods.length > 0) {
-    return mods.map(capitalize).join(" ") + " ";
+    const visibleMods = mods.filter((m) => m.toLowerCase() !== "mustoverride");
+    if (visibleMods.length === 0) return "";
+    return visibleMods.map(capitalize).join(" ") + " ";
   }
   return "";
 }
@@ -213,7 +218,10 @@ function serializeClass(
 ): void {
   out.setLine(klass.loc);
   const isStructure = klass.modifiers?.some((m) => m.toLowerCase() === "structure") ?? false;
-  const filteredModifiers = klass.modifiers?.filter((m) => m.toLowerCase() !== "structure");
+  const filteredModifiers = klass.modifiers?.filter((m) => {
+    const lower = m.toLowerCase();
+    return lower !== "structure" && lower !== "mustinherit" && lower !== "notinheritable";
+  });
   const keyword = isStructure ? "Structure" : "Class";
 
   const header = `${emitModifiers(filteredModifiers)}${keyword} ${klass.name}${emitTypeParams(klass.typeParameters)}${
@@ -550,7 +558,11 @@ function emitExpressionRaw(expr: Expression): string {
       return `${emitExpression(expr.left)} ${expr.operator} ${emitExpression(expr.right)}`;
     case "UnaryExpression": {
       const op = expr.operator.toLowerCase() === "not" ? "Not " : expr.operator;
-      return `${op}${emitExpression(expr.argument)}`;
+      const argument =
+        expr.operator.toLowerCase() === "not" && expr.argument.kind === "BinaryExpression"
+          ? `(${emitExpression(expr.argument)})`
+          : emitExpression(expr.argument);
+      return `${op}${argument}`;
     }
     case "TernaryExpression":
       return `${emitExpression(expr.condition)} ? ${emitExpression(expr.trueExpr)} : ${emitExpression(expr.falseExpr)}`;

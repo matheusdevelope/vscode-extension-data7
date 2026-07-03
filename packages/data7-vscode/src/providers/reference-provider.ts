@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
 import { LanguageProcessor, WorkspaceSymbolIndexer } from "@data7/core";
+import { isPositionInCommentOrString } from "./provider-context";
 
 /**
  * Provides "Find All References" (Shift+F12) for Data7 Basic identifiers.
@@ -16,6 +17,7 @@ export class D7BasicReferenceProvider implements vscode.ReferenceProvider {
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.Location[]> {
     if (token.isCancellationRequested) return undefined;
+    if (isPositionInCommentOrString(document, position)) return [];
 
     const range = document.getWordRangeAtPosition(position);
     if (!range) return [];

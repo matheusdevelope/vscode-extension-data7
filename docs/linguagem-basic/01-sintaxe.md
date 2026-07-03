@@ -138,7 +138,7 @@ Tags em comentário do header têm significado para a extensão e para o Builder
 ## Quebra de linha e ponto-e-vírgula
 
 - Cada instrução ocupa **uma linha**. Não há ponto-e-vírgula no fim.
-- Continuação de linha NÃO é suportada (Data7 Basic não tem o `_` do VB6/VB.NET para split de linha longa). Quebre expressões longas usando variáveis intermediárias.
+- Continuação de linha usa `_` no fim da linha fisica. Sem `_`, a instrucao termina ali; cadeias incompletas como `obj.` devem gerar `incomplete-member-access` local e nao podem consumir a proxima linha.
 - Linhas em branco são preservadas como separadores visuais; o linter ignora.
 
 ## Indentação

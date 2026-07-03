@@ -183,6 +183,30 @@ export const DiagnosticCodes = {
   DuplicateDeclaration: "duplicate-declaration",
   /** A type reference targets a type that cannot be resolved in the workspace or system library. */
   UnknownType: "unknown-type",
+  /** A member access ended at `.` without a member name. */
+  IncompleteMemberAccess: "incomplete-member-access",
+  /** A block reached EOF or a mismatched closer without its required closing token. */
+  UnterminatedBlock: "unterminated-block",
+  /** `Const name As T = value` is accepted by the native compiler but broken in Data7 output. */
+  TypedConstUnsupported: "typed-const-unsupported",
+  /** `Shared` was used on a declaration kind that the Data7 compiler does not support. */
+  InvalidSharedMember: "invalid-shared-member",
+  /** An explicit `Public` modifier repeats the default visibility. */
+  RedundantPublicModifier: "redundant-public-modifier",
+  /** A declaration is never referenced. */
+  UnusedDeclaration: "unused-declaration",
+  /** A value member was used as a standalone statement. */
+  LooseValueStatement: "loose-value-statement",
+  /** A `MustInherit` class was instantiated directly. */
+  AbstractInstantiation: "abstract-instantiation",
+  /** A class attempted to inherit from a `NotInheritable` class. */
+  SealedInheritance: "sealed-inheritance",
+  /** A concrete class does not implement an inherited `MustOverride` member. */
+  MustOverrideNotImplemented: "mustoverride-not-implemented",
+  /** Mutually exclusive class modifiers were combined. */
+  InvalidClassModifierCombination: "invalid-class-modifier-combination",
+  /** A declaration header uses modifiers or syntax that are not valid for that declaration. */
+  InvalidDeclaration: "invalid-declaration",
   /**
    * A `Sub New` constructor does not call `MyBase.New()`. Every Data7 class
    * must initialise its base object so the runtime can set up the object
@@ -539,6 +563,24 @@ export interface CallParenthesesMismatchPayload {
   code: typeof DiagnosticCodes.CallParenthesesMismatch;
   line: number;
   insertColumn: number;
+  wrapRange?: {
+    readonly startChar: number;
+    readonly endChar: number;
+  };
+}
+
+export interface RedundantPublicModifierPayload {
+  code: typeof DiagnosticCodes.RedundantPublicModifier;
+  line: number;
+  startChar: number;
+  endChar: number;
+}
+
+export interface UnusedDeclarationPayload {
+  code: typeof DiagnosticCodes.UnusedDeclaration;
+  line: number;
+  startChar: number;
+  endChar: number;
 }
 
 export interface ChainedGlobalFunctionAssignmentPayload {
@@ -620,6 +662,8 @@ export type DiagnosticPayload =
   | RedundantTerminalExitPayload
   | DeadCodePayload
   | CallParenthesesMismatchPayload
+  | RedundantPublicModifierPayload
+  | UnusedDeclarationPayload
   | ChainedGlobalFunctionAssignmentPayload
   | SharedReturnGlobalFunctionPayload
   | ReturnAssignmentInCatchPayload

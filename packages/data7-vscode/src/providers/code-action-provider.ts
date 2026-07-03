@@ -33,7 +33,10 @@ import {
   addObjectCreationParenthesesMissingFix,
   addObjectCreationParenthesesMissingBulkFix,
 } from "./quick-fixes/object-creation-parentheses-missing";
-import { addCallParenthesesMismatchFix } from "./quick-fixes/call-parentheses-mismatch";
+import {
+  addCallParenthesesMismatchFix,
+  addCallParenthesesMismatchBulkFix,
+} from "./quick-fixes/call-parentheses-mismatch";
 import {
   addMissingMyBaseNewFix,
   addMissingMyBaseNewBulkFix,
@@ -73,6 +76,14 @@ import {
   addFinallyBlockUnsupportedBulkFix,
 } from "./quick-fixes/finally-block-unsupported";
 import { addDeadCodeCommentFix, addDeadCodeCommentBulkFix } from "./quick-fixes/dead-code";
+import {
+  addRedundantPublicModifierFix,
+  addRedundantPublicModifierBulkFix,
+} from "./quick-fixes/redundant-public-modifier";
+import {
+  addUnusedDeclarationFix,
+  addUnusedDeclarationBulkFix,
+} from "./quick-fixes/unused-declaration";
 
 // Source actions
 import { addOrganizeImportsAction } from "./source-actions/organize-imports";
@@ -93,12 +104,7 @@ const DIAGNOSTIC_PRIORITY: Record<string, number> = {
   [DiagnosticCodes.MissingThen]: 4,
 };
 
-const GENERATED_BULK_FIX_TITLES: ReadonlyMap<string, string> = new Map([
-  [
-    DiagnosticCodes.CallParenthesesMismatch,
-    "Adicionar parenteses '()' em todas as chamadas deste arquivo",
-  ],
-]);
+const GENERATED_BULK_FIX_TITLES: ReadonlyMap<string, string> = new Map([]);
 
 interface QuickFixOptions {
   readonly includeGeneratedBulk?: boolean;
@@ -185,6 +191,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         break;
       case DiagnosticCodes.CallParenthesesMismatch:
         addCallParenthesesMismatchFix(actions, document, diagnostic);
+        addCallParenthesesMismatchBulkFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.MissingMyBaseNew:
         addMissingMyBaseNewFix(actions, document, diagnostic);
@@ -229,6 +236,14 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       case DiagnosticCodes.InlineIfThen:
         addInlineIfThenFix(actions, document, diagnostic);
         addInlineIfThenBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.RedundantPublicModifier:
+        addRedundantPublicModifierFix(actions, document, diagnostic);
+        addRedundantPublicModifierBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.UnusedDeclaration:
+        addUnusedDeclarationFix(actions, document, diagnostic);
+        addUnusedDeclarationBulkFix(actions, document, diagnostic);
         break;
       case "expected-token":
         if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
@@ -303,7 +318,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     for (const diagnostic of sortedDiags) {
       const code = getDiagnosticCode(diagnostic);
-      if (code === DiagnosticCodes.UnusedImport) {
+      if (code === DiagnosticCodes.UnusedImport || code === DiagnosticCodes.UnusedDeclaration) {
         continue;
       }
       const actions = this.getQuickFixesForDiagnostic(document, diagnostic);

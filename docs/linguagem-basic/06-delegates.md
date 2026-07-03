@@ -155,7 +155,10 @@ End Function
 ## Como o Linter valida
 
 - Atribuição de uma função/método a um campo declarado com tipo `Delegate` é checada: aridade e tipos devem bater.
+- Campos tipados como delegate podem ser chamados como metodos, por exemplo `OnExecute(item, idx, extra)`. O linter valida a chamada contra a assinatura do delegate e tambem exige quantidade exata de parametros ao atribuir uma lambda diretamente ao campo.
 - Atribuição a `OnClick` / `OnMouseDown` / `OnClose` (eventos da VCL) usa o delegate do System Library e dispara `event-signature-mismatch` quando incompatível.
+- Referências de método passadas como argumento de parâmetro delegate, como `lista.Find(Helper.AcimaDoLimitePorBandeira)`, também são checadas contra a assinatura do delegate esperado. Para delegates genéricos materializados (`TFindDel_Integer`), o linter reconstrói a assinatura a partir do template genérico antes de comparar.
+- Corpos de lambdas têm fluxo próprio: `Return` dentro de `Function(...) ... End Function` não torna inalcançável o código do método externo.
 - Métodos `Shared` e métodos de instância são ambos aceitos como handlers — `Shared` é preferido quando o handler não depende do estado do objeto.
 
 ## Delegates do System Library

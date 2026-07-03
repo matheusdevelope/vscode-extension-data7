@@ -406,12 +406,12 @@ describe("parser/parser", () => {
     assert.equal(forEachStatement.expression.arguments[0]?.kind, "ArrowFunctionExpression");
   });
 
-  test("parses chained multiline lambda calls after trailing dots", () => {
+  test("parses chained multiline lambda calls with explicit continuations after dots", () => {
     const src = [
       "Sub TestChain()",
-      "   Dim total As Double = produtos.",
-      "Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0).",
-      "Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco()).",
+      "   Dim total As Double = produtos._",
+      "Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0)._",
+      "Map<Double>(Function(pItem As Produto) As Double pItem.GetPreco())._",
       "Reduce<Double>(",
       "Function(pAcc As Double, pItem As Double) As Double",
       "Return pAcc + pItem",
@@ -878,6 +878,26 @@ describe("parser/parser", () => {
     assert.deepEqual([...r.errors], []);
     const method = r.unit.members[0] as MethodDeclaration;
     assert.equal(method.body[0]?.kind, "VariableDeclaration");
+  });
+
+  test("ignores comment-only lines inside multiline argument lists", () => {
+    const src = [
+      "Sub Compose()",
+      "   Dim text As String = Parse(",
+      "      ' accepted as trivia between arguments",
+      "      Function(value As String) As String",
+      "         Return value",
+      "      End Function",
+      "   )",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const method = r.unit.members[0] as MethodDeclaration;
+    const decl = method.body[0] as VariableDeclaration;
+    assert.equal(decl.kind, "VariableDeclaration");
+    assert.equal(decl.initializer?.kind, "MethodInvocation");
+    assert.equal(decl.initializer.arguments.length, 1);
   });
 
   test("accepts Match as a method name and parses its assignment", () => {

@@ -36,26 +36,6 @@ function previousToken(parser: Parser): Token | undefined {
   return parser.tokens[parser.pos - 1];
 }
 
-function skipNewlinesAfterDotForContinuation(parser: Parser): void {
-  if (parser.peek().kind !== "newline") return;
-  let offset = 0;
-  while (parser.peek(offset).kind === "newline") offset++;
-  const next = parser.peek(offset);
-  const value = next.value.toLowerCase();
-  if (
-    next.kind === "eof" ||
-    (next.kind === "keyword" &&
-      (value === "end" ||
-        value === "else" ||
-        value === "elseif" ||
-        value === "catch" ||
-        value === "finally"))
-  ) {
-    return;
-  }
-  parser.skipNewlines();
-}
-
 function precedenceOf(token: Token): Precedence {
   if (token.kind === "punct" && ["(", "[", "."].includes(token.value)) return Precedence.Call;
   if (token.kind === "punct" && token.value === "?.") return Precedence.OptionalChain;
@@ -198,13 +178,12 @@ export function parsePrefix(parser: Parser): Expression | null {
   }
   if (token.kind === "punct" && token.value === ".") {
     parser.advance();
-    skipNewlinesAfterDotForContinuation(parser);
     const memberToken = parser.consume("identifier") ?? parser.consume("keyword");
     if (!memberToken) {
       parser.recordError(
-        "expected-token",
-        `Expected '<member-name>', got '${parser.peek().value || parser.peek().kind}'.`,
-        parser.peek().loc,
+        "incomplete-member-access",
+        "Member access is missing a member name after '.'.",
+        token.loc,
       );
     }
     return {
@@ -360,13 +339,12 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
   }
   if (token.kind === "punct" && token.value === ".") {
     parser.advance();
-    skipNewlinesAfterDotForContinuation(parser);
     const memberToken = parser.consume("identifier") ?? parser.consume("keyword");
     if (!memberToken) {
       parser.recordError(
-        "expected-token",
-        `Expected '<member-name>', got '${parser.peek().value || parser.peek().kind}'.`,
-        parser.peek().loc,
+        "incomplete-member-access",
+        "Member access is missing a member name after '.'.",
+        token.loc,
       );
     }
     const typeArguments: TypeReference[] = [];
@@ -417,14 +395,14 @@ function parseArgumentList(parser: Parser, requireOpening: boolean): Expression[
   if (requireOpening) parser.expect("punct", "(", { literal: true });
   else parser.advance();
   const arguments_: Expression[] = [];
-  parser.skipNewlines();
+  parser.skipExpressionTrivia();
   while (!parser.match("punct", ")") && !parser.isEOF()) {
-    parser.skipNewlines();
+    parser.skipExpressionTrivia();
     if (parser.match("punct", ")")) break;
     arguments_.push(parseExpression(parser));
-    parser.skipNewlines();
+    parser.skipExpressionTrivia();
     if (!parser.consume("punct", ",")) break;
-    parser.skipNewlines();
+    parser.skipExpressionTrivia();
   }
   parser.expect("punct", ")", { literal: true });
   return arguments_;

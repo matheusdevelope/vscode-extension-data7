@@ -6,12 +6,13 @@
 
 ## Visão geral
 
-A extensão declara **33 códigos** em `DiagnosticCodes` ([`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts)). Cada código tem severidade (`error` ou `warning`), payload opcional e Code Action correspondente quando aplicável.
+A extensão declara **73 códigos** em `DiagnosticCodes` ([`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts)). Cada código tem severidade (`error`, `warning`, `info`, `hint` ou `off` via configuração), payload opcional e Code Action correspondente quando aplicável.
 
 Os códigos se dividem em duas faixas:
 
-1. **Emitidos pelo linter live** (13 originais + 6 de generics) — chamados pelo VS Code a cada keystroke; reportados como `Diagnostic` no editor.
-2. **Emitidos pelo `SugarTranspiler` em build-time** ou **planejados para integração futura ao linter live** (14 das Fases A-J do roadmap). Cada um aparece nos exemplos em [`docs/example/diagnostics/<code>/`](../example/README.md), marcados com `@requires` quando dependem de wiring adicional ao linter.
+1. **Emitidos pelo linter live** — chamados pelo VS Code a cada keystroke; reportados como `Diagnostic` no editor.
+2. **Emitidos pelo parser/linter de recuperação** — erros estruturais locais, como acesso de membro incompleto.
+3. **Emitidos pelo `SugarTranspiler` em build-time** ou por extensões de linguagem opcionais. Cada um aparece nos exemplos em [`docs/example/diagnostics/<code>/`](../example/README.md), marcados com `@requires` quando dependem de wiring adicional ao linter.
 
 ```ts
 export const DiagnosticCodes = {
@@ -42,6 +43,23 @@ export const DiagnosticCodes = {
    InstantiationLimitExceeded: "instantiation-limit-exceeded",
 } as const;
 ```
+
+### Códigos adicionados para o demo `teste_arrays`
+
+| Código | Severidade padrão | Caso |
+|---|---:|---|
+| [`incomplete-member-access`](../example/diagnostics/incomplete-member-access) | error | cadeia termina em `.` sem nome de membro |
+| [`unterminated-block`](../example/diagnostics/unterminated-block) | error | bloco chega a EOF ou fechamento divergente sem `End ...`/`Next`/`Loop` esperado |
+| [`typed-const-unsupported`](../example/diagnostics/typed-const-unsupported) | error | `Const Nome As Tipo = valor` |
+| [`invalid-shared-member`](../example/diagnostics/invalid-shared-member) | error | `Shared` em campo público/default, propriedade, delegate, classe ou estrutura |
+| [`redundant-public-modifier`](../example/diagnostics/redundant-public-modifier) | warning | `Public` explícito onde a visibilidade já é pública por padrão |
+| [`unused-declaration`](../example/diagnostics/unused-declaration) | warning | declaração local/campo privado/constante não referenciada |
+| [`loose-value-statement`](../example/diagnostics/loose-value-statement) | error | valor de campo/propriedade/constante usado como statement solto |
+| [`abstract-instantiation`](../example/diagnostics/abstract-instantiation) | error | `New` direto de classe `MustInherit` |
+| [`sealed-inheritance`](../example/diagnostics/sealed-inheritance) | error | `Inherits` de classe `NotInheritable` |
+| [`mustoverride-not-implemented`](../example/diagnostics/mustoverride-not-implemented) | error | classe concreta deixa de implementar membro `MustOverride` herdado |
+| [`invalid-class-modifier-combination`](../example/diagnostics/invalid-class-modifier-combination) | error | `MustInherit NotInheritable Class` |
+| [`invalid-declaration`](../example/diagnostics/invalid-declaration) | error | declaração com modificador/sintaxe inválida, como `Overrides` sem membro base `Overridable`/`MustOverride` |
 
 ## Códigos
 

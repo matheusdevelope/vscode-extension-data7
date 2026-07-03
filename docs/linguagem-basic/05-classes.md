@@ -142,7 +142,8 @@ End Class
 Regras:
 
 - Sem `Overrides`, o método declarado em um descendente é considerado **novo** (sombreia o herdado em vez de sobrescrever).
-- Sem `Overridable` na base, o compilador pode rejeitar o `Overrides` (o ERP é lenient nessa checagem, mas é convenção marcar.)
+- `Overrides` deve ser usado em uma declaração completa: `Overrides Sub ...`, `Overrides Function ...` ou `Overrides Property ...`. A forma abreviada `Overrides Nome()` é inválida.
+- Sem `Overridable` ou `MustOverride` na base, o linter emite [`invalid-declaration`](./13-diagnostic-codes.md#invalid-declaration) para o `Overrides`.
 - Métodos `Shared` **não** podem ser `Overridable`/`Overrides` (estáticos não participam de polimorfismo).
 
 ## Visibilidade
@@ -152,14 +153,14 @@ Regras:
 | `Public` | acessível de qualquer lugar (padrão se omitido) |
 | `Private` | só dentro da classe declarante. Acesso externo dispara [`private-member-access`](./13-diagnostic-codes.md#private-member-access) |
 | `Protected` | acessível na classe e em descendentes (raramente usado em Data7) |
-| `Shared` | membro de classe (estático) — vide [`Shared` abaixo](#shared) |
+| `Shared` | membro de classe (estático) — use `Private Shared` para campos; vide [`Shared` abaixo](#shared) |
 | `ReadOnly` | só pode ser atribuído no construtor (vide [`ReadOnly`](#readonly)) |
 
 ```basic
 Private _form As TPipelineForm           ' campo privado
 Public Nome As String                    ' campo público (padrão)
 Protected _baseConfig As TConfig         ' visível em descendentes
-Shared _Initialized As Boolean           ' campo de classe (estático)
+Private Shared _Initialized As Boolean   ' campo de classe interno (estático)
 ReadOnly Adm As CardAdm                  ' atribuível só no construtor
 ```
 
@@ -267,7 +268,7 @@ End Class
 Dim adm As CardAdm = CardAdm.Stone   ' chamada estática
 ```
 
-`Shared` é equivalente a `static` do C#/Java ou `Shared` do VB.NET.
+`Shared` é equivalente a `static` do C#/Java ou `Shared` do VB.NET para rotinas. Campos estáticos internos devem ser `Private Shared`; campos `Shared` públicos/default, propriedades, delegates, classes e estruturas recebem `invalid-shared-member` porque essa forma é instável no compilador Data7.
 
 ## Sobrecarga
 

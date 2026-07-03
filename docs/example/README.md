@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (132 arquivos)
+## Índice de exemplos (145 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -193,10 +193,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (63)
+### diagnostics (75)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
+| [`diagnostics/abstract-instantiation/trigger.bas`](./diagnostics/abstract-instantiation/trigger.bas) | classe MustInherit nao pode ser instanciada diretamente | `abstract-instantiation@12` | — |
 | [`diagnostics/auto-new-non-default-ctor/trigger.bas`](./diagnostics/auto-new-non-default-ctor/trigger.bas) | Dim x As New T mas T só tem construtor com args — runtime falha | `auto-new-non-default-ctor@5` | `classe TNeedsArgs sem construtor sem-args` |
 | [`diagnostics/call-parentheses-mismatch/trigger.bas`](./diagnostics/call-parentheses-mismatch/trigger.bas) | missing parentheses for method call with multiple arguments | `call-parentheses-mismatch@12` | `linter implementation for call parentheses validation` |
 | [`diagnostics/chained-global-function-assignment/trigger.bas`](./diagnostics/chained-global-function-assignment/trigger.bas) | assignment from a member chain rooted at a global function | `chained-global-function-assignment@20` | `linter implementation for chained global function assignment detection` |
@@ -218,15 +219,20 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/function-read-self/trigger.bas`](./diagnostics/function-read-self/trigger.bas) | reading from function name inside its own body | `function-read-self@10` | `linter implementation for function self read detection` |
 | [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |
 | [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As TEnum> violada por Integer | `generic-constraint-violated@10` | `classes TEnum + CardAdm declaradas no workspace` |
+| [`diagnostics/incomplete-member-access/trigger.bas`](./diagnostics/incomplete-member-access/trigger.bas) | acesso a membro encerrado no ponto sem nome de membro | `incomplete-member-access@8` | — |
 | [`diagnostics/inline-if-then/trigger.bas`](./diagnostics/inline-if-then/trigger.bas) | a sintaxe If Then inline não é recomendada | `inline-if-then@7` | — |
 | [`diagnostics/instance-member-access-on-type/trigger.bas`](./diagnostics/instance-member-access-on-type/trigger.bas) | access to an instance member statically on the type | `instance-member-access-on-type@20` | `o código diagnóstico existe, mas o linter live atual resolve identificadores de classe como tipos antes de marcar acesso estático; pendente wiring do checker` |
 | [`diagnostics/instantiation-limit-exceeded/trigger.bas`](./diagnostics/instantiation-limit-exceeded/trigger.bas) | a generic template that recursively instantiates itself exceeds MAX_INSTANTIATIONS | `instantiation-limit-exceeded@11` | `emitted by the SugarTranspiler at build-time (Fase 6) when the worklist exceeds 10_000 instantiations; the live linter does not run the drain.` |
 | [`diagnostics/invalid-assignment-target/trigger.bas`](./diagnostics/invalid-assignment-target/trigger.bas) | assigning to another function name | `invalid-assignment-target@13` | `linter implementation for invalid assignment target` |
+| [`diagnostics/invalid-class-modifier-combination/trigger.bas`](./diagnostics/invalid-class-modifier-combination/trigger.bas) | MustInherit e NotInheritable sao mutuamente exclusivos | `invalid-class-modifier-combination@5` | — |
+| [`diagnostics/invalid-declaration/trigger.bas`](./diagnostics/invalid-declaration/trigger.bas) | Overrides exige membro herdado Overridable ou MustOverride | `invalid-declaration@21` | — |
 | [`diagnostics/invalid-interpolation/trigger.bas`](./diagnostics/invalid-interpolation/trigger.bas) | string interpolada com `{}` vazio — parser não consegue produzir expansão | `invalid-interpolation@8` | — |
+| [`diagnostics/invalid-shared-member/trigger.bas`](./diagnostics/invalid-shared-member/trigger.bas) | Shared em campo nao e aceito pela extensao | `invalid-shared-member@7` | — |
 | [`diagnostics/lambda-capture-unsupported/trigger.bas`](./diagnostics/lambda-capture-unsupported/trigger.bas) | lambda referencia variável local — captura não suportada em Data7 | `lambda-capture-unsupported@7` | `emissão futura do linter quando lambdas inline forem implementados (H3)` |
 | [`diagnostics/lambda-signature-mismatch/trigger.bas`](./diagnostics/lambda-signature-mismatch/trigger.bas) | lambda with more parameters than the delegate accepts | `lambda-signature-mismatch@15` | — |
 | [`diagnostics/line-continuation-without-break/trigger.bas`](./diagnostics/line-continuation-without-break/trigger.bas) | marcador de continuacao de linha sem quebra efetiva | `line-continuation-without-break@16` | — |
 | [`diagnostics/loose-type-statement/trigger.bas`](./diagnostics/loose-type-statement/trigger.bas) | loose type statement | `loose-type-statement@8` | `linter implementation for loose types` |
+| [`diagnostics/loose-value-statement/trigger.bas`](./diagnostics/loose-value-statement/trigger.bas) | propriedade usada como instrucao solta | `loose-value-statement@9` | — |
 | [`diagnostics/missing-import/after-quickfix.bas`](./diagnostics/missing-import/after-quickfix.bas) | resultado de aplicar o Quick Fix "Importar mod_resources" sobre diagnostics/missing-import/trigger | `none` | — |
 | [`diagnostics/missing-import/trigger.bas`](./diagnostics/missing-import/trigger.bas) | tipo de outro módulo do workspace usado sem o Imports correspondente | `missing-import@9` | `módulo "mod_resources" exportando "TResourceLoader" no workspace` |
 | [`diagnostics/missing-mybase-free/trigger.bas`](./diagnostics/missing-mybase-free/trigger.bas) | classe sem o método Sub Free() | `missing-mybase-free@3` | — |
@@ -235,6 +241,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/missing-then/trigger.bas`](./diagnostics/missing-then/trigger.bas) | bloco If sem a palavra-chave Then | `missing-then@4` | — |
 | [`diagnostics/module-not-declared/trigger.bas`](./diagnostics/module-not-declared/trigger.bas) | módulo existe no repositório privado mas não foi adicionado a data7.json#dependencies | `module-not-declared@6` | `módulo "mod_shared_utility" no repositório privado E ausência da entrada em data7.json` |
 | [`diagnostics/module-not-found/trigger.bas`](./diagnostics/module-not-found/trigger.bas) | Imports de um módulo que não existe no workspace, repositório privado, nem System Library | `module-not-found@6` | `nenhum módulo "mod_unknown_module" instalado em lugar nenhum` |
+| [`diagnostics/mustoverride-not-implemented/trigger.bas`](./diagnostics/mustoverride-not-implemented/trigger.bas) | classe concreta deve implementar metodo MustOverride herdado | `mustoverride-not-implemented@11` | — |
 | [`diagnostics/namespace-name-conflict/trigger.bas`](./diagnostics/namespace-name-conflict/trigger.bas) | classe com o mesmo nome do namespace que a contém | `namespace-name-conflict@2` | — |
 | [`diagnostics/not-enumerable/trigger.bas`](./diagnostics/not-enumerable/trigger.bas) | For Each sobre tipo do workspace sem propriedade Count + indexer inteiro | `not-enumerable@12` | — |
 | [`diagnostics/null-coalesce-context-unsupported/trigger.bas`](./diagnostics/null-coalesce-context-unsupported/trigger.bas) | ?? usado fora de assignment RHS — Print não é assignment | `null-coalesce-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
@@ -244,20 +251,25 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/optional-chain-too-deep/trigger.bas`](./diagnostics/optional-chain-too-deep/trigger.bas) | cadeia ?. com mais de 3 níveis — refator manual exigido | `optional-chain-too-deep@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/private-member-access/trigger.bas`](./diagnostics/private-member-access/trigger.bas) | acesso a membro Private de uma classe a partir de outra classe | `private-member-access@13` | `módulo "mod_vault" exportando a classe Vault com campo Private "secret"` |
 | [`diagnostics/readonly-assignment/trigger.bas`](./diagnostics/readonly-assignment/trigger.bas) | atribuição a campo ReadOnly fora do construtor | `readonly-assignment@11` | `emissão futura do linter quando a checagem ReadOnly for implementada (I3)` |
+| [`diagnostics/redundant-public-modifier/trigger.bas`](./diagnostics/redundant-public-modifier/trigger.bas) | Public explicito e redundante porque a visibilidade default ja e publica | `redundant-public-modifier@6` | — |
 | [`diagnostics/redundant-terminal-exit/trigger.bas`](./diagnostics/redundant-terminal-exit/trigger.bas) | Exit Sub terminal redundante no fim exato da rotina | `redundant-terminal-exit@9` | — |
 | [`diagnostics/return-assignment-in-catch/trigger.bas`](./diagnostics/return-assignment-in-catch/trigger.bas) | retorno por atribuicao dentro de Catch rejeitado pelo compilador nativo | `return-assignment-in-catch@11` | — |
 | [`diagnostics/return-unrecommended/trigger.bas`](./diagnostics/return-unrecommended/trigger.bas) | uso de Return em função onde a forma preferida é atribuição ao nome da rotina | `return-unrecommended@4` | — |
+| [`diagnostics/sealed-inheritance/trigger.bas`](./diagnostics/sealed-inheritance/trigger.bas) | classe NotInheritable nao pode ser herdada | `sealed-inheritance@12` | — |
 | [`diagnostics/shared-return-global-function/trigger.bas`](./diagnostics/shared-return-global-function/trigger.bas) | shared-return-global-function warning when shared function return variable is assigned directly from global function | `shared-return-global-function@9` | `linter implementation for shared return global function detection` |
 | [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |
 | [`diagnostics/sub-used-as-function/trigger.bas`](./diagnostics/sub-used-as-function/trigger.bas) | using a Sub procedure as a function in an expression context | `sub-used-as-function@12` | — |
 | [`diagnostics/ternary-context-unsupported/trigger.bas`](./diagnostics/ternary-context-unsupported/trigger.bas) | ternário em contexto não-assignment (Print) — não é expansível | `ternary-context-unsupported@8` | — |
 | [`diagnostics/type-mismatch/trigger.bas`](./diagnostics/type-mismatch/trigger.bas) | assigning incompatible types (e.g. a list to a single-item variable) | `type-mismatch@15` | `linter implementation for type mismatch` |
+| [`diagnostics/typed-const-unsupported/trigger.bas`](./diagnostics/typed-const-unsupported/trigger.bas) | Const com tipo explicito e bloqueado pela extensao | `typed-const-unsupported@5` | — |
 | [`diagnostics/unknown-member/trigger.bas`](./diagnostics/unknown-member/trigger.bas) | acesso a propriedade inexistente (typo) — emite unknown-member com "did you mean Align?" | `unknown-member@11` | — |
 | [`diagnostics/unknown-suppression-code/trigger.bas`](./diagnostics/unknown-suppression-code/trigger.bas) | diretiva data7:disable-line referenciando código inexistente em DiagnosticCodes | `unknown-suppression-code@7` | — |
 | [`diagnostics/unknown-symbol/trigger.bas`](./diagnostics/unknown-symbol/trigger.bas) | reference to a symbol that does not exist in the scope | `unknown-symbol@8` | — |
 | [`diagnostics/unknown-template/trigger.bas`](./diagnostics/unknown-template/trigger.bas) | usage of TList<T> without the template declared in scope | `unknown-template@9` | — |
 | [`diagnostics/unknown-type/trigger.bas`](./diagnostics/unknown-type/trigger.bas) | referência a tipo que não existe no workspace ou na biblioteca do sistema | `unknown-type@8` | — |
 | [`diagnostics/unsupported-member/trigger.bas`](./diagnostics/unsupported-member/trigger.bas) | acesso a propriedade marcada isUnsupported=true na System Library (não traduzida pelo compilador Data7) | `unsupported-member@11` | — |
+| [`diagnostics/unterminated-block/trigger.bas`](./diagnostics/unterminated-block/trigger.bas) | bloco Sub sem End Sub emite erro estrutural local | `unterminated-block@7` | — |
+| [`diagnostics/unused-declaration/trigger.bas`](./diagnostics/unused-declaration/trigger.bas) | declaracao local nao usada | `unused-declaration@6` | — |
 | [`diagnostics/unused-import/trigger.bas`](./diagnostics/unused-import/trigger.bas) | diretiva Imports declarada mas nenhum símbolo do namespace é referenciado | `unused-import@5` | — |
 | [`diagnostics/using-non-disposable/trigger.bas`](./diagnostics/using-non-disposable/trigger.bas) | Using sobre tipo sem Free na cadeia — Builder gera .Free() mesmo assim | `using-non-disposable@5` | `classe TNotDisposable sem Free no workspace` |
 
@@ -280,3 +292,9 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`forms/05-grid-com-dados.bas`](./forms/05-grid-com-dados.bas) | Grid com cabeçalho fixo + preenchimento de células via Cells(col, row), ColCount/RowCount/FixedRows | `none` | — |
 | [`forms/06-textbox-validacao.bas`](./forms/06-textbox-validacao.bas) | TextBox + NumberTextBox com OnChange ligado a um handler que lê .Text e valida | `none` | — |
 | [`forms/07-abas-pagecontrol.bas`](./forms/07-abas-pagecontrol.bas) | PageControl com abas (TabSheet) — cada aba é criada com o PageControl como pai e recebe Caption | `none` | — |
+
+### regression (1)
+
+| Caminho | Demonstra | Diagnósticos | Requer |
+|---|---|---|---|
+| [`regression/teste-arrays-reduced.bas`](./regression/teste-arrays-reduced.bas) | fixture reduzido do demo teste_arrays para parser, linter e supersets de heranca | `typed-const-unsupported@26, invalid-shared-member@23, redundant-public-modifier@25, unused-declaration@26, loose-value-statement@28, abstract-instantiation@29, sealed-inheritance@15, mustoverride-not-implemented@18` | — |
