@@ -138,7 +138,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "Pitch",
     kind: "property",
-    type: "Integer",
+    type: "TFontPitch",
     isShared: false,
     isPrivate: false,
     range: range,
@@ -149,7 +149,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "Quality",
     kind: "property",
-    type: "Integer",
+    type: "TFontQuality",
     isShared: false,
     isPrivate: false,
     range: range,

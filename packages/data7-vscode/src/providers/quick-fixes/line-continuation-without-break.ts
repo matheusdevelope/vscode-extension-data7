@@ -13,7 +13,7 @@ export function addLineContinuationWithoutBreakFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
 
   const edit = new vscode.WorkspaceEdit();
   edit.delete(document.uri, diagnostic.range);

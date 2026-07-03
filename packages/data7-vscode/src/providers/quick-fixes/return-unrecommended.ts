@@ -44,7 +44,7 @@ export function addReturnUnrecommendedFix(
       : `Substituir por 'Exit ${payload.exitType}'`;
   const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
 
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, resolved.range, resolved.replacement);
@@ -255,10 +255,10 @@ function resolveReturnUnrecommendedReplacement(
                 value: stmt.expression
                   ? deepClone(stmt.expression)
                   : {
-                      kind: "Literal",
-                      value: expressionText,
-                      loc: stmt.loc,
-                    },
+                    kind: "Literal",
+                    value: expressionText,
+                    loc: stmt.loc,
+                  },
                 loc: stmt.loc,
               });
             }

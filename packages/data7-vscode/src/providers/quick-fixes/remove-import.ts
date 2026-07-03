@@ -36,7 +36,7 @@ export function addRemoveImportFix(
 
   const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
 
   const line = diagnostic.range.start.line;
   const start = new vscode.Position(line, 0);

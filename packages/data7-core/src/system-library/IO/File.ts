@@ -253,6 +253,7 @@ export const symbols: SystemSymbolInfo[] = [
     },
     fileUri: "system://library",
     containerName: "File",
+    inheritsFrom: "TObject",
     description: "Contém métodos para compactar e descompactar arquivos.",
   },
   {
@@ -269,6 +270,7 @@ export const symbols: SystemSymbolInfo[] = [
     },
     fileUri: "system://library",
     containerName: "IO.File",
+    inheritsFrom: "TObject",
     description:
       "Alias qualificado de IO.File.ZipFile para resolucao de tipos e membros aninhados.",
   },

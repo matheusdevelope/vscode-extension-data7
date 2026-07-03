@@ -325,6 +325,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       const firstFix = actions.find(
         (action) =>
           action instanceof vscode.CodeAction &&
+          action.isPreferred &&
           !!action.kind?.value.startsWith(vscode.CodeActionKind.QuickFix.value) &&
           !!action.edit &&
           !action.title.startsWith("Desabilitar "),

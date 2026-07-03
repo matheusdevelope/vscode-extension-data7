@@ -28,9 +28,9 @@ export const PRIMITIVE_TYPES: ReadonlySet<string> = new Set([
   "word",
   // Delphi-native names that surface in the original autocomplete (TMS/VCL).
   // Treated as primitives so the linter and the audit script don't complain
-  // when a Grid property declares its type as `UnicodeString`, `WideChar`,
+  // when a Grid property declares its type as `String`, `WideChar`,
   // `Pointer`, etc.
-  "unicodestring",
+  "String",
   "widechar",
   "pointer",
   "shortstring",

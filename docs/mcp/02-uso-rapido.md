@@ -21,7 +21,7 @@
   "inheritanceChain": [],
   "officialExample": {
     "qualifiedName": "TJSONObject.Has",
-    "signature": "TJSONObject.Has(Const Key As UnicodeString) As Boolean",
+    "signature": "TJSONObject.Has(Const Key As String) As Boolean",
     "description": "Retorna true caso encontre um atributo com o mesmo nome informado no parâmetro.",
     "example": "Dim obj As TJSONObject = New TJSONObject() ..."
   }

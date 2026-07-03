@@ -142,27 +142,13 @@ import { symbols as sym_Forms_HComboBox } from "./Forms/HComboBox";
 import { symbols as sym_Forms_CheckBox } from "./Forms/CheckBox";
 
 // ───────── Globals ─────────
-import { symbols as sym_Globals_Base64ToFile } from "./Globals/Base64ToFile";
-import { symbols as sym_Globals_CDbl } from "./Globals/CDbl";
+import { symbols as sym_Globals_Functions } from "./Globals/Functions";
 import { symbols as sym_Globals_Char } from "./Globals/Char";
-import { symbols as sym_Globals_CInt } from "./Globals/CInt";
-import { symbols as sym_Globals_CStr } from "./Globals/CStr";
 import { symbols as sym_Globals_TRDBMS } from "./Globals/TRDBMS";
-import { symbols as sym_Globals_DateTime } from "./Globals/DateTime";
 import { symbols as sym_Globals_dateUtils } from "./Globals/dateUtils";
-import { symbols as sym_Globals_FileToBase64 } from "./Globals/FileToBase64";
-import { symbols as sym_Globals_InStr } from "./Globals/InStr";
-import { symbols as sym_Globals_LCase } from "./Globals/LCase";
-import { symbols as sym_Globals_Len } from "./Globals/Len";
-import { symbols as sym_Globals_Left } from "./Globals/Left";
-import { symbols as sym_Globals_Mid } from "./Globals/Mid";
-import { symbols as sym_Globals_Print } from "./Globals/Print";
-import { symbols as sym_Globals_RGB } from "./Globals/RGB";
-import { symbols as sym_Globals_Space } from "./Globals/Space";
 import { symbols as sym_Globals_TAlign } from "./Globals/TAlign";
 import { symbols as sym_Globals_TAlignment } from "./Globals/TAlignment";
 import { symbols as sym_Globals_THTTP } from "./Globals/THTTP";
-import { symbols as sym_Globals_Timer } from "./Globals/Timer";
 import { symbols as sym_Globals_TJSONArray } from "./Globals/TJSONArray";
 import { symbols as sym_Globals_TJSONObject } from "./Globals/TJSONObject";
 import { symbols as sym_Globals_TLSv1 } from "./Globals/TLSv1";
@@ -172,8 +158,6 @@ import { symbols as sym_Globals_TLSv1_3 } from "./Globals/TLSv1_3";
 import { symbols as sym_Globals_TMargins } from "./Globals/TMargins";
 import { symbols as sym_Globals_TObject } from "./Globals/TObject";
 import { symbols as sym_Globals_TPersistent } from "./Globals/TPersistent";
-import { symbols as sym_Globals_TryStrToInt } from "./Globals/TryStrToInt";
-import { symbols as sym_Globals_UCase } from "./Globals/UCase";
 import { symbols as sym_Globals_ZipFile } from "./Globals/ZipFile";
 import { symbols as sym_Globals_Whatsapp } from "./Globals/Whatsapp";
 import { symbols as sym_Globals_Clipboard } from "./Globals/Clipboard";
@@ -379,27 +363,12 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_HComboBox,
   ...sym_Forms_CheckBox,
   // Globals
-  ...sym_Globals_Base64ToFile,
-  ...sym_Globals_CDbl,
   ...sym_Globals_Char,
-  ...sym_Globals_CInt,
-  ...sym_Globals_CStr,
   ...sym_Globals_TRDBMS,
-  ...sym_Globals_DateTime,
   ...sym_Globals_dateUtils,
-  ...sym_Globals_FileToBase64,
-  ...sym_Globals_InStr,
-  ...sym_Globals_LCase,
-  ...sym_Globals_Len,
-  ...sym_Globals_Left,
-  ...sym_Globals_Mid,
-  ...sym_Globals_Print,
-  ...sym_Globals_RGB,
-  ...sym_Globals_Space,
   ...sym_Globals_TAlign,
   ...sym_Globals_TAlignment,
   ...sym_Globals_THTTP,
-  ...sym_Globals_Timer,
   ...sym_Globals_TJSONArray,
   ...sym_Globals_TJSONObject,
   ...sym_Globals_TLSv1,
@@ -408,8 +377,6 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_TLSv1_3,
   ...sym_Globals_TObject,
   ...sym_Globals_TPersistent,
-  ...sym_Globals_TryStrToInt,
-  ...sym_Globals_UCase,
   ...sym_Globals_ZipFile,
   ...sym_Globals_Whatsapp,
   ...sym_Globals_Clipboard,
@@ -432,6 +399,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_TKeyEvent,
   ...sym_Globals_TKeyPressEvent,
   ...sym_Globals_eventTypes,
+  ...sym_Globals_Functions,
   // IO
   ...sym_IO_Directory,
   ...sym_IO_File,

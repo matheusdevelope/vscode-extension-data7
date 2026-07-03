@@ -231,7 +231,7 @@ IA: gera código baseado no nome (sem ver exemplo oficial; pode errar sintaxe).
 Usuário: "Como uso TJSONObject.Has?"
 IA: chama data7_describe_symbol("TJSONObject.Has")
     → recebe {
-        signature: "TJSONObject.Has(Const Key As UnicodeString) As Boolean",
+        signature: "TJSONObject.Has(Const Key As String) As Boolean",
         description: "Retorna true caso encontre um atributo com o mesmo nome...",
         officialExample: "Dim obj As TJSONObject = New TJSONObject()\n..."
       }
@@ -401,7 +401,7 @@ Exemplo de payload extraído:
 ```json
 {
   "qualifiedName": "Collections.StringList.Add",
-  "signature": "Collections.StringList.Add(Const S As UnicodeString) As Integer",
+  "signature": "Collections.StringList.Add(Const S As String) As Integer",
   "description": "Adiciona uma string à lista de strings e retorna o índice do item na lista.",
   "example": "Dim texto As Collections.StringList = New Collections.StringList()\n\nPrint texto.Add(\"Se7e\")\nPrint texto.Add(\"Sistemas\")\n\nPrint texto.Text\n\ntexto.Free()"
 }

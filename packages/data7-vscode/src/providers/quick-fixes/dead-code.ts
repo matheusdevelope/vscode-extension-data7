@@ -14,7 +14,7 @@ export function addDeadCodeCommentFix(
 
   const action = new vscode.CodeAction("Comentar bloco morto", vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
   action.edit = buildCommentEdit(document, [payload]);
   actions.push(action);
 }

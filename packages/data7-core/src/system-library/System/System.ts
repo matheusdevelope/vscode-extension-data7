@@ -408,7 +408,7 @@ const constants: readonly ConstSpec[] = [
   { name: "varTypeMask", type: "Integer", description: "Máscara para tipos básicos (4095)." },
   { name: "varArray", type: "Integer", description: "Flag de array em Variant (8192)." },
   { name: "varByRef", type: "Integer", description: "Flag de passagem por referência (16384)." },
-  { name: "varUString", type: "Integer", description: "Tipo Variant UnicodeString (258)." },
+  { name: "varUString", type: "Integer", description: "Tipo Variant String (258)." },
 ];
 
 // ───────── Type aliases relevantes ─────────

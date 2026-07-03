@@ -269,8 +269,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `CellChecker` | `Variant` | Verificador automático de dados por célula. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `CellEditor` | [`TWinControl`](#twincontrol) | Controle de edição inline atualmente vinculado à célula. |
 | `CellNode` | `Variant` | Configuração de árvore (cell node) por linha. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `CheckFalse` | `UnicodeString` | Texto que representa o valor False em células checkbox. |
-| `CheckTrue` | `UnicodeString` | Texto que representa o valor True em células checkbox. |
+| `CheckFalse` | `String` | Texto que representa o valor False em células checkbox. |
+| `CheckTrue` | `String` | Texto que representa o valor True em células checkbox. |
 | `ClearTextOnly` | `Boolean` | Ao limpar células, mantém formatação (cor/fonte) e zera apenas o texto. |
 | `Col` | `Integer` | Índice (1-based) da coluna atualmente focada. |
 | `ColCount` | `Integer` | Quantidade total de colunas (incluindo fixas). |
@@ -288,11 +288,11 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `ControlLook` | `Variant` | Aparência fina do grid (sub-objeto). Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ControlState` | `Integer` | Estado atual herdado de TControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ControlStyle` | `Integer` | Estilo de controle herdado de TControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `CSVLineBreak` | `UnicodeString` | Sequência usada para quebrar linhas ao exportar CSV. |
+| `CSVLineBreak` | `String` | Sequência usada para quebrar linhas ao exportar CSV. |
 | `CSVMultilineCellImport` | `Boolean` | Permite importar células multilinha do CSV. |
 | `CSVTrimSpaces` | `Boolean` | Remove espaços extras das células lidas do CSV. |
 | `Ctl3D` | `Boolean` | Renderiza o grid com aparência 3D legada (Windows clássico). |
-| `CurrentCell` | `UnicodeString` | Coordenada string da célula corrente ("A1", "B2", ...). |
+| `CurrentCell` | `String` | Coordenada string da célula corrente ("A1", "B2", ...). |
 | `CurrentEditor` | [`TEditorType`](#teditortype) | Tipo do editor inline corrente. |
 | `CurrentPPI` | `Integer` | PPI corrente do monitor onde o controle está exibido. |
 | `CustomHint` | `Variant` | Hint personalizado herdado de TControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
@@ -321,7 +321,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `DropList` | `Variant` | Lista dropdown de seleção simples. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `EditActive` | `Boolean` | Indica se a célula corrente está em modo de edição. |
 | `EditLink` | [`TEditLink`](#teditlink) | Vínculo entre células e editores customizados (GridEditorLink especializa este tipo). |
-| `EditMask` | `UnicodeString` | Máscara de entrada (igual à de TEdit) aplicada ao editor inline. |
+| `EditMask` | `String` | Máscara de entrada (igual à de TEdit) aplicada ao editor inline. |
 | `EditorMode` | `Boolean` | Mantém o grid em modo de edição contínua. |
 | `EditWithTags` | `Boolean` | Permite editar valores preservando tags HTML inline. |
 | `EnableBlink` | `Boolean` | Permite células com texto piscando (tag <blink>). |
@@ -338,8 +338,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `FilterDropDown` | `Variant` | Sub-objeto do dropdown de filtro. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `FilterDropDownAuto` | `Boolean` | Abre o dropdown de filtro automaticamente ao clicar no ícone. |
 | `FilterDropDownCheck` | `Boolean` | Exibe checkboxes em vez de seleção simples no dropdown de filtro. |
-| `FilterDropDownCheckUnCheckAll` | `UnicodeString` | Texto exibido no item "marcar/desmarcar tudo" do dropdown. |
-| `FilterDropDownClear` | `UnicodeString` | Texto exibido no item "limpar filtro" do dropdown. |
+| `FilterDropDownCheckUnCheckAll` | `String` | Texto exibido no item "marcar/desmarcar tudo" do dropdown. |
+| `FilterDropDownClear` | `String` | Texto exibido no item "limpar filtro" do dropdown. |
 | `FilterDropDownColumns` | [`TFilterDropDownColumns`](#tfilterdropdowncolumns) | Set que indica quais colunas exibem o botão de filtro dropdown. |
 | `FilterDropDownMultiCol` | `Boolean` | Permite seleção múltipla no dropdown de filtro. |
 | `FilterDropDownRow` | `Integer` | Linha onde aparece o botão de filtro dropdown. |
@@ -368,7 +368,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `FixedRowHeight` | `Integer` | Altura padrão das linhas fixas. |
 | `FixedRows` | `Integer` | Quantidade de linhas fixas no topo (cabeçalho superior). |
 | `Flat` | `Boolean` | Renderiza o grid sem borda 3D (visual flat). |
-| `FloatFormat` | `UnicodeString` | Formato Delphi (FormatFloat) usado para renderização de números reais nas células. |
+| `FloatFormat` | `String` | Formato Delphi (FormatFloat) usado para renderização de números reais nas células. |
 | `FloatingDockSiteClass` | `Variant` | Classe do dock site flutuante herdada de TControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `FloatingFooter` | `Variant` | Footer flutuante do grid. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `FocusHelper` | `Variant` | Helper visual de foco. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
@@ -411,14 +411,14 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `IgnoreColumns` | `Variant` | Lista de colunas a serem ignoradas em cálculos/exportação. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ImageCache` | `Variant` | Cache de imagens renderizadas. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ImagePickerDropDown` | `Variant` | Image picker dropdown embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `IncrSearchText` | `UnicodeString` | Texto da busca incremental corrente. |
+| `IncrSearchText` | `String` | Texto da busca incremental corrente. |
 | `InplaceRichEdit` | `Variant` | Rich-edit inline na célula. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `IntegralHeight` | `Boolean` | Ajusta a altura do grid para mostrar linhas inteiras (sem corte). |
 | `IntelliPan` | [`TIntelliPan`](#tintellipan) | Modos de pan inteligente (ipNone, ipVertical, ipHorizontal, ipBoth). |
 | `IntelliZoom` | `Boolean` | Ativa zoom inteligente via Ctrl+wheel. |
 | `InvalidEntryIcon` | [`TInvalidEntryIcon`](#tinvalidentryicon) | Ícone exibido quando uma entrada é rejeitada. |
-| `InvalidEntryText` | `UnicodeString` | Texto exibido quando uma entrada é rejeitada. |
-| `InvalidEntryTitle` | `UnicodeString` | Título da mensagem mostrada quando uma entrada é rejeitada. |
+| `InvalidEntryText` | `String` | Texto exibido quando uma entrada é rejeitada. |
+| `InvalidEntryTitle` | `String` | Título da mensagem mostrada quando uma entrada é rejeitada. |
 | `IsDrawingLocked` | `Boolean` | Indica se a pintura está bloqueada (durante batch update). |
 | `IsPrintPreview` | `Boolean` | Indica se o grid está em modo de preview de impressão. |
 | `IsThemed` | `Boolean` | Indica se o grid está usando o estilo do Windows themes ativo. |
@@ -453,7 +453,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OemConvert` | `Boolean` | Converte o texto digitado em formato OEM (compatibilidade Windows legada). |
 | `OfficeHint` | `Variant` | Configuração do hint estilo Office. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `Options` | [`TGridOptions`](#tgridoptions) | Set TMS com flags de comportamento e interação (TAdvStringGridOptions). |
-| `OriginalCellValue` | `UnicodeString` | Valor original da célula antes da edição corrente (usado em OnCellValidate). |
+| `OriginalCellValue` | `String` | Valor original da célula antes da edição corrente (usado em OnCellValidate). |
 | `OwnsObjects` | `Boolean` | Indica se o grid possui (e libera) os objetos associados às células via Objects[]. |
 | `Padding` | [`TMargins`](#tmargins) | Padding interno herdado de TWinControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ParentBiDiMode` | `Boolean` | Faz a propriedade BiDiMode seguir o valor do parent. |
@@ -544,7 +544,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `SortSettings` | `Variant` | Configurações de ordenação. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `SpinEdit` | `Variant` | Spin edit embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `SpreadSheet` | `Boolean` | Habilita modo planilha (similar ao Excel). |
-| `StyleName` | `UnicodeString` | Nome do style VCL aplicado ao controle. |
+| `StyleName` | `String` | Nome do style VCL aplicado ao controle. |
 | `SyncGrid` | `Variant` | Grid vinculado para sincronização de scroll/seleção. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `TabOrder` | `Integer` | Posição do controle na ordem de tabulação do parent. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `TimePickerDropDown` | `Variant` | Relógio dropdown embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
@@ -582,20 +582,20 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `UseInternalHintClass` | `Boolean` | Usa a classe interna de hint do grid (em vez do hint padrão da VCL). |
 | `UseSelectionTextColor` | `Boolean` | Usa SelectionTextColor para pintar o texto selecionado (em vez de manter a cor original). |
 | `UseStyleServices` | `Boolean` | Habilita Style Services VCL na pintura do grid. |
-| `ValidChars` | `UnicodeString` | Conjunto de caracteres aceitos pelo editor inline. |
+| `ValidChars` | `String` | Conjunto de caracteres aceitos pelo editor inline. |
 | `ValidCharSet` | `Variant` | Set de caracteres aceitos (alternativa a ValidChars). Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `VAlignment` | [`TVAlignment`](#tvalignment) | Alinhamento vertical do conteúdo das células (vtaCenter, vtaTop, vtaBottom). |
 | `VCLComObject` | `Pointer` | Ponteiro Win32 para o COM object associado ao componente. |
-| `Version` | `UnicodeString` | Versão do componente TMS subjacente (string). |
+| `Version` | `String` | Versão do componente TMS subjacente (string). |
 | `VersionNr` | `Integer` | Número de versão (inteiro) do TMS Software subjacente. |
-| `VersionString` | `UnicodeString` | Versão (string) do TMS Software subjacente. |
+| `VersionString` | `String` | Versão (string) do TMS Software subjacente. |
 | `VirtualEdit` | `Boolean` | Permite editar em modo virtual sem armazenar dados no grid. |
 | `VisibleCol` | `Variant` | Array de visibilidade por coluna. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `VisibleColCount` | `Integer` | Quantidade de colunas visíveis na viewport atual. |
 | `VisibleRowCount` | `Integer` | Quantidade de linhas visíveis na viewport atual. |
 | `WindowProc` | `Variant` | Procedimento de janela do controle (handler do message pump Windows). Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `WordWrap` | `Boolean` | Quebra automática de palavras dentro das células. |
-| `XMLEncoding` | `UnicodeString` | Encoding declarado na saída XML. |
+| `XMLEncoding` | `String` | Encoding declarado na saída XML. |
 | `XYOffset` | `TPoint` | Offset XY (em pixels) aplicado ao conteúdo das células. |
 | `XYOffsetTopLeftOnly` | `Boolean` | Aplica XYOffset apenas no canto superior-esquerdo da célula. |
 | `XYRTOffset` | `TPoint` | Offset XY usado quando o controle está em modo RightToLeft. |
@@ -626,7 +626,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `ClearSelection` | `Void` | `()` | Cancela a seleção corrente. |
 | `ColorRect` | `Void` | `(ACol1 As Integer, ARow1 As Integer, ACol2 As Integer, aRow2 As Integer, aColor As Integer)` | Pinta um retângulo de células com uma cor. |
 | `ColumnAtPosition` | `Integer` | `(ACol As Integer)` | Coluna na posição visual indicada. |
-| `ColumnByHeader` | `Integer` | `(AValue As UnicodeString)` | Retorna o índice da coluna cujo header bate com AValue. |
+| `ColumnByHeader` | `Integer` | `(AValue As String)` | Retorna o índice da coluna cujo header bate com AValue. |
 | `ColumnPosition` | `Integer` | `(ACol As Integer)` | Posição visual atual de uma coluna. |
 | `DeleteColumn` | `Void` | `(ACol As Longint)` | Exclui uma coluna específica. |
 | `DeleteRow` | `Void` | `(ARow As Longint)` | Exclui uma linha específica. |
@@ -634,11 +634,11 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `DisplRowIndex` | `Integer` | `(ARow As Integer)` | Retorna o índice exibido (display) de uma linha real. |
 | `EditCell` | `Void` | `(ACol As Integer, ARow As Integer)` | Entra em modo de edição na célula (ACol, ARow). |
 | `EndUpdate` | `Void` | `()` | Retoma o redraw após um BeginUpdate. |
-| `ExportToCsv` | `Void` | `(FilePath As UnicodeString, delimitador As UnicodeString)` | Exporta o conteúdo do grid para um arquivo CSV. |
-| `ExportToExcel` | `Void` | `(FilePath As UnicodeString)` | Exporta o conteúdo do grid para um arquivo Excel. |
-| `ExportToJson` | `Void` | `(FilePath As UnicodeString)` | Exporta o conteúdo do grid para um arquivo JSON. |
-| `ExportToTxt` | `Void` | `(FilePath As UnicodeString, delimitador As UnicodeString)` | Exporta o conteúdo do grid para um arquivo TXT. |
-| `ExportToXml` | `Void` | `(FilePath As UnicodeString)` | Exporta o conteúdo do grid para um arquivo XML. |
+| `ExportToCsv` | `Void` | `(FilePath As String, delimitador As String)` | Exporta o conteúdo do grid para um arquivo CSV. |
+| `ExportToExcel` | `Void` | `(FilePath As String)` | Exporta o conteúdo do grid para um arquivo Excel. |
+| `ExportToJson` | `Void` | `(FilePath As String)` | Exporta o conteúdo do grid para um arquivo JSON. |
+| `ExportToTxt` | `Void` | `(FilePath As String, delimitador As String)` | Exporta o conteúdo do grid para um arquivo TXT. |
+| `ExportToXml` | `Void` | `(FilePath As String)` | Exporta o conteúdo do grid para um arquivo XML. |
 | `FocusCell` | `Void` | `(ACol As Integer, ARow As Integer)` | Move o foco para a célula (ACol, ARow) sem editar. |
 | `GetCanvas` | `TCanvas` | `()` | Retorna o Canvas do grid para desenho direto. |
 | `GetCellColor` | `Integer` | `(ACol As Integer, ARow As Integer)` | Retorna a cor de fundo de uma célula. |
@@ -664,7 +664,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `IsHiddenRow` | `Boolean` | `(Rowindex As Integer)` | Indica se uma linha está oculta. |
 | `IsSelectionHidden` | `Boolean` | `()` | Retorna se a seleção está oculta. |
 | `LaunchEdit` | `Void` | `(ACol As Integer, ARow As Integer)` | Inicia o editor inline da célula (ACol, ARow). |
-| `LoadFromXLS` | `Void` | `(Filename As UnicodeString)` | Carrega o conteúdo de um arquivo XLS para o grid. |
+| `LoadFromXLS` | `Void` | `(Filename As String)` | Carrega o conteúdo de um arquivo XLS para o grid. |
 | `ModifiedRowCount` | `Integer` | `()` | Retorna o total de linhas marcadas como modificadas. |
 | `MoveColumn` | `Void` | `(FromIndex As Integer, ToIndex As Integer)` | Move uma coluna. |
 | `MoveRow` | `Void` | `(FromIndex As Integer, ToIndex As Integer)` | Move uma linha de FromIndex para ToIndex. |
@@ -687,7 +687,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `SetColAlignment` | `Void` | `(ACol As Integer, Value As TAlignment)` | Define o alinhamento de uma coluna. |
 | `SetColWidth` | `Void` | `(ACol As Integer, Value As Integer)` | Define a largura de uma coluna. |
 | `SetFontColor` | `Void` | `(ACol As Integer, ARow As Integer, Value As Integer)` | Define a cor da fonte de uma célula. |
-| `SetFontName` | `Void` | `(ACol As Integer, ARow As Integer, Value As UnicodeString)` | Define o nome da fonte de uma célula. |
+| `SetFontName` | `Void` | `(ACol As Integer, ARow As Integer, Value As String)` | Define o nome da fonte de uma célula. |
 | `SetFontSize` | `Void` | `(ACol As Integer, ARow As Integer, Value As Integer)` | Define o tamanho da fonte de uma célula. |
 | `SetMergeCells` | `Void` | `(ACol As Integer, ARow As Integer, X As Integer, Y As Integer)` | Mescla um retângulo de células a partir da posição (ACol, ARow). |
 | `SetRowEx` | `Void` | `(Value As Integer)` | Define a linha corrente (extendido). |
@@ -737,22 +737,22 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnButtonClick` | `TButtonClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Clique em botão embarcado em célula. |
 | `OnCanAddCol` | `TCanAddColEvent` | `(Sender As TObject, ACol As Integer, ByRef DoAdd As Boolean)` | Permite vetar a inclusão de coluna. |
 | `OnCanAddRow` | `TCanAddRowEvent` | `(Sender As TObject, ARow As Integer, ByRef DoAdd As Boolean)` | Permite vetar a inclusão de linha. |
-| `OnCanAddRowEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCanAddRow. |
+| `OnCanAddRowEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanAddRow. |
 | `OnCanClickCell` | `TCanClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Allow As Boolean)` | Permite vetar o clique em uma célula. |
-| `OnCanClickCellEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCanClickCell. |
+| `OnCanClickCellEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanClickCell. |
 | `OnCanDeleteRow` | `TCanDeleteRowEvent` | `(Sender As TObject, ARow As Integer, ByRef DoDelete As Boolean)` | Permite vetar a exclusão de uma linha. |
-| `OnCanDeleteRowEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCanDeleteRow. |
+| `OnCanDeleteRowEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanDeleteRow. |
 | `OnCanDisunctRowSelectDrag` | `TCanDisunctRowSelectDragEvent` | `(Sender As TObject, ARow As Integer, ByRef Allow As Boolean)` | Permite vetar drag em seleção disjunta de linhas. |
 | `OnCanEditCell` | `TCanEditCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef CanEdit As Boolean)` | Permite vetar a edição de uma célula. |
-| `OnCanEditCellEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCanEditCell. |
+| `OnCanEditCellEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanEditCell. |
 | `OnCanInsertRow` | `TCanInsertRowEvent` | `(Sender As TObject, ARow As Integer, ByRef DoInsert As Boolean)` | Permite vetar a inserção de linha em posição específica. |
-| `OnCanInsertRowEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCanInsertRow. |
+| `OnCanInsertRowEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanInsertRow. |
 | `OnCanShowFixedDropDown` | `TCanShowFixedDropDownEvent` | `(Sender As TObject, ACol As Integer, ByRef AllowShow As Boolean)` | Permite vetar a abertura do dropdown fixo. |
 | `OnCanSort` | `TCanSortEvent` | `(Sender As TObject, ACol As Integer, ByRef DoSort As Boolean)` | Permite vetar a ordenação por uma coluna. |
 | `OnCellsChanged` | `TCellsChangedEvent` | `(Sender As TObject, ARect As TRect)` | Notifica que um intervalo de células mudou de valor. |
-| `OnCellsChangedEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCellsChanged. |
+| `OnCellsChangedEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCellsChanged. |
 | `OnCellValidate` | `TCellValidateEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)` | Permite validar o valor digitado em uma célula. |
-| `OnCellValidateEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnCellValidate. |
+| `OnCellValidateEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCellValidate. |
 | `OnCellValidateWide` | `TCellValidateWideEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)` | Versão wide-string de OnCellValidate. |
 | `OnChangeScale` | `TChangeScaleEvent` | `(Sender As TObject, M As Integer, D As Integer)` | Mudança de escala (DPI) do controle. |
 | `OnCheckBoxCanToggle` | `TCheckBoxCanToggleEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef CanToggle As Boolean)` | Permite vetar o toggle de um checkbox da célula. |
@@ -760,7 +760,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnCheckBoxClick` | `TCheckBoxClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, State As Boolean)` | Clique em checkbox embarcado. |
 | `OnCheckBoxMouseUp` | `TCheckBoxClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, State As Boolean)` | Mouse up sobre checkbox embarcado. |
 | `OnClickCell` | `TClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Clique em célula normal. |
-| `OnClickEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnClick. |
+| `OnClickEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnClick. |
 | `OnClickSort` | `TClickSortEvent` | `(Sender As TObject, ACol As Integer)` | Clique no header de coluna para ordenar. |
 | `OnClipboardAfterPasteCell` | `TAfterCellPasteEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String)` | Disparado após colar célula. |
 | `OnClipboardAfterPasteWideCell` | `TAfterCellPasteWideEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String)` | Versão wide-string de OnClipboardAfterPasteCell. |
@@ -804,26 +804,26 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnDateSpinClick` | `TDateTimeSpinClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Value As TDateTime)` | Clique no spin de data embarcado. |
 | `OnDateTimeChange` | `TDateTimeChangeEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Value As TDateTime)` | Mudança de valor em editor de data/hora. |
 | `OnDblClickCell` | `TDblClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Duplo-clique em célula. |
-| `OnDblClickEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnDblClick. |
+| `OnDblClickEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnDblClick. |
 | `OnDragDrop` | `TDragDropEvent` | `(Sender As TObject, Source As TObject, X As Integer, Y As Integer)` | Disparado ao soltar um objeto VCL sobre o grid. |
 | `OnDragOver` | `TMethod` | `(Sender As TObject)` | Drag-over VCL — placeholder para método genérico. |
 | `OnDragScroll` | `TMethod` | `(Sender As TObject)` | Scroll durante drag (placeholder TMethod). |
 | `OnDrawCell` | `TDrawCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Rect As TRect, State As TGridDrawState)` | Pintura customizada por célula. |
-| `OnDrawCellEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnDrawCell. |
+| `OnDrawCellEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnDrawCell. |
 | `OnDropDownFooterButtonClick` | `TDropDownButtonClickEvent` | `(Sender As TObject, ACol As Integer)` | Clique no botão dropdown do footer. |
 | `OnDropDownHeaderButtonClick` | `TDropDownButtonClickEvent` | `(Sender As TObject, ACol As Integer)` | Clique no botão dropdown do header. |
 | `OnEditCellDone` | `TEditCellDoneEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Edição de célula concluída (commit). |
 | `OnEditChange` | `TEditChangeEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String)` | Mudança no texto durante a edição. |
-| `OnEditChangeEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnEditChange. |
+| `OnEditChangeEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnEditChange. |
 | `OnEditingDone` | `TNotifyEvent` | `(Sender As TObject)` | Edição corrente terminada. |
 | `OnEllipsClick` | `TEllipsClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Clique no botão de elipse (...) do editor inline. |
 | `OnEndColumnSize` | `TEndColumnSizeEvent` | `(Sender As TObject, ACol As Integer, AWidth As Integer)` | Fim do redimensionamento da coluna. |
 | `OnEndDock` | `TEndDragEvent` | `(Sender As TObject, Target As TObject, X As Integer, Y As Integer)` | Disparado ao terminar uma operação de dock. |
 | `OnEndDrag` | `TEndDragEvent` | `(Sender As TObject, Target As TObject, X As Integer, Y As Integer)` | Disparado ao terminar uma operação de drag. |
 | `OnEndRowSize` | `TEndRowSizeEvent` | `(Sender As TObject, ARow As Integer, AHeight As Integer)` | Fim do redimensionamento da linha. |
-| `OnEnterEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnEnter. |
+| `OnEnterEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnEnter. |
 | `OnEnumerateControl` | `TMethod` | `(Sender As TObject)` | Enumerador de controles embarcados na célula. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `OnExitEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnExit — atribuição via string em vez de delegate. |
+| `OnExitEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnExit — atribuição via string em vez de delegate. |
 | `OnExpandClick` | `TExpandClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Clique no expand/collapse de node. |
 | `OnExpandNode` | `TNodeClickEvent` | `(Sender As TObject, ARow As Integer)` | Nó da árvore foi expandido. |
 | `OnFileProgress` | `TGridProgressEvent` | `(Sender As TObject, AProgress As Integer)` | Reporta progresso durante load/save de arquivo. |
@@ -854,7 +854,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnGetEditorPropInt` | `TClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Ajuste interno de propriedades do editor (Data7). |
 | `OnGetEditorType` | `TGetEditorTypeEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AEditor As TEditorType)` | Permite escolher dinamicamente o tipo de editor da célula. |
 | `OnGetEditText` | `TGetEditEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Value As String)` | Permite definir o texto inicial mostrado no editor inline. |
-| `OnGetEditTextEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnGetEditText. |
+| `OnGetEditTextEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnGetEditText. |
 | `OnGetFloatFormat` | `TFloatFormatEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AFormat As String)` | Permite definir o formato de exibição de células numéricas. |
 | `OnGetInplaceEditor` | `TGridGetInplaceEditorEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AEditor As TWinControl)` | Permite fornecer um inplace editor customizado para a célula. |
 | `OnGetInplaceEditorProperties` | `TGridGetInplaceEditorPropertiesEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Permite ajustar as propriedades do inplace editor por célula. |
@@ -871,7 +871,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnIsFixedCell` | `TIsFixedCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef IsFixed As Boolean)` | Permite tratar uma célula como fixa dinamicamente. |
 | `OnIsFixedHoverCell` | `TIsFixedCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef IsFixed As Boolean)` | Permite tratar uma célula fixa como hover dinamicamente. |
 | `OnIsPasswordCell` | `TIsPasswordCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef IsPassword As Boolean)` | Permite tratar uma célula como password dinamicamente. |
-| `OnKeyPressEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnKeyPress. |
+| `OnKeyPressEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnKeyPress. |
 | `OnLoadCell` | `TCellSaveLoadEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AValue As String)` | Deserialização customizada por célula. |
 | `OnMarcaDesmarcaLinhaParaExclusao` | `TMarcaDesmarcaLinhaParaExclusaoEvent` | `(Sender As TObject, ARow As Integer, Marcado As Boolean)` | Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão. |
 | `OnMouseActivate` | `TMethod` | `(Sender As TObject)` | Disparado quando o controle é ativado por clique do mouse — placeholder TMethod. |
@@ -917,12 +917,12 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnSearchFooterSearch` | `TSearchFooterSearchEvent` | `(Sender As TObject, AValue As String, ByRef Found As Boolean)` | Busca incremental no search footer. |
 | `OnSearchFooterSearchEnd` | `TSearchFooterSearchEndEvent` | `(Sender As TObject, AValue As String)` | Encerramento da busca no search footer. |
 | `OnSelectCell` | `TSelectCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef CanSelect As Boolean)` | Disparado ao selecionar uma célula — permite vetar a seleção. |
-| `OnSelectCellEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnSelectCell. |
+| `OnSelectCellEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnSelectCell. |
 | `OnSelectionChanged` | `TSelectionChanged` | `(Sender As TObject)` | Mudança na seleção (linha/coluna/célula). |
 | `OnSelectionResize` | `TMethod` | `(Sender As TObject)` | Início do resize de uma seleção (placeholder TMethod). |
 | `OnSelectionResized` | `TMethod` | `(Sender As TObject)` | Resize de seleção concluído (placeholder TMethod). |
 | `OnSetEditText` | `TSetEditEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Value As String)` | Disparado ao gravar o texto digitado pelo editor inline. |
-| `OnSetEditTextEvent` | `UnicodeString` | `(...)` | Nome do método (string) chamado no evento OnSetEditText. |
+| `OnSetEditTextEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnSetEditText. |
 | `OnShowFilterEdit` | `TShowFilterEditEvent` | `(Sender As TObject, ACol As Integer, ByRef AllowShow As Boolean)` | Permite vetar a exibição do filtro de uma coluna. |
 | `OnSpinClick` | `TSpinClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Value As Integer)` | Clique no spin embarcado. |
 | `OnStartDock` | `TMethod` | `(Sender As TObject)` | Início de operação de dock — placeholder TMethod. |

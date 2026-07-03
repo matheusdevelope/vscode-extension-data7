@@ -66,7 +66,7 @@ describe("MCP server e2e — resource reads", () => {
   test("official article reads (dotted qualified name)", async () => {
     if (listOfficialArticles().length === 0) return;
     const r = await client.readResource({ uri: "data7://official/Collections.StringList.Add" });
-    assert.match(firstText(r), /UnicodeString/);
+    assert.match(firstText(r), /String/);
   });
 
   test("meta snapshot reports the capability counts", async () => {

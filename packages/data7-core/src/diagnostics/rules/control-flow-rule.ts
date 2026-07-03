@@ -21,6 +21,7 @@ import type {
   InlineIfThenPayload,
   MissingThenPayload,
   InvalidInterpolationPayload,
+  MissingReturnTypePayload,
   NotEnumerablePayload,
   ElseIfWhitespacePayload,
   ReturnUnrecommendedPayload,
@@ -166,6 +167,17 @@ export class ControlFlowRule implements Rule {
       return;
     }
 
+    // Check for Function declared without a return type.
+    // The AST stores returnType = undefined for both Sub and Function-without-As,
+    // so we inspect the source line to distinguish them.
+    if (
+      !node.isConstructor &&
+      !node.returnType &&
+      node.loc
+    ) {
+      this.checkMissingReturnType(node, context);
+    }
+
     const isFunction =
       node.returnType && typeRefToString(node.returnType)?.toLowerCase() !== "void";
     if (isFunction) {
@@ -193,6 +205,35 @@ export class ControlFlowRule implements Rule {
       vscode.DiagnosticSeverity.Warning,
     );
     diag.code = DiagnosticCodes.DeclarationParenthesesMismatch;
+    context.report(diag);
+  }
+
+  private checkMissingReturnType(node: MethodDeclaration, context: RuleContext): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const lineText = context.lines[lineIdx] ?? "";
+    // Use the source line to detect the `Function` keyword.
+    // Match against the token at the declaration start, skipping modifiers.
+    if (!isFunctionKeywordLine(lineText)) return;
+
+    const range = new vscode.Range(
+      lineIdx,
+      node.loc.startChar,
+      lineIdx,
+      node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `A declaração da função "${node.name}" não especifica o tipo de retorno. Use "Function ${node.name}(...) As <Tipo>".`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.MissingReturnType;
+    const payload: MissingReturnTypePayload = {
+      code: DiagnosticCodes.MissingReturnType,
+      declarationName: node.name,
+      declarationKind: "function",
+    };
+    setDiagnosticPayload(diag, payload);
     context.report(diag);
   }
 
@@ -948,4 +989,38 @@ export class ControlFlowRule implements Rule {
     setDiagnosticPayload(diag, payload);
     context.report(diag);
   }
+}
+
+/**
+ * Returns `true` when the source line represents a `Function` declaration (rather than a `Sub`).
+ *
+ * The AST does not store whether a `MethodDeclaration` was introduced by the `Function` or `Sub`
+ * keyword — both result in `returnType: undefined` when no `As <Type>` clause is present.
+ * We therefore inspect the raw line text, skipping known modifiers before the keyword.
+ */
+function isFunctionKeywordLine(lineText: string): boolean {
+  const MODIFIERS = new Set([
+    "public",
+    "private",
+    "protected",
+    "friend",
+    "shared",
+    "overridable",
+    "notoverridable",
+    "mustoverride",
+    "overrides",
+    "shadows",
+    "static",
+    "mustinherit",
+    "notinheritable",
+  ]);
+
+  const trimmed = lineText.trimStart();
+  const tokens = trimmed.split(/\s+/);
+  for (const token of tokens) {
+    const lower = token.toLowerCase();
+    if (MODIFIERS.has(lower)) continue;
+    return lower === "function";
+  }
+  return false;
 }

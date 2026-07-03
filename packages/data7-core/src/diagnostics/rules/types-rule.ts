@@ -14,6 +14,10 @@ import type {
   PropertyDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
+import type {
+  MissingReturnTypePayload,
+  // AutoNewNonDefaultCtorPayload,
+} from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { DiagnosticsLinter } from "../diagnostics";
 import { TypeResolver } from "../../analysis/type-resolver";
@@ -49,7 +53,35 @@ export class TypesRule implements Rule {
       case "MethodInvocation":
         this.checkLambdaArguments(node, context);
         break;
+      case "PropertyDeclaration":
+        this.checkPropertyMissingType(node, context);
+        break;
     }
+  }
+
+  private checkPropertyMissingType(node: PropertyDeclaration, context: RuleContext): void {
+    // The parser produces an empty TypeReference (name === "") when `As <Type>` is absent.
+    if (node.type.name !== "" || !node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const range = new vscode.Range(
+      lineIdx,
+      node.loc.startChar,
+      lineIdx,
+      node.loc.endChar,
+    );
+    const diag = new vscode.Diagnostic(
+      range,
+      `A declaração da property "${node.name}" não especifica o tipo de retorno. Use "Property ${node.name} As <Tipo>".`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.MissingReturnType;
+    const payload: MissingReturnTypePayload = {
+      code: DiagnosticCodes.MissingReturnType,
+      declarationName: node.name,
+      declarationKind: "property",
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
   }
 
   private checkObjectCreationExpression(
@@ -74,6 +106,10 @@ export class TypesRule implements Rule {
         diag.code = DiagnosticCodes.AbstractInstantiation;
         context.report(diag);
       }
+
+      // Validate constructor arity: find all `Sub New` members and check that
+      // at least one overload accepts the given number of arguments.
+      // this.checkConstructorArity(node, context);
     }
 
     if (!node.noParentheses || !node.type.loc) return;
@@ -91,6 +127,59 @@ export class TypesRule implements Rule {
     diag.code = DiagnosticCodes.ObjectCreationParenthesesMissing;
     context.report(diag);
   }
+
+  // private checkConstructorArity(
+  //   node: ObjectCreationExpression,
+  //   context: RuleContext,
+  // ): void {
+  //   if (!node.loc) return;
+  //   const typeName = node.type.name;
+  //   // Find all declared constructors (Sub New) on the class.
+  //   const allMembers = TypeResolver.getAllMembersForType(typeName, context.indexer);
+  //   const constructors = allMembers.filter(
+  //     (m) => m.kind === "method" && m.name.toLowerCase() === "new",
+  //   );
+  //   // If the class has no explicit constructor, the default one accepts zero args.
+  //   if (constructors.length === 0) return;
+
+  //   const givenCount = node.arguments.length;
+
+  //   // Build all valid parameter lists (primary + overloads) for each constructor symbol.
+  //   const allSignatures: readonly (readonly { isOptional: boolean }[])[] = constructors.flatMap(
+  //     (ctor) => [ctor.parameters ?? [], ...(ctor.overloads ?? [])],
+  //   );
+
+  //   // A signature accepts the call if:
+  //   //  - givenCount <= total params, AND
+  //   //  - givenCount >= required params (params without a defaultValue)
+  //   const anyMatches = allSignatures.some((params) => {
+  //     const required = params.filter((p) => !p.isOptional).length;
+  //     return givenCount >= required && givenCount <= params.length;
+  //   });
+
+  //   if (anyMatches) return;
+
+  //   const lineIdx = Math.max(0, node.loc.startLine - 1);
+  //   const range = new vscode.Range(
+  //     lineIdx,
+  //     node.loc.startChar,
+  //     lineIdx,
+  //     node.loc.startChar + Math.max("New ".length + typeName.length, 1),
+  //   );
+  //   const diag = new vscode.Diagnostic(
+  //     range,
+  //     `Nenhum construtor de "${typeName}" aceita ${givenCount} argumento(s). ` +
+  //       `Verifique os parâmetros dos construtores declarados.`,
+  //     vscode.DiagnosticSeverity.Error,
+  //   );
+  //   diag.code = DiagnosticCodes.AutoNewNonDefaultCtor;
+  //   const payload: AutoNewNonDefaultCtorPayload = {
+  //     code: DiagnosticCodes.AutoNewNonDefaultCtor,
+  //     typeName,
+  //   };
+  //   setDiagnosticPayload(diag, payload);
+  //   context.report(diag);
+  // }
 
   private checkTypeReference(node: TypeReference, context: RuleContext): void {
     if (!node.loc) return;
@@ -585,10 +674,10 @@ export class TypesRule implements Rule {
     context: RuleContext,
   ):
     | {
-        readonly name: string;
-        readonly returnType: string;
-        readonly parameters: readonly { readonly name: string; readonly type: string }[];
-      }
+      readonly name: string;
+      readonly returnType: string;
+      readonly parameters: readonly { readonly name: string; readonly type: string }[];
+    }
     | undefined {
     const delegateRef = parseGenericTypeName(delegateType);
     const delegate =
@@ -643,11 +732,11 @@ export class TypesRule implements Rule {
             result.push(
               statement.expression
                 ? (TypeResolver.resolveExpressionType(
-                    statement.expression,
-                    context.document,
-                    Math.max(0, (statement.loc?.startLine ?? lineIdx + 1) - 1),
-                    context.indexer,
-                  ) ?? "Variant")
+                  statement.expression,
+                  context.document,
+                  Math.max(0, (statement.loc?.startLine ?? lineIdx + 1) - 1),
+                  context.indexer,
+                ) ?? "Variant")
                 : "Void",
             );
             break;
@@ -744,11 +833,11 @@ export class TypesRule implements Rule {
   ): void {
     const range = node.loc
       ? new vscode.Range(
-          node.loc.startLine - 1,
-          node.loc.startChar,
-          node.loc.endLine - 1,
-          node.loc.endChar,
-        )
+        node.loc.startLine - 1,
+        node.loc.startChar,
+        node.loc.endLine - 1,
+        node.loc.endChar,
+      )
       : new vscode.Range(fallbackLineIdx, 0, fallbackLineIdx, 1);
     const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
     diag.code = DiagnosticCodes.LambdaSignatureMismatch;
@@ -809,11 +898,11 @@ export class TypesRule implements Rule {
       if (!declaredMethodNames.has(method.name.toLowerCase())) {
         const range = node.loc
           ? new vscode.Range(
-              node.loc.startLine - 1,
-              node.loc.startChar,
-              node.loc.startLine - 1,
-              node.loc.endChar,
-            )
+            node.loc.startLine - 1,
+            node.loc.startChar,
+            node.loc.startLine - 1,
+            node.loc.endChar,
+          )
           : new vscode.Range(0, 0, 0, 1);
         const diag = new vscode.Diagnostic(
           range,
@@ -861,11 +950,11 @@ export class TypesRule implements Rule {
   ): void {
     const range = member.loc
       ? new vscode.Range(
-          member.loc.startLine - 1,
-          member.loc.startChar,
-          member.loc.startLine - 1,
-          member.loc.endChar,
-        )
+        member.loc.startLine - 1,
+        member.loc.startChar,
+        member.loc.startLine - 1,
+        member.loc.endChar,
+      )
       : new vscode.Range(0, 0, 0, 1);
     const reason = inherited
       ? `o membro herdado em "${baseClassName}" nao é Overridable`

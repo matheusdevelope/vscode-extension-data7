@@ -144,6 +144,7 @@ export type SystemContainer =
   | "TCustomEdit"
   | "TCustomButtonedEdit"
   | "TButtonedEdit"
+  | "TEditLink"
 
   // ───────── Forms — non-visual / utility components ─────────
   | "Timer"

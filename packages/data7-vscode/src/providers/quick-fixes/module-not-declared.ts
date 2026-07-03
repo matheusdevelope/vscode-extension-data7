@@ -20,7 +20,7 @@ export function addDeclareDependencyFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
   action.command = {
     title: action.title,
     command: "data7.installModule",

@@ -23,7 +23,7 @@ export function addSharedReturnGlobalFunctionFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
 
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, resolved.range, resolved.replacement);

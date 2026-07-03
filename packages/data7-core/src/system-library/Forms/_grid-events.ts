@@ -927,6 +927,7 @@ const events: readonly EventSpec[] = [
       { name: "Sender", type: "TObject" },
       { name: "ACol", type: "Integer" },
       { name: "ARow", type: "Integer" },
+      { name: "pEdit", type: "Forms.GridEditorLink" },
     ],
     description: "Permite ajustar propriedades do editor (cor, fonte) por célula.",
   },

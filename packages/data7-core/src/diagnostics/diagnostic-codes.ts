@@ -269,6 +269,19 @@ export const DiagnosticCodes = {
    * the type to resolve the conflict.
    */
   NamespaceNameConflict: "namespace-name-conflict",
+  /**
+   * A `Function` or `Property` declaration is missing its return type (`As <Type>`).
+   * Every `Function` and every `Property` must declare an explicit return type so the
+   * linter can validate call sites and assignments against it.
+   */
+  MissingReturnType: "missing-return-type",
+  /**
+   * A member (method or property) was accessed directly on a `New T()` expression
+   * without storing the instance first. This is not allowed in Data7 because the
+   * runtime cannot call a member on a transient object — you must store the instance
+   * in a variable first: `Dim obj As New T() : obj.Member()`.
+   */
+  ChainedInstantiationAccess: "chained-instantiation-access",
 } as const;
 
 export type DiagnosticCode = (typeof DiagnosticCodes)[keyof typeof DiagnosticCodes];
@@ -630,6 +643,26 @@ export interface NamespaceNameConflictPayload {
   memberKind: string;
 }
 
+/**
+ * Payload for `MissingReturnType`: identifies which declaration is missing the type.
+ */
+export interface MissingReturnTypePayload {
+  code: typeof DiagnosticCodes.MissingReturnType;
+  /** Name of the Function or Property lacking a return type. */
+  declarationName: string;
+  /** Whether the declaration is a property or a function/method. */
+  declarationKind: "property" | "function";
+}
+
+/**
+ * Payload for `ChainedInstantiationAccess`: identifies the type being instantiated.
+ */
+export interface ChainedInstantiationAccessPayload {
+  code: typeof DiagnosticCodes.ChainedInstantiationAccess;
+  /** Name of the class being instantiated in the chained expression. */
+  typeName: string;
+}
+
 export type DiagnosticPayload =
   | MissingImportPayload
   | ModuleNotDeclaredPayload
@@ -668,7 +701,9 @@ export type DiagnosticPayload =
   | SharedReturnGlobalFunctionPayload
   | ReturnAssignmentInCatchPayload
   | InlineIfThenPayload
-  | NamespaceNameConflictPayload;
+  | NamespaceNameConflictPayload
+  | MissingReturnTypePayload
+  | ChainedInstantiationAccessPayload;
 
 /**
  * Attaches a typed `DiagnosticPayload` to a `vscode.Diagnostic.data`. Centralised

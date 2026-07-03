@@ -22,7 +22,7 @@ describe("data7_get_official_example — articles.json bundle", () => {
     const article = findOfficialArticle("Collections.StringList.Add");
     assert.ok(article, "expected article for StringList.Add");
     assert.ok(article.signature, "signature should be extracted");
-    assert.match(article.signature, /UnicodeString/);
+    assert.match(article.signature, /String/);
     assert.ok(article.description?.length, "description should be populated");
     assert.ok(article.example?.length, "example code should be populated");
   });

@@ -29,7 +29,7 @@ A lista canônica vive em [`src/utils/primitive-types.ts`](../../src/utils/primi
 | `Long` | inteiro 64 bits no Data7 (Int64) | `0` | usado em IDs |
 | `Double` | ponto flutuante 64 bits | `0.0` | inclui `Single` (32 bits), `Real` (alias `Double`), `Extended` |
 | `Boolean` | `True` / `False` | `False` | comparações curto-circuito com `And`/`Or` |
-| `String` | string de comprimento variável | `""` | UTF-16 internamente (`UnicodeString`) |
+| `String` | string de comprimento variável | `""` | UTF-16 internamente (`String`) |
 | `Char` | um caractere | `Chr(0)` | raramente usado direto |
 | `Byte` | inteiro 8 bits sem sinal | `0` | |
 | `Variant` | qualquer valor — discriminado em runtime | `NULL` (Empty) | escape hatch para tipagem dinâmica |
@@ -138,7 +138,7 @@ Esses nomes aparecem em assinaturas da System Library. São **aliases** — equi
 | `Real` | `Double` |
 | `Extended` | `Double` de precisão estendida (80 bits no Delphi clássico) |
 | `Single` | `Double` de precisão simples (32 bits) |
-| `UnicodeString` | `String` |
+| `String` | `String` |
 | `ShortString` | string Pascal-style com limite de 255 bytes |
 | `WideChar` | `Char` UTF-16 |
 | `TClass` | metaclasse (referência ao tipo, retornado por `obj.ClassType()`) |

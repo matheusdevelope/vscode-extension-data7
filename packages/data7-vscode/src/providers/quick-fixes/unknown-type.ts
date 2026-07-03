@@ -22,7 +22,7 @@ export function addUnknownTypeDidYouMeanFixes(
         vscode.CodeActionKind.QuickFix,
       );
       action.diagnostics = [diagnostic];
-      action.isPreferred = index === 0;
+      action.isPreferred = false;
       const edit = new vscode.WorkspaceEdit();
       edit.replace(document.uri, diagnostic.range, suggestion);
       action.edit = edit;
@@ -57,6 +57,7 @@ function createExternalTypeLineFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
+  action.isPreferred = false;
 
   const line = diagnostic.range.start.line;
   const edit = new vscode.WorkspaceEdit();
@@ -79,6 +80,7 @@ function createExternalTypeScopeFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
+  action.isPreferred = false;
 
   const scopeLine = findNearestScopeStartLine(document, diagnostic.range.start.line);
   const indent = /^(\s*)/.exec(document.lineAt(scopeLine).text)?.[1] ?? "";
@@ -103,6 +105,7 @@ function createExternalTypeFileFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
+  action.isPreferred = false;
 
   const eol = (document.eol as unknown) === 1 ? "\n" : "\r\n";
   const edit = new vscode.WorkspaceEdit();
@@ -151,6 +154,7 @@ export function addUnknownTypeDidYouMeanBulkFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
+  action.isPreferred = false;
 
   const sorted = [...mismatches].sort((a, b) => b.range.start.line - a.range.start.line);
   const edit = new vscode.WorkspaceEdit();

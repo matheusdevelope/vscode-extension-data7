@@ -557,11 +557,11 @@ export class MembersRule implements Rule {
       }
       const range = argument.loc
         ? new vscode.Range(
-            argument.loc.startLine - 1,
-            argument.loc.startChar,
-            argument.loc.endLine - 1,
-            argument.loc.endChar,
-          )
+          argument.loc.startLine - 1,
+          argument.loc.startChar,
+          argument.loc.endLine - 1,
+          argument.loc.endChar,
+        )
         : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
       const diag = new vscode.Diagnostic(
         range,
@@ -654,11 +654,11 @@ export class MembersRule implements Rule {
 
       const range = argument.loc
         ? new vscode.Range(
-            argument.loc.startLine - 1,
-            argument.loc.startChar,
-            argument.loc.endLine - 1,
-            argument.loc.endChar,
-          )
+          argument.loc.startLine - 1,
+          argument.loc.startChar,
+          argument.loc.endLine - 1,
+          argument.loc.endChar,
+        )
         : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
       const diag = new vscode.Diagnostic(
         range,
@@ -751,12 +751,12 @@ export class MembersRule implements Rule {
         : undefined;
       return this.asCallableSymbol(
         activeClassMember ??
-          TypeResolver.findUnqualifiedCallable(
-            argument.name,
-            context.document,
-            lineIdx,
-            context.indexer,
-          ),
+        TypeResolver.findUnqualifiedCallable(
+          argument.name,
+          context.document,
+          lineIdx,
+          context.indexer,
+        ),
       );
     }
 
@@ -799,15 +799,15 @@ export class MembersRule implements Rule {
     context: RuleContext,
   ):
     | {
+      readonly name: string;
+      readonly returnType: string;
+      readonly parameters: readonly {
         readonly name: string;
-        readonly returnType: string;
-        readonly parameters: readonly {
-          readonly name: string;
-          readonly type: string;
-          readonly isOptional?: boolean;
-          readonly defaultValue?: string;
-        }[];
-      }
+        readonly type: string;
+        readonly isOptional?: boolean;
+        readonly defaultValue?: string;
+      }[];
+    }
     | undefined {
     const delegateRef = parseGenericTypeName(delegateType);
     let delegate =
@@ -845,9 +845,9 @@ export class MembersRule implements Rule {
     context: RuleContext,
   ):
     | {
-        readonly delegate: SymbolInfo;
-        readonly typeArguments: readonly string[];
-      }
+      readonly delegate: SymbolInfo;
+      readonly typeArguments: readonly string[];
+    }
     | undefined {
     const lower = delegateType.toLowerCase();
     const candidates = [
@@ -988,7 +988,7 @@ export class MembersRule implements Rule {
         const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
         const diag = new vscode.Diagnostic(
           range,
-          `O tipo primitivo "${target.name}" não possui membros estáticos acessÃ­veis. Acesso ".${expr.member}" é inválido.`,
+          `O tipo primitivo "${target.name}" não possui membros estáticos acessí­veis. Acesso ".${expr.member}" é inválido.`,
           vscode.DiagnosticSeverity.Error,
         );
         diag.code = DiagnosticCodes.LooseTypeStatement;
@@ -1003,7 +1003,7 @@ export class MembersRule implements Rule {
         const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
         const diag = new vscode.Diagnostic(
           range,
-          `O tipo primitivo "${calleeName}" não possui membros estáticos acessÃ­veis. Acesso ".${expr.methodName}" é inválido.`,
+          `O tipo primitivo "${calleeName}" não possui membros estáticos acessí­veis. Acesso ".${expr.methodName}" é inválido.`,
           vscode.DiagnosticSeverity.Error,
         );
         diag.code = DiagnosticCodes.LooseTypeStatement;
@@ -1172,7 +1172,7 @@ export class MembersRule implements Rule {
   ): void {
     const diag = new vscode.Diagnostic(
       range,
-      `Membro "${memberName}" não pode ser resolvido porque o tipo "${typeName}" não foi encontrado ou não está acessÃ­vel neste escopo.`,
+      `Membro "${memberName}" não pode ser resolvido porque o tipo "${typeName}" não foi encontrado ou não está acessí­vel neste escopo.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.UnknownMember;

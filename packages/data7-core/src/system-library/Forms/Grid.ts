@@ -340,7 +340,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "StyleName",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do style VCL aplicado ao controle.",
   },
 
@@ -540,7 +540,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "FilterDropDownClear",
-    type: "UnicodeString",
+    type: "String",
     description: 'Texto exibido no item "limpar filtro" do dropdown.',
   },
   {
@@ -550,7 +550,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "FilterDropDownCheckUnCheckAll",
-    type: "UnicodeString",
+    type: "String",
     description: 'Texto exibido no item "marcar/desmarcar tudo" do dropdown.',
   },
   {
@@ -618,7 +618,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "FloatFormat",
-    type: "UnicodeString",
+    type: "String",
     description:
       "Formato Delphi (FormatFloat) usado para renderização de números reais nas células.",
   },
@@ -646,7 +646,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "EditMask",
-    type: "UnicodeString",
+    type: "String",
     description: "Máscara de entrada (igual à de TEdit) aplicada ao editor inline.",
   },
   {
@@ -668,7 +668,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "ValidChars",
-    type: "UnicodeString",
+    type: "String",
     description: "Conjunto de caracteres aceitos pelo editor inline.",
   },
   {
@@ -678,7 +678,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "InvalidEntryTitle",
-    type: "UnicodeString",
+    type: "String",
     description: "Título da mensagem mostrada quando uma entrada é rejeitada.",
   },
   {
@@ -688,12 +688,12 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "InvalidEntryText",
-    type: "UnicodeString",
+    type: "String",
     description: "Texto exibido quando uma entrada é rejeitada.",
   },
   {
     name: "OriginalCellValue",
-    type: "UnicodeString",
+    type: "String",
     description: "Valor original da célula antes da edição corrente (usado em OnCellValidate).",
   },
   {
@@ -935,7 +935,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "Version",
-    type: "UnicodeString",
+    type: "String",
     description: "Versão do componente TMS subjacente (string).",
   },
   {
@@ -1031,7 +1031,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "CurrentCell",
-    type: "UnicodeString",
+    type: "String",
     description: 'Coordenada string da célula corrente ("A1", "B2", ...).',
   },
   { name: "CurrentEditor", type: "TEditorType", description: "Tipo do editor inline corrente." },
@@ -1085,7 +1085,7 @@ const properties: readonly PropertySpec[] = [
   // ───────── CSV / persistence ─────────
   {
     name: "CSVLineBreak",
-    type: "UnicodeString",
+    type: "String",
     description: "Sequência usada para quebrar linhas ao exportar CSV.",
   },
   { name: "Delimiter", type: "WideChar", description: "Caractere delimitador usado em CSV." },
@@ -1151,7 +1151,7 @@ const properties: readonly PropertySpec[] = [
     type: "Boolean",
     description: "Remove espaços extras das células lidas do CSV.",
   },
-  { name: "XMLEncoding", type: "UnicodeString", description: "Encoding declarado na saída XML." },
+  { name: "XMLEncoding", type: "String", description: "Encoding declarado na saída XML." },
 
   // ───────── Search / find ─────────
   {
@@ -1177,7 +1177,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "IncrSearchText",
-    type: "UnicodeString",
+    type: "String",
     description: "Texto da busca incremental corrente.",
   },
   {
@@ -1194,12 +1194,12 @@ const properties: readonly PropertySpec[] = [
   // ───────── Tag values for checkbox cells ─────────
   {
     name: "CheckTrue",
-    type: "UnicodeString",
+    type: "String",
     description: "Texto que representa o valor True em células checkbox.",
   },
   {
     name: "CheckFalse",
-    type: "UnicodeString",
+    type: "String",
     description: "Texto que representa o valor False em células checkbox.",
   },
 
@@ -1226,7 +1226,7 @@ const properties: readonly PropertySpec[] = [
   },
   {
     name: "VersionString",
-    type: "UnicodeString",
+    type: "String",
     description: "Versão (string) do TMS Software subjacente.",
   },
   {
@@ -1899,91 +1899,91 @@ const properties: readonly PropertySpec[] = [
     isUnsupported: true,
   },
 
-  // ───────── Eventos legados expostos como UnicodeString (Data7) ─────────
+  // ───────── Eventos legados expostos como String (Data7) ─────────
   {
     name: "OnExitEvent",
-    type: "UnicodeString",
+    type: "String",
     description:
       "Nome do método (string) chamado no evento OnExit — atribuição via string em vez de delegate.",
   },
   {
     name: "OnEnterEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnEnter.",
   },
   {
     name: "OnClickEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnClick.",
   },
   {
     name: "OnDblClickEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnDblClick.",
   },
   {
     name: "OnKeyPressEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnKeyPress.",
   },
   {
     name: "OnDrawCellEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnDrawCell.",
   },
   {
     name: "OnSelectCellEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnSelectCell.",
   },
   {
     name: "OnCanEditCellEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCanEditCell.",
   },
   {
     name: "OnCanClickCellEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCanClickCell.",
   },
   {
     name: "OnCanDeleteRowEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCanDeleteRow.",
   },
   {
     name: "OnCanInsertRowEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCanInsertRow.",
   },
   {
     name: "OnCanAddRowEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCanAddRow.",
   },
   {
     name: "OnSetEditTextEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnSetEditText.",
   },
   {
     name: "OnGetEditTextEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnGetEditText.",
   },
   {
     name: "OnCellValidateEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCellValidate.",
   },
   {
     name: "OnCellsChangedEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnCellsChanged.",
   },
   {
     name: "OnEditChangeEvent",
-    type: "UnicodeString",
+    type: "String",
     description: "Nome do método (string) chamado no evento OnEditChange.",
   },
 ];
@@ -3052,13 +3052,13 @@ const methods: readonly MethodSpec[] = [
     params: [
       { name: "ACol", type: "Integer" },
       { name: "ARow", type: "Integer" },
-      { name: "Value", type: "UnicodeString" },
+      { name: "Value", type: "String" },
     ],
     description: "Define o nome da fonte de uma célula.",
   },
   {
     name: "FontName",
-    returns: "UnicodeString",
+    returns: "String",
     params: [{ name: "ARow", type: "Integer" }],
     description: "Define ou retorna o nome da fonte.",
     indexed: true,
@@ -3127,7 +3127,7 @@ const methods: readonly MethodSpec[] = [
   {
     name: "LoadFromXLS",
     returns: "Void",
-    params: [{ name: "Filename", type: "UnicodeString" }],
+    params: [{ name: "Filename", type: "String" }],
     description: "Carrega o conteúdo de um arquivo XLS para o grid.",
   },
 
@@ -3171,7 +3171,7 @@ const methods: readonly MethodSpec[] = [
   {
     name: "ColumnByHeader",
     returns: "Integer",
-    params: [{ name: "AValue", type: "UnicodeString" }],
+    params: [{ name: "AValue", type: "String" }],
     description: "Retorna o índice da coluna cujo header bate com AValue.",
   },
   {
@@ -3703,27 +3703,27 @@ const methods: readonly MethodSpec[] = [
   {
     name: "ExportToExcel",
     returns: "Void",
-    params: [{ name: "FilePath", type: "UnicodeString" }],
+    params: [{ name: "FilePath", type: "String" }],
     description: "Exporta o conteúdo do grid para um arquivo Excel.",
   },
   {
     name: "ExportToJson",
     returns: "Void",
-    params: [{ name: "FilePath", type: "UnicodeString" }],
+    params: [{ name: "FilePath", type: "String" }],
     description: "Exporta o conteúdo do grid para um arquivo JSON.",
   },
   {
     name: "ExportToXml",
     returns: "Void",
-    params: [{ name: "FilePath", type: "UnicodeString" }],
+    params: [{ name: "FilePath", type: "String" }],
     description: "Exporta o conteúdo do grid para um arquivo XML.",
   },
   {
     name: "ExportToTxt",
     returns: "Void",
     params: [
-      { name: "FilePath", type: "UnicodeString" },
-      { name: "delimitador", type: "UnicodeString" },
+      { name: "FilePath", type: "String" },
+      { name: "delimitador", type: "String" },
     ],
     description: "Exporta o conteúdo do grid para um arquivo TXT.",
   },
@@ -3731,8 +3731,8 @@ const methods: readonly MethodSpec[] = [
     name: "ExportToCsv",
     returns: "Void",
     params: [
-      { name: "FilePath", type: "UnicodeString" },
-      { name: "delimitador", type: "UnicodeString" },
+      { name: "FilePath", type: "String" },
+      { name: "delimitador", type: "String" },
     ],
     description: "Exporta o conteúdo do grid para um arquivo CSV.",
   },

@@ -201,8 +201,8 @@ AnsiString.ToLongBool as LongBool
 AnsiString.ToWordBool as WordBool
 AnsiString.ToUTF8 as UTF8String
 AnsiString.FromUTF8(const Value as UTF8String) as AnsiString
-AnsiString.ToUnicode as UnicodeString
-AnsiString.FromUnicode(const Value as UnicodeString) as AnsiString
+AnsiString.ToUnicode as String
+AnsiString.FromUnicode(const Value as String) as AnsiString
 AnsiString.ToBase64 as AnsiString
 AnsiString.FromBase64(const Value as AnsiString) as AnsiString
 AnsiString.ISOToBoolean as Boolean
