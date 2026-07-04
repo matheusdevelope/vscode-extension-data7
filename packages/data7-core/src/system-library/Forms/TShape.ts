@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,8 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TShape",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TGraphicControl",
     description:
@@ -22,8 +23,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Variant",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TShape",
     description: "Cor e padrão usados para preencher a forma.",
   },
@@ -33,8 +34,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TPen",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TShape",
     description: "Caneta usada para desenhar o contorno da forma.",
   },
@@ -44,8 +45,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TShape",
     description:
       "Tipo da forma desenhada (stRectangle, stSquare, stRoundRect, stCircle, stEllipse, etc.).",

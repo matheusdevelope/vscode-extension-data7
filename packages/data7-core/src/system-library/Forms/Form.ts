@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -8,13 +9,8 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     parameters: [],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms.Form",
     description: "Exibe o formulário e retorna False se o usuário cancelar ou clicar no ESC.",
   },
@@ -24,13 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Form",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TForm",
     description:

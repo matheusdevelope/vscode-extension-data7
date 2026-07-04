@@ -1,5 +1,5 @@
-import type { SystemSymbolInfo } from "../types";
 import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
+import type { SystemSymbolInfo } from "../types";
 
 /**
  * Aliases e tipos auxiliares usados pelas propriedades de `SQL.Command` que

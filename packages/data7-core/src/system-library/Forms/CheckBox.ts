@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,8 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "CheckBox",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TcxCustomEdit",
     description:
@@ -22,8 +23,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Boolean",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "CheckBox",
     description:
       "Indica se a caixa está marcada (True) ou desmarcada (False). Atalho para State = cbsChecked.",
@@ -34,8 +35,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "CheckBox",
     description:
       "Estado da caixa: cbsUnchecked (0), cbsChecked (1) ou cbsGrayed (2 — apenas quando AllowGrayed = True).",
@@ -49,8 +50,8 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     parameters: [],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "CheckBox",
     description:
       "Alterna o estado da caixa entre marcado e desmarcado (e cinza, quando AllowGrayed = True).",

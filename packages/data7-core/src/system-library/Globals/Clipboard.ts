@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Clipboard",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     inheritsFrom: "TObject",
     description: "Classe nativa do sistema para manipulação da área de transferência (Clipboard).",
   },
@@ -23,13 +19,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "String",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Clipboard",
     description: "Retorna o texto da área de transferência.",
   },
@@ -47,13 +38,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Clipboard",
     description: "Define o texto na área de transferência.",
   },

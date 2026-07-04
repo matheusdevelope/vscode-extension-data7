@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,8 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TStringList",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Collections",
     inheritsFrom: "Collections.TStrings",
     description:
@@ -24,8 +25,8 @@ export const symbols: SystemSymbolInfo[] = [
       { name: "pText", type: "String", isByRef: false, isOptional: false },
       { name: "pIndex", type: "Integer", isByRef: true, isOptional: false },
     ],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description:
       "Busca uma string na lista ordenada e retorna true se encontrada, preenchendo o índice em pIndex.",
@@ -37,8 +38,8 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     parameters: [],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description: "Ordena os itens da lista em ordem ascendente.",
   },
@@ -49,8 +50,8 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     parameters: [{ name: "pCompare", type: "TObject", isByRef: false, isOptional: false }],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description:
       "Ordena os itens da lista usando um método customizado de comparação de objetos/strings.",
@@ -61,8 +62,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Boolean",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description: "Especifica se as buscas e comparações diferenciam maiúsculas de minúsculas.",
   },
@@ -72,8 +73,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "String",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description:
       "Controla a política de inserção de duplicatas (ex: dupIgnore, dupAccept, dupError).",
@@ -84,8 +85,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Boolean",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description: "Especifica se a lista deve manter os elementos automaticamente ordenados.",
   },
@@ -95,8 +96,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Boolean",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TStringList",
     description:
       "Especifica se a lista deve liberar a memória dos objetos contidos ao limpá-la ou remover itens.",

@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { detectEnumerable } from "../../analysis/enumerable-detector";
 import type { SymbolInfo } from "../../analysis/symbol-indexer";
+import { SYSTEM_RANGE } from "../../system-library/symbol-helpers";
 
 function mkProperty(name: string, type: string): SymbolInfo {
   return {
@@ -11,7 +12,7 @@ function mkProperty(name: string, type: string): SymbolInfo {
     type,
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    range: SYSTEM_RANGE,
     fileUri: "test://fixture",
     containerName: "TFixture",
   };
@@ -25,7 +26,7 @@ function mkIndexerMethod(name: string, elementType: string): SymbolInfo {
     isShared: false,
     isPrivate: false,
     parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    range: SYSTEM_RANGE,
     fileUri: "test://fixture",
     containerName: "TFixture",
   };

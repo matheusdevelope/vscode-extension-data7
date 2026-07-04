@@ -1,6 +1,5 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 
 const bs = (name: string, description: string): SystemSymbolInfo => ({
   name: name,
@@ -8,8 +7,8 @@ const bs = (name: string, description: string): SystemSymbolInfo => ({
   type: "TBrushStyle",
   isShared: true,
   isPrivate: false,
-  range: range,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: "Drawing",
   description: description,
 });
@@ -21,8 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TBrushStyle",
     isShared: false,
     isPrivate: false,
-    range: range,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Drawing",
     description:
       "Padrão de preenchimento de uma TBrush (cor sólida ou hachura). Usado em Canvas.Brush.Style e TShape.Brush.Style.",

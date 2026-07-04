@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Estilo do Form (normal, MDI parent/child, sempre no topo). Use em Form.FormStyle.",
@@ -24,7 +25,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Form normal — não é janela MDI parent nem MDI child (0).",
   },
@@ -35,7 +36,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Form é uma janela MDI child (filha) (1).",
   },
@@ -46,7 +47,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Form é uma janela MDI parent (mãe) (2).",
   },
@@ -57,7 +58,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Form permanece sempre no topo da área de trabalho e dos demais forms do projeto (3).",

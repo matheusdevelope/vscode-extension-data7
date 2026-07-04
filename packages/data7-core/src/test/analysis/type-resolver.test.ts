@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import { TypeResolver } from "../../analysis/type-resolver";
 import { WorkspaceSymbolIndexer, type FileSymbols } from "../../analysis/symbol-indexer";
 import { expectMembers } from "../_helpers/assertions";
+import { SYSTEM_RANGE, SYSTEM_URI } from "../../system-library/symbol-helpers";
 
 describe("TypeResolver", () => {
   describe("getVariableType", () => {
@@ -303,8 +304,8 @@ End Namespace`;
           type: "TStringList",
           isShared: false,
           isPrivate: false,
-          range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-          fileUri: "system://library",
+          range: SYSTEM_RANGE,
+          fileUri: SYSTEM_URI,
           containerName: "Collections",
           inheritsFrom: "TStrings",
         }),
@@ -320,7 +321,7 @@ End Namespace`;
           type: "TUserClass",
           isShared: false,
           isPrivate: false,
-          range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+          range: SYSTEM_RANGE,
           fileUri: "file:///workspace/src/my.bas",
         }),
         "TObject",
@@ -335,8 +336,8 @@ End Namespace`;
           type: "TAlign",
           isShared: false,
           isPrivate: false,
-          range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-          fileUri: "system://library",
+          range: SYSTEM_RANGE,
+          fileUri: SYSTEM_URI,
           containerName: "Forms",
         }),
         undefined,
@@ -351,7 +352,7 @@ End Namespace`;
           type: "TObject",
           isShared: false,
           isPrivate: false,
-          range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+          range: SYSTEM_RANGE,
           fileUri: "file:///workspace/src/tobject.bas",
         }),
         undefined,

@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,14 +8,9 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
+    range: SYSTEM_RANGE,
     inheritsFrom: "TPrimitive",
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     description: "Tipo primitivo de número inteiro de 32 bits.",
   },
   {
@@ -24,13 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     parameters: [],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Integer",
     description: "Converte o valor inteiro para Double.",
   },

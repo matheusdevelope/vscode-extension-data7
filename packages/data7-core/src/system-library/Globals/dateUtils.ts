@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,8 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "dateUtils",
     isShared: true,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     description: "Utilitários globais de data e hora compatíveis com Data7.",
   },
   {
@@ -21,8 +22,8 @@ export const symbols: SystemSymbolInfo[] = [
       { name: "pFormat", type: "String", isByRef: false, isOptional: false },
       { name: "pDateTime", type: "TDateTime", isByRef: false, isOptional: false },
     ],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "dateUtils",
     description: "Formata uma data/hora usando o padrão informado.",
   },

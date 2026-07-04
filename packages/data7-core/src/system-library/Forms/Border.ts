@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,8 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Border",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TGraphicControl",
     description:
@@ -22,8 +23,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Border",
     description:
       "Forma da borda (bsBox, bsFrame, bsTopLine, bsBottomLine, bsLeftLine, bsRightLine, bsSpacer).",
@@ -34,8 +35,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Border",
     description: "Estilo visual: bsLowered (rebaixada) ou bsRaised (elevada).",
   },

@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Conjunto (set) de flags que descrevem o estado de desenho de uma célula do Grid no momento do evento OnDrawCell. Várias flags podem estar ativas simultaneamente.",
@@ -24,7 +25,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Célula está selecionada (0).",
   },
@@ -35,7 +36,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Célula está com o foco (1).",
   },
@@ -46,7 +47,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Célula está em uma coluna/linha fixa (cabeçalho) (2).",
   },
@@ -57,7 +58,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Toda a linha desta célula está selecionada (3).",
   },
@@ -68,7 +69,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Mouse está hover sobre a célula (hot-track) (4).",
   },
@@ -79,7 +80,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Célula está pressionada (botão de mouse down) (5).",
   },

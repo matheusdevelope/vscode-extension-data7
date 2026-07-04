@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo, SystemContainer } from "../types";
 
 /**
@@ -15,7 +16,6 @@ import type { SystemSymbolInfo, SystemContainer } from "../types";
  * arquivo dedicado (ver `TEditorType.ts` como referência).
  */
 
-const RANGE = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 const FORMS: SystemContainer = "Forms";
 
 interface EnumSpec {
@@ -257,8 +257,8 @@ const enumClasses: SystemSymbolInfo[] = enums.map((e) => ({
   type: e.name,
   isShared: false,
   isPrivate: false,
-  range: RANGE,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: FORMS,
   description: e.description,
 }));
@@ -270,8 +270,8 @@ const enumConstants: SystemSymbolInfo[] = enums.flatMap((e) =>
     type: e.name,
     isShared: true,
     isPrivate: false,
-    range: RANGE,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: FORMS,
     description: `Valor de ${e.name}. ${v.note}`,
   })),
@@ -283,8 +283,8 @@ const setClasses: SystemSymbolInfo[] = setStubs.map((s) => ({
   type: s.name,
   isShared: false,
   isPrivate: false,
-  range: RANGE,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: FORMS,
   description: s.description,
 }));

@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,14 +8,9 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Double",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
+    range: SYSTEM_RANGE,
     inheritsFrom: "TPrimitive",
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     description: "Tipo primitivo de número de ponto flutuante de precisão dupla de 64 bits.",
   },
   // {
@@ -30,7 +26,7 @@ export const symbols: SystemSymbolInfo[] = [
   //     endLine: 0,
   //     endChar: 0,
   //   },
-  //   fileUri: "system://library",
+  //   fileUri: SYSTEM_URI,
   //   containerName: "Double",
   //   description: "Converte o valor de ponto flutuante para uma string.",
   // },
@@ -46,7 +42,7 @@ export const symbols: SystemSymbolInfo[] = [
   //     endLine: 0,
   //     endChar: 0,
   //   },
-  //   fileUri: "system://library",
+  //   fileUri: SYSTEM_URI,
   //   inheritsFrom: "TObject",
   //   description: "Representa um número de ponto flutuante de precisão dupla (tipo primitivo).",
   // },
@@ -70,7 +66,7 @@ export const symbols: SystemSymbolInfo[] = [
   //     endLine: 0,
   //     endChar: 0,
   //   },
-  //   fileUri: "system://library",
+  //   fileUri: SYSTEM_URI,
   //   containerName: "Double",
   //   description:
   //     "Converte o valor Double para sua representação em String usando um formato opcional.",
@@ -89,13 +85,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Double",
     description: "Arredonda o valor para o número de casas decimais especificado.",
   },
@@ -113,13 +104,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Double",
     description: "Rounds the value using the requested decimal exponent.",
   },

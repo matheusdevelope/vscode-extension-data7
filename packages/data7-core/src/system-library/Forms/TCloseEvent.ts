@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -11,8 +12,8 @@ export const symbols: SystemSymbolInfo[] = [
       { name: "Sender", type: "TObject", isByRef: false, isOptional: false },
       { name: "Action", type: "Integer", isByRef: true, isOptional: false },
     ],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Assinatura do handler de Form.OnClose. Action recebe o tipo de fechamento (caNone, caHide, caFree, caMinimize) e pode ser alterado para mudar o comportamento.",

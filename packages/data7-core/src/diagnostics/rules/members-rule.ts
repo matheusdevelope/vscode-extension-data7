@@ -9,7 +9,10 @@ import type {
   VariableDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
-import type { CallParenthesesMismatchPayload } from "../diagnostic-codes";
+import type {
+  CallParenthesesMismatchPayload,
+  ChainedInstantiationAccessPayload,
+} from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { TypeResolver } from "../../analysis/type-resolver";
 import { DiagnosticsLinter } from "../diagnostics";
@@ -55,6 +58,10 @@ export class MembersRule implements Rule {
     const lineText = context.lines[lineIdx] ?? "";
     const memberRange = this.getMemberAccessMemberRange(node, lineIdx, lineText);
     const startChar = memberRange.start.character;
+
+    if (node.target.kind === "ObjectCreationExpression") {
+      this.pushChainedInstantiationAccessDiagnostic(node, node.target, context);
+    }
 
     const prefixLower = exprToString(node.target)?.toLowerCase() ?? "";
     if (
@@ -109,9 +116,12 @@ export class MembersRule implements Rule {
       context.indexer,
     );
     let isStaticAccess = false;
+    const staticAccess = this.resolveStaticReceiverAccess(node.target, context);
 
-    if (!typeName) {
-      const staticAccess = this.resolveStaticReceiverAccess(node.target, context);
+    if (this.shouldTreatAsStaticReceiver(node.target, lineIdx, context, staticAccess)) {
+      typeName = staticAccess.typeName;
+      isStaticAccess = true;
+    } else if (!typeName) {
       typeName = staticAccess.typeName;
       isStaticAccess = staticAccess.isStaticAccess;
     }
@@ -196,7 +206,9 @@ export class MembersRule implements Rule {
         }
       }
     } else if (typeName && this.shouldReportUnknownReceiverType(typeName, lineIdx, context)) {
-      this.pushUnknownReceiverTypeDiagnostic(node.member, typeName, memberRange, context);
+      if (!this.isProjectGlobalVariableReceiver(node.target, context)) {
+        this.pushUnknownReceiverTypeDiagnostic(node.member, typeName, memberRange, context);
+      }
     }
 
     const isAddressOf =
@@ -231,6 +243,10 @@ export class MembersRule implements Rule {
     let resolvedMethod: SymbolInfo | undefined;
     let resolvedDelegateVariable: SymbolInfo | undefined;
 
+    if (node.callee?.kind === "ObjectCreationExpression") {
+      this.pushChainedInstantiationAccessDiagnostic(node, node.callee, context);
+    }
+
     if (node.callee) {
       const prefixLower = exprToString(node.callee)?.toLowerCase() ?? "";
       let isStaticAccess = false;
@@ -252,8 +268,11 @@ export class MembersRule implements Rule {
           lineIdx,
           context.indexer,
         );
-        if (!typeName) {
-          const staticAccess = this.resolveStaticReceiverAccess(node.callee, context);
+        const staticAccess = this.resolveStaticReceiverAccess(node.callee, context);
+        if (this.shouldTreatAsStaticReceiver(node.callee, lineIdx, context, staticAccess)) {
+          typeName = staticAccess.typeName;
+          isStaticAccess = true;
+        } else if (!typeName) {
           typeName = staticAccess.typeName;
           isStaticAccess = staticAccess.isStaticAccess;
         }
@@ -298,6 +317,12 @@ export class MembersRule implements Rule {
               DiagnosticsLinter.collectMemberNames(typeName, context.indexer),
             );
             context.report(diag);
+          } else if (
+            exists &&
+            this.isCallableSymbol(exists) &&
+            !this.hasCallableArityMatch(typeName, node.methodName, arity, context)
+          ) {
+            this.pushInvocationArityDiagnostic(node, exists, lineIdx, startChar, context);
           } else if (
             exists &&
             isStaticAccess &&
@@ -557,11 +582,11 @@ export class MembersRule implements Rule {
       }
       const range = argument.loc
         ? new vscode.Range(
-          argument.loc.startLine - 1,
-          argument.loc.startChar,
-          argument.loc.endLine - 1,
-          argument.loc.endChar,
-        )
+            argument.loc.startLine - 1,
+            argument.loc.startChar,
+            argument.loc.endLine - 1,
+            argument.loc.endChar,
+          )
         : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
       const diag = new vscode.Diagnostic(
         range,
@@ -654,11 +679,11 @@ export class MembersRule implements Rule {
 
       const range = argument.loc
         ? new vscode.Range(
-          argument.loc.startLine - 1,
-          argument.loc.startChar,
-          argument.loc.endLine - 1,
-          argument.loc.endChar,
-        )
+            argument.loc.startLine - 1,
+            argument.loc.startChar,
+            argument.loc.endLine - 1,
+            argument.loc.endChar,
+          )
         : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
       const diag = new vscode.Diagnostic(
         range,
@@ -751,12 +776,12 @@ export class MembersRule implements Rule {
         : undefined;
       return this.asCallableSymbol(
         activeClassMember ??
-        TypeResolver.findUnqualifiedCallable(
-          argument.name,
-          context.document,
-          lineIdx,
-          context.indexer,
-        ),
+          TypeResolver.findUnqualifiedCallable(
+            argument.name,
+            context.document,
+            lineIdx,
+            context.indexer,
+          ),
       );
     }
 
@@ -799,15 +824,15 @@ export class MembersRule implements Rule {
     context: RuleContext,
   ):
     | {
-      readonly name: string;
-      readonly returnType: string;
-      readonly parameters: readonly {
         readonly name: string;
-        readonly type: string;
-        readonly isOptional?: boolean;
-        readonly defaultValue?: string;
-      }[];
-    }
+        readonly returnType: string;
+        readonly parameters: readonly {
+          readonly name: string;
+          readonly type: string;
+          readonly isOptional?: boolean;
+          readonly defaultValue?: string;
+        }[];
+      }
     | undefined {
     const delegateRef = parseGenericTypeName(delegateType);
     let delegate =
@@ -845,9 +870,9 @@ export class MembersRule implements Rule {
     context: RuleContext,
   ):
     | {
-      readonly delegate: SymbolInfo;
-      readonly typeArguments: readonly string[];
-    }
+        readonly delegate: SymbolInfo;
+        readonly typeArguments: readonly string[];
+      }
     | undefined {
     const lower = delegateType.toLowerCase();
     const candidates = [
@@ -1065,21 +1090,36 @@ export class MembersRule implements Rule {
       ) {
         shouldSkip = true;
       }
+      if (
+        parent.kind === "MemberAccess" &&
+        parent.target === node &&
+        this.isProjectGlobalVariable(name, context)
+      ) {
+        shouldSkip = true;
+      }
     }
 
     if (shouldSkip) return;
 
+    const lineIdx = node.loc.startLine - 1;
     const isDeclared =
       nameLower === context.activeMethod?.name.toLowerCase() ||
       nameLower === context.activeProperty?.name.toLowerCase() ||
       context.isLocalDeclared(name) ||
       context.isGenericTypeParameter(name) ||
+      this.isProjectGlobalVariable(name, context) ||
+      TypeResolver.getVariableType(
+        name,
+        context.document,
+        new vscode.Position(lineIdx, node.loc.startChar),
+        context.indexer,
+      ) !== undefined ||
       !!(
         context.activeClass &&
-        (context.activeClassInheritedNames?.has(nameLower) ??
+        ((context.activeClassInheritedNames?.has(nameLower) ?? false) ||
           TypeResolver.findMember(context.activeClass.name, name, context.indexer) !== undefined)
       ) ||
-      context.indexer.getSymbolsByName(name).length > 0 ||
+      this.isUnqualifiedSymbolDeclared(name, lineIdx, context) ||
       SYSTEM_SYMBOL_NAMES.has(nameLower);
 
     if (isDeclared) return;
@@ -1137,6 +1177,146 @@ export class MembersRule implements Rule {
       typeName: systemSymbol.name,
       isStaticAccess: systemSymbol.kind === "class" || systemSymbol.kind === "structure",
     };
+  }
+
+  private shouldTreatAsStaticReceiver(
+    receiver: Expression,
+    lineIdx: number,
+    context: RuleContext,
+    staticAccess: {
+      readonly typeName: string | undefined;
+      readonly isStaticAccess: boolean;
+    },
+  ): boolean {
+    if (!staticAccess.isStaticAccess || receiver.kind !== "Identifier") return false;
+    return !TypeResolver.hasLocalDimDeclaration(
+      receiver.name,
+      context.document,
+      lineIdx,
+      context.indexer,
+    );
+  }
+
+  private isUnqualifiedSymbolDeclared(
+    name: string,
+    lineIdx: number,
+    context: RuleContext,
+  ): boolean {
+    const symbols = context.indexer.getSymbolsByName(name);
+    if (symbols.length === 0) return false;
+
+    const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
+    const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
+    const activeNamespace = fileSymbols?.symbols
+      .filter(
+        (symbol) =>
+          symbol.kind === "namespace" &&
+          lineIdx >= symbol.range.startLine &&
+          lineIdx <= symbol.range.endLine,
+      )
+      .sort((left, right) => right.range.startLine - left.range.startLine)[0]?.name;
+
+    return symbols.some((symbol) => {
+      if (
+        symbol.kind === "class" ||
+        symbol.kind === "structure" ||
+        symbol.kind === "delegate" ||
+        symbol.kind === "namespace"
+      ) {
+        return true;
+      }
+      if (!symbol.containerName) return true;
+      if (!this.isNamespaceSymbol(symbol.containerName, context)) return false;
+      const containerLower = symbol.containerName.toLowerCase();
+      return containerLower === activeNamespace?.toLowerCase() || imports.has(containerLower);
+    });
+  }
+
+  private isNamespaceSymbol(name: string, context: RuleContext): boolean {
+    return context.indexer.getSymbolsByName(name).some((symbol) => symbol.kind === "namespace");
+  }
+
+  private isProjectGlobalVariableReceiver(receiver: Expression, context: RuleContext): boolean {
+    return receiver.kind === "Identifier" && this.isProjectGlobalVariable(receiver.name, context);
+  }
+
+  private isProjectGlobalVariable(name: string, context: RuleContext): boolean {
+    return context.indexer
+      .getSymbolsByName(name)
+      .some(
+        (symbol) =>
+          symbol.kind === "variable" &&
+          symbol.containerName === undefined &&
+          /(?:^|[/\\])principal\.bas$/i.test(symbol.fileUri),
+      );
+  }
+
+  private pushChainedInstantiationAccessDiagnostic(
+    node: MemberAccess | MethodInvocation,
+    creation: Extract<Expression, { kind: "ObjectCreationExpression" }>,
+    context: RuleContext,
+  ): void {
+    if (!node.loc) return;
+    const lineIdx = node.loc.startLine - 1;
+    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Acesso encadeado direto em "New ${creation.type.name}()" não é permitido. Armazene a instância em uma variável antes de acessar membros.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.ChainedInstantiationAccess;
+    const payload: ChainedInstantiationAccessPayload = {
+      code: DiagnosticCodes.ChainedInstantiationAccess,
+      typeName: creation.type.name,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
+  }
+
+  private isCallableSymbol(symbol: SymbolInfo): boolean {
+    return (
+      symbol.kind === "method" ||
+      symbol.kind === "declare_function" ||
+      symbol.kind === "declare_sub"
+    );
+  }
+
+  private hasCallableArityMatch(
+    typeName: string,
+    methodName: string,
+    arity: number,
+    context: RuleContext,
+  ): boolean {
+    return TypeResolver.getAllMembersForType(typeName, context.indexer)
+      .filter((member) => member.name.toLowerCase() === methodName.toLowerCase())
+      .some((member) =>
+        [member.parameters, ...(member.overloads ?? [])].some((parameters) =>
+          parameters === undefined ? arity === 0 : this.isArityMatch(parameters, arity),
+        ),
+      );
+  }
+
+  private pushInvocationArityDiagnostic(
+    node: MethodInvocation,
+    method: SymbolInfo,
+    lineIdx: number,
+    startChar: number,
+    context: RuleContext,
+  ): void {
+    const range = new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Chamada de "${node.methodName}" não corresponde a nenhuma assinatura disponível. Verifique a quantidade de argumentos obrigatórios e opcionais.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.CallParenthesesMismatch;
+    const payload: CallParenthesesMismatchPayload = {
+      code: DiagnosticCodes.CallParenthesesMismatch,
+      line: lineIdx,
+      insertColumn: startChar + method.name.length,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
   }
 
   private isResolvableMemberContainer(typeName: string, context: RuleContext): boolean {

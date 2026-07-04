@@ -4704,4 +4704,118 @@ Using item As New Disposable()
       expectDiagnostic(diags, DiagnosticCodes.UnterminatedBlock);
     });
   });
+
+  describe("Principal.bas linter regressions", () => {
+    const runLinter = (code: string): readonly vscode.Diagnostic[] => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///principal-linter-regressions.bas";
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    const exampleClass = `Class Exemplo
+   Sub New(pTitle As String)
+      MyBase.New()
+   End Sub
+
+   Sub SubDeExemplo()
+   End Sub
+
+   Property PropertyDeExemplo As String
+      Get
+         PropertyDeExemplo = ""
+      End Get
+   End Property
+
+   Function FunctionAsIntegerDeExemplo(pInteger As Integer, pSubTitle As String = "Teste") As Integer
+      FunctionAsIntegerDeExemplo = pInteger
+   End Function
+
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+
+    test("emits missing-return-type for Function and Property declarations without As", () => {
+      const diags = runLinter(`Class Exemplo
+   Property PropertyDeExemplo
+      Get
+      End Get
+   End Property
+
+   Function FunctionDeExemplo()
+   End Function
+
+   Shared Function SharedFunctionDeExemplo()
+   End Function
+
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`);
+
+      expectDiagnostic(diags, DiagnosticCodes.MissingReturnType, "PropertyDeExemplo");
+      expectDiagnostic(diags, DiagnosticCodes.MissingReturnType, "FunctionDeExemplo");
+      expectDiagnostic(diags, DiagnosticCodes.MissingReturnType, "SharedFunctionDeExemplo");
+    });
+
+    test("rejects member access chained directly on object creation", () => {
+      const diags = runLinter(`${exampleClass}
+
+Dim valor As String = New Exemplo("titulo").PropertyDeExemplo
+New Exemplo("titulo").SubDeExemplo()`);
+
+      expectDiagnostic(diags, DiagnosticCodes.ChainedInstantiationAccess, "New Exemplo");
+    });
+
+    test("rejects class members used unqualified in global scope", () => {
+      const diags = runLinter(`${exampleClass}
+
+Dim tentandoAcessarPropDireto As String = PropertyDeExemplo
+Dim tentandoAcessarFnDireto As String = FunctionAsIntegerDeExemplo
+Dim tentandoAcessarFn2Direto As String = FunctionAsIntegerDeExemplo()`);
+
+      expectDiagnostic(diags, DiagnosticCodes.UnknownSymbol, "PropertyDeExemplo");
+      expectDiagnostic(diags, DiagnosticCodes.UnknownSymbol, "FunctionAsIntegerDeExemplo");
+    });
+
+    test("rejects instance members accessed through the class name", () => {
+      const diags = runLinter(`${exampleClass}
+
+Exemplo.SubDeExemplo()
+Dim valor As Integer = Exemplo.FunctionAsIntegerDeExemplo(123)`);
+
+      expectDiagnostic(diags, DiagnosticCodes.InstanceMemberAccessOnType, "SubDeExemplo");
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.InstanceMemberAccessOnType,
+        "FunctionAsIntegerDeExemplo",
+      );
+    });
+
+    test("validates constructor arity and method optional parameters", () => {
+      const diags = runLinter(`${exampleClass}
+
+Dim teste As New Exemplo()
+Dim ok As New Exemplo("titulo")
+Dim instancia As New Exemplo("titulo")
+Dim faltandoArgs As Integer = instancia.FunctionAsIntegerDeExemplo()`);
+
+      expectDiagnostic(diags, DiagnosticCodes.AutoNewNonDefaultCtor, "Exemplo");
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.CallParenthesesMismatch,
+        "FunctionAsIntegerDeExemplo",
+      );
+    });
+
+    test("accepts omitted optional method parameters", () => {
+      const diags = runLinter(`${exampleClass}
+
+Dim instancia As New Exemplo("titulo")
+Dim opcionalOk As Integer = instancia.FunctionAsIntegerDeExemplo(123)`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+    });
+  });
 });

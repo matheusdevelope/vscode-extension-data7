@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     inheritsFrom: "Boolean",
     description: "Alias booleano compatível com Delphi armazenado em 1 byte.",
   },
@@ -21,7 +22,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     inheritsFrom: "Boolean",
     description: "Alias booleano compatível com Delphi armazenado em 4 bytes.",
   },
@@ -32,7 +33,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     inheritsFrom: "Boolean",
     description: "Alias booleano compatível com Delphi armazenado em 2 bytes.",
   },
@@ -43,7 +44,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     description: "Array dinâmico de AnsiString retornado por operações oficiais de string.",
   },
   {
@@ -53,7 +54,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     description: "Array dinâmico de String retornado por operações oficiais de string.",
   },
   {
@@ -64,7 +65,7 @@ export const symbols: SystemSymbolInfo[] = [
     isPrivate: false,
     parameters: [],
     range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TDateTime",
     description: "Alias de compatibilidade para acessar os milissegundos com chamada de metodo.",
   },

@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,8 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "GridConfigs",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Configurações de Grid do Data7 — agrega opções de layout, scrollbars, ordenação, agrupamento e estilização aplicadas a um componente Grid.",
@@ -33,8 +34,8 @@ export const symbols: SystemSymbolInfo[] = [
       type: "Boolean",
       isShared: false,
       isPrivate: false,
-      range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-      fileUri: "system://library",
+      range: SYSTEM_RANGE,
+      fileUri: SYSTEM_URI,
       containerName: "GridConfigs",
       description: `Flag de comportamento visual/interativo de GridConfigs (${name}).`,
     }),

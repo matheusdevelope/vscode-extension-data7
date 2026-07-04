@@ -10,7 +10,13 @@ import {
 } from "./generics-analyzer";
 import { parseBasic } from "../project/parser";
 import { SugarRegistry } from "../project/sugar-registry";
-import { ASTWalker, type CompilationUnit, type TypeReference, type Node } from "../project/ast/ast";
+import {
+  ASTWalker,
+  type CompilationUnit,
+  type TypeReference,
+  type Node,
+  type ParameterDeclaration,
+} from "../project/ast/ast";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 
 // Parameter info
@@ -100,6 +106,17 @@ function typeRefToString(typeRef: TypeReference | undefined): string | undefined
   return `${typeRef.name}<${typeRef.typeArguments
     .map((arg) => typeRefToString(arg) ?? "")
     .join(", ")}>`;
+}
+
+function parameterInfoFromDeclaration(p: ParameterDeclaration): ParameterInfo {
+  const defaultValue = p.defaultValue ? "" : undefined;
+  return {
+    name: p.name,
+    type: typeRefToString(p.type) ?? "Variant",
+    isByRef: resolveParameterIsByRef(p),
+    isOptional: p.defaultValue !== undefined,
+    ...(defaultValue !== undefined ? { defaultValue } : {}),
+  };
 }
 
 class SymbolIndexerWalker extends ASTWalker {
@@ -198,12 +215,7 @@ class SymbolIndexerWalker extends ASTWalker {
         (!this.activeClass && !!this.activeNamespace);
 
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
-      const params = node.parameters.map((p) => ({
-        name: p.name,
-        type: typeRefToString(p.type) ?? "Variant",
-        isByRef: resolveParameterIsByRef(p),
-        isOptional: false,
-      }));
+      const params = node.parameters.map(parameterInfoFromDeclaration);
 
       const isDeclare = node.modifiers?.includes("declare") ?? false;
       const methodSymbol: SymbolInfo = {
@@ -241,12 +253,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const isShared = node.modifiers?.includes("shared") ?? false;
 
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
-      const params = node.parameters.map((p) => ({
-        name: p.name,
-        type: typeRefToString(p.type) ?? "Variant",
-        isByRef: resolveParameterIsByRef(p),
-        isOptional: false,
-      }));
+      const params = node.parameters.map(parameterInfoFromDeclaration);
 
       const delegateSymbol: SymbolInfo = {
         name: node.name,
@@ -282,14 +289,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
       const params = node.parameters ?? node.getter?.parameters ?? node.setter?.parameters;
       const parsedParams =
-        params && params.length > 0
-          ? params.map((p) => ({
-              name: p.name,
-              type: typeRefToString(p.type) ?? "Variant",
-              isByRef: resolveParameterIsByRef(p),
-              isOptional: false,
-            }))
-          : undefined;
+        params && params.length > 0 ? params.map(parameterInfoFromDeclaration) : undefined;
 
       const propSymbol: SymbolInfo = {
         name: node.name,

@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 /**
@@ -14,8 +15,6 @@ import type { SystemSymbolInfo } from "../types";
  * simplificada que carrega as definições reais. Assim os membros herdados via
  * cadeia funcionam normalmente.
  */
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 
 interface AliasSpec {
   readonly name: string;
@@ -351,8 +350,8 @@ export const symbols: SystemSymbolInfo[] = aliases.map((a) => ({
   type: a.name,
   isShared: false,
   isPrivate: false,
-  range: range,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: "Forms",
   inheritsFrom: a.inheritsFrom,
   description: a.description,

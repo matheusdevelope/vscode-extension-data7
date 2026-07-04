@@ -1,6 +1,5 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 
 const ps = (name: string, description: string): SystemSymbolInfo => ({
   name: name,
@@ -8,8 +7,8 @@ const ps = (name: string, description: string): SystemSymbolInfo => ({
   type: "TPenStyle",
   isShared: true,
   isPrivate: false,
-  range: range,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: "Drawing",
   description: description,
 });
@@ -21,8 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TPenStyle",
     isShared: false,
     isPrivate: false,
-    range: range,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Drawing",
     description: "Estilo de traço de uma TPen. Usado em Canvas.Pen.Style e TShape.Pen.Style.",
   },

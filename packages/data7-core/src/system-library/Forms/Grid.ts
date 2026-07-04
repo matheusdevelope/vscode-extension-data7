@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo, SystemContainer } from "../types";
 
 /**
@@ -22,7 +23,6 @@ import type { SystemSymbolInfo, SystemContainer } from "../types";
  * Para identificar a origem do levantamento, ver `docs/levantamentos/grid.txt`.
  */
 
-const RANGE = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 const FORMS: SystemContainer = "Forms";
 const GRID_CONTAINER = "Grid";
 
@@ -3792,8 +3792,8 @@ function toProperty(spec: PropertySpec): SystemSymbolInfo {
     type: spec.type,
     isShared: false,
     isPrivate: false,
-    range: RANGE,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: GRID_CONTAINER,
     description: spec.description,
     ...(spec.isUnsupported ? { isUnsupported: true } : {}),
@@ -3829,8 +3829,8 @@ function toMethod(spec: MethodSpec): SystemSymbolInfo {
     ...(spec.overloads && spec.overloads.length > 0
       ? { overloads: spec.overloads.map((o) => mapParams(o)) }
       : {}),
-    range: RANGE,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: GRID_CONTAINER,
     description: spec.description,
     ...(spec.isUnsupported ? { isUnsupported: true } : {}),
@@ -3844,8 +3844,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Grid",
     isShared: false,
     isPrivate: false,
-    range: RANGE,
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: FORMS,
     inheritsFrom: "TGrade",
     description:

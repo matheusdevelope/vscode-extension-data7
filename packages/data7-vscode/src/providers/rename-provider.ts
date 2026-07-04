@@ -53,7 +53,12 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
             type: "Namespace",
             isShared: true,
             isPrivate: false,
-            range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+            range: {
+              startLine: 0,
+              startChar: 0,
+              endLine: 0,
+              endChar: 0,
+            },
             fileUri: document.uri.toString(),
           };
         }
@@ -119,7 +124,12 @@ export class D7BasicRenameProvider implements vscode.RenameProvider {
             type: "Namespace",
             isShared: true,
             isPrivate: false,
-            range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+            range: {
+              startLine: 0,
+              startChar: 0,
+              endLine: 0,
+              endChar: 0,
+            },
             fileUri: document.uri.toString(),
           };
         }

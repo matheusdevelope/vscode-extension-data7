@@ -384,7 +384,7 @@ function main() {
   const bytes = fs.statSync(args.out).size;
   console.log(
     `Wrote ${articles.length} articles to ${path.relative(REPO_ROOT, args.out)} ` +
-    `(${(bytes / 1024).toFixed(1)} KB).`,
+      `(${(bytes / 1024).toFixed(1)} KB).`,
   );
   console.log(
     `Breakdown: ${apiRefs} API-reference, ${classIndexes} class-index, ${tutorials} tutorial.`,

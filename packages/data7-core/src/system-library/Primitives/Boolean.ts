@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,14 +8,9 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Boolean",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
+    range: SYSTEM_RANGE,
     inheritsFrom: "TPrimitive",
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     description: "Tipo primitivo lógico (True ou False).",
   },
   // {
@@ -30,7 +26,7 @@ export const symbols: SystemSymbolInfo[] = [
   //     endLine: 0,
   //     endChar: 0,
   //   },
-  //   fileUri: "system://library",
+  //   fileUri: SYSTEM_URI,
   //   containerName: "Boolean",
   //   description: 'Converte o valor lógico para string ("True" ou "False").',
   // },
@@ -46,7 +42,7 @@ export const symbols: SystemSymbolInfo[] = [
   //     endLine: 0,
   //     endChar: 0,
   //   },
-  //   fileUri: "system://library",
+  //   fileUri: SYSTEM_URI,
   //   inheritsFrom: "TObject",
   //   description: "Representa um valor lógico Verdadeiro (True) ou Falso (False).",
   // },
@@ -63,7 +59,7 @@ export const symbols: SystemSymbolInfo[] = [
   //     endLine: 0,
   //     endChar: 0,
   //   },
-  //   fileUri: "system://library",
+  //   fileUri: SYSTEM_URI,
   //   containerName: "Boolean",
   //   description: 'Retorna a representação em texto do valor booleano ("True" ou "False").',
   // },

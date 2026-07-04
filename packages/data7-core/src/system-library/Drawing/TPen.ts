@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TPen",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Drawing",
     inheritsFrom: "TObject",
     description: "Gerencia a largura e cor das linhas desenhadas no Canvas.",
@@ -24,13 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TPen",
     description: "Largura/espessura da caneta.",
   },
@@ -40,13 +31,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TPen",
     description: "Cor da linha da caneta.",
   },

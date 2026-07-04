@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "SearchTextBox",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TcxCustomTextEdit",
     description:
@@ -27,8 +23,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "SearchTextBox",
     description:
       "Código da pesquisa padrão Data7 vinculada a este editor (referência à PesquisaPadrao da Data7 API).",
@@ -39,8 +35,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "MemoTextBox",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "SearchTextBox",
     description:
       "Editor de texto auxiliar que exibe a descrição do registro selecionado pela pesquisa.",
@@ -51,8 +47,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "String",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "SearchTextBox",
     description: "Expressão SQL de filtro aplicada na pesquisa.",
   },
@@ -62,8 +58,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "String",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "SearchTextBox",
     description: "Valor selecionado como String (geralmente o código do registro).",
   },
@@ -73,8 +69,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "SearchTextBox",
     description: "Valor selecionado como Integer.",
   },

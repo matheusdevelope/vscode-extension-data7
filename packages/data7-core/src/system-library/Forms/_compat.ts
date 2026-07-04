@@ -1,6 +1,5 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 
 const property = (
   containerName: SystemSymbolInfo["containerName"],
@@ -13,8 +12,8 @@ const property = (
   type,
   isShared: false,
   isPrivate: false,
-  range,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName,
   description,
 });
@@ -25,8 +24,8 @@ const value = (name: string, description: string): SystemSymbolInfo => ({
   type: "Integer",
   isShared: true,
   isPrivate: false,
-  range,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: "Forms",
   description,
 });

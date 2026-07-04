@@ -1,27 +1,17 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
     name: "Char",
-    kind: "declare_function",
-    type: "String",
+    kind: "class",
+    type: "Char",
     isShared: true,
     isPrivate: false,
-    parameters: [
-      {
-        name: "pCharCode",
-        type: "Integer",
-        isByRef: false,
-        isOptional: false,
-      },
-    ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    parameters: [],
+    range: SYSTEM_RANGE,
+    inheritsFrom: "String",
+    fileUri: SYSTEM_URI,
     description: "Retorna o caractere correspondente ao código ASCII informado.",
   },
 ];

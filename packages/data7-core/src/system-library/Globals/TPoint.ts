@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     description:
       "Ponto em coordenadas (X, Y) na superfície de desenho ou tela. Estrutura padrão da VCL, acessível globalmente. Usado por eventos de mouse, conversões de coordenadas (ClientToScreen/ScreenToClient) e funções gráficas.",
   },
@@ -22,7 +23,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TPoint",
     description: "Coordenada horizontal (X) em pixels.",
   },
@@ -33,7 +34,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TPoint",
     description: "Coordenada vertical (Y) em pixels.",
   },

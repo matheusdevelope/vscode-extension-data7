@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Proporções de impressão de um Form (Form.PrintScale).",
   },
@@ -25,7 +26,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Sem escala — pode aparecer comprimido ou esticado na impressão (0).",
   },
@@ -36,7 +37,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Imprime no tamanho aproximadamente igual ao que aparece na tela (WYSIWYG) (1).",
   },
@@ -47,7 +48,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Mantém as proporções da tela mas ajusta o tamanho à página (2).",
   },

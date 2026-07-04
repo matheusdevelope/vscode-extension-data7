@@ -75,8 +75,8 @@ Os diagnÃƒÂ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported
 ### Repositório de módulos compartilhados
 
 - **Gerenciamento de Dependências ExplÃ­cito**: Dependências e módulos compartilhados agora são declarados explicitamente no arquivo `data7.json` (seção `dependencies`).
-- **Gerenciador de Módulos tipo npm**: o `ModuleOrchestrator` centraliza install/update/remove em lote, resolve versões disponÃ­veis em repositório local (`~/.data7/local_modules`) ou online (GitHub) e mantém `data7_modules/` sincronizado com o manifesto. A extensão também espelha sempre os `core_modules` embarcados em `data7_modules/core_modules`, mesmo sem dependências declaradas, para disponibilizar runtimes de sugars como `mod_tlist`/`TTList`.
-- **Sidebar de módulos**: o Gerenciador de Módulos lista módulos disponÃ­veis separados por repositório local e online, mostra estado instalado/atualizável, permite marcar múltiplos itens por checkbox e executar instalar, atualizar ou remover pela barra da view ou pelo menu do item.
+- **Gerenciador de Módulos tipo npm**: o `ModuleOrchestrator` centraliza install/update/remove em lote, resolve versões disponíveis em repositório local (`~/.data7/local_modules`) ou online (GitHub) e mantém `data7_modules/` sincronizado com o manifesto. A extensão também espelha sempre os `core_modules` embarcados em `data7_modules/core_modules`, mesmo sem dependências declaradas, para disponibilizar runtimes de sugars como `mod_tlist`/`TTList`.
+- **Sidebar de módulos**: o Gerenciador de Módulos lista módulos disponíveis separados por repositório local e online, mostra estado instalado/atualizável, permite marcar múltiplos itens por checkbox e executar instalar, atualizar ou remover pela barra da view ou pelo menu do item.
 - **Catálogo online por releases**: módulos online só entram no catálogo quando existe uma release com tag válida no formato `<modulo>-v<versao>`; o catálogo é cacheado e reconsultado em intervalo longo para reduzir rate limit da API do GitHub.
 - **Publicação segura**: antes de autenticar no GitHub, criar fork ou abrir PR, a extensão verifica se o módulo já existe online. Se não houver alteração real, a publicação é bloqueada; se houver alteração sem versão maior, a extensão exige bump de versão.
 - **Unpublish online**: módulos publicados podem ser removidos do catálogo por PR de unpublish. A remoção é permitida somente para `module.publisher` registrado no manifesto publicado ou para o dono do repositório de módulos.
@@ -228,7 +228,7 @@ Sintaxe aceita:
 - `' data7:external-type Tipo scope=block` - aceita o tipo no bloco imediatamente abaixo ou no bloco onde a diretiva esta.
 - `' data7:external-type Tipo scope=file` - aceita o tipo em todo o arquivo.
 
-Os códigos disponÃ­veis estão na seção de [Diagnósticos canÃ´nicos](./project_context.md#44-códigos-canÃ´nicos-de-diagnóstico-srcdiagnosticsdiagnostic-codests) do `project_context.md`. O **quick fix** "Suprimir warning aqui" também adiciona automaticamente a diretiva.
+Os códigos disponíveis estão na seção de [Diagnósticos canÃ´nicos](./project_context.md#44-códigos-canÃ´nicos-de-diagnóstico-srcdiagnosticsdiagnostic-codests) do `project_context.md`. O **quick fix** "Suprimir warning aqui" também adiciona automaticamente a diretiva.
 
 ## Workspace Trust
 

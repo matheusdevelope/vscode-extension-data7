@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "DateTextBox",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TcxCustomTextEdit",
     description:
@@ -27,8 +23,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TDateTime",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "DateTextBox",
     description: "Valor atual do editor como TDateTime — atalho para Date.",
   },
@@ -38,8 +34,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TDateTime",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "DateTextBox",
     description: "Data selecionada no editor (parte de hora zerada).",
   },

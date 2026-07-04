@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Tipo de arredondamento dos cantos do Form (Windows 11+). Use em Form.RoundedCornerType.",
@@ -24,7 +25,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Comportamento padrão do sistema (decisão do Windows) (0).",
   },
@@ -35,7 +36,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Cantos retos — sem arredondamento (1).",
   },
@@ -46,7 +47,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Cantos arredondados (raio padrão do Windows 11) (2).",
   },
@@ -57,7 +58,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: true,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Cantos arredondados com raio pequeno (3).",
   },

@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Timer",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TComponent",
     description:
@@ -25,13 +21,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Boolean",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Timer",
     description: "Indica se o timer está habilitado, ela pausa ou ativa o evento OnTimer.",
   },
@@ -41,13 +32,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "Integer",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Timer",
     description:
       "Intervalo de tempo, em milissegundos, entre cada disparo do evento OnTimer. O valor padrão é 1000 (1 segundo).",
@@ -58,13 +44,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TNotifyEvent",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Timer",
     description:
       "Evento disparado a cada intervalo definido por Interval, desde que Enabled seja true. O evento é do tipo TNotifyEvent, ou seja, um procedimento que recebe um parâmetro Sender do tipo TObject.",

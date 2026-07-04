@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import * as vscode from "vscode";
 import { mapSystemKindToVsCode } from "../../utils/symbol-kind";
 import type { SymbolInfo } from "../../analysis/symbol-indexer";
+import { SYSTEM_RANGE } from "../../system-library/symbol-helpers";
 
 function sym(kind: SymbolInfo["kind"]): SymbolInfo {
   return {
@@ -12,7 +13,7 @@ function sym(kind: SymbolInfo["kind"]): SymbolInfo {
     type: "",
     isShared: false,
     isPrivate: false,
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
+    range: SYSTEM_RANGE,
     fileUri: "system://test",
   };
 }

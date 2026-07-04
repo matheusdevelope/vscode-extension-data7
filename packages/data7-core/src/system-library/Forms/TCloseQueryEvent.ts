@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -11,8 +12,8 @@ export const symbols: SystemSymbolInfo[] = [
       { name: "Sender", type: "TObject", isByRef: false, isOptional: false },
       { name: "CanClose", type: "Boolean", isByRef: true, isOptional: false },
     ],
-    range: { startLine: 0, startChar: 0, endLine: 0, endChar: 0 },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description:
       "Assinatura do handler de Form.OnCloseQuery. Defina CanClose := False no handler para impedir o fechamento (ex.: confirmar com o usuário antes de fechar).",

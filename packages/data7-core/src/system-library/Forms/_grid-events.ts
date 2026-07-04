@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo, SystemContainer } from "../types";
 
 /**
@@ -23,7 +24,6 @@ import type { SystemSymbolInfo, SystemContainer } from "../types";
  * concreto ainda não foi catalogado — o linter aceita Variant sem reclamar.
  */
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
 const FORMS: SystemContainer = "Forms";
 
 interface ParamSpec {
@@ -1274,8 +1274,8 @@ export const symbols: SystemSymbolInfo[] = events.map((e) => ({
     isByRef: p.isByRef ?? false,
     isOptional: false,
   })),
-  range: range,
-  fileUri: "system://library",
+  range: SYSTEM_RANGE,
+  fileUri: SYSTEM_URI,
   containerName: FORMS,
   description: e.description,
 }));

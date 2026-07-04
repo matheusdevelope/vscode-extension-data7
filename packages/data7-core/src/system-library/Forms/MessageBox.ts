@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "MessageBox",
     isShared: true,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     description: "Classe de exibição de mensagens.",
   },
@@ -31,13 +27,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "MessageBox",
     description: "Exibe uma caixa de diálogo informativa com a mensagem informada.",
   },
@@ -55,13 +46,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "MessageBox",
     description:
       "Exibe uma caixa de confirmação (Sim/Não). Retorna True se o usuário escolheu Sim.",

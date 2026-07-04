@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
@@ -7,13 +8,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TCanvas",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "Drawing",
     inheritsFrom: "TObject",
     description: "Representa a área de desenho de um componente gráfico.",
@@ -24,13 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "TPen",
     isShared: false,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TCanvas",
     description: "Obtém ou define as configurações da caneta de contorno.",
   },
@@ -54,13 +45,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TCanvas",
     description: "Move a posição atual da caneta para as coordenadas informadas.",
   },
@@ -96,13 +82,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "TCanvas",
     description: "Desenha um retângulo no canvas utilizando a caneta ativa.",
   },

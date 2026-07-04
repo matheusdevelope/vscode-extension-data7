@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 import { buildClassSymbols } from "../symbol-helpers";
 
@@ -8,13 +9,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "System.IOUtils",
     isShared: true,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     description:
       "Namespace nativo Delphi para operacoes de arquivo, diretorio e manipulacao de caminhos.",
   },
@@ -24,13 +20,8 @@ export const symbols: SystemSymbolInfo[] = [
     type: "IOUtils",
     isShared: true,
     isPrivate: false,
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "System",
     description: "Utilitários para manipulação do sistema de arquivos.",
   },
@@ -48,13 +39,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "IOUtils",
     description: "Verifica se o arquivo especificado existe no disco.",
   },
@@ -72,13 +58,8 @@ export const symbols: SystemSymbolInfo[] = [
         isOptional: false,
       },
     ],
-    range: {
-      startLine: 0,
-      startChar: 0,
-      endLine: 0,
-      endChar: 0,
-    },
-    fileUri: "system://library",
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
     containerName: "IOUtils",
     description: "Verifica se o diretório especificado existe no disco.",
   },

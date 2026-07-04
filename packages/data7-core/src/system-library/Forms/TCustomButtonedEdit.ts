@@ -1,3 +1,4 @@
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
 
 const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
@@ -10,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "Forms",
     inheritsFrom: "TCustomEdit",
     description:
@@ -25,7 +26,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TCustomButtonedEdit",
     description:
       "Botão embutido à esquerda do texto (TEditButton). Configurável via ImageIndex, HotImageIndex, PressedImageIndex, DisabledImageIndex, Hint, Visible, Enabled.",
@@ -37,7 +38,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TCustomButtonedEdit",
     description:
       "Botão embutido à direita do texto (TEditButton). Configurável via ImageIndex, HotImageIndex, PressedImageIndex, DisabledImageIndex, Hint, Visible, Enabled.",
@@ -49,7 +50,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TCustomButtonedEdit",
     description:
       "ImageList que fornece os ícones para LeftButton e RightButton. Cada botão referencia via ImageIndex.",
@@ -63,7 +64,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TCustomButtonedEdit",
     description: "Ocorre quando o usuário clica no botão esquerdo (LeftButton).",
   },
@@ -74,7 +75,7 @@ export const symbols: SystemSymbolInfo[] = [
     isShared: false,
     isPrivate: false,
     range: range,
-    fileUri: "system://library",
+    fileUri: SYSTEM_URI,
     containerName: "TCustomButtonedEdit",
     description: "Ocorre quando o usuário clica no botão direito (RightButton).",
   },

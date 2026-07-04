@@ -170,11 +170,7 @@ export class ControlFlowRule implements Rule {
     // Check for Function declared without a return type.
     // The AST stores returnType = undefined for both Sub and Function-without-As,
     // so we inspect the source line to distinguish them.
-    if (
-      !node.isConstructor &&
-      !node.returnType &&
-      node.loc
-    ) {
+    if (!node.isConstructor && !node.returnType && node.loc) {
       this.checkMissingReturnType(node, context);
     }
 
@@ -216,12 +212,7 @@ export class ControlFlowRule implements Rule {
     // Match against the token at the declaration start, skipping modifiers.
     if (!isFunctionKeywordLine(lineText)) return;
 
-    const range = new vscode.Range(
-      lineIdx,
-      node.loc.startChar,
-      lineIdx,
-      node.loc.endChar,
-    );
+    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
     const diag = new vscode.Diagnostic(
       range,
       `A declaração da função "${node.name}" não especifica o tipo de retorno. Use "Function ${node.name}(...) As <Tipo>".`,

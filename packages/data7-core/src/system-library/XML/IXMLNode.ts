@@ -1,6 +1,5 @@
 import type { SystemSymbolInfo } from "../types";
-
-import { SYSTEM_RANGE, SYSTEM_URI, buildEnumVal } from "../symbol-helpers";
+import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 
 export const symbols: SystemSymbolInfo[] = [
   {

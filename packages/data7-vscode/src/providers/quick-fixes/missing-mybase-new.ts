@@ -17,7 +17,7 @@ export function addMissingMyBaseNewFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
 
   const edit = new vscode.WorkspaceEdit();
   if (mode === "create-constructor") {
@@ -45,6 +45,7 @@ export function addMissingMyBaseNewBulkFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
+  action.isPreferred = false;
 
   const edit = new vscode.WorkspaceEdit();
   // Sort descending by line to avoid offset shifts.
