@@ -21,6 +21,13 @@ import {
   readConfiguration,
   readProjectConfig,
   setDiagnosticPayload,
+  LintPipelineProfiler,
+  SemanticLintCache,
+  resolveLintBatchConcurrency,
+  isWorkerPoolLintEnabled,
+  runWorkspaceLintWithWorkerPool,
+  type SerializedLintDiagnostic,
+  type LintWorkspaceFileInput,
 } from "@data7/core";
 import type { SharedModuleInfo } from "@data7/core";
 
@@ -50,10 +57,20 @@ export interface WorkspaceLintSummary {
  */
 export class DiagnosticService {
   private static _collection: vscode.DiagnosticCollection | undefined;
-  private static readonly REFRESH_DELAY_MS = 250;
+  /** Debounce for live typing; save/open use immediate refresh. */
+  private static readonly REFRESH_DELAY_MS = 400;
   private static readonly liveDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly workspaceDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly pendingDependentUris = new Set<string>();
+  /** Per-file generation counter — stale lint runs are discarded when the user keeps typing. */
+  private static readonly lintGenerations = new Map<string, number>();
+  /** Blocks debounced lint until the initial workspace index completes. */
+  private static workspaceIndexReady = false;
+  private static readonly pendingOpenDocuments = new Set<string>();
+  /** Suppresses redundant live refresh after programmatic save/fix. */
+  private static readonly suppressLiveLintUntil = new Map<string, number>();
+  private static dependentPropagationScheduled = false;
+  private static pendingDependentTriggerUri: vscode.Uri | undefined;
 
   /** Cache of expensive workspace-level data, keyed by workspaceDir. */
   private static workspaceCache = new Map<string, WorkspaceDiagnosticCache>();
@@ -70,6 +87,10 @@ export class DiagnosticService {
     this._collection = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
     context.subscriptions.push(this._collection);
 
+    if (process.env["DATA7_LINT_PROFILE"] === "1") {
+      LintPipelineProfiler.setEnabled(true);
+    }
+
     context.subscriptions.push(
       vscode.commands.registerCommand("data7.refreshDiagnostics", (uriStr: string) => {
         const doc = vscode.workspace.textDocuments.find(
@@ -83,11 +104,22 @@ export class DiagnosticService {
 
     const handleDocument = (doc: vscode.TextDocument, reevaluateDependent = false): void => {
       // Skip debounced linting while a batch fix or batch lint is in progress.
-      // The batch pipeline manages its own diagnostic lifecycle and triggers a
-      // single refreshAllActive() at the end, so individual per-file debounces
-      // during the batch would be redundant and slow the IDE to a crawl.
-      //
       if (WorkspaceFixService.isBatchFixInProgress) return;
+
+      if (!this.workspaceIndexReady && !reevaluateDependent) {
+        this.pendingOpenDocuments.add(doc.uri.toString().toLowerCase());
+        return;
+      }
+
+      const uriKey = doc.uri.toString().toLowerCase();
+      if (!reevaluateDependent) {
+        if (Date.now() < (this.suppressLiveLintUntil.get(uriKey) ?? 0)) {
+          return;
+        }
+        if (WorkspaceFixService.isWillSaveFixingUri(uriKey)) {
+          return;
+        }
+      }
 
       if (!this.isLiveDiagnosticDocument(doc)) {
         this.clearDiagnostics(doc.uri);
@@ -175,6 +207,24 @@ export class DiagnosticService {
       throw new Error("DiagnosticService.initialize() não foi chamado.");
     }
     return this._collection;
+  }
+
+  public static markWorkspaceIndexReady(): void {
+    this.workspaceIndexReady = true;
+    for (const uriKey of this.pendingOpenDocuments) {
+      const doc = vscode.workspace.textDocuments.find(
+        (candidate) => candidate.uri.toString().toLowerCase() === uriKey,
+      );
+      if (doc && this.isLiveDiagnosticDocument(doc)) {
+        this.refreshDebounced(doc);
+      }
+    }
+    this.pendingOpenDocuments.clear();
+  }
+
+  /** Suppresses debounced live lint for a URI until `durationMs` elapses. */
+  public static suppressLiveLintForUri(uri: vscode.Uri, durationMs: number): void {
+    this.suppressLiveLintUntil.set(uri.toString().toLowerCase(), Date.now() + durationMs);
   }
 
   public static refreshAllActive(): void {
@@ -279,20 +329,25 @@ export class DiagnosticService {
       return;
     }
 
-    // Delegate the full diagnostics pipeline (module refs, parse errors, advanced
-    // diagnostics, suppression filtering, and indexer update) to
-    // collectDiagnosticsFromMockDocument so the logic stays in one place
-    // regardless of whether we come from the live-editor or batch-from-disk path.
-    const unsuppressed = this.collectDiagnosticsFromMockDocument(document);
+    const uriKey = document.uri.toString().toLowerCase();
+    const generation = (this.lintGenerations.get(uriKey) ?? 0) + 1;
+    this.lintGenerations.set(uriKey, generation);
 
-    this._collection?.set(document.uri, unsuppressed);
-    this.liveDiagnosticUris.set(document.uri.toString().toLowerCase(), document.uri);
-    this.workspaceDiagnosticUris.delete(document.uri.toString().toLowerCase());
+    const unsuppressed = this.collectDiagnosticsFromMockDocument(document, generation);
+    if (this.lintGenerations.get(uriKey) !== generation) {
+      LintPipelineProfiler.recordStaleRun(document.uri.toString());
+      return;
+    }
 
-    const docUriStr = document.uri.toString().toLowerCase();
+    LintPipelineProfiler.measure("publish", document.uri.toString(), () => {
+      this._collection?.set(document.uri, unsuppressed);
+      this.liveDiagnosticUris.set(uriKey, document.uri);
+      this.workspaceDiagnosticUris.delete(uriKey);
+    });
+
     if (
       reevaluateDependent &&
-      !DiagnosticService.pendingDependentUris.has(docUriStr) &&
+      !DiagnosticService.pendingDependentUris.has(uriKey) &&
       !WorkspaceFixService.isBatchFixInProgress
     ) {
       DiagnosticService.reevaluateDependentFiles(document.uri);
@@ -300,67 +355,50 @@ export class DiagnosticService {
   }
 
   /**
-   * Reevaluates all workspace files that import any of the namespaces declared in the
-   * triggered file, or share the same namespace. This propagates linter corrections
-   * and errors across dependencies automatically.
+   * Reevaluates workspace files that depend on the edited file via the reverse
+   * dependency graph (import propagation). Coalesced so rapid saves do not fan
+   * out one lint per dependent per save event.
    */
   private static reevaluateDependentFiles(triggerUri: vscode.Uri): void {
+    this.pendingDependentTriggerUri = triggerUri;
+    if (this.dependentPropagationScheduled) {
+      return;
+    }
+    this.dependentPropagationScheduled = true;
+    setTimeout(() => {
+      this.dependentPropagationScheduled = false;
+      const uri = this.pendingDependentTriggerUri;
+      this.pendingDependentTriggerUri = undefined;
+      if (!uri) return;
+      void this.runDependentPropagation(uri);
+    }, 80);
+  }
+
+  private static async runDependentPropagation(triggerUri: vscode.Uri): Promise<void> {
     const indexer = WorkspaceSymbolIndexer.getInstance();
     const triggerUriStr = triggerUri.toString();
-    const triggerFileSyms = indexer.getFileSymbols(triggerUriStr);
 
-    const triggerNamespaces = new Set<string>();
-    if (triggerFileSyms) {
-      for (const sym of triggerFileSyms.symbols) {
-        if (sym.kind === "namespace") {
-          triggerNamespaces.add(sym.name.toLowerCase());
-        }
-      }
-    }
-
-    // Combine currently declared namespaces and recently changed/removed ones from the indexer
-    const targetNamespaces = new Set<string>([
-      ...triggerNamespaces,
-      ...indexer.changedNamespacesInLastUpdate,
-    ]);
-
-    // Clear the indexer's changed tracking for the next update cycle
+    const extraNamespaces = new Set<string>(indexer.changedNamespacesInLastUpdate);
     indexer.changedNamespacesInLastUpdate.clear();
 
-    const dependentUris: vscode.Uri[] = [];
-    for (const fileSyms of indexer.getAllFileSymbols()) {
-      const xUriStr = fileSyms.fileUri;
-      if (xUriStr.toLowerCase() === triggerUriStr.toLowerCase()) continue;
+    const dependentUriStrs = LintPipelineProfiler.measure(
+      "dependent-propagation",
+      triggerUriStr,
+      () => indexer.getDependentFileUris(triggerUriStr, extraNamespaces),
+    );
 
+    if (dependentUriStrs.length === 0) return;
+
+    LintPipelineProfiler.recordDependentPropagation(dependentUriStrs.length);
+    LintPipelineProfiler.finalizeFile(triggerUriStr, dependentUriStrs.length);
+
+    const dependentUris: vscode.Uri[] = [];
+    for (const uriStr of dependentUriStrs) {
       try {
-        const xUri = vscode.Uri.parse(xUriStr);
+        const xUri = vscode.Uri.parse(uriStr);
         if (isExcluded(xUri.fsPath) || isReadOnlyModuleFile(xUri.fsPath)) continue;
         if (!vscode.workspace.getWorkspaceFolder(xUri)) continue;
-
-        // Check if X shares any of its namespaces with Y
-        const xNamespaces = fileSyms.symbols
-          .filter((s) => s.kind === "namespace")
-          .map((s) => s.name.toLowerCase());
-
-        let sharesNamespace = false;
-        for (const xNs of xNamespaces) {
-          if (triggerNamespaces.has(xNs)) {
-            sharesNamespace = true;
-            break;
-          }
-        }
-
-        let importsTargetNamespace = false;
-        for (const imp of fileSyms.imports) {
-          if (targetNamespaces.has(imp.toLowerCase())) {
-            importsTargetNamespace = true;
-            break;
-          }
-        }
-
-        if (sharesNamespace || importsTargetNamespace) {
-          dependentUris.push(xUri);
-        }
+        dependentUris.push(xUri);
       } catch {
         continue;
       }
@@ -370,23 +408,26 @@ export class DiagnosticService {
 
     for (const uri of dependentUris) {
       this.pendingDependentUris.add(uri.toString().toLowerCase());
-      // Invalidate the cache of the dependent document to force type resolution update from disk
       LanguageProcessor.getInstance().invalidate(uri.toString());
     }
 
-    // Process dependent files asynchronously so we don't block typing or saving.
-    setTimeout(() => {
-      for (const uri of dependentUris) {
-        const uriStr = uri.toString().toLowerCase();
-        try {
-          this.lintFile(uri, false);
-        } catch (err) {
-          logger.error(`Erro ao reavaliar dependente ${uri.fsPath}:`, err);
-        } finally {
-          this.pendingDependentUris.delete(uriStr);
-        }
-      }
-    }, 50);
+    const BATCH_SIZE = resolveLintBatchConcurrency();
+    for (let i = 0; i < dependentUris.length; i += BATCH_SIZE) {
+      const batch = dependentUris.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (uri) => {
+          const uriStr = uri.toString().toLowerCase();
+          try {
+            this.lintFile(uri, false);
+          } catch (err) {
+            logger.error(`Erro ao reavaliar dependente ${uri.fsPath}:`, err);
+          } finally {
+            this.pendingDependentUris.delete(uriStr);
+          }
+        }),
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
   }
 
   private static validateModuleReference(
@@ -620,11 +661,68 @@ export class DiagnosticService {
 
     this.clearWorkspaceDiagnostics();
 
+    const openUris: vscode.Uri[] = [];
+    const diskUris: vscode.Uri[] = [];
+    for (const uri of uris) {
+      const isOpen = vscode.workspace.textDocuments.some(
+        (doc) => doc.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+      );
+      if (isOpen) {
+        openUris.push(uri);
+      } else {
+        diskUris.push(uri);
+      }
+    }
+
+    const useWorkerPool = isWorkerPoolLintEnabled() && diskUris.length > 0;
+
+    const countDiagnostics = (diags: readonly vscode.Diagnostic[]): void => {
+      for (const diag of diags) {
+        if (diag.severity === vscode.DiagnosticSeverity.Error) {
+          errorCount++;
+        } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+          warningCount++;
+        } else {
+          infoCount++;
+        }
+      }
+    };
+
     const run = async (
       progress?: { report(value: { message?: string; increment?: number }): void },
       token?: { readonly isCancellationRequested: boolean },
     ): Promise<void> => {
-      const BATCH_SIZE = 10;
+      if (useWorkerPool) {
+        progress?.report({ message: "Analisando arquivos fechados (worker threads)..." });
+        const workerCounts = await this.lintDiskUrisWithWorkerPool(diskUris, token);
+        errorCount += workerCounts.errorCount;
+        warningCount += workerCounts.warningCount;
+        infoCount += workerCounts.infoCount;
+
+        const BATCH_SIZE = resolveLintBatchConcurrency();
+        for (let i = 0; i < openUris.length; i += BATCH_SIZE) {
+          if (token?.isCancellationRequested) break;
+          const batch = openUris.slice(i, i + BATCH_SIZE);
+          progress?.report({
+            message: `${i + 1}/${openUris.length} — Arquivos abertos...`,
+            increment: openUris.length > 0 ? (batch.length / openUris.length) * 100 : 0,
+          });
+          await Promise.all(
+            batch.map(async (uri) => {
+              try {
+                const diags = await this.lintUriForBatch(uri);
+                countDiagnostics(diags);
+              } catch (err) {
+                logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
+              }
+            }),
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+        return;
+      }
+
+      const BATCH_SIZE = resolveLintBatchConcurrency();
       for (let i = 0; i < uris.length; i += BATCH_SIZE) {
         if (token?.isCancellationRequested) break;
 
@@ -638,15 +736,7 @@ export class DiagnosticService {
           batch.map(async (uri) => {
             try {
               const diags = await this.lintUriForBatch(uri);
-              for (const diag of diags) {
-                if (diag.severity === vscode.DiagnosticSeverity.Error) {
-                  errorCount++;
-                } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
-                  warningCount++;
-                } else {
-                  infoCount++;
-                }
-              }
+              countDiagnostics(diags);
             } catch (err) {
               logger.error(`Erro ao analisar arquivo ${uri.fsPath} no linter:`, err);
             }
@@ -685,7 +775,7 @@ export class DiagnosticService {
       (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
     );
     if (openDoc) {
-      this.refreshDiagnosticsNow(openDoc);
+      this.refreshDiagnosticsNow(openDoc, false);
       return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
     }
 
@@ -693,6 +783,76 @@ export class DiagnosticService {
     this._collection?.set(uri, diags);
     this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
     return diags;
+  }
+
+  private static async lintDiskUrisWithWorkerPool(
+    diskUris: readonly vscode.Uri[],
+    token?: { readonly isCancellationRequested: boolean },
+  ): Promise<Pick<WorkspaceLintSummary, "errorCount" | "warningCount" | "infoCount">> {
+    let errorCount = 0;
+    let warningCount = 0;
+    let infoCount = 0;
+
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const snapshot = indexer.exportLintSnapshot();
+    const inputs: LintWorkspaceFileInput[] = [];
+    const preambleByUri = new Map<string, vscode.Diagnostic[]>();
+
+    const BATCH_SIZE = resolveLintBatchConcurrency();
+    for (let i = 0; i < diskUris.length; i += BATCH_SIZE) {
+      if (token?.isCancellationRequested) break;
+      const batch = diskUris.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (uri) => {
+          let content: string;
+          try {
+            content = await fs.promises.readFile(uri.fsPath, "utf-8");
+          } catch (err) {
+            logger.warn(
+              `Falha ao ler ${uri.fsPath} para lint worker: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+            return;
+          }
+          const mockDoc = buildMockDocument(uri, content);
+          preambleByUri.set(uri.toString(), this.collectPreambleDiagnostics(mockDoc));
+          inputs.push({
+            uri: uri.toString(),
+            filePath: uri.fsPath,
+            content,
+          });
+        }),
+      );
+    }
+
+    if (token?.isCancellationRequested || inputs.length === 0) {
+      return { errorCount, warningCount, infoCount };
+    }
+
+    const workerResult = await runWorkspaceLintWithWorkerPool(inputs, snapshot);
+
+    for (const uri of diskUris) {
+      const uriStr = uri.toString();
+      const preamble = preambleByUri.get(uriStr) ?? [];
+      const advanced = this.deserializeWorkerDiagnostics(
+        workerResult.diagnosticsByUri.get(uriStr) ?? [],
+      );
+      const merged = [...preamble, ...advanced];
+      this._collection?.set(uri, merged);
+      this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
+      for (const diag of merged) {
+        if (diag.severity === vscode.DiagnosticSeverity.Error) {
+          errorCount++;
+        } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+          warningCount++;
+        } else {
+          infoCount++;
+        }
+      }
+    }
+
+    return { errorCount, warningCount, infoCount };
   }
 
   /**
@@ -737,67 +897,61 @@ export class DiagnosticService {
   }
 
   /**
-   * Runs the full diagnostics pipeline on a mock (or real) document object.
-   * Extracted from `refreshDiagnosticsNow` so both the live editor path and
-   * the batch-from-disk path share identical logic.
+   * Parse, index, module-reference and syntax diagnostics — shared by live lint,
+   * batch-from-disk, and worker-pool merge paths.
    */
-  private static collectDiagnosticsFromMockDocument(
-    document: vscode.TextDocument,
-  ): vscode.Diagnostic[] {
+  private static collectPreambleDiagnostics(document: vscode.TextDocument): vscode.Diagnostic[] {
+    const uriStr = document.uri.toString();
     const diagnostics: vscode.Diagnostic[] = [];
     const text = document.getText();
     const paths = ProjectService.findProjectPaths(document.fileName);
     if (!paths) return [];
 
-    // 1. Unify parsing: parse the document once and obtain the AST
     let cachedDoc: ReturnType<LanguageProcessor["getOrParse"]>;
     try {
-      cachedDoc = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
+      cachedDoc = LintPipelineProfiler.measure("parse", uriStr, () =>
+        LanguageProcessor.getInstance().getOrParse(uriStr, text),
+      );
     } catch (err) {
       logger.error("Falha ao obter AST do LanguageProcessor.", err);
       return [];
     }
 
-    // 2. Feed the indexer using the pre-parsed AST
     if (vscode.workspace.getWorkspaceFolder(document.uri)) {
-      const parsedSymbols = SymbolParser.parseFromAst(
-        document.uri.toString(),
-        text,
-        cachedDoc.unit,
-      );
-      WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(
-        document.uri.toString(),
-        text,
-        parsedSymbols,
-      );
+      LintPipelineProfiler.measure("index-update", uriStr, () => {
+        const parsedSymbols = SymbolParser.parseFromAst(uriStr, text, cachedDoc.unit);
+        WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(
+          uriStr,
+          text,
+          parsedSymbols,
+        );
+      });
     }
 
     const wsCache = this.getWorkspaceCache(paths.workspaceDir);
-
-    // Compute suppression map once so that `disable-next-line` / `disable-line`
-    // comments are honoured in both the live-editor and the batch-from-disk paths.
     const suppressions = extractSuppressedCodes(text);
 
-    try {
-      for (const reference of DependencyScanner.collectModuleReferences(text)) {
-        const namespace = reference.isExplicit
-          ? (reference.name.split(".")[0] ?? reference.name)
-          : reference.name;
-        this.validateModuleReference(
-          namespace,
-          reference.loc?.line ?? 0,
-          reference.loc?.character ?? 0,
-          diagnostics,
-          wsCache,
-          reference.isExplicit,
-          document.uri.toString(),
-        );
+    LintPipelineProfiler.measure("module-refs", uriStr, () => {
+      try {
+        for (const reference of DependencyScanner.collectModuleReferences(text)) {
+          const namespace = reference.isExplicit
+            ? (reference.name.split(".")[0] ?? reference.name)
+            : reference.name;
+          this.validateModuleReference(
+            namespace,
+            reference.loc?.line ?? 0,
+            reference.loc?.character ?? 0,
+            diagnostics,
+            wsCache,
+            reference.isExplicit,
+            uriStr,
+          );
+        }
+      } catch (err: unknown) {
+        logger.error("Falha ao coletar referências de módulos via AST.", err);
       }
-    } catch (err: unknown) {
-      logger.error("Falha ao coletar referências de módulos via AST.", err);
-    }
+    });
 
-    // Process cached document syntactical parse errors
     cachedDoc.errors.forEach((err) => {
       const line = Math.max(0, err.loc.line - 1);
       const col = Math.max(0, err.loc.column);
@@ -813,10 +967,7 @@ export class DiagnosticService {
       diagnostics.push(diag);
     });
 
-    // Filter module-not-found and parse-error diagnostics against suppression
-    // comments before merging with advanced diagnostics (which are already
-    // filtered internally by postProcessDiagnostics).
-    const unsuppressed = diagnostics.filter((diag) => {
+    return diagnostics.filter((diag) => {
       const rawCode = diag.code;
       let codeStr: string;
       if (typeof rawCode === "string") {
@@ -830,11 +981,29 @@ export class DiagnosticService {
       }
       return !isSuppressed(suppressions, diag.range.start.line, codeStr);
     });
+  }
+
+  /**
+   * Runs the full diagnostics pipeline on a mock (or real) document object.
+   * Extracted from `refreshDiagnosticsNow` so both the live editor path and
+   * the batch-from-disk path share identical logic.
+   */
+  private static collectDiagnosticsFromMockDocument(
+    document: vscode.TextDocument,
+    expectedGeneration?: number,
+  ): vscode.Diagnostic[] {
+    const uriKey = document.uri.toString().toLowerCase();
+    const uriStr = document.uri.toString();
+
+    const isStale = (): boolean =>
+      expectedGeneration !== undefined && this.lintGenerations.get(uriKey) !== expectedGeneration;
+
+    const unsuppressed = this.collectPreambleDiagnostics(document);
+    if (isStale()) return [];
 
     try {
-      const advanced = DiagnosticsLinter.runAdvancedDiagnostics(
-        document,
-        WorkspaceSymbolIndexer.getInstance(),
+      const advanced = LintPipelineProfiler.measure("advanced-lint", uriStr, () =>
+        DiagnosticsLinter.runAdvancedDiagnostics(document, WorkspaceSymbolIndexer.getInstance()),
       );
       unsuppressed.push(...advanced);
     } catch (err: unknown) {
@@ -850,6 +1019,33 @@ export class DiagnosticService {
     this.liveDiagnosticUris.clear();
     this.workspaceDiagnosticUris.clear();
     this.pendingDependentUris.clear();
+    this.lintGenerations.clear();
+    this.workspaceIndexReady = false;
+    this.pendingOpenDocuments.clear();
+    this.suppressLiveLintUntil.clear();
+    this.dependentPropagationScheduled = false;
+    this.pendingDependentTriggerUri = undefined;
+    this.refreshDebounced.cancelAll();
+    SemanticLintCache.resetForTests();
+  }
+
+  private static deserializeWorkerDiagnostics(
+    diagnostics: readonly SerializedLintDiagnostic[],
+  ): vscode.Diagnostic[] {
+    return diagnostics.map((diag) => {
+      const result = new vscode.Diagnostic(
+        new vscode.Range(diag.startLine, diag.startChar, diag.endLine, diag.endChar),
+        diag.message,
+        diag.severity,
+      );
+      if (diag.code !== undefined) {
+        result.code = diag.code as string | number | { value: string | number; target: vscode.Uri };
+      }
+      if (diag.source !== undefined) {
+        result.source = diag.source;
+      }
+      return result;
+    });
   }
 
   private static isEnabled(): boolean {

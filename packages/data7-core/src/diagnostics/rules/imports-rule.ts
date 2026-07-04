@@ -1,13 +1,15 @@
 import * as vscode from "../../platform/vscode-api";
 import type { Node, CompilationUnit, SourceLocation } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
-import { ASTWordCollector } from "../ast-collectors";
 import { collectTransitivelyRequiredImports } from "../import-usage";
 import type { Rule, RuleContext } from "./base-rule";
 import { lookupSystemByContainer, lookupSystemNamespaceOrClassByName } from "../../system-library";
 
+const IMPORTS_RULE_NODE_KINDS = new Set<Node["kind"]>(["ImportsDeclaration"]);
+
 export class ImportsRule implements Rule {
   public readonly name = "unused-imports";
+  public readonly supportedNodeKinds = IMPORTS_RULE_NODE_KINDS;
 
   private readonly imports: { name: string; loc: SourceLocation }[] = [];
 
@@ -17,13 +19,10 @@ export class ImportsRule implements Rule {
     }
   }
 
-  public onEnd(unit: CompilationUnit, context: RuleContext): void {
-    const wordCollector = new ASTWordCollector();
-    wordCollector.walk(unit);
-
+  public onEnd(_unit: CompilationUnit, context: RuleContext): void {
     const directlyReferencedImports = new Set<string>();
     for (const imp of this.imports) {
-      if (this.isImportDirectlyReferenced(imp.name, wordCollector, context)) {
+      if (this.isImportDirectlyReferenced(imp.name, context)) {
         directlyReferencedImports.add(imp.name.toLowerCase());
       }
     }
@@ -79,24 +78,20 @@ export class ImportsRule implements Rule {
     });
   }
 
-  private isImportDirectlyReferenced(
-    name: string,
-    wordCollector: ASTWordCollector,
-    context: RuleContext,
-  ): boolean {
+  private isImportDirectlyReferenced(name: string, context: RuleContext): boolean {
     const key = name.toLowerCase();
-    if (wordCollector.qualifiedTypes.has(key)) return true;
+    if (context.unitIndex.qualifiedTypes.has(key)) return true;
 
     const parts = key.split(".");
     const lastPart = parts[parts.length - 1];
-    if (lastPart && wordCollector.usedWords.has(lastPart)) return true;
+    if (lastPart && context.unitIndex.usedWords.has(lastPart)) return true;
 
     const symbolsInNamespace = [
       ...context.indexer.getSymbolsByContainer(key),
       ...lookupSystemByContainer(name),
     ];
     return symbolsInNamespace.some((symbol) =>
-      wordCollector.usedWords.has(symbol.name.toLowerCase()),
+      context.unitIndex.usedWords.has(symbol.name.toLowerCase()),
     );
   }
 

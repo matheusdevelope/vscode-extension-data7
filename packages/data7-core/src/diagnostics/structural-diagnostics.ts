@@ -74,7 +74,7 @@ export function validateDuplicateDeclarations(
     if (s.kind === "namespace") return;
     if (s.isSyntheticGenericInstantiation) return;
     if (!s.containerName) return;
-    if (s.fileUri && s.fileUri === document.uri.toString()) return;
+    if (s.fileUri && indexer.isSameFileUri(s.fileUri, document.uri.toString())) return;
 
     const containerLower = s.containerName.toLowerCase();
     const isImportedType = s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
@@ -306,78 +306,100 @@ export function validateDuplicateDeclarations(
   });
 
   // Local / Method level variable checks using AST collector
-  const walker = new (class extends ASTWalker {
-    public override walk(node: Node): void {
-      if (node.kind === "MethodDeclaration") {
-        const C = classes.find(
-          (c) =>
-            c.name.toLowerCase() === node.modifiers?.[0]?.toLowerCase() ||
-            c.name.toLowerCase() ===
-              fileSyms.symbols
-                .find((s) => s.name === node.name && s.kind === "method")
-                ?.containerName?.toLowerCase(),
+  visitRoutineBodies(unit, (node) => {
+    const C = classes.find(
+      (c) =>
+        c.name.toLowerCase() === node.modifiers?.[0]?.toLowerCase() ||
+        c.name.toLowerCase() ===
+          fileSyms.symbols
+            .find((s) => s.name === node.name && s.kind === "method")
+            ?.containerName?.toLowerCase(),
+    );
+    const collector = new LocalDeclarationCollector(node);
+    collector.collect();
+
+    const declaredInMethod = new Map<string, SourceLocation>();
+    collector.declarations.forEach((v) => {
+      if (v.isCatchVariable) return;
+
+      const nameLower = v.name.toLowerCase();
+      const range = new vscode.Range(
+        v.loc.startLine - 1,
+        v.loc.startChar,
+        v.loc.endLine - 1,
+        v.loc.endChar,
+      );
+
+      const existingRange = declaredInMethod.get(nameLower);
+      if (existingRange) {
+        createConflictDiag(
+          range,
+          `Declaração duplicada: o identificador '${v.name}' já foi declarado neste método.`,
+          {
+            code: DiagnosticCodes.DuplicateDeclaration,
+            name: v.name,
+            scope: "method",
+            conflictingWithName: v.name,
+          },
+          {
+            range: locRange(existingRange),
+            message: `Declaração anterior de '${v.name}'.`,
+          },
         );
-        const collector = new LocalDeclarationCollector(node);
-        collector.collect();
-
-        const declaredInMethod = new Map<string, SourceLocation>();
-        collector.declarations.forEach((v) => {
-          if (v.isCatchVariable) return;
-
-          const nameLower = v.name.toLowerCase();
-          const range = new vscode.Range(
-            v.loc.startLine - 1,
-            v.loc.startChar,
-            v.loc.endLine - 1,
-            v.loc.endChar,
-          );
-
-          const existingRange = declaredInMethod.get(nameLower);
-          if (existingRange) {
-            createConflictDiag(
-              range,
-              `Declaração duplicada: o identificador '${v.name}' já foi declarado neste método.`,
-              {
-                code: DiagnosticCodes.DuplicateDeclaration,
-                name: v.name,
-                scope: "method",
-                conflictingWithName: v.name,
-              },
-              {
-                range: locRange(existingRange),
-                message: `Declaração anterior de '${v.name}'.`,
-              },
-            );
-            return;
-          }
-          declaredInMethod.set(nameLower, v.loc);
-
-          if (C) {
-            if (nameLower === C.name.toLowerCase()) {
-              createConflictDiag(
-                range,
-                `O identificador '${v.name}' conflita com o nome da classe envolvente '${C.name}'.`,
-                {
-                  code: DiagnosticCodes.DuplicateDeclaration,
-                  name: v.name,
-                  scope: "class",
-                  conflictingWithName: C.name,
-                },
-                {
-                  uri: C.fileUri,
-                  range: symbolRange(C),
-                  message: `Classe declarada aqui: '${C.name}'.`,
-                },
-              );
-              return;
-            }
-          }
-        });
+        return;
       }
-      super.walk(node);
+      declaredInMethod.set(nameLower, v.loc);
+
+      if (C) {
+        if (nameLower === C.name.toLowerCase()) {
+          createConflictDiag(
+            range,
+            `O identificador '${v.name}' conflita com o nome da classe envolvente '${C.name}'.`,
+            {
+              code: DiagnosticCodes.DuplicateDeclaration,
+              name: v.name,
+              scope: "class",
+              conflictingWithName: C.name,
+            },
+            {
+              uri: C.fileUri,
+              range: symbolRange(C),
+              message: `Classe declarada aqui: '${C.name}'.`,
+            },
+          );
+        }
+      }
+    });
+  });
+}
+
+function visitRoutineBodies(
+  unit: CompilationUnit,
+  onMethod: (method: MethodDeclaration) => void,
+): void {
+  const visitMembers = (members: readonly Node[]): void => {
+    for (const member of members) {
+      if (member.kind === "NamespaceDeclaration") {
+        visitMembers(member.members);
+        continue;
+      }
+      if (member.kind === "ClassDeclaration") {
+        for (const classMember of member.members) {
+          if (classMember.kind === "MethodDeclaration") {
+            onMethod(classMember);
+          } else if (classMember.kind === "PropertyDeclaration") {
+            if (classMember.getter) onMethod(classMember.getter);
+            if (classMember.setter) onMethod(classMember.setter);
+          }
+        }
+        continue;
+      }
+      if (member.kind === "MethodDeclaration") {
+        onMethod(member);
+      }
     }
-  })();
-  walker.walk(unit);
+  };
+  visitMembers(unit.members);
 }
 
 function isSameSignature(
@@ -414,7 +436,18 @@ export function validateMyBaseNewCalls(
             (member): member is MethodDeclaration =>
               member.kind === "MethodDeclaration" && !!member.isConstructor,
           );
-          if (constructors.length === 0 && node.loc) {
+          const hasOnlyStaticUtilityMembers = node.members.every((member) => {
+            if (member.kind === "MethodDeclaration") {
+              const name = member.name.toLowerCase();
+              if (name === "free" || name === "dispose") return true;
+              return member.modifiers?.includes("shared") ?? false;
+            }
+            if (member.kind === "PropertyDeclaration") {
+              return member.modifiers?.includes("shared") ?? false;
+            }
+            return false;
+          });
+          if (constructors.length === 0 && node.loc && !hasOnlyStaticUtilityMembers) {
             const range = new vscode.Range(
               node.loc.startLine - 1,
               node.loc.startChar,

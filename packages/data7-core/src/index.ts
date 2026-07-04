@@ -9,8 +9,15 @@ export * from "./analysis/enumerable-detector";
 export * from "./analysis/flow-analyzer";
 export * from "./analysis/generics-analyzer";
 export * from "./analysis/language-processor";
+export * from "./analysis/lint-pipeline-profiler";
+export * from "./analysis/lint-diagnostic-transfer";
+export * from "./analysis/lint-type-resolution-cache";
+export * from "./analysis/lint-workspace-runner";
+export * from "./analysis/lint-worker-pool";
+export * from "./analysis/semantic-lint-cache";
 export * from "./analysis/module-resolver";
 export * from "./analysis/symbol-indexer";
+export * from "./analysis/workspace-dependency-graph";
 export * from "./analysis/type-resolver";
 
 // diagnostics
@@ -50,6 +57,7 @@ export * from "./system-library/docs-generator";
 
 // utils
 export * from "./utils/chain-prefix";
+export * from "./utils/content-hash";
 export * from "./utils/debounce";
 export * from "./utils/format-helpers";
 export * from "./utils/guid";

@@ -5,36 +5,16 @@ import type { Rule, RuleContext } from "./base-rule";
 import { TypeResolver } from "../../analysis/type-resolver";
 import { DiagnosticsLinter } from "../diagnostics";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
-import { ASTWalker } from "../../project/ast/ast";
+import { lookupSystemClassByName } from "../../system-library";
+
+const ARRAYS_RULE_NODE_KINDS = new Set<Node["kind"]>(["ArrayAccessExpression", "OpaqueStatement"]);
 
 export class ArraysRule implements Rule {
   public readonly name = "arrays";
+  public readonly supportedNodeKinds = ARRAYS_RULE_NODE_KINDS;
 
-  private readonly nativeArrayDeclarations: {
-    readonly name: string;
-    readonly rank: number;
-    readonly line: number;
-    readonly isField: boolean;
-  }[] = [];
-
-  public onStart(unit: CompilationUnit, context: RuleContext): void {
-    const declarations = this.nativeArrayDeclarations;
-    new (class extends ASTWalker {
-      public override walk(node: Node): void {
-        if (
-          (node.kind === "FieldDeclaration" || node.kind === "VariableDeclaration") &&
-          node.nativeArrayDimensions !== undefined
-        ) {
-          declarations.push({
-            name: node.name.toLowerCase(),
-            rank: node.nativeArrayDimensions.length,
-            line: Math.max(0, (node.loc?.startLine ?? 1) - 1),
-            isField: node.kind === "FieldDeclaration",
-          });
-        }
-        super.walk(node);
-      }
-    })().walk(unit);
+  public onStart(_unit: CompilationUnit, _context: RuleContext): void {
+    /* nativeArrayDeclarations come from LintUnitIndex prepass */
   }
 
   public checkNode(node: Node, context: RuleContext, parent: Node | undefined): void {
@@ -108,7 +88,7 @@ export class ArraysRule implements Rule {
 
     if (
       node.target.kind === "Identifier" &&
-      this.isNativeArrayIdentifier(node.target.name, arity, lineIdx)
+      this.isNativeArrayIdentifier(node.target.name, arity, lineIdx, context)
     ) {
       this.checkNativeArrayIndexTypes(args, lineIdx, context);
       return;
@@ -145,9 +125,14 @@ export class ArraysRule implements Rule {
     context.report(diag);
   }
 
-  private isNativeArrayIdentifier(name: string, arity: number, lineIdx: number): boolean {
+  private isNativeArrayIdentifier(
+    name: string,
+    arity: number,
+    lineIdx: number,
+    context: RuleContext,
+  ): boolean {
     const lower = name.toLowerCase();
-    return this.nativeArrayDeclarations.some(
+    return context.unitIndex.nativeArrayDeclarations.some(
       (decl) =>
         decl.name === lower && decl.rank === arity && (decl.isField || decl.line <= lineIdx),
     );

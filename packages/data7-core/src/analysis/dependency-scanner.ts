@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { parseBasic, GenericsParserPlugin } from "../project/parser";
 import { SugarEngine } from "../project/sugars";
-import type { Node } from "../project/ast/ast";
+import type { Node, CompilationUnit } from "../project/ast/ast";
 
 export interface SharedModuleInfo {
   moduleName: string;
@@ -27,12 +27,20 @@ export class DependencyScanner {
       const { unit } = parseBasic(content, {
         plugins: [...new SugarEngine().createParserPlugins(), new GenericsParserPlugin()],
       });
-      const references: ModuleReference[] = [];
-      collectImportReferences(unit, references);
-      return references;
+      return this.collectModuleReferencesFromUnit(unit);
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Collects module references from a pre-parsed AST, avoiding a redundant parse
+   * when the linter pipeline already owns the compilation unit.
+   */
+  public static collectModuleReferencesFromUnit(unit: CompilationUnit): ModuleReference[] {
+    const references: ModuleReference[] = [];
+    collectImportReferences(unit, references);
+    return references;
   }
   public static scanSharedModules(sharedDir: string): Map<string, SharedModuleInfo> {
     return new Map();

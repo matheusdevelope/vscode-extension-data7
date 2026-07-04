@@ -832,7 +832,7 @@ const methods: readonly MethodSpec[] = [
   // Acessores
   {
     name: "Field",
-    returns: "TField",
+    returns: "SQL.TField",
     params: [{ name: "pFieldName", type: "String" }],
     description: "Retorna o objeto TField para leitura/escrita da coluna indicada.",
   },

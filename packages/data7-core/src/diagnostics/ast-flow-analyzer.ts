@@ -51,30 +51,9 @@ export class ASTFlowAnalyzer {
       },
       true,
     );
-    this.collectUnreachableStatements();
     if (this.isFunction && this.hasMissingReturnPath && this.methodNode.loc) {
       this.pushMissingReturnDiagnostic();
     }
-  }
-
-  private collectUnreachableStatements(): void {
-    const walker = new (class extends ASTWalker {
-      constructor(private readonly analyzer: ASTFlowAnalyzer) {
-        super();
-      }
-
-      public override walk(node: Node): void {
-        if (node.kind === "ArrowFunctionExpression") {
-          return;
-        }
-        if (this.analyzer.isUnreachableStatement(node)) {
-          this.analyzer.pushDeadCodeDiagnostic(node);
-          return;
-        }
-        super.walk(node);
-      }
-    })(this);
-    for (const statement of this.methodNode.body) walker.walk(statement);
   }
 
   private isUnreachableStatement(node: Node): boolean {
@@ -200,7 +179,13 @@ export class ASTFlowAnalyzer {
     for (let index = 0; index < statements.length; index++) {
       const statement = statements[index];
       if (!statement) continue;
-      if (!current.reachable) continue;
+      if (!current.reachable) {
+        if (statement.kind === "OpaqueStatement" && isCommentOnlyOpaqueStatement(statement.text)) {
+          continue;
+        }
+        this.pushDeadCodeBlockDiagnostic(statements.slice(index));
+        break;
+      }
       this.reachableNodes.add(statement);
       current = this.checkStatement(
         statement,

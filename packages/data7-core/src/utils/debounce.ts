@@ -42,14 +42,20 @@ export function debounce<TArgs extends unknown[]>(
  * derived from the call (e.g. `Uri.toString()`), so concurrent flows for
  * different documents/files don't cancel each other.
  */
+export interface DebouncedKeyedFunction<TArgs extends unknown[]> {
+  (...args: TArgs): void;
+  cancel(key: string): void;
+  cancelAll(): void;
+}
+
 export function debounceKeyed<TArgs extends unknown[]>(
   fn: (...args: TArgs) => void,
   delayMs: number,
   keySelector: (...args: TArgs) => string,
-): (...args: TArgs) => void {
+): DebouncedKeyedFunction<TArgs> {
   const timers = new Map<string, NodeJS.Timeout>();
 
-  return (...args: TArgs) => {
+  const debounced = ((...args: TArgs) => {
     const key = keySelector(...args);
     const existing = timers.get(key);
     if (existing) {
@@ -60,5 +66,22 @@ export function debounceKeyed<TArgs extends unknown[]>(
       fn(...args);
     }, delayMs);
     timers.set(key, handle);
+  }) as DebouncedKeyedFunction<TArgs>;
+
+  debounced.cancel = (key: string) => {
+    const existing = timers.get(key);
+    if (existing) {
+      clearTimeout(existing);
+      timers.delete(key);
+    }
   };
+
+  debounced.cancelAll = () => {
+    for (const handle of timers.values()) {
+      clearTimeout(handle);
+    }
+    timers.clear();
+  };
+
+  return debounced;
 }

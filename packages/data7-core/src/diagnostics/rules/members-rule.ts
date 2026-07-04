@@ -23,13 +23,23 @@ import {
   inheritsFromClass,
   isQualifiedTypeInvocation,
 } from "../diagnostic-helpers";
-import { lookupSystemByName, SYSTEM_SYMBOLS } from "../../system-library";
+import { lookupSystemByName, lookupSystemClassByName, SYSTEM_SYMBOLS } from "../../system-library";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
 
 const SYSTEM_SYMBOL_NAMES = new Set(SYSTEM_SYMBOLS.map((s) => s.name.toLowerCase()));
 
+const MEMBERS_RULE_NODE_KINDS = new Set<Node["kind"]>([
+  "MemberAccess",
+  "MethodInvocation",
+  "Assignment",
+  "VariableDeclaration",
+  "ExpressionStatement",
+  "Identifier",
+]);
+
 export class MembersRule implements Rule {
   public readonly name = "members";
+  public readonly supportedNodeKinds = MEMBERS_RULE_NODE_KINDS;
 
   public checkNode(node: Node, context: RuleContext, parent: Node | undefined): void {
     if (node.kind === "MemberAccess") {
@@ -55,6 +65,17 @@ export class MembersRule implements Rule {
     if (!node.loc) return;
     if (node.member.length === 0) return;
     const lineIdx = node.loc.startLine - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () => {
+      this.checkMemberAccessWithContext(node, context, parent, lineIdx);
+    });
+  }
+
+  private checkMemberAccessWithContext(
+    node: MemberAccess,
+    context: RuleContext,
+    parent: Node | undefined,
+    lineIdx: number,
+  ): void {
     const lineText = context.lines[lineIdx] ?? "";
     const memberRange = this.getMemberAccessMemberRange(node, lineIdx, lineText);
     const startChar = memberRange.start.character;
@@ -127,6 +148,15 @@ export class MembersRule implements Rule {
     }
 
     if (typeName && this.isResolvableMemberContainer(typeName, context)) {
+      const nativeArrayLengthType = TypeResolver.tryResolveNativeArrayLengthMemberAccess(
+        node,
+        context.document,
+        lineIdx,
+        context.indexer,
+      );
+      if (nativeArrayLengthType) {
+        return;
+      }
       const resolved = TypeResolver.findMember(typeName, node.member, context.indexer);
       if (
         !resolved &&
@@ -235,6 +265,18 @@ export class MembersRule implements Rule {
   ): void {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () => {
+      this.checkMethodInvocationWithContext(node, context, parent, lineIdx);
+    });
+  }
+
+  private checkMethodInvocationWithContext(
+    node: MethodInvocation,
+    context: RuleContext,
+    parent: Node | undefined,
+    lineIdx: number,
+  ): void {
+    if (!node.loc) return;
     const lineText = context.lines[lineIdx] ?? "";
     const dotIndex = node.callee ? lineText.indexOf(".", node.loc.startChar) : -1;
     const startChar = dotIndex !== -1 ? dotIndex + 1 : node.loc.startChar;
@@ -256,6 +298,30 @@ export class MembersRule implements Rule {
         context.isExternalTypeAllowed(node.callee.name, lineIdx)
       ) {
         return;
+      }
+      if (node.methodName.length === 0) {
+        const calleeType = TypeResolver.resolveExpressionType(
+          node.callee,
+          context.document,
+          lineIdx,
+          context.indexer,
+        );
+        if (calleeType && this.resolveDelegateSignature(calleeType, context)) {
+          resolvedDelegateVariable = {
+            name: calleeType,
+            kind: "variable",
+            type: calleeType,
+            isShared: false,
+            isPrivate: false,
+            range: {
+              startLine: lineIdx,
+              startChar,
+              endLine: lineIdx,
+              endChar: startChar,
+            },
+            fileUri: context.document.uri.toString(),
+          };
+        }
       }
       if (prefixLower === "me") {
         typeName = context.activeClass?.name;
@@ -290,11 +356,20 @@ export class MembersRule implements Rule {
             argumentTypes,
           ) ?? TypeResolver.findMember(typeName, node.methodName, context.indexer, arity);
 
+        if (
+          resolvedMethod?.kind === "variable" &&
+          resolvedMethod.nativeArrayRank !== undefined &&
+          resolvedMethod.nativeArrayRank === arity
+        ) {
+          return;
+        }
+
         if (this.isResolvableMemberContainer(typeName, context)) {
           const exists =
             resolvedMethod ?? TypeResolver.findMember(typeName, node.methodName, context.indexer);
           if (
             !exists &&
+            node.methodName.length > 0 &&
             typeName.toLowerCase() !== "variant" &&
             typeName.toLowerCase() !== "tobject" &&
             typeName.toLowerCase() !== "void"
@@ -365,6 +440,8 @@ export class MembersRule implements Rule {
         lineIdx,
         context.indexer,
         argumentTypes,
+        undefined,
+        node.loc?.startChar,
       );
       if (!resolvedMethod && context.activeClass) {
         resolvedMethod = TypeResolver.findMember(
@@ -544,6 +621,21 @@ export class MembersRule implements Rule {
     startChar: number,
     context: RuleContext,
   ): boolean {
+    return TypeResolver.runWithClassResolutionContext(
+      context.document,
+      lineIdx,
+      context.indexer,
+      () => this.checkDelegateInvocationScoped(node, symbol, lineIdx, startChar, context),
+    );
+  }
+
+  private checkDelegateInvocationScoped(
+    node: MethodInvocation,
+    symbol: SymbolInfo,
+    lineIdx: number,
+    startChar: number,
+    context: RuleContext,
+  ): boolean {
     if (symbol.kind !== "variable" && symbol.kind !== "property") return false;
     const delegateSignature = this.resolveDelegateSignature(symbol.type, context);
     if (!delegateSignature) return false;
@@ -612,7 +704,8 @@ export class MembersRule implements Rule {
       lower === "ctype" ||
       lower === "typeof" ||
       PRIMITIVE_TYPES.has(lower) ||
-      DiagnosticsLinter.isKnownType(node.methodName, context.indexer)
+      DiagnosticsLinter.isKnownType(node.methodName, context.indexer) ||
+      context.activeClass?.typeParameters?.some((param) => param.name.toLowerCase() === lower)
     ) {
       return false;
     }
@@ -620,6 +713,17 @@ export class MembersRule implements Rule {
   }
 
   private checkMethodArgumentTypes(
+    node: MethodInvocation,
+    method: SymbolInfo,
+    lineIdx: number,
+    context: RuleContext,
+  ): void {
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () =>
+      this.checkMethodArgumentTypesScoped(node, method, lineIdx, context),
+    );
+  }
+
+  private checkMethodArgumentTypesScoped(
     node: MethodInvocation,
     method: SymbolInfo,
     lineIdx: number,
@@ -835,10 +939,7 @@ export class MembersRule implements Rule {
       }
     | undefined {
     const delegateRef = parseGenericTypeName(delegateType);
-    let delegate =
-      context.indexer.findSymbolByName(delegateRef.name, context.document.uri.toString()) ??
-      context.indexer.findSymbolByName(delegateRef.name) ??
-      lookupSystemByName(delegateRef.name).find((symbol) => symbol.kind === "delegate");
+    let delegate = TypeResolver.findDelegateSymbol(delegateRef.name, context.indexer);
     let typeArguments: readonly string[] = delegateRef.typeArguments;
     if (delegate?.kind !== "delegate") {
       const flatDelegate = this.resolveFlatGenericDelegate(delegateRef.name, context);
@@ -1108,12 +1209,12 @@ export class MembersRule implements Rule {
       context.isLocalDeclared(name) ||
       context.isGenericTypeParameter(name) ||
       this.isProjectGlobalVariable(name, context) ||
-      TypeResolver.getVariableType(
+      TypeResolver.hasVariableInScope(
         name,
         context.document,
         new vscode.Position(lineIdx, node.loc.startChar),
         context.indexer,
-      ) !== undefined ||
+      ) ||
       !!(
         context.activeClass &&
         ((context.activeClassInheritedNames?.has(nameLower) ?? false) ||
@@ -1320,11 +1421,13 @@ export class MembersRule implements Rule {
   }
 
   private isResolvableMemberContainer(typeName: string, context: RuleContext): boolean {
-    return (
-      DiagnosticsLinter.isKnownMemberContainer(typeName, context.indexer) ||
-      TypeResolver.findClassSymbol(typeName, context.indexer) !== undefined ||
-      TypeResolver.getAllMembersForType(typeName, context.indexer).length > 0
-    );
+    if (DiagnosticsLinter.isKnownMemberContainer(typeName, context.indexer)) {
+      return true;
+    }
+    if (TypeResolver.findClassSymbol(typeName, context.indexer) !== undefined) {
+      return true;
+    }
+    return lookupSystemClassByName(typeName).length > 0;
   }
 
   private shouldReportUnknownReceiverType(

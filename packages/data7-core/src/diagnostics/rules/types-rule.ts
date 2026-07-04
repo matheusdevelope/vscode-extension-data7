@@ -25,8 +25,19 @@ import { lookupSystemByName } from "../../system-library";
 import { readConfiguration } from "../../infra/configuration";
 import { SugarEngine } from "../../project/sugars";
 
+const TYPES_RULE_NODE_KINDS = new Set<Node["kind"]>([
+  "TypeReference",
+  "VariableDeclaration",
+  "Assignment",
+  "ClassDeclaration",
+  "ObjectCreationExpression",
+  "MethodInvocation",
+  "PropertyDeclaration",
+]);
+
 export class TypesRule implements Rule {
   public readonly name = "types";
+  public readonly supportedNodeKinds = TYPES_RULE_NODE_KINDS;
 
   public checkNode(node: Node, context: RuleContext, parent: Node | undefined): void {
     switch (node.kind) {
@@ -122,13 +133,24 @@ export class TypesRule implements Rule {
 
   private checkConstructorCall(node: ObjectCreationExpression, context: RuleContext): void {
     if (!node.loc) return;
+    const lineIdx = Math.max(0, node.loc.startLine - 1);
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () =>
+      this.checkConstructorCallScoped(node, context, lineIdx),
+    );
+  }
+
+  private checkConstructorCallScoped(
+    node: ObjectCreationExpression,
+    context: RuleContext,
+    lineIdx: number,
+  ): void {
+    if (!node.loc) return;
     const typeName = node.type.name;
     const constructors = TypeResolver.getAllMembersForType(typeName, context.indexer).filter(
       (member) => member.kind === "method" && member.name.toLowerCase() === "new",
     );
     if (constructors.length === 0) return;
 
-    const lineIdx = Math.max(0, node.loc.startLine - 1);
     const argumentTypes = node.arguments.map((argument) =>
       TypeResolver.resolveExpressionType(argument, context.document, lineIdx, context.indexer),
     );
@@ -139,7 +161,13 @@ export class TypesRule implements Rule {
 
     if (
       signatures.some((parameters) =>
-        this.constructorSignatureAccepts(parameters, argumentTypes, context),
+        this.constructorSignatureAccepts(
+          parameters,
+          argumentTypes,
+          node.arguments,
+          lineIdx,
+          context,
+        ),
       )
     ) {
       return;
@@ -167,6 +195,8 @@ export class TypesRule implements Rule {
       readonly defaultValue?: string;
     }[],
     argumentTypes: readonly (string | undefined)[],
+    argumentsNodes: readonly Expression[],
+    lineIdx: number,
     context: RuleContext,
   ): boolean {
     if (argumentTypes.length > parameters.length) return false;
@@ -180,7 +210,22 @@ export class TypesRule implements Rule {
     for (let index = 0; index < argumentTypes.length; index++) {
       const argumentType = argumentTypes[index];
       const parameter = parameters[index];
-      if (!argumentType || !parameter) continue;
+      const argument = argumentsNodes[index];
+      if (!parameter) continue;
+      if (
+        argument &&
+        TypeResolver.isMethodReferenceDelegateCompatible(
+          argument,
+          parameter.type,
+          context.document,
+          lineIdx,
+          context.indexer,
+          context.activeClass?.name,
+        )
+      ) {
+        continue;
+      }
+      if (!argumentType) continue;
       if (!DiagnosticsLinter.isTypeCompatible(argumentType, parameter.type, context.indexer)) {
         return false;
       }

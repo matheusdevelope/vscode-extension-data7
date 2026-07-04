@@ -28,10 +28,19 @@ import {
   type ExternalTypeDirective,
 } from "../utils/external-type-comments";
 import { LanguageProcessor } from "../analysis/language-processor";
+import { warmLintTypeResolutionIndexes } from "../analysis/type-resolver";
+import { SemanticLintCache } from "../analysis/semantic-lint-cache";
+import {
+  DeclarationLintCache,
+  hashDeclarationBody,
+  type DeclarationLintTarget,
+} from "../analysis/declaration-lint-cache";
+import { LintPipelineProfiler } from "../analysis/lint-pipeline-profiler";
 import {
   validateDuplicateDeclarations,
   validateNamespaceNameConflicts,
 } from "./structural-diagnostics";
+import { LintUnitIndex } from "./lint-unit-index";
 import {
   areResolvedTypeNamesEquivalent,
   areSameGenericTemplateCompatible,
@@ -309,6 +318,10 @@ export class DiagnosticsLinter {
 
     if (lhsLower === rhsLower) return true;
 
+    const isTextual = (type: string): boolean =>
+      type === "string" || type === "char" || type === "widechar" || type === "shortstring";
+    if (isTextual(lhsLower) && isTextual(rhsLower)) return true;
+
     const isNumeric = (type: string): boolean =>
       [
         "integer",
@@ -333,6 +346,7 @@ export class DiagnosticsLinter {
     if (rhsLower === "tcolor" && (lhsLower === "tcolor" || isNumeric(lhsLower))) return true;
 
     if (areResolvedTypeNamesEquivalent(rhsType, lhsType, indexer)) return true;
+    if (TypeResolver.areDelegateSignaturesCompatible(rhsType, lhsType, indexer)) return true;
     if (isLikelyGenericTypeParameter(lhsType) || isLikelyGenericTypeParameter(rhsType)) return true;
     if (areSameGenericTemplateCompatible(rhsType, lhsType, indexer)) return true;
 
@@ -345,7 +359,11 @@ export class DiagnosticsLinter {
     const rhsIsPrimitive = PRIMITIVE_TYPES.has(rhsLower);
 
     if (rhsLower === "null") return !lhsIsPrimitive || lhsIsTObjectRoot;
-    if (rhsLower === "unassigned") return lhsIsPrimitive && !lhsIsTObjectRoot;
+    if (rhsLower === "unassigned") {
+      if (lhsLower === "variant") return true;
+      if (!lhsIsPrimitive && !TypeResolver.findClassSymbol(lhsType, indexer)) return true;
+      return lhsIsPrimitive && !lhsIsTObjectRoot;
+    }
 
     // Every Data7 workspace class implicitly descends from TObject. TObject is
     // listed in PRIMITIVE_TYPES because it is globally available, but assignment
@@ -363,6 +381,18 @@ export class DiagnosticsLinter {
     }
 
     if (lhsIsPrimitive || rhsIsPrimitive) return false;
+
+    const rhsClass = TypeResolver.findClassSymbol(rhsType, indexer);
+    const lhsClass = TypeResolver.findClassSymbol(lhsType, indexer);
+    if (
+      rhsClass &&
+      lhsClass &&
+      TypeResolver.areEnumTypesStrictlyCompatible(rhsType, lhsType, indexer) === false &&
+      rhsClass.inheritsFrom?.toLowerCase() === "tenum" &&
+      lhsClass.inheritsFrom?.toLowerCase() === "tenum"
+    ) {
+      return false;
+    }
 
     return TypeResolver.isSubclassOf(rhsType, lhsType, indexer);
   }
@@ -464,7 +494,18 @@ export class DiagnosticsLinter {
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
   ): vscode.Diagnostic[] {
-    return new DiagnosticsLinter().runDiagnostics(document, indexer);
+    const uriStr = document.uri.toString();
+    const fingerprint = indexer.buildLintContextFingerprint(uriStr, document.getText());
+    const cached = SemanticLintCache.getInstance().get(indexer.lintCacheScope, uriStr, fingerprint);
+    if (cached) {
+      LintPipelineProfiler.recordSemanticCacheHit(uriStr);
+      return [...cached];
+    }
+
+    LintPipelineProfiler.recordSemanticCacheMiss(uriStr);
+    const result = new DiagnosticsLinter().runDiagnostics(document, indexer);
+    SemanticLintCache.getInstance().set(indexer.lintCacheScope, uriStr, fingerprint, result);
+    return result;
   }
 
   public runDiagnostics(
@@ -503,6 +544,7 @@ export class DiagnosticsLinter {
 
       const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
       const unit = cached.unit;
+      warmLintTypeResolutionIndexes(unit, document, indexer);
       cached.errors.forEach((err) => {
         const line = Math.max(0, err.loc.line - 1);
         const col = Math.max(0, err.loc.column);
@@ -520,7 +562,15 @@ export class DiagnosticsLinter {
 
       // Run the AST-based linter walker
       const tWalker = new TimeTracker(" -> Walker do Linter");
-      const walker = new DiagnosticsASTWalker(document, indexer, text, lines, diagnostics);
+      const unitIndex = LintUnitIndex.build(unit);
+      const walker = new DiagnosticsASTWalker(
+        document,
+        indexer,
+        text,
+        lines,
+        diagnostics,
+        unitIndex,
+      );
       walker.run(unit);
       tWalker.stopAndLog();
 
@@ -719,6 +769,9 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
   private readonly typeParamStack: Set<string>[] = [];
   private readonly externalTypeDirectives: readonly ExternalTypeDirective[];
   private readonly rules: readonly Rule[];
+  private readonly declarationLintCache = DeclarationLintCache.getInstance();
+  private readonly lintDependencyFingerprint: string;
+  public readonly unitIndex: LintUnitIndex;
 
   constructor(
     public readonly document: vscode.TextDocument,
@@ -726,9 +779,14 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     public readonly text: string,
     public readonly lines: readonly string[],
     public readonly diagnostics: vscode.Diagnostic[],
+    unitIndex: LintUnitIndex,
   ) {
     super();
+    this.unitIndex = unitIndex;
     this.externalTypeDirectives = extractExternalTypeDirectives(text);
+    this.lintDependencyFingerprint = indexer.buildLintDependencyFingerprint(
+      document.uri.toString(),
+    );
     this.rules = [
       new DeclarationsRule(),
       new ImportsRule(),
@@ -823,11 +881,14 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
 
     if (node.kind === "ClassDeclaration") {
       this.activeClass = node;
-      this.activeClassInheritedNames = new Set(
-        TypeResolver.getInheritedMembers(node.name, this.indexer).map((member) =>
-          member.name.toLowerCase(),
-        ),
-      );
+      const classSymbol = TypeResolver.findClassSymbol(node.name, this.indexer);
+      this.activeClassInheritedNames = classSymbol
+        ? new Set(
+            TypeResolver.getInheritedMembersForClassSymbol(classSymbol, this.indexer).map(
+              (member) => member.name.toLowerCase(),
+            ),
+          )
+        : new Set();
       pushedTypeParams = this.pushTypeParameters(node.typeParameters);
     } else if (node.kind === "MethodDeclaration") {
       this.activeMethod = node;
@@ -876,13 +937,85 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
       });
     }
 
-    for (const rule of this.rules) {
-      rule.checkNode?.(node, this, parent);
+    let cachedBodyDiagnostics: readonly vscode.Diagnostic[] | undefined;
+    let declarationCacheKey: string | undefined;
+    let skipChildWalk = false;
+
+    if (node.kind === "MethodDeclaration" || node.kind === "PropertyDeclaration") {
+      const target: DeclarationLintTarget =
+        node.kind === "MethodDeclaration"
+          ? { kind: "MethodDeclaration", node }
+          : { kind: "PropertyDeclaration", node };
+      const bodyHash = hashDeclarationBody(target, this.lines);
+      declarationCacheKey = this.declarationLintCache.buildCacheKey(
+        this.indexer.lintCacheScope,
+        this.document.uri.toString(),
+        this.activeClass?.name,
+        target,
+      );
+      cachedBodyDiagnostics = this.declarationLintCache.get(
+        declarationCacheKey,
+        this.lintDependencyFingerprint,
+        bodyHash,
+      );
+      if (cachedBodyDiagnostics) {
+        skipChildWalk = true;
+      }
     }
 
-    this.parentStackInternal.push(node);
-    super.walk(node);
-    this.parentStackInternal.pop();
+    if (!cachedBodyDiagnostics) {
+      for (const rule of this.rules) {
+        const kinds = rule.supportedNodeKinds;
+        if (kinds && !kinds.has(node.kind)) continue;
+        rule.checkNode?.(node, this, parent);
+      }
+    }
+
+    if (cachedBodyDiagnostics) {
+      for (const diagnostic of cachedBodyDiagnostics) {
+        this.diagnostics.push(diagnostic);
+      }
+    }
+
+    if (!skipChildWalk) {
+      const bodyDiagStart = declarationCacheKey !== undefined ? this.diagnostics.length : undefined;
+
+      this.parentStackInternal.push(node);
+      super.walk(node);
+      this.parentStackInternal.pop();
+
+      if (declarationCacheKey !== undefined && bodyDiagStart !== undefined) {
+        if (node.kind === "MethodDeclaration") {
+          const bodyHash = hashDeclarationBody({ kind: "MethodDeclaration", node }, this.lines);
+          const bodyDiagnostics = this.diagnostics.slice(bodyDiagStart);
+          this.declarationLintCache.set(
+            declarationCacheKey,
+            this.lintDependencyFingerprint,
+            bodyHash,
+            bodyDiagnostics,
+          );
+          this.declarationLintCache.trackFileKey(
+            this.indexer.lintCacheScope,
+            this.document.uri.toString(),
+            declarationCacheKey,
+          );
+        } else if (node.kind === "PropertyDeclaration") {
+          const bodyHash = hashDeclarationBody({ kind: "PropertyDeclaration", node }, this.lines);
+          const bodyDiagnostics = this.diagnostics.slice(bodyDiagStart);
+          this.declarationLintCache.set(
+            declarationCacheKey,
+            this.lintDependencyFingerprint,
+            bodyHash,
+            bodyDiagnostics,
+          );
+          this.declarationLintCache.trackFileKey(
+            this.indexer.lintCacheScope,
+            this.document.uri.toString(),
+            declarationCacheKey,
+          );
+        }
+      }
+    }
 
     if (isConditional) {
       this.conditionalBlockDepth--;

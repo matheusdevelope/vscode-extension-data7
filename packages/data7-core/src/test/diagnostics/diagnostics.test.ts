@@ -1515,6 +1515,25 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
+    test("does not self-conflict when workspace index URI differs from editor URI casing", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_strings_helper
+   Private Dim regex As Variant
+   Function Trim(pStr As String) As String
+      Trim = pStr.Trim()
+   End Function
+End Namespace`;
+      const workspaceUri = "file:///d:/project/src/mod_strings_helper.bas";
+      const editorUri = "file:///D:/project/src/mod_strings_helper.bas";
+      indexer.updateFileContent(workspaceUri, code);
+      indexer.updateFileContentFromParsed(editorUri, code, indexer.getFileSymbols(workspaceUri)!);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(editorUri, code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
     test("does NOT emit error for method overloads (same name but different parameter count/types)", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
@@ -3860,9 +3879,7 @@ End Namespace`;
 
   test("keeps same-named fields scoped to the active class in enum wrapper patterns", () => {
     const indexer = WorkspaceSymbolIndexer.createDetached();
-    indexer.updateFileContent(
-      "file:///data7_modules/core_modules/mod_tenum.bas",
-      `Namespace mod_tenum
+    const coreTenum = `Namespace mod_tenum
    Class TEnum
       Protected _value As Integer
       Property AsInteger As Integer
@@ -3871,8 +3888,9 @@ End Namespace`;
          End Get
       End Property
    End Class
-End Namespace`,
-    );
+End Namespace`;
+    createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+    indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
 
     const uri = "file:///enum_wrapper_fields.bas";
     const code = `Namespace mod_enum
@@ -3918,12 +3936,203 @@ End Namespace`,
       End Function
    End Class
 End Namespace`;
+    createMockDoc(uri, code);
     indexer.updateFileContent(uri, code);
 
-    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+      createMockDoc(uri, code, { register: false }),
+      indexer,
+    );
 
     expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+  });
+
+  test("accepts subclass arguments when core_modules homonym shadows workspace class name", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const baseListBas = `Namespace mod_base_list
+   Delegate Function FindDel(pValue As BaseItem, i As Integer, extra As Variant) As Boolean
+   Class BaseItem
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class BaseList
+      Sub Add(pItem As BaseItem)
+      End Sub
+      Sub SetItem(pIndex As Integer, pItem As BaseItem)
+      End Sub
+      Function Take(pIndex As Integer) As BaseItem
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    const coreTenum = `Namespace mod_tenum
+   Class TEnum
+      Inherits TObject
+      Property AsInteger As Integer
+         Get
+            AsInteger = 0
+         End Get
+      End Property
+   End Class
+End Namespace`;
+    createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+    createMockDoc("file:///mod_base_list.bas", baseListBas);
+    indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+    indexer.updateFileContent("file:///mod_base_list.bas", baseListBas);
+
+    const uri = "file:///mod_enum_homonym.bas";
+    const code = `Imports mod_base_list
+Namespace mod_enum
+   Class BaseEnum
+      Property AsString As String
+         Get
+            AsString = ""
+         End Get
+      End Property
+   End Class
+   Class TEnum
+      Inherits BaseItem
+      Private _value As BaseEnum
+      Property Value As BaseEnum
+         Get
+            Value = me._value
+         End Get
+      End Property
+      Sub New(pValue As TEnum)
+         me._value = pValue.Value
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TEnumList
+      Inherits BaseList
+      Function Add(pValue As BaseEnum) As TEnum
+         Dim _option As TEnum = New TEnum(pValue)
+         me.Add(_option)
+         Add = _option
+      End Function
+      Property Item(pIndex As Integer) As TEnum
+         Get
+            Item = CType(MyBase.Take(pIndex), TEnum)
+         End Get
+         Set(pValue As TEnum)
+            me.SetItem(pIndex, pValue)
+         End Set
+      End Property
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    createMockDoc(uri, code);
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+  });
+
+  test("accepts native array delegate invocation and list delegate forwarding", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const baseListBas = `Namespace mod_base_list
+   Delegate Function FindDel(pValue As BaseItem, i As Integer, extra As Variant) As Boolean
+   Delegate Sub ForEachDel(pValue As BaseItem, i As Integer, extra As Variant)
+   Class BaseItem
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class BaseList
+      Sub ForEach(pHandler As ForEachDel, extra As Variant)
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    createMockDoc("file:///mod_base_list_native_array.bas", baseListBas);
+    indexer.updateFileContent("file:///mod_base_list_native_array.bas", baseListBas);
+    const uri = "file:///native_array_delegate.bas";
+    const code = `Imports mod_base_list
+Namespace mod_printer
+   Delegate Sub DelegateOnChangeDefault(pPrinterName As String)
+   Delegate Function FindDelegate(pValue As Printer, i As Integer, extra As Variant) As Boolean
+   Delegate Sub ForEachDelegate(pValue As Printer, i As Integer, extra As Variant)
+   Class Printer
+      Inherits BaseItem
+      Private Events(2) As DelegateOnChangeDefault
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub SetAsDefault()
+         me.Events(0)(me.Name)
+      End Sub
+      Sub Dispose()
+         me.Events.Length = 0
+      End Sub
+      ReadOnly Name As String
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class PrinterList
+      Inherits BaseList
+      Sub ForEach(handler As FindDelegate)
+         me.ForEach(handler, "")
+      End Sub
+      Sub ForEach(handler As ForEachDelegate, extra As Variant)
+         MyBase.ForEach(handler, extra)
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+    createMockDoc(uri, code);
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+  });
+
+  test("resolves overloaded EnumToInt call sites independently on the same line", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///enum_to_int_overload_same_line.bas";
+    const code = `Namespace mod_stream_enums
+   Enum TFileMode
+      Open
+   End Enum
+   Enum TFileAccess
+      Read
+   End Enum
+   Class FileStream
+      Sub Open(pPath As String)
+         me.COM.Open(pPath, EnumToInt(TFileMode.Open()), EnumToInt(TFileAccess.Read()))
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Function EnumToInt(pEnum As TFileMode) As Integer
+      EnumToInt = 1
+   End Function
+   Function EnumToInt(pEnum As TFileAccess) As Integer
+      EnumToInt = 2
+   End Function
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
   });
 
   test("allows event handler member references assigned to OnClick delegates", () => {

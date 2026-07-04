@@ -296,6 +296,105 @@ End Namespace`;
   });
 
   describe("resolveParent", () => {
+    test("resolves unqualified Inherits via Imports before system-library homonyms", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => unknown;
+      };
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const controlBas = `Namespace mod_control
+   Class Control
+      Property AsControl As TObject
+         Get
+            AsControl = NULL
+         End Get
+      End Property
+   End Class
+End Namespace`;
+      const childBas = `Imports mod_control
+Namespace mod_child
+   Class TTopBar
+      Inherits Control
+      Sub SetVisible(pValue As Boolean)
+         me.AsControl.Visible = pValue
+      End Sub
+   End Class
+End Namespace`;
+      createMockDoc("file:///mod_control.bas", controlBas);
+      createMockDoc("file:///mod_child.bas", childBas);
+      indexer.updateFileContent("file:///mod_control.bas", controlBas);
+      indexer.updateFileContent("file:///mod_child.bas", childBas);
+
+      const topbar = indexer.getSymbolsByName("TTopBar")[0];
+      assert.ok(topbar);
+      const member = TypeResolver.findMemberOnClassSymbol(topbar, "AsControl", indexer);
+      assert.ok(member, "inherited AsControl from imported mod_control.Control");
+      assert.equal(member.type, "TObject");
+    });
+
+    test("prefers workspace Control over system-library TEditLink.Control homonym", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => unknown;
+      };
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const controlBas = `Namespace mod_control
+   Class Control
+      Protected _id As String
+      Property AsPage As TObject
+         Get
+            AsPage = NULL
+         End Get
+      End Property
+   End Class
+End Namespace`;
+      const uri = "file:///mod_control_homonym.bas";
+      createMockDoc(uri, controlBas);
+      indexer.updateFileContent(uri, controlBas);
+
+      const control = TypeResolver.findClassSymbol("Control", indexer);
+      assert.ok(control);
+      assert.equal(control.containerName, "mod_control");
+      assert.equal(control.fileUri, uri);
+      assert.ok(TypeResolver.findMember("Control", "AsPage", indexer));
+      assert.ok(TypeResolver.findMember("Control", "_id", indexer));
+    });
+
+    test("does not cache findMember results across homonymous workspace classes", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string, opts?: { register?: boolean }) => any;
+      };
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const coreTenum = `Namespace mod_tenum
+   Class TEnum
+      Protected _value As Integer
+   End Class
+End Namespace`;
+      createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+      indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+
+      const uri = "file:///mod_enum_cache.bas";
+      const workspaceTenum = `Namespace mod_enum
+   Class TEnum
+      Property Value As Integer
+         Get
+            Value = 0
+         End Get
+      End Property
+   End Class
+End Namespace`;
+      createMockDoc(uri, workspaceTenum);
+      indexer.updateFileContent(uri, workspaceTenum);
+      const doc = createMockDoc(uri, workspaceTenum, { register: false });
+
+      // Resolve without context first (picks an arbitrary homonym) — must not poison later lookups.
+      TypeResolver.findMember("TEnum", "Value", indexer);
+
+      const member = TypeResolver.runWithClassResolutionContext(doc, 4, indexer, () =>
+        TypeResolver.findMember("TEnum", "Value", indexer),
+      );
+      assert.ok(member, "workspace TEnum.Value must resolve after an earlier homonym lookup");
+      assert.equal(member.name, "Value");
+    });
+
     test("returns the explicit inheritsFrom when present", () => {
       assert.equal(
         TypeResolver.resolveParent({

@@ -7,6 +7,7 @@ const fn = (
   type: string,
   params: ParameterInfo[],
   desc: string,
+  variadicParameters: boolean = false,
 ): SystemSymbolInfo => {
   return {
     name,
@@ -18,6 +19,7 @@ const fn = (
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     description: desc,
+    ...(variadicParameters ? { variadicParameters: true } : {}),
   };
 };
 
@@ -121,6 +123,7 @@ export const symbols: SystemSymbolInfo[] = [
     "Variant",
     [pr("pArgList", "Variant", false, true)],
     "Retorna um Variant contendo um array.",
+    true,
   ),
   fn(
     "Filter",

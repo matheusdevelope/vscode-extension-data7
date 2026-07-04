@@ -7,6 +7,12 @@ import type { Token } from "../project/parser/token-types";
 import { logger } from "../infra/logger";
 import { readConfiguration } from "../infra/configuration";
 import { SugarEngine } from "../project/sugars";
+import { SemanticLintCache } from "./semantic-lint-cache";
+import { DeclarationLintCache } from "./declaration-lint-cache";
+import {
+  clearLocalScopeIndexCache,
+  clearLintTypeResolutionCachesForUnit,
+} from "./lint-type-resolution-cache";
 
 export interface CachedDocument {
   readonly uri: string;
@@ -36,6 +42,9 @@ export class LanguageProcessor {
 
   public clearCache(): void {
     this.cache.clear();
+    SemanticLintCache.getInstance().clear();
+    DeclarationLintCache.getInstance().clear();
+    clearLocalScopeIndexCache();
     for (const debouncer of this.debouncers.values()) {
       clearTimeout(debouncer);
     }
@@ -85,6 +94,10 @@ export class LanguageProcessor {
    */
   public invalidate(uri: string): void {
     const key = this.normalizeUri(uri);
+    const cached = this.cache.get(key);
+    if (cached?.unit) {
+      clearLintTypeResolutionCachesForUnit(cached.unit);
+    }
     this.cache.delete(key);
     const debouncer = this.debouncers.get(key);
     if (debouncer) {
@@ -107,12 +120,10 @@ export class LanguageProcessor {
       this.debouncers.delete(key);
       try {
         this.parseAndCache(uri, content, version);
-        // Trigger diagnostics refresh here if needed
-        vscode.commands.executeCommand("data7.refreshDiagnostics", uri);
       } catch (err: unknown) {
         logger.error(`Error debounced parsing: ${uri}`, err);
       }
-    }, 150); // 150ms debounce
+    }, 300); // AST cache refresh only; lint is orchestrated by DiagnosticService
 
     this.debouncers.set(key, debouncer);
   }

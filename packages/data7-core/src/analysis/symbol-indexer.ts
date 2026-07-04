@@ -17,6 +17,12 @@ import {
   type Node,
   type ParameterDeclaration,
 } from "../project/ast/ast";
+import { WorkspaceDependencyGraph } from "./workspace-dependency-graph";
+import { SemanticLintCache } from "./semantic-lint-cache";
+import { DeclarationLintCache } from "./declaration-lint-cache";
+import { clearLintTypeResolutionCachesForUnit } from "./lint-type-resolution-cache";
+import { LanguageProcessor } from "./language-processor";
+import { hashContent } from "../utils/content-hash";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 
 // Parameter info
@@ -56,6 +62,8 @@ export interface SymbolInfo {
   isReadOnly?: boolean;
   isMustOverride?: boolean;
   isOverridable?: boolean;
+  /** When true, arity matching accepts any argument count >= required parameters (e.g. VB `Array`). */
+  variadicParameters?: boolean;
   isMustInherit?: boolean;
   isNotInheritable?: boolean;
   isShadows?: boolean;
@@ -98,6 +106,12 @@ export interface FileSymbols {
   content: string;
   imports: string[];
   symbols: SymbolInfo[];
+}
+
+/** Immutable snapshot of indexed workspace symbols for parallel lint workers. */
+export interface WorkspaceSymbolIndexSnapshot {
+  readonly entries: readonly FileSymbols[];
+  readonly fileRevisions: ReadonlyMap<string, number>;
 }
 
 function typeRefToString(typeRef: TypeReference | undefined): string | undefined {
@@ -226,7 +240,9 @@ class SymbolIndexerWalker extends ASTWalker {
         isPrivate,
         isProtected,
         isMustOverride: node.modifiers?.includes("mustoverride") ?? false,
-        isOverridable: node.modifiers?.includes("overridable") ?? false,
+        isOverridable:
+          (node.modifiers?.includes("overridable") ?? false) ||
+          (node.modifiers?.includes("overrides") ?? false),
         isShadows: node.modifiers?.includes("shadows") ?? false,
         parameters: params,
         range: {
@@ -299,7 +315,9 @@ class SymbolIndexerWalker extends ASTWalker {
         isPrivate,
         isProtected,
         isMustOverride: node.modifiers?.includes("mustoverride") ?? false,
-        isOverridable: node.modifiers?.includes("overridable") ?? false,
+        isOverridable:
+          (node.modifiers?.includes("overridable") ?? false) ||
+          (node.modifiers?.includes("overrides") ?? false),
         isShadows: node.modifiers?.includes("shadows") ?? false,
         range: {
           startLine: loc.startLine - 1,
@@ -489,9 +507,11 @@ export class SymbolParser {
 }
 
 export class WorkspaceSymbolIndexer {
-  private static instance: WorkspaceSymbolIndexer | undefined;
+  private static hostInstance: WorkspaceSymbolIndexer | undefined;
+  private static detachedScopeCounter = 0;
   private cache = new Map<string, FileSymbols>(); // fileUri -> FileSymbols
   public readonly changedNamespacesInLastUpdate = new Set<string>();
+  public readonly lintCacheScope: string;
 
   private allSymbolsCache: SymbolInfo[] | null = null;
   private allFileSymbolsCache: FileSymbols[] | null = null;
@@ -500,19 +520,154 @@ export class WorkspaceSymbolIndexer {
 
   public readonly findMemberCache = new Map<string, SymbolInfo | undefined>();
   public readonly allMembersForTypeCache = new Map<string, SymbolInfo[]>();
+  public readonly ownMembersForClassCache = new Map<string, SymbolInfo[]>();
+  public readonly inheritedMembersForClassCache = new Map<string, SymbolInfo[]>();
+  private readonly dependencyGraph = new WorkspaceDependencyGraph();
+  private readonly fileRevisions = new Map<string, number>();
 
-  private invalidateLocalCaches(): void {
+  private invalidateAggregateSymbolCaches(): void {
     this.allSymbolsCache = null;
     this.allFileSymbolsCache = null;
     this.symbolsByNameMap = null;
     this.symbolsByContainerMap = null;
+  }
+
+  private invalidateLocalCaches(): void {
+    this.invalidateAggregateSymbolCaches();
     this.findMemberCache.clear();
     this.allMembersForTypeCache.clear();
+    this.ownMembersForClassCache.clear();
+    this.inheritedMembersForClassCache.clear();
+  }
+
+  private bumpFileRevision(fileUri: string): void {
+    const key = this.getCacheKey(fileUri);
+    this.fileRevisions.set(key, (this.fileRevisions.get(key) ?? 0) + 1);
+  }
+
+  public getFileRevision(fileUri: string): number {
+    return this.fileRevisions.get(this.getCacheKey(fileUri)) ?? 0;
+  }
+
+  /** True when two URI strings refer to the same workspace file (path-normalized). */
+  public isSameFileUri(fileUriA: string, fileUriB: string): boolean {
+    return this.getCacheKey(fileUriA) === this.getCacheKey(fileUriB);
+  }
+
+  /**
+   * Aligns cached symbol URIs with the caller's URI when they denote the same file
+   * but use different string forms (e.g. workspace scan vs. open editor).
+   */
+  private reconcileIndexedFileUri(fileUri: string): boolean {
+    const key = this.getCacheKey(fileUri);
+    const fileSyms = this.cache.get(key);
+    if (!fileSyms || fileSyms.fileUri === fileUri) {
+      return false;
+    }
+    fileSyms.fileUri = fileUri;
+    try {
+      fileSyms.filePath = vscode.Uri.parse(fileUri).fsPath;
+    } catch {
+      /* keep existing filePath */
+    }
+    for (const sym of fileSyms.symbols) {
+      sym.fileUri = fileUri;
+    }
+    return true;
+  }
+
+  public buildLintContextFingerprint(fileUri: string, content: string): string {
+    const key = this.getCacheKey(fileUri);
+    const ownRevision = String(this.fileRevisions.get(key) ?? 0);
+    return `${hashContent(content)}|${ownRevision}|${this.buildLintDependencyFingerprint(fileUri)}`;
+  }
+
+  /**
+   * Cross-file lint context (imported namespaces + Principal.bas) without own-file revision.
+   * Used by per-declaration lint cache so unchanged method bodies survive local edits.
+   */
+  public buildLintDependencyFingerprint(fileUri: string): string {
+    const key = this.getCacheKey(fileUri);
+    const parts: string[] = [];
+
+    const fileSyms = this.cache.get(key);
+    if (fileSyms) {
+      const importParts: string[] = [];
+      for (const imp of fileSyms.imports) {
+        const owner = this.dependencyGraph.getDeclaringFileUri(imp);
+        if (owner) {
+          importParts.push(
+            `${owner}:${String(this.fileRevisions.get(this.getCacheKey(owner)) ?? 0)}`,
+          );
+        }
+      }
+      importParts.sort();
+      if (importParts.length > 0) {
+        parts.push(importParts.join(","));
+      }
+    }
+
+    let principalRevision = 0;
+    for (const file of this.cache.values()) {
+      if (file.filePath.toLowerCase().endsWith(`${path.sep}principal.bas`)) {
+        principalRevision = Math.max(
+          principalRevision,
+          this.fileRevisions.get(this.getCacheKey(file.fileUri)) ?? 0,
+        );
+      }
+    }
+    parts.push(`p:${String(principalRevision)}`);
+    return parts.join("|");
+  }
+
+  private notifyLintCacheInvalidation(
+    fileUri: string,
+    extraNamespaces: ReadonlySet<string> = new Set<string>(),
+  ): void {
+    const cached = LanguageProcessor.getInstance().getCached(fileUri);
+    if (cached?.unit) {
+      clearLintTypeResolutionCachesForUnit(cached.unit);
+    }
+    const cache = SemanticLintCache.getInstance();
+    cache.invalidate(this.lintCacheScope, fileUri);
+    cache.invalidateDependents(this.lintCacheScope, fileUri, this.dependencyGraph, extraNamespaces);
+
+    DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, fileUri);
+    for (const dependentUri of this.dependencyGraph.getDependentFileUris(
+      fileUri,
+      extraNamespaces,
+    )) {
+      DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, dependentUri);
+      const dependentCached = LanguageProcessor.getInstance().getCached(dependentUri);
+      if (dependentCached?.unit) {
+        clearLintTypeResolutionCachesForUnit(dependentCached.unit);
+      }
+    }
+  }
+
+  private syncDependencyGraphEntry(fileUri: string): void {
+    const fileSyms = this.cache.get(this.getCacheKey(fileUri));
+    if (fileSyms) {
+      this.dependencyGraph.registerFile(fileSyms);
+    } else {
+      this.dependencyGraph.unregisterFile(fileUri);
+    }
+  }
+
+  private rebuildDependencyGraph(): void {
+    this.dependencyGraph.rebuild(Array.from(this.cache.values()));
+  }
+
+  public getDependentFileUris(
+    triggerUri: string,
+    extraNamespaces: ReadonlySet<string> = new Set<string>(),
+  ): readonly string[] {
+    return this.dependencyGraph.getDependentFileUris(triggerUri, extraNamespaces);
   }
 
   // Singleton — the private constructor prevents instantiation outside `getInstance`.
-  private constructor() {
-    /* intentional: enforces singleton */
+  private constructor(lintCacheScope: string) {
+    this.lintCacheScope = lintCacheScope;
     if (readConfiguration().features.language.sugars) {
       this.indexVirtualSugarModules();
     }
@@ -529,8 +684,8 @@ export class WorkspaceSymbolIndexer {
   }
 
   public static getInstance(): WorkspaceSymbolIndexer {
-    WorkspaceSymbolIndexer.instance ??= new WorkspaceSymbolIndexer();
-    return WorkspaceSymbolIndexer.instance;
+    WorkspaceSymbolIndexer.hostInstance ??= new WorkspaceSymbolIndexer("host");
+    return WorkspaceSymbolIndexer.hostInstance;
   }
 
   /**
@@ -544,7 +699,51 @@ export class WorkspaceSymbolIndexer {
    * is itself short-lived and owns the lifecycle of the result.
    */
   public static createDetached(): WorkspaceSymbolIndexer {
-    return new WorkspaceSymbolIndexer();
+    WorkspaceSymbolIndexer.detachedScopeCounter++;
+    return new WorkspaceSymbolIndexer(`detached-${WorkspaceSymbolIndexer.detachedScopeCounter}`);
+  }
+
+  /**
+   * Exports a read-only snapshot of the current index for worker-thread lint.
+   * Each worker loads the snapshot into its own detached indexer instance.
+   */
+  public exportLintSnapshot(): WorkspaceSymbolIndexSnapshot {
+    const entries: FileSymbols[] = [];
+    for (const fileSyms of this.cache.values()) {
+      entries.push({
+        fileUri: fileSyms.fileUri,
+        filePath: fileSyms.filePath,
+        content: fileSyms.content,
+        imports: [...fileSyms.imports],
+        symbols: fileSyms.symbols.map((symbol) => ({ ...symbol })),
+      });
+    }
+    return {
+      entries,
+      fileRevisions: new Map(this.fileRevisions),
+    };
+  }
+
+  /**
+   * Hydrates a detached indexer from {@link exportLintSnapshot} without touching disk.
+   */
+  public loadLintSnapshot(snapshot: WorkspaceSymbolIndexSnapshot): void {
+    this.cache.clear();
+    this.fileRevisions.clear();
+    for (const entry of snapshot.entries) {
+      this.cache.set(this.getCacheKey(entry.fileUri), {
+        fileUri: entry.fileUri,
+        filePath: entry.filePath,
+        content: entry.content,
+        imports: [...entry.imports],
+        symbols: entry.symbols.map((symbol) => ({ ...symbol })),
+      });
+    }
+    for (const [key, revision] of snapshot.fileRevisions) {
+      this.fileRevisions.set(key, revision);
+    }
+    this.rebuildDependencyGraph();
+    this.invalidateLocalCaches();
   }
 
   private getCacheKey(fileUri: string): string {
@@ -612,6 +811,9 @@ export class WorkspaceSymbolIndexer {
       const folderPath = folder.uri.fsPath;
       await this.scanDir(folderPath);
     }
+    this.rebuildDependencyGraph();
+    this.findMemberCache.clear();
+    this.allMembersForTypeCache.clear();
   }
 
   /**
@@ -727,10 +929,15 @@ export class WorkspaceSymbolIndexer {
             this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
           }
         }
+        this.bumpFileRevision(fileUri);
+        this.notifyLintCacheInvalidation(fileUri);
       } else {
         this.cache.delete(key);
+        this.bumpFileRevision(fileUri);
+        this.notifyLintCacheInvalidation(fileUri);
       }
       this.invalidateLocalCaches();
+      this.syncDependencyGraphEntry(fileUri);
     } catch (err: unknown) {
       logger.error(`Erro ao indexar arquivo: ${fileUri}`, err);
     }
@@ -753,6 +960,13 @@ export class WorkspaceSymbolIndexer {
     try {
       const key = this.getCacheKey(fileUri);
       const oldParsed = this.cache.get(key);
+      if (oldParsed && hashContent(oldParsed.content) === hashContent(content)) {
+        if (this.reconcileIndexedFileUri(fileUri)) {
+          this.notifyLintCacheInvalidation(fileUri);
+        }
+        return;
+      }
+
       if (oldParsed) {
         for (const sym of oldParsed.symbols) {
           if (sym.kind === "namespace") {
@@ -766,6 +980,8 @@ export class WorkspaceSymbolIndexer {
         appendGenericInstantiations(parsed, fileUri, content, this);
       }
       this.cache.set(key, parsed);
+      this.bumpFileRevision(fileUri);
+      this.notifyLintCacheInvalidation(fileUri);
 
       for (const sym of parsed.symbols) {
         if (sym.kind === "namespace") {
@@ -773,6 +989,7 @@ export class WorkspaceSymbolIndexer {
         }
       }
       this.invalidateLocalCaches();
+      this.syncDependencyGraphEntry(fileUri);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);
     }
@@ -786,6 +1003,12 @@ export class WorkspaceSymbolIndexer {
     try {
       const key = this.getCacheKey(fileUri);
       const oldParsed = this.cache.get(key);
+      if (oldParsed && hashContent(oldParsed.content) === hashContent(content)) {
+        if (this.reconcileIndexedFileUri(fileUri)) {
+          this.notifyLintCacheInvalidation(fileUri);
+        }
+        return;
+      }
 
       const oldNamespaces = new Set<string>();
       if (oldParsed) {
@@ -825,9 +1048,16 @@ export class WorkspaceSymbolIndexer {
       if (readConfiguration().features.language.generics) {
         appendGenericInstantiations(parsed, fileUri, content, this);
       }
+      parsed.content = content;
       this.cache.set(key, parsed);
+      this.bumpFileRevision(fileUri);
+      this.notifyLintCacheInvalidation(
+        fileUri,
+        namespacesChanged ? newNamespaces : new Set<string>(),
+      );
 
       this.invalidateLocalCaches();
+      this.syncDependencyGraphEntry(fileUri);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação a partir de símbolos parsed para: ${fileUri}`, err);
     }
@@ -847,7 +1077,10 @@ export class WorkspaceSymbolIndexer {
       }
     }
     this.cache.delete(key);
+    this.bumpFileRevision(fileUri);
+    this.notifyLintCacheInvalidation(fileUri);
     this.invalidateLocalCaches();
+    this.syncDependencyGraphEntry(fileUri);
   }
 
   /**
@@ -856,6 +1089,12 @@ export class WorkspaceSymbolIndexer {
   public __resetForTests(): void {
     this.cache.clear();
     this.changedNamespacesInLastUpdate.clear();
+    this.dependencyGraph.clear();
+    this.fileRevisions.clear();
+    if (this.lintCacheScope === "host") {
+      SemanticLintCache.resetForTests();
+      DeclarationLintCache.resetForTests();
+    }
     this.invalidateLocalCaches();
   }
 
@@ -955,14 +1194,15 @@ export class WorkspaceSymbolIndexer {
     //    even if the cache still holds a stale outside-workspace entry from
     //    a previous session.
     const matches = allSymbols.filter((s) => s.name.toLowerCase() === lowerName);
-    let match = WorkspaceSymbolIndexer.preferWorkspaceMatch(matches);
+    const validMatches = matches.filter((s) => this.isFileValid(s.fileUri));
+    const match = WorkspaceSymbolIndexer.preferWorkspaceMatch(
+      validMatches.length > 0 ? validMatches : matches,
+    );
     if (match) {
       if (this.isFileValid(match.fileUri)) {
         return match;
-      } else {
-        this.removeFile(match.fileUri);
-        return this.findSymbolByName(name, contextFileUri);
       }
+      return undefined;
     }
 
     // 2. If we have imports, look under imported namespaces
@@ -980,14 +1220,15 @@ export class WorkspaceSymbolIndexer {
               : s.name.toLowerCase();
             return symbolQualName === qualifiedName;
           });
-          match = WorkspaceSymbolIndexer.preferWorkspaceMatch(qualifiedMatches);
+          const validQualified = qualifiedMatches.filter((s) => this.isFileValid(s.fileUri));
+          const match = WorkspaceSymbolIndexer.preferWorkspaceMatch(
+            validQualified.length > 0 ? validQualified : qualifiedMatches,
+          );
           if (match) {
             if (this.isFileValid(match.fileUri)) {
               return match;
-            } else {
-              this.removeFile(match.fileUri);
-              return this.findSymbolByName(name, contextFileUri);
             }
+            return undefined;
           }
         }
       }

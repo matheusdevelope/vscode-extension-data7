@@ -38,8 +38,21 @@ import { detectEnumerable } from "../../analysis/enumerable-detector";
 import { parseInterpolation } from "../../utils/interpolation";
 import { ASTFlowAnalyzer } from "../ast-flow-analyzer";
 
+const CONTROL_FLOW_RULE_NODE_KINDS = new Set<Node["kind"]>([
+  "TryCatchStatement",
+  "IfStatement",
+  "ReturnStatement",
+  "Assignment",
+  "ForEachStatement",
+  "TaggedTemplateExpression",
+  "TernaryExpression",
+  "MethodDeclaration",
+  "DelegateDeclaration",
+]);
+
 export class ControlFlowRule implements Rule {
   public readonly name = "control-flow";
+  public readonly supportedNodeKinds = CONTROL_FLOW_RULE_NODE_KINDS;
 
   private static readonly LEGACY_FINALLY_WARNING_ENABLED = true;
 

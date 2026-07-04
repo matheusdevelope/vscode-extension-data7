@@ -37,6 +37,7 @@ export interface BuildWorkspaceFixOptions {
 
 export class WorkspaceFixService {
   private static readonly buildFixFingerprints = new Map<string, Map<string, string>>();
+  private static readonly willSaveFixingUris = new Set<string>();
 
   /**
    * Set to `true` while a batch fix (or batch lint) is running.
@@ -45,6 +46,10 @@ export class WorkspaceFixService {
    * linter runs — one per file opened/saved by the batch pipeline.
    */
   public static isBatchFixInProgress = false;
+
+  public static isWillSaveFixingUri(uriKey: string): boolean {
+    return this.willSaveFixingUris.has(uriKey.toLowerCase());
+  }
 
   public static async fixAllWorkspace(): Promise<void> {
     const candidateUris = await this.findCandidateUris();
@@ -121,14 +126,11 @@ export class WorkspaceFixService {
       vscode.window.showWarningMessage("Nao foi possivel aplicar as correcoes no arquivo ativo.");
       return;
     }
-    await document.save();
 
-    try {
-      const { DiagnosticService } = await import("./diagnostic-service");
-      DiagnosticService.refreshAllActive();
-    } catch {
-      // Avoid circular-dependency crash if import fails.
-    }
+    const { DiagnosticService } = await import("./diagnostic-service");
+    DiagnosticService.suppressLiveLintForUri(document.uri, 600);
+
+    await document.save();
 
     vscode.window.showInformationMessage(
       `Correcao do arquivo ativo concluida: ${fixEdit.count} edicao(oes).`,
@@ -160,14 +162,20 @@ export class WorkspaceFixService {
   public static buildWillSaveTextEdits(
     document: vscode.TextDocument,
   ): vscode.TextEdit[] | undefined {
-    const diagnostics = this.collectDiagnosticsFromDocument(document);
-    if (diagnostics.length === 0) return undefined;
+    const uriKey = document.uri.toString().toLowerCase();
+    this.willSaveFixingUris.add(uriKey);
+    try {
+      const diagnostics = this.collectDiagnosticsFromDocument(document);
+      if (diagnostics.length === 0) return undefined;
 
-    const provider = new D7BasicCodeActionProvider();
-    const fixEdit = provider.buildFixAllWorkspaceEdit(document, diagnostics);
-    if (!fixEdit) return undefined;
+      const provider = new D7BasicCodeActionProvider();
+      const fixEdit = provider.buildFixAllWorkspaceEdit(document, diagnostics);
+      if (!fixEdit) return undefined;
 
-    return this.extractTextEditsForDocument(document.uri, fixEdit.edit);
+      return this.extractTextEditsForDocument(document.uri, fixEdit.edit);
+    } finally {
+      this.willSaveFixingUris.delete(uriKey);
+    }
   }
 
   /**

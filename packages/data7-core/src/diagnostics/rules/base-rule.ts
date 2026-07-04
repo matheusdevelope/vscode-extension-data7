@@ -7,6 +7,7 @@ import type {
   CompilationUnit,
 } from "../../project/ast/ast";
 import type { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+import type { LintUnitIndex } from "../lint-unit-index";
 
 export interface RuleContext {
   readonly document: vscode.TextDocument;
@@ -14,6 +15,7 @@ export interface RuleContext {
   readonly text: string;
   readonly lines: readonly string[];
   readonly diagnostics: vscode.Diagnostic[];
+  readonly unitIndex: LintUnitIndex;
 
   readonly activeClass: ClassDeclaration | undefined;
   readonly activeClassInheritedNames: ReadonlySet<string> | undefined;
@@ -31,6 +33,11 @@ export interface RuleContext {
 
 export interface Rule {
   readonly name: string;
+
+  /**
+   * When set, the walker skips `checkNode` for kinds outside this set.
+   */
+  readonly supportedNodeKinds?: ReadonlySet<Node["kind"]>;
 
   /**
    * Chamado para cada nó da AST visitado pelo walker.

@@ -143,6 +143,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   indexer
     .indexWorkspace(vscode.workspace.workspaceFolders)
     .then(() => {
+      DiagnosticService.markWorkspaceIndexReady();
       const diagnosticsFeatures = readConfiguration().features.diagnostics;
       if (!diagnosticsFeatures.enabled) return;
       if (diagnosticsFeatures.lintWorkspaceOnStartup) {
@@ -164,6 +165,10 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
   basWatcher.onDidChange((uri) => {
     if (isReadOnlyOrModule(uri.fsPath)) return;
+    const openDoc = vscode.workspace.textDocuments.find(
+      (doc) => doc.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+    );
+    if (openDoc?.isDirty) return;
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     scheduleDependencyRefreshForFile(uri.fsPath);
@@ -197,7 +202,10 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   const docCloseListener = vscode.workspace.onDidCloseTextDocument((doc) => {
     if (doc.languageId === LANGUAGE_IDS.d7basic || doc.fileName.endsWith(".bas")) {
       LanguageProcessor.getInstance().invalidate(doc.uri.toString());
-      DiagnosticService.clearDiagnostics(doc.uri);
+      // Workspace-file diagnostics are preserved by DiagnosticService.onDidCloseTextDocument.
+      if (!vscode.workspace.getWorkspaceFolder(doc.uri)) {
+        DiagnosticService.clearDiagnostics(doc.uri);
+      }
     }
   });
   context.subscriptions.push(docChangeListener, docCloseListener);
@@ -265,6 +273,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
         if (saveFeatures.autoFixOnSave) {
           const fixEdits = WorkspaceFixService.buildWillSaveTextEdits(e.document);
           if (fixEdits && fixEdits.length > 0) {
+            DiagnosticService.suppressLiveLintForUri(e.document.uri, 500);
             return fixEdits;
           }
         }
