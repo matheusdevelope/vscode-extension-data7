@@ -48,6 +48,8 @@ export interface SymbolInfo {
     | "class"
     | "structure"
     | "delegate"
+    | "enum"
+    | "enum-member"
     | "method"
     | "property"
     | "indexed-property"
@@ -374,7 +376,7 @@ class SymbolIndexerWalker extends ASTWalker {
       const loc = node.loc ?? { startLine: 1, startChar: 0, endLine: 1, endChar: 0 };
       const enumSymbol: SymbolInfo = {
         name: node.name,
-        kind: "class",
+        kind: "enum",
         type: node.name,
         isShared,
         isPrivate,
@@ -388,7 +390,6 @@ class SymbolIndexerWalker extends ASTWalker {
         fileUri: this.fileUri,
         containerName: this.activeNamespace,
         description: node.comment?.trim() ?? undefined,
-        inheritsFrom: "TEnum",
       };
       this.symbols.push(enumSymbol);
 
@@ -396,10 +397,11 @@ class SymbolIndexerWalker extends ASTWalker {
         const entryLoc = entry.loc ?? loc;
         this.symbols.push({
           name: entry.name,
-          kind: "method",
+          kind: "enum-member",
           type: node.name,
           isShared: true,
           isPrivate: false,
+          isConst: true,
           range: {
             startLine: entryLoc.startLine - 1,
             startChar: entryLoc.startChar,
@@ -1183,7 +1185,11 @@ export class WorkspaceSymbolIndexer {
   /**
    * Resolve a type or namespace name by scanning imports and the global index
    */
-  public findSymbolByName(name: string, contextFileUri?: string): SymbolInfo | undefined {
+  public findSymbolByName(
+    name: string,
+    contextFileUri?: string,
+    contextLine?: number,
+  ): SymbolInfo | undefined {
     const lowerName = name.toLowerCase();
     const allSymbols = this.getAllSymbols();
 
@@ -1195,9 +1201,14 @@ export class WorkspaceSymbolIndexer {
     //    a previous session.
     const matches = allSymbols.filter((s) => s.name.toLowerCase() === lowerName);
     const validMatches = matches.filter((s) => this.isFileValid(s.fileUri));
-    const match = WorkspaceSymbolIndexer.preferWorkspaceMatch(
-      validMatches.length > 0 ? validMatches : matches,
+    const candidatePool = validMatches.length > 0 ? validMatches : matches;
+    const contextualMatch = WorkspaceSymbolIndexer.pickContextualNameMatch(
+      candidatePool,
+      contextFileUri,
+      contextLine,
+      this,
     );
+    const match = contextualMatch ?? WorkspaceSymbolIndexer.preferWorkspaceMatch(candidatePool);
     if (match) {
       if (this.isFileValid(match.fileUri)) {
         return match;
@@ -1235,6 +1246,66 @@ export class WorkspaceSymbolIndexer {
     }
 
     return undefined;
+  }
+
+  /**
+   * When homonyms exist across files, prefer a declaration in the active
+   * editor file (and its namespace) before falling back to workspace-wide
+   * disambiguation.
+   */
+  private static pickContextualNameMatch(
+    matches: readonly SymbolInfo[],
+    contextFileUri: string | undefined,
+    contextLine: number | undefined,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo | undefined {
+    if (!contextFileUri || matches.length <= 1) return undefined;
+
+    const sameFile = matches.filter((symbol) => symbol.fileUri === contextFileUri);
+    if (sameFile.length === 0) return undefined;
+    if (sameFile.length === 1) return sameFile[0];
+
+    if (contextLine !== undefined) {
+      const fileSyms = indexer.getFileSymbols(contextFileUri);
+      const activeNamespace = fileSyms
+        ? WorkspaceSymbolIndexer.findActiveNamespaceName(fileSyms.symbols, contextLine)
+        : undefined;
+      if (activeNamespace) {
+        const inNamespace = sameFile.filter(
+          (symbol) => symbol.containerName?.toLowerCase() === activeNamespace,
+        );
+        const preferredInNamespace =
+          WorkspaceSymbolIndexer.preferTypeLikeSymbol(inNamespace) ??
+          WorkspaceSymbolIndexer.preferTypeLikeSymbol(sameFile);
+        if (preferredInNamespace) return preferredInNamespace;
+      }
+    }
+
+    return WorkspaceSymbolIndexer.preferTypeLikeSymbol(sameFile) ?? sameFile[0];
+  }
+
+  private static findActiveNamespaceName(
+    symbols: readonly SymbolInfo[],
+    lineIdx: number,
+  ): string | undefined {
+    const namespace = symbols.find(
+      (symbol) =>
+        symbol.kind === "namespace" &&
+        lineIdx >= symbol.range.startLine &&
+        lineIdx <= symbol.range.endLine,
+    );
+    return namespace?.name.toLowerCase();
+  }
+
+  private static preferTypeLikeSymbol(matches: readonly SymbolInfo[]): SymbolInfo | undefined {
+    return matches.find(
+      (symbol) =>
+        symbol.kind === "class" ||
+        symbol.kind === "structure" ||
+        symbol.kind === "namespace" ||
+        symbol.kind === "delegate" ||
+        symbol.kind === "enum",
+    );
   }
 
   /**

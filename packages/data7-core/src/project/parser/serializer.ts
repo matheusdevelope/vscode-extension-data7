@@ -42,8 +42,33 @@ export interface SerializeOptions {
   readonly minify?: boolean;
   /** Obfuscate method-local variables. */
   readonly obfuscate?: boolean;
+  /**
+   * Omit explicit/default `Public` on declarations. Preferred name for build output.
+   * `omitPublicFieldModifiers` is kept as an alias for field/property serialization.
+   */
+  readonly omitDefaultPublicModifier?: boolean;
   /** Omit explicit/default Public on class fields and properties. */
   readonly omitPublicFieldModifiers?: boolean;
+  /** Always emit `()` on Sub/Function invocations in expressions (build transpile). */
+  readonly forceMethodInvocationParentheses?: boolean;
+}
+
+/** Canonical serializer options for build / transpile output. */
+export const BUILD_SERIALIZE_OPTIONS: Readonly<SerializeOptions> = {
+  omitDefaultPublicModifier: true,
+  forceMethodInvocationParentheses: true,
+};
+
+let currentSerializeOptions: SerializeOptions = {};
+
+function withSerializeOptions<T>(options: SerializeOptions, run: () => T): T {
+  const previous = currentSerializeOptions;
+  currentSerializeOptions = options;
+  try {
+    return run();
+  } finally {
+    currentSerializeOptions = previous;
+  }
 }
 
 export interface SerializeResult {
@@ -96,15 +121,17 @@ export function serializeUnitWithMap(
   }
 
   const buffer = new MappedBuffer();
-  for (const m of targetUnit.members) {
-    serializeMember(m, 0, buffer, options);
-  }
+  return withSerializeOptions(options, () => {
+    for (const m of targetUnit.members) {
+      serializeMember(m, 0, buffer, options);
+    }
 
-  const eol = options.eol ?? "\n";
-  return {
-    code: buffer.lines.join(eol),
-    lineMap: buffer.lineMap,
-  };
+    const eol = options.eol ?? "\n";
+    return {
+      code: buffer.lines.join(eol),
+      lineMap: buffer.lineMap,
+    };
+  });
 }
 
 function serializeMember(
@@ -171,9 +198,16 @@ function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-function emitModifiers(mods?: string[]): string {
+function shouldOmitDefaultPublicModifier(options: SerializeOptions): boolean {
+  return options.omitDefaultPublicModifier === true || options.omitPublicFieldModifiers === true;
+}
+
+function emitModifiers(mods: string[] | undefined, options: SerializeOptions): string {
   if (mods && mods.length > 0) {
-    const visibleMods = mods.filter((m) => m.toLowerCase() !== "mustoverride");
+    let visibleMods = mods.filter((m) => m.toLowerCase() !== "mustoverride");
+    if (shouldOmitDefaultPublicModifier(options)) {
+      visibleMods = visibleMods.filter((m) => m.toLowerCase() !== "public");
+    }
     if (visibleMods.length === 0) return "";
     return visibleMods.map(capitalize).join(" ") + " ";
   }
@@ -182,13 +216,9 @@ function emitModifiers(mods?: string[]): string {
 
 function emitFieldModifiers(mods: string[] | undefined, options: SerializeOptions): string {
   if (mods && mods.length > 0) {
-    const visibleMods = options.omitPublicFieldModifiers
-      ? mods.filter((m) => m.toLowerCase() !== "public")
-      : mods;
-    if (visibleMods.length === 0) return "";
-    return visibleMods.map(capitalize).join(" ") + " ";
+    return emitModifiers(mods, options);
   }
-  if (options.omitPublicFieldModifiers) return "";
+  if (shouldOmitDefaultPublicModifier(options)) return "";
   return "Public ";
 }
 
@@ -224,7 +254,7 @@ function serializeClass(
   });
   const keyword = isStructure ? "Structure" : "Class";
 
-  const header = `${emitModifiers(filteredModifiers)}${keyword} ${klass.name}${emitTypeParams(klass.typeParameters)}${
+  const header = `${emitModifiers(filteredModifiers, options)}${keyword} ${klass.name}${emitTypeParams(klass.typeParameters)}${
     klass.baseType
       ? "\n" + indent(depth + 1, options) + "Inherits " + emitTypeRef(klass.baseType)
       : ""
@@ -264,7 +294,7 @@ function serializeMethod(
     const aliasStr = m.aliasName ? ` Alias "${m.aliasName}"` : "";
     out.push(
       indent(depth, options) +
-        `${emitModifiers(filteredMods)}${keyword} ${m.name}${libStr}${aliasStr}${paramsStr}${ret}` +
+        `${emitModifiers(filteredMods, options)}${keyword} ${m.name}${libStr}${aliasStr}${paramsStr}${ret}` +
         (m.comment && !options.minify ? " " + m.comment : ""),
     );
     return;
@@ -276,7 +306,7 @@ function serializeMethod(
   const paramsStr = m.noParentheses ? "" : `(${params})`;
   out.push(
     indent(depth, options) +
-      `${emitModifiers(m.modifiers)}${keyword} ${m.name}${emitTypeParams(m.typeParameters)}${paramsStr}${ret}` +
+      `${emitModifiers(m.modifiers, options)}${keyword} ${m.name}${emitTypeParams(m.typeParameters)}${paramsStr}${ret}` +
       (m.comment && !options.minify ? " " + m.comment : ""),
   );
   for (const s of m.body) {
@@ -298,7 +328,7 @@ function serializeDelegate(
   const paramsStr = d.noParentheses ? "" : `(${params})`;
   out.push(
     indent(depth, options) +
-      `${emitModifiers(d.modifiers)}Delegate ${keyword} ${d.name}${emitTypeParams(d.typeParameters)}${paramsStr}${ret}` +
+      `${emitModifiers(d.modifiers, options)}Delegate ${keyword} ${d.name}${emitTypeParams(d.typeParameters)}${paramsStr}${ret}` +
       (d.comment && !options.minify ? " " + d.comment : ""),
   );
 }
@@ -325,7 +355,7 @@ function serializeProperty(
   if (isBlock) {
     if (p.getter) {
       out.setLine(p.getter.loc);
-      out.push(indent(depth + 1, options) + `${emitModifiers(p.getter.modifiers)}Get`);
+      out.push(indent(depth + 1, options) + `${emitModifiers(p.getter.modifiers, options)}Get`);
       for (const s of p.getter.body) {
         serializeStatement(s, depth + 2, out, options);
       }
@@ -335,7 +365,9 @@ function serializeProperty(
       out.setLine(p.setter.loc);
       const params = p.setter.parameters.map(emitParameter).join(", ");
       const paramsStr = p.setter.noParentheses ? "" : `(${params})`;
-      out.push(indent(depth + 1, options) + `${emitModifiers(p.setter.modifiers)}Set${paramsStr}`);
+      out.push(
+        indent(depth + 1, options) + `${emitModifiers(p.setter.modifiers, options)}Set${paramsStr}`,
+      );
       for (const s of p.setter.body) {
         serializeStatement(s, depth + 2, out, options);
       }
@@ -391,7 +423,7 @@ function serializeStatement(
     case "VariableDeclaration":
       out.push(
         indent(depth, options) +
-          emitVariableDeclaration(s) +
+          emitVariableDeclaration(s, options) +
           (s.comment && !options.minify ? " " + s.comment : ""),
       );
       return;
@@ -488,11 +520,11 @@ function emitBodyStatement(s: OpaqueStatement, depth: number, options: Serialize
   return indent(depth, options) + trimmed;
 }
 
-function emitVariableDeclaration(v: VariableDeclaration): string {
+function emitVariableDeclaration(v: VariableDeclaration, options: SerializeOptions): string {
   const dimensionsStr = emitNativeArrayDimensions(v.nativeArrayDimensions);
   const typeStr = v.type !== undefined ? " As " + emitTypeRef(v.type) : "";
   const initStr = v.initializer !== undefined ? " = " + emitExpression(v.initializer) : "";
-  const modsStr = v.modifiers && v.modifiers.length > 0 ? emitModifiers(v.modifiers) : "";
+  const modsStr = v.modifiers && v.modifiers.length > 0 ? emitModifiers(v.modifiers, options) : "";
   return `${modsStr}${v.isConst ? "Const " : "Dim "}${v.name}${dimensionsStr}${typeStr}${initStr}`;
 }
 
@@ -543,7 +575,15 @@ function emitExpressionRaw(expr: Expression): string {
       const receiver = expr.callee
         ? emitExpression(expr.callee) + (expr.methodName ? "." : "")
         : "";
-      if (expr.noParentheses) {
+      const forceParens = currentSerializeOptions.forceMethodInvocationParentheses === true;
+      if (
+        !expr.callee &&
+        expr.methodName.toLowerCase() === "imports" &&
+        expr.arguments.length > 0
+      ) {
+        return `Imports ${callArgs}`;
+      }
+      if (!forceParens && expr.noParentheses) {
         return `${receiver}${expr.methodName}${typeArgs} ${callArgs}`;
       }
       return `${receiver}${expr.methodName}${typeArgs}(${callArgs})`;
@@ -642,7 +682,7 @@ function emitStatementInline(s: Statement): string {
     case "ExpressionStatement":
       return emitExpression(s.expression);
     case "VariableDeclaration":
-      return emitVariableDeclaration(s);
+      return emitVariableDeclaration(s, currentSerializeOptions);
     case "ExitStatement":
       return `Exit ${s.target}`;
     case "ContinueStatement":
@@ -867,7 +907,7 @@ function serializeEnum(
   const baseStr = !e.isSugar && e.baseType ? ` As ${emitTypeRef(e.baseType)}` : "";
   out.push(
     indent(depth, options) +
-      `${emitModifiers(e.modifiers)}${keyword} ${e.name}${baseStr}` +
+      `${emitModifiers(e.modifiers, options)}${keyword} ${e.name}${baseStr}` +
       (e.comment && !options.minify ? " " + e.comment : ""),
   );
   for (const entry of e.entries) {

@@ -4,12 +4,14 @@ import {
   SYSTEM_SYMBOLS,
   lookupSystemByContainer,
   lookupSystemClassByName,
+  lookupSystemNamespaceOrClassByName,
   lookupSystemByName,
 } from "../system-library";
 import { inferLiteralType } from "../utils/literal-type-infer";
 import { recordPerf } from "../utils/performance";
 import { performance } from "perf_hooks";
 import { LintPipelineProfiler } from "./lint-pipeline-profiler";
+import { getOrBuildWithScopeIndex } from "./with-scope-index";
 import { getNonNullVariablesAt } from "./flow-analyzer";
 import { findInnerMostGenericUsage, flatNameOf } from "./generics-analyzer";
 import { LanguageProcessor } from "./language-processor";
@@ -69,6 +71,7 @@ export function warmLintTypeResolutionIndexes(
   }
   getOrBuildLocalScopeIndex(unit, document, indexer);
   getOrBuildFileLineContext(unit, fileSyms.symbols);
+  getOrBuildWithScopeIndex(unit);
 }
 
 export interface ClassResolutionContext {
@@ -395,7 +398,10 @@ export class TypeResolver {
         .getSymbolsByName(namePart)
         .filter(
           (s) =>
-            (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") &&
+            (s.kind === "class" ||
+              s.kind === "structure" ||
+              s.kind === "delegate" ||
+              s.kind === "enum") &&
             (s.containerName?.toLowerCase() === nsPart.toLowerCase() ||
               nsPart.toLowerCase().endsWith("." + s.containerName?.toLowerCase())),
         );
@@ -411,7 +417,10 @@ export class TypeResolver {
       .getSymbolsByName(qualifiedOrSimpleName)
       .filter(
         (symbol) =>
-          symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate",
+          symbol.kind === "class" ||
+          symbol.kind === "structure" ||
+          symbol.kind === "delegate" ||
+          symbol.kind === "enum",
       );
     const validWsClasses = wsClasses.filter((symbol) => indexer.isFileValid(symbol.fileUri));
     if (validWsClasses.length > 0) {
@@ -433,11 +442,17 @@ export class TypeResolver {
       indexer.findSymbolByName(qualifiedOrSimpleName) ??
       wsClasses.find(
         (symbol) =>
-          symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate",
+          symbol.kind === "class" ||
+          symbol.kind === "structure" ||
+          symbol.kind === "delegate" ||
+          symbol.kind === "enum",
       );
     if (
       wsSym &&
-      (wsSym.kind === "class" || wsSym.kind === "structure" || wsSym.kind === "delegate")
+      (wsSym.kind === "class" ||
+        wsSym.kind === "structure" ||
+        wsSym.kind === "delegate" ||
+        wsSym.kind === "enum")
     ) {
       return wsSym;
     }
@@ -473,7 +488,10 @@ export class TypeResolver {
     childClass: SymbolInfo,
   ): SymbolInfo | undefined {
     const isClassLike = (symbol: SymbolInfo): boolean =>
-      symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate";
+      symbol.kind === "class" ||
+      symbol.kind === "structure" ||
+      symbol.kind === "delegate" ||
+      symbol.kind === "enum";
 
     if (name.includes(".")) {
       const lastDot = name.lastIndexOf(".");
@@ -715,11 +733,12 @@ export class TypeResolver {
           return contextualMember.type;
         }
 
-        const targetType = TypeResolver.resolveExpressionType(
+        const targetType = TypeResolver.resolveMemberAccessTargetType(
           expr.target,
           document,
           lineIdx,
           indexer,
+          cachedUnit,
         );
         const cacheKey = memberAccessCacheKey(lineIdx, targetType, expr.member);
         const cachedType = getMemberAccessType(cachedUnit, cacheKey);
@@ -1038,6 +1057,23 @@ export class TypeResolver {
     );
   }
 
+  public static resolveMemberAccessTargetType(
+    target: Expression,
+    document: vscode.TextDocument,
+    lineIdx: number,
+    indexer: WorkspaceSymbolIndexer,
+    unit: CompilationUnit,
+  ): string | undefined {
+    let targetType = TypeResolver.resolveExpressionType(target, document, lineIdx, indexer);
+    if (!targetType && target.kind === "Identifier" && target.name === "") {
+      const withTarget = getOrBuildWithScopeIndex(unit).getInnermostTarget(lineIdx + 1);
+      if (withTarget) {
+        targetType = TypeResolver.resolveExpressionType(withTarget, document, lineIdx, indexer);
+      }
+    }
+    return targetType;
+  }
+
   private static resolveIdentifierType(
     name: string,
     document: vscode.TextDocument,
@@ -1097,10 +1133,14 @@ export class TypeResolver {
     }
 
     const symbol =
-      indexer.findSymbolByName(name, document.uri.toString()) ?? lookupSystemClassByName(name)[0];
+      indexer.findSymbolByName(name, document.uri.toString()) ??
+      lookupSystemNamespaceOrClassByName(name)[0];
     if (
       symbol &&
-      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "namespace")
+      (symbol.kind === "class" ||
+        symbol.kind === "structure" ||
+        symbol.kind === "namespace" ||
+        symbol.kind === "enum")
     ) {
       return symbol.name;
     }
@@ -2495,7 +2535,10 @@ function findGenericBaseSymbol(
   }
   if (
     symbol &&
-    (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate")
+    (symbol.kind === "class" ||
+      symbol.kind === "structure" ||
+      symbol.kind === "delegate" ||
+      symbol.kind === "enum")
   ) {
     return symbol;
   }
@@ -2603,7 +2646,7 @@ function isArgumentAssignableToParameter(
 }
 
 function isEnumClassSymbol(symbol: SymbolInfo): boolean {
-  return symbol.inheritsFrom?.toLowerCase() === "tenum";
+  return symbol.kind === "enum" || symbol.inheritsFrom?.toLowerCase() === "tenum";
 }
 
 function areSameNamedTypeSymbols(left: SymbolInfo, right: SymbolInfo): boolean {

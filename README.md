@@ -42,7 +42,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - Antes de iniciar o Executor no F5, o projeto é reanalisado pelo parser/linter e a execução é cancelada se houver erro. Chamadas qualificadas em namespaces/tipos, como `console.clear()`, também são validadas como `unknown-member` quando o membro não existe.
 - Quando o F5 e cancelado por erros do linter, os diagnosticos sao publicados e o painel Problems e aberto automaticamente para navegacao.
 - Logs de execuções ficam acumulados no canal dedicado `Data7 Logs`, separado do output interno da extensão.
-- A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio.
+- A validacao de modulos ignora acessos abreviados de `With` (`.Membro`), evitando falso `module-not-found` com nome vazio. Dentro de `With` (inclusive aninhado), autocomplete e hover apos `.` listam membros do objeto ativo; chamadas como `print .Text` geram `call-parentheses-mismatch` em vez de `loose-value-statement`.
 - A System Library inclui aliases iniciais para `System.IOUtils.TFile`, `System.IOUtils.TPath` e `IO.File.ZipFile`; chamadas estaticas dessas classes nao sao tratadas como modulos externos.
 - Warnings `unused-import` oferecem Quick Fix para remover a diretiva `Imports`, inclusive quando o VS Code fornece um codigo de diagnostico estruturado.
 - **Otimizações de Performance do Linter**: Cache global de herança de membros ($O(1)$) e detecção inteligente de delta de namespaces. Reavaliação de dependências em cascata movida exclusivamente para o evento de salvamento, otimizando a digitação. Diagnóstico de `return-unrecommended` ignora propriedades `Property Get` por não suportarem `Exit Property` nativamente.
@@ -188,7 +188,7 @@ Veja `Settings` â†’ busca por `data7.`:
 
 O linter também cobre regras de robustez usadas nos demos: acesso de membro incompleto (`obj.`), `Const` tipada, `Shared` inválido fora de rotinas/estado `Private Shared`, `Public` redundante, declarações não usadas, acesso solto a campo/propriedade/constante, `invalid-declaration` para `Overrides` mal formado ou sem base `Overridable`/`MustOverride`, e supersets de herança `MustInherit`/`NotInheritable`/`MustOverride`. Esses modificadores de herança existem para análise da extensão e são removidos antes do código final entregue ao compilador Data7.
 
-O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `minify.removeUnused`, `minify.mergeNamespaces`, `uglify.enabled` e `sourceMap`. As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
+O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `prune.enabled`/`prune.report`/`prune.alwaysInclude`, `uglify.enabled` e `sourceMap`. O passe `prune` remove namespaces fora da cadeia alcançável a partir de `Principal.bas`/`Main` em todos os módulos do build (incluindo dependências e `core_modules`). As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
 
 ## Suprimir diagnósticos com comentários
 

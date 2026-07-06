@@ -367,7 +367,7 @@ End Namespace
       });
     });
 
-    test("applies minify.removeUnused from build optimization options", async () => {
+    test("applies build.prune from optimization options", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);
         const configPath = path.join(tmp, "data7.json");
@@ -380,7 +380,12 @@ End Namespace
             minify: {
               enabled: false,
               stripComments: false,
-              removeUnused: true,
+            },
+            prune: {
+              enabled: true,
+              report: false,
+              strategy: "principal-closure",
+              alwaysInclude: [],
             },
             uglify: {
               enabled: false,
@@ -391,14 +396,12 @@ End Namespace
 
         fs.writeFileSync(
           path.join(tmp, "src", "Principal.bas"),
-          `Namespace mod_principal
-   Class TPrincipalClass
+          `Imports mod_helper
+Namespace mod_principal
+   Class Program
       Public Sub Main()
          Dim helper As THelper = New THelper()
          helper.Touch()
-      End Sub
-
-      Public Sub DeadPrincipal()
       End Sub
    End Class
 End Namespace
@@ -414,11 +417,10 @@ End Namespace
 
       Public Sub Touch()
       End Sub
-
-      Public Sub DeadMethod()
-      End Sub
    End Class
+End Namespace
 
+Namespace mod_unused
    Class DeadClass
    End Class
 End Namespace
@@ -433,8 +435,7 @@ End Namespace
         assert.match(xml, /Sub Main/);
         assert.match(xml, /Class THelper/);
         assert.match(xml, /Sub Touch/);
-        assert.doesNotMatch(xml, /DeadPrincipal/);
-        assert.doesNotMatch(xml, /DeadMethod/);
+        assert.doesNotMatch(xml, /Namespace mod_unused/);
         assert.doesNotMatch(xml, /DeadClass/);
       });
     });

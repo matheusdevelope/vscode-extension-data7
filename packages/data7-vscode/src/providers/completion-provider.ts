@@ -76,7 +76,7 @@ function toSortLabel(value: string): string {
 }
 
 function isTypeSymbol(s: SymbolInfo): boolean {
-  return s.kind === "class" || s.kind === "structure" || s.kind === "delegate";
+  return s.kind === "class" || s.kind === "structure" || s.kind === "delegate" || s.kind === "enum";
 }
 
 function getSymbolCompletionKey(s: SymbolInfo): string {
@@ -412,7 +412,10 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     const triggerLower = triggerWord.toLowerCase();
     const targetClass = TypeResolver.findClassSymbol(triggerWord, this.indexer);
     const isClassOrStruct =
-      targetClass && (targetClass.kind === "class" || targetClass.kind === "structure");
+      targetClass &&
+      (targetClass.kind === "class" ||
+        targetClass.kind === "structure" ||
+        targetClass.kind === "enum");
 
     const isNamespaceOrStaticClass =
       isClassOrStruct ??
@@ -560,7 +563,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
 
     if (
       s.containerName &&
-      (s.kind === "class" || s.kind === "structure" || s.kind === "delegate")
+      (s.kind === "class" || s.kind === "structure" || s.kind === "delegate" || s.kind === "enum")
     ) {
       this.addAutoImportEdit(item, s, document);
     }

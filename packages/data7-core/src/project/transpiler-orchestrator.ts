@@ -1,6 +1,11 @@
 import { SugarEngine } from "./sugars";
 import { flatNameOf, GenericsMonomorphizer, type MonomorphizationWarning } from "./generics";
-import { GenericsParserPlugin, parseBasic, serializeUnitWithMap } from "./parser";
+import {
+  GenericsParserPlugin,
+  parseBasic,
+  serializeUnitWithMap,
+  BUILD_SERIALIZE_OPTIONS,
+} from "./parser";
 import {
   ASTWalker,
   type TopLevelMember,
@@ -142,7 +147,7 @@ export class SugarTranspiler {
     }
 
     // 5. Serialize AST back to code text, generating the lineMap!
-    let serializeResult = serializeUnitWithMap(finalUnit, { eol, omitPublicFieldModifiers: true });
+    let serializeResult = serializeUnitWithMap(finalUnit, { eol, ...BUILD_SERIALIZE_OPTIONS });
 
     if (wrapped) {
       // Strip Sub __syntheticMethod() and End Sub

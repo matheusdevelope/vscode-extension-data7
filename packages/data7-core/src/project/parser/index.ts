@@ -15,7 +15,12 @@ export { parse, parseExpr };
 export type { ParseResult, ParseOptions };
 export { makeError } from "./parser-errors";
 export type { ParseError, ParseErrorCode } from "./parser-errors";
-export { serializeUnit, serializeUnitWithMap, obfuscateLocalVariables } from "./serializer";
+export {
+  serializeUnit,
+  serializeUnitWithMap,
+  obfuscateLocalVariables,
+  BUILD_SERIALIZE_OPTIONS,
+} from "./serializer";
 export type { SerializeOptions, SerializeResult } from "./serializer";
 export type { Token, TokenKind, TokenLocation } from "./token-types";
 

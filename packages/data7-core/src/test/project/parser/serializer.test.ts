@@ -1,7 +1,7 @@
 import "../../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { parse, serializeUnit } from "../../../project/parser";
+import { parse, serializeUnit, BUILD_SERIALIZE_OPTIONS } from "../../../project/parser";
 import type { ClassDeclaration, CompilationUnit } from "../../../project/ast/ast";
 
 describe("parser/serializer", () => {
@@ -262,6 +262,57 @@ describe("parser/serializer", () => {
       "End Namespace",
     ].join("\n");
     assert.equal(out.trim(), expected.trim());
+  });
+
+  test("BUILD_SERIALIZE_OPTIONS omits default Public and forces invocation parentheses", () => {
+    const src = [
+      "Private Structure TIdentificacao",
+      "   Codigo As Integer",
+      "End Structure",
+      "Class C",
+      "   Public Sub Push(pValue As TObject)",
+      "      me.Push(pValue.GetID(), pValue)",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    const out = serializeUnit(r.unit, BUILD_SERIALIZE_OPTIONS);
+    assert.doesNotMatch(out, /\bPublic Codigo\b/);
+    assert.match(out, /me\.Push\(pValue\.GetID\(\), pValue\)/);
+  });
+
+  test("BUILD_SERIALIZE_OPTIONS does not parenthesize field or property member access", () => {
+    const src = [
+      "Class LogInfo",
+      "   IsException As Boolean",
+      "   Sub Assign(pValue As LogInfo)",
+      "      me.IsException = pValue.IsException",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    const out = serializeUnit(r.unit, BUILD_SERIALIZE_OPTIONS);
+    assert.match(out, /me\.IsException = pValue\.IsException/);
+    assert.doesNotMatch(out, /IsException\(\)/);
+  });
+
+  test("BUILD_SERIALIZE_OPTIONS preserves Imports without parentheses inside method bodies", () => {
+    const src = [
+      "Imports mod_card_form",
+      "Class C",
+      "   Sub Run()",
+      "      Imports mod_logger",
+      "      Dim _form As New TFormCard(\"demo\")",
+      "      _form.Show()",
+      "      _form.Free()",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    const out = serializeUnit(r.unit, BUILD_SERIALIZE_OPTIONS);
+    assert.match(out, /^Imports mod_card_form$/m);
+    assert.match(out, /^\s+Imports mod_logger$/m);
+    assert.doesNotMatch(out, /Imports\(/);
   });
 
   test("omits extension-only abstract modifiers from serialized output", () => {

@@ -518,6 +518,18 @@ export class Parser {
     if (this.match("keyword", "select") || this.match("identifier", "select")) {
       return this.parseSelectCaseStatement();
     }
+    if (this.match("keyword", "imports") || this.match("identifier", "imports")) {
+      const imports = parseImportsDeclaration(this);
+      const text =
+        imports.length > 0
+          ? `Imports ${imports.map((item) => item.target).join(", ")}`
+          : "Imports";
+      return {
+        kind: "OpaqueStatement",
+        text,
+        loc: imports[0]?.loc ?? locOf(startLoc),
+      };
+    }
     return this.parseAssignmentOrExpressionStatement();
   }
 

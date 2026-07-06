@@ -4,12 +4,13 @@ export {
   type BuildOptimizationOptions,
   type BuildOptimizationOverride,
   type MinifyOptimizationOptions,
+  type PruneOptimizationOptions,
   type UglifyOptimizationOptions,
 } from "./optimization-options";
 export { minifyData7Text, type TextMinifyOptions } from "./minify";
 export {
-  removeUnusedDeclarations,
-  mergeDuplicateNamespaces,
-  type RemoveUnusedModuleInput,
-  type RemoveUnusedResult,
-} from "./minify";
+  pruneBuildModules,
+  type PruneModuleInput,
+  type PruneReport,
+  type PruneResult,
+} from "./prune";

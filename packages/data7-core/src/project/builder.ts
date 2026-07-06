@@ -22,8 +22,7 @@ import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./g
 import {
   resolveBuildOptimizationOptions,
   minifyData7Text,
-  removeUnusedDeclarations,
-  mergeDuplicateNamespaces,
+  pruneBuildModules,
   type BuildOptimizationOptions,
   type BuildOptimizationOverride,
 } from "./optimizer";
@@ -916,7 +915,10 @@ export class Builder {
       });
     }
 
+    const onWarning = options.onWarning ?? (() => undefined);
+
     const codeByModuleName = new Map<string, string>();
+    const excludedPrunedModules = new Set<string>();
     codeByModuleName.set("Principal", mainTranspiled.code);
     for (const m of virtualSugarModules) codeByModuleName.set(m.name, m.code);
     for (const m of transpiledSrcModules) codeByModuleName.set(m.name, m.code);
@@ -949,39 +951,68 @@ export class Builder {
       })),
     ];
 
-    if (optimizationOptions.minify.removeUnused) {
-      const pruned = removeUnusedDeclarations(optimizationModuleInputs());
+    if (optimizationOptions.prune.enabled) {
+      const pruned = pruneBuildModules(optimizationModuleInputs(), optimizationOptions.prune);
       for (const [moduleName, code] of pruned.modules) {
         codeByModuleName.set(moduleName, code);
       }
-    }
-    if (optimizationOptions.minify.mergeNamespaces) {
-      const merged = mergeDuplicateNamespaces(optimizationModuleInputs());
-      for (const [moduleName, code] of merged.modules) {
-        codeByModuleName.set(moduleName, code);
+      for (const moduleName of pruned.excludedModuleNames) {
+        excludedPrunedModules.add(moduleName);
+        codeByModuleName.delete(moduleName);
+      }
+      if (pruned.report && pruned.report.warnings.length > 0) {
+        for (const warning of pruned.report.warnings) {
+          onWarning(warning);
+        }
+      }
+      if (pruned.report && optimizationOptions.prune.report) {
+        onWarning(
+          `Prune: ${pruned.report.liveNamespaces.length} namespace(s) kept, ${pruned.report.excludedNamespaces.length} removed, ${pruned.report.excludedModules.length} module(s) dropped.`,
+        );
       }
     }
 
-    const moduleCode = (moduleName: string, fallback: string): string =>
-      codeByModuleName.get(moduleName) ?? fallback;
+    const pruneActive = optimizationOptions.prune.enabled;
+    const moduleCode = (moduleName: string, fallback: string): string | undefined => {
+      if (pruneActive && excludedPrunedModules.has(moduleName)) {
+        return undefined;
+      }
+      const resolved = codeByModuleName.get(moduleName);
+      if (resolved !== undefined) {
+        return resolved;
+      }
+      if (pruneActive && moduleName.toLowerCase() !== "principal") {
+        return undefined;
+      }
+      return fallback;
+    };
 
     virtualSugarModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code));
+      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
     });
-    buildIndexer.updateFileContent(mainUri, moduleCode("Principal", mainTranspiled.code));
+    buildIndexer.updateFileContent(
+      mainUri,
+      moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
+    );
     transpiledSrcModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code));
+      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
     });
     transpiledDepModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code));
+      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
     });
 
-    const onWarning = options.onWarning ?? (() => undefined);
     options.validateTranspiled?.(
       [
-        { fileUri: mainUri, code: moduleCode("Principal", mainTranspiled.code) },
-        ...transpiledSrcModules.map((m) => ({ ...m, code: moduleCode(m.name, m.code) })),
-        ...transpiledDepModules.map((m) => ({ ...m, code: moduleCode(m.name, m.code) })),
+        {
+          fileUri: mainUri,
+          code: moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
+        },
+        ...transpiledSrcModules
+          .map((m) => ({ ...m, code: moduleCode(m.name, m.code) }))
+          .filter((m): m is typeof m & { code: string } => m.code !== undefined),
+        ...transpiledDepModules
+          .map((m) => ({ ...m, code: moduleCode(m.name, m.code) }))
+          .filter((m): m is typeof m & { code: string } => m.code !== undefined),
       ],
       buildIndexer,
     );
@@ -989,15 +1020,18 @@ export class Builder {
     // 4. Report transpilation diagnostics and optimize/add to compile list
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
     const mainCode = this.optimizeCode(
-      moduleCode("Principal", mainTranspiled.code),
+      moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
       minify,
       stripComments,
     );
 
     virtualSugarModules.forEach((m) => {
+      if (excludedPrunedModules.has(m.name)) return;
+      const code = moduleCode(m.name, m.code);
+      if (!code) return;
       modulesToCompile.push({
         name: m.name,
-        code: this.optimizeCode(moduleCode(m.name, m.code), minify, stripComments),
+        code: this.optimizeCode(code, minify, stripComments),
         folderId: m.folderId,
         aberto: false,
         ordemAbertura: 0,
@@ -1005,8 +1039,11 @@ export class Builder {
     });
 
     transpiledSrcModules.forEach((m) => {
+      if (excludedPrunedModules.has(m.name)) return;
       this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
-      const code = this.optimizeCode(moduleCode(m.name, m.code), minify, stripComments);
+      const code = moduleCode(m.name, m.code);
+      if (!code) return;
+      const optimized = this.optimizeCode(code, minify, stripComments);
 
       newModulesMetadata[m.name] = {
         nome: m.name,
@@ -1017,7 +1054,7 @@ export class Builder {
 
       modulesToCompile.push({
         name: m.name,
-        code,
+        code: optimized,
         folderId: m.folderId,
         aberto: m.aberto,
         ordemAbertura: m.ordemAbertura,
@@ -1025,12 +1062,14 @@ export class Builder {
     });
 
     transpiledDepModules.forEach((m) => {
+      if (excludedPrunedModules.has(m.name)) return;
       this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics, onWarning);
-      const code = this.optimizeCode(moduleCode(m.name, m.code), minify, stripComments);
+      const code = moduleCode(m.name, m.code);
+      if (!code) return;
 
       modulesToCompile.push({
         name: m.name,
-        code,
+        code: this.optimizeCode(code, minify, stripComments),
         folderId: m.folderId,
         aberto: false,
         ordemAbertura: 0,

@@ -29,18 +29,18 @@ function metadata(partial: Partial<ProjectMetadata> = {}): ProjectMetadata {
 }
 
 describe("resolveBuildOptimizationOptions", () => {
-  test("defaults to debug-safe build with source maps available", () => {
+  test("defaults to debug-safe build with prune disabled", () => {
     const options = resolveBuildOptimizationOptions(metadata());
 
     assert.equal(options.sourceMap, true);
     assert.equal(options.minify.enabled, false);
     assert.equal(options.minify.stripComments, true);
-    assert.equal(options.minify.removeUnused, false);
-    assert.equal(options.minify.mergeNamespaces, false);
+    assert.equal(options.prune.enabled, false);
+    assert.equal(options.prune.strategy, "principal-closure");
     assert.equal(options.uglify.enabled, false);
   });
 
-  test("maps legacy opcoes minify and stripComments without enabling removeUnused", () => {
+  test("maps legacy opcoes minify and stripComments without enabling prune", () => {
     const options = resolveBuildOptimizationOptions(
       metadata({
         opcoes: {
@@ -52,26 +52,25 @@ describe("resolveBuildOptimizationOptions", () => {
 
     assert.equal(options.minify.enabled, true);
     assert.equal(options.minify.stripComments, false);
-    assert.equal(options.minify.removeUnused, false);
-    assert.equal(options.minify.mergeNamespaces, false);
+    assert.equal(options.prune.enabled, false);
     assert.equal(options.uglify.enabled, false);
   });
 
-  test("prefers build optimization block over legacy opcoes", () => {
+  test("reads build optimization prune block", () => {
     const options = resolveBuildOptimizationOptions(
       metadata({
-        opcoes: {
-          minify: false,
-          stripComments: false,
-        } as ProjectMetadata["opcoes"],
         build: {
           optimization: {
             sourceMap: false,
             minify: {
               enabled: true,
               stripComments: true,
-              removeUnused: true,
-              mergeNamespaces: true,
+            },
+            prune: {
+              enabled: true,
+              report: true,
+              strategy: "principal-closure",
+              alwaysInclude: ["mod_required"],
             },
             uglify: {
               enabled: true,
@@ -84,8 +83,9 @@ describe("resolveBuildOptimizationOptions", () => {
     assert.equal(options.sourceMap, false);
     assert.equal(options.minify.enabled, true);
     assert.equal(options.minify.stripComments, true);
-    assert.equal(options.minify.removeUnused, true);
-    assert.equal(options.minify.mergeNamespaces, true);
+    assert.equal(options.prune.enabled, true);
+    assert.equal(options.prune.report, true);
+    assert.deepEqual(options.prune.alwaysInclude, ["mod_required"]);
     assert.equal(options.uglify.enabled, true);
   });
 
@@ -94,31 +94,23 @@ describe("resolveBuildOptimizationOptions", () => {
       metadata({
         build: {
           optimization: {
-            minify: {
+            prune: {
               enabled: false,
-              stripComments: true,
-              removeUnused: false,
-              mergeNamespaces: false,
             },
           },
         },
       }),
       {
-        minify: {
+        prune: {
           enabled: true,
-          removeUnused: true,
-          mergeNamespaces: true,
-        },
-        uglify: {
-          enabled: true,
+          report: true,
+          alwaysInclude: ["mod_override"],
         },
       },
     );
 
-    assert.equal(options.minify.enabled, true);
-    assert.equal(options.minify.stripComments, true);
-    assert.equal(options.minify.removeUnused, true);
-    assert.equal(options.minify.mergeNamespaces, true);
-    assert.equal(options.uglify.enabled, true);
+    assert.equal(options.prune.enabled, true);
+    assert.equal(options.prune.report, true);
+    assert.deepEqual(options.prune.alwaysInclude, ["mod_override"]);
   });
 });

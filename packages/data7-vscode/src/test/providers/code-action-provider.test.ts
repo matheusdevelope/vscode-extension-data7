@@ -591,6 +591,45 @@ describe("D7BasicCodeActionProvider", () => {
         'Print("Item: " & CStr(Form(pItem).Caption) & ", Indice: " & CStr(pIdx))',
       );
     });
+
+    test("wraps With-relative print .Text argument without splitting the member name", async () => {
+      const line = "               print .Text";
+      const text = `${line}\n`;
+      const doc = mockDoc(text);
+      const insertColumn = line.indexOf("print") + "print".length;
+      const dotIndex = line.indexOf(".Text");
+      const payload: CallParenthesesMismatchPayload = {
+        code: DiagnosticCodes.CallParenthesesMismatch,
+        line: 0,
+        insertColumn,
+        wrapRange: {
+          startChar: dotIndex,
+          endChar: dotIndex + ".Text".length,
+        },
+      };
+      const diagnostic = diagWith(
+        DiagnosticCodes.CallParenthesesMismatch,
+        payload,
+        new vscode.Range(0, line.indexOf("print"), 0, insertColumn),
+      );
+      const provider = new D7BasicCodeActionProvider();
+
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(0, line.indexOf("print"), 0, insertColumn),
+          { diagnostics: [diagnostic] } as any,
+          noopToken,
+        ),
+      )) as unknown as { title: string; edit?: { edits: any[] } }[];
+
+      const action = onlyQuickFixes(all).find((candidate) =>
+        candidate.title.includes("Adicionar parenteses"),
+      );
+      assert.ok(action);
+      const fixed = applyReplaceEdit(text, action.edit!.edits[0]);
+      assert.equal(fixed.trimEnd(), "               print(.Text)");
+    });
   });
 
   describe("unknown-type spelling suggestions", () => {

@@ -68,7 +68,6 @@ import { symbols as sym_Forms_aliases } from "./Forms/_aliases";
 // ───────── Forms — enum types & constants ─────────
 import { symbols as sym_Forms_TShiftState } from "./Forms/TShiftState";
 import { symbols as sym_Forms_TModalResult } from "./Forms/TModalResult";
-import { symbols as sym_Forms_TFormBorderStyle } from "./Forms/TFormBorderStyle";
 import { symbols as sym_Forms_TBorderStyle } from "./Forms/TBorderStyle";
 import { symbols as sym_Forms_TDefaultMonitor } from "./Forms/TDefaultMonitor";
 import { symbols as sym_Forms_TFormStyle } from "./Forms/TFormStyle";
@@ -147,6 +146,7 @@ import { symbols as sym_Globals_Char } from "./Globals/Char";
 import { symbols as sym_Globals_TRDBMS } from "./Globals/TRDBMS";
 import { symbols as sym_Globals_dateUtils } from "./Globals/dateUtils";
 import { symbols as sym_Globals_TAlign } from "./Globals/TAlign";
+import { symbols as sym_Globals_TButtonLayout } from "./Globals/TButtonLayout";
 import { symbols as sym_Globals_TAlignment } from "./Globals/TAlignment";
 import { symbols as sym_Globals_THTTP } from "./Globals/THTTP";
 import { symbols as sym_Globals_TJSONArray } from "./Globals/TJSONArray";
@@ -285,6 +285,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_MessageBox,
   ...sym_Forms_ProcessMessages,
   ...sym_Globals_TAlign,
+  ...sym_Globals_TButtonLayout,
   ...sym_Globals_TAlignment,
   ...sym_Globals_TMargins,
   // Forms — type aliases & intermediate classes
@@ -292,7 +293,6 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   // Forms — enum types & constants
   ...sym_Forms_TShiftState,
   ...sym_Forms_TModalResult,
-  ...sym_Forms_TFormBorderStyle,
   ...sym_Forms_TBorderStyle,
   ...sym_Forms_TDefaultMonitor,
   ...sym_Forms_TFormStyle,

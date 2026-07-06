@@ -127,7 +127,10 @@ export class DiagnosticsLinter {
     if (inSystem) return true;
 
     const symbol = indexer.findSymbolByName(nameToCheck);
-    if (symbol && (symbol.kind === "class" || symbol.kind === "structure")) {
+    if (
+      symbol &&
+      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "enum")
+    ) {
       if (containerToCheck) {
         if (symbol.containerName?.toLowerCase() === containerToCheck.toLowerCase()) {
           return true;
@@ -138,7 +141,12 @@ export class DiagnosticsLinter {
     }
 
     const symbolDirect = indexer.findSymbolByName(className);
-    if (symbolDirect && (symbolDirect.kind === "class" || symbolDirect.kind === "structure")) {
+    if (
+      symbolDirect &&
+      (symbolDirect.kind === "class" ||
+        symbolDirect.kind === "structure" ||
+        symbolDirect.kind === "enum")
+    ) {
       return true;
     }
 
@@ -190,6 +198,7 @@ export class DiagnosticsLinter {
           (s.kind === "class" ||
             s.kind === "structure" ||
             s.kind === "delegate" ||
+            s.kind === "enum" ||
             s.kind === "namespace") &&
           (!container || s.containerName?.toLowerCase() === container.toLowerCase()),
       );
@@ -216,7 +225,12 @@ export class DiagnosticsLinter {
 
       const allTypes = new Set<string>();
       for (const s of indexer.getAllSymbols()) {
-        if (s.kind === "class" || s.kind === "structure" || s.kind === "delegate") {
+        if (
+          s.kind === "class" ||
+          s.kind === "structure" ||
+          s.kind === "delegate" ||
+          s.kind === "enum"
+        ) {
           allTypes.add(s.name);
         }
       }

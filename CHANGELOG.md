@@ -7,8 +7,22 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado
+- **`build.optimization.prune` (Fase 1):** novo passe de poda por fechamento de dependências a partir de `Principal.bas`/`Main`. Remove namespaces não alcançados — inclusive dentro do mesmo arquivo com múltiplos namespaces — e exclui módulos inteiros (`src`, `data7_modules`, sugars virtuais) quando não restam namespaces vivos. Suporta `alwaysInclude`, `report` e diretivas `@data7:keep`/`@data7:entrypoint`/`@data7:external-api`.
+
+### Removido
+- **`minify.removeUnused` e `minify.mergeNamespaces`:** substituídos pelo bloco `build.optimization.prune`; o passe antigo de remoção global de classes/métodos foi descontinuado.
+
 ### Corrigido
-- **Cache de overloads em chamadas não qualificadas:** `findUnqualifiedCallable` e o cache de tipo de retorno de invocações agora distinguem múltiplas chamadas na mesma linha (posição no arquivo) e overloads com a mesma aridade pelos tipos dos argumentos. Corrige falsos `type-mismatch` em padrões como `EnumToInt(TFileMode.Open()), EnumToInt(TFileAccess.Read())` no mesmo statement.
+- **Serialização do build (`.7proj`):** transpiler e prune usam `BUILD_SERIALIZE_OPTIONS` — remove `Public` (modificador padrão do compilador ERP) de declarações e força `()` apenas em nós `MethodInvocation` de Sub/Function (não em campos, propriedades ou acessos `MemberAccess` como `IsException`). `Imports <namespace>` permanece sem parênteses, inclusive dentro de métodos. Referências implícitas sem parênteses no fonte permanecem como estão até resolução de tipo no transpiler.
+- **Bloco `With` — linter e IntelliSense:** `print .Text` dentro de `With` deixa de gerar falso `loose-value-statement` e passa a emitir `call-parentheses-mismatch` (warning + Quick Fix para `Print(.Text)`), reconhecendo chamadas de Sub sem parênteses com argumento relativo ao `With`. Autocomplete, hover e resolução de tipo passam a usar um índice de escopo `With` (incluindo aninhamento) para membros com ponto inicial (`.Text`, `.Add`).
+- **`Forms.ProcessMessages` e namespaces da System Library:** identificadores de namespace nativo (ex. `Forms`) passam a ser resolvidos como tipo/namespace mesmo sem `Imports`; chamadas qualificadas sem parênteses como `Forms.ProcessMessages` emitem `call-parentheses-mismatch` em vez de `loose-value-statement`.
+- **Quick Fix `call-parentheses-mismatch` em `print .Text`:** o `wrapRange` passa a cobrir `.Text` inteiro (não só o ponto), evitando transformar `print .Text` em `print(.)Text`.
+- **`build.optimization.prune` — fechamento transitivo em namespaces vivos:** ao marcar um namespace como alcançável, o prune agora varre todo o corpo do namespace (métodos, propriedades e inicializadores de campos) em busca de referências qualificadas. Corrige builds podados que excluíam `mod_logger` mesmo com `mod_console`/`console` vivo após materialização do sugar `logger-print` (`print` → `mod_logger.Printe`). Referências em `New mod_satellite.TClass(...)` também marcam `mod_satellite` como vivo.
+- **`call-parentheses-mismatch` em membros de `Enum`:** entradas de `Public Enum` passam a ser indexadas como `enum-member` (constantes), não como métodos; `Case Options.PostgreSQL` deixa de acionar a regra de parênteses.
+- **Indexação de `Enum` nativa:** declarações `Public Enum` usam `kind: "enum"` e seus valores `kind: "enum-member"` com `isConst: true`, em vez de serem modelados como classe `TEnum` + métodos. Validação de tipos (`unknown-type`) e resolução qualificada reconhecem `enum` como tipo nomeado.
+- **Hover/go-to-definition com homônimos:** `findSymbolByName` prioriza símbolos declarados no arquivo ativo (e no namespace da linha) antes de resolver homônimos globais — ex.: `Options` em `mod_rdbms.bas` aponta para o `Enum` local em vez de `mod_logger.Options()`.
+- **Cache de overloads em chamadas não qualificadas:**
 - **Compatibilidade de tipos primitivos correlacionados:** `isTypeCompatible` trata `Char`/`String`/`WideChar`/`ShortString` como intercambiáveis e aceita promoção numérica entre `Integer`, `Long`, `Byte`, `Single`, `Double` e demais primitivos numéricos do manual Data7, além de `Unassigned` para `Variant` e tipos não primitivos não resolvidos.
 - **Delegates homônimos e referências de método:** resolução contextual de delegates (`FindDel`, `ForEachDel`, etc.) e aceitação de referências de método como argumento delegate (ex.: `New PropsSize(me._handleOnChange, ...)`) quando a assinatura estrutural é compatível.
 - **Enums distintos não são intercambiáveis:** tipos que herdam de `TEnum` só são compatíveis entre si quando pertencem ao mesmo enum; evita aceitar `TFileAccess` onde `TFileMode` é esperado fora do overload correto.

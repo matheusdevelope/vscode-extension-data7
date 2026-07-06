@@ -647,5 +647,37 @@ End Namespace`;
       );
       assert.ok(!objectLabels.includes("Caption"), "Form members must not appear for TObject");
     });
+
+    test("offers With-target members for leading-dot completion inside With", async () => {
+      const code = `Namespace mod_with_completion
+   Class Demo
+      Sub Run()
+         With New Collections.StringList()
+            .
+         End With
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///cp_with_leading_dot.bas";
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const provider = new D7BasicCompletionProvider();
+
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(
+          doc,
+          positionAfterToken(code, "            ."),
+          noopToken,
+          {} as vscode.CompletionContext,
+        ),
+      )) as unknown as MockCompletionItem[];
+
+      const labels = items.map(labelOf);
+      assert.ok(labels.includes("Add"), `Add must appear for With StringList; got ${labels}`);
+      assert.ok(labels.includes("Text"), `Text must appear for With StringList; got ${labels}`);
+      assert.ok(labels.includes("Count"), `Count must appear for With StringList; got ${labels}`);
+    });
   });
 });

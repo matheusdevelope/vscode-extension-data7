@@ -13,8 +13,28 @@ export const symbols: SystemSymbolInfo[] = [
     range: range,
     fileUri: SYSTEM_URI,
     containerName: "Forms",
-    description:
-      "Tipo da propriedade BorderStyle de controles com moldura (Panel, Grid, edits). Sobreposto com TFormBorderStyle: aqui só existem bsNone/bsSingle (controles de moldura simples).",
+    description: "Tipo da propriedade BorderStyle de controles com moldura (Panel, Grid, edits).",
   },
-  // Nota: bsNone e bsSingle já estão declarados em TFormBorderStyle.ts; aceitos para ambos.
+  {
+    name: "bsNone",
+    kind: "variable",
+    type: "TBorderStyle",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: SYSTEM_URI,
+    containerName: "Forms",
+    description: "Sem borda visível.",
+  },
+  {
+    name: "bsSingle",
+    kind: "variable",
+    type: "TBorderStyle",
+    isShared: true,
+    isPrivate: false,
+    range: range,
+    fileUri: SYSTEM_URI,
+    containerName: "Forms",
+    description: "Borda simples visível.",
+  },
 ];

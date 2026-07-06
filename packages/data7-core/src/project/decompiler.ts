@@ -51,8 +51,12 @@ export class Decompiler {
           minify: {
             enabled: false,
             stripComments: false,
-            removeUnused: false,
-            mergeNamespaces: false,
+          },
+          prune: {
+            enabled: false,
+            report: false,
+            strategy: "principal-closure",
+            alwaysInclude: [],
           },
           uglify: {
             enabled: false,

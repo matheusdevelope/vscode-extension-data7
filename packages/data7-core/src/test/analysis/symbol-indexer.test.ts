@@ -152,6 +152,54 @@ End Namespace`;
       assert.equal(match.fileUri, workspaceUri);
     });
 
+    test("prefers a homonym declared in the active file over another module", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const rdbmsFile = fakeAbsPath("dummy_project", "src", "mod_rdbms.bas");
+      const loggerFile = fakeAbsPath("dummy_project", "src", "mod_logger.bas");
+      const rdbmsUri = fileUriFor(rdbmsFile);
+      const loggerUri = fileUriFor(loggerFile);
+      registerOpenDocument(rdbmsUri, rdbmsFile);
+      registerOpenDocument(loggerUri, loggerFile);
+
+      indexer.updateFileContent(
+        loggerUri,
+        `Namespace mod_logger
+   Public Function Options() As Integer
+      Options = 0
+   End Function
+End Namespace`,
+      );
+      indexer.updateFileContent(
+        rdbmsUri,
+        `Namespace mod_rdbms
+   Public Enum Options
+      SqlServer = 0
+      PostgreSQL = 2
+   End Enum
+
+   Class Rdbms
+      Function DefaultSchema() As String
+         Select Options.PostgreSQL
+            Case Options.PostgreSQL
+               DefaultSchema = "public"
+         End Select
+      End Function
+   End Class
+End Namespace`,
+      );
+
+      const match = indexer.findSymbolByName("Options", rdbmsUri, 8);
+      assert.ok(match);
+      assert.equal(match.kind, "enum");
+      assert.equal(match.fileUri, rdbmsUri);
+
+      const members = indexer.getSymbolsByContainer("Options");
+      const postgreSql = members.find((member) => member.name === "PostgreSQL");
+      assert.ok(postgreSql);
+      assert.equal(postgreSql.kind, "enum-member");
+      assert.equal(postgreSql.isConst, true);
+    });
+
     test("falls back to the first cached match when no workspace folder is open", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const orphanFile = fakeAbsPath("nowhere", "mod_x.bas");

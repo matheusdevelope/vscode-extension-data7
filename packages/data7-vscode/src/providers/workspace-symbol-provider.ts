@@ -32,7 +32,12 @@ export class D7BasicWorkspaceSymbolProvider implements vscode.WorkspaceSymbolPro
       if (token.isCancellationRequested) return undefined;
 
       if (q === "") {
-        if (s.kind === "namespace" || s.kind === "class" || s.kind === "structure") {
+        if (
+          s.kind === "namespace" ||
+          s.kind === "class" ||
+          s.kind === "structure" ||
+          s.kind === "enum"
+        ) {
           matched.push(s);
         }
         continue;

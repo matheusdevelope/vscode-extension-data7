@@ -37,12 +37,16 @@ export class D7BasicDefinitionProvider implements vscode.DefinitionProvider {
     if (!word || !ast.wordRange) return undefined;
 
     let targetSymbol: SymbolInfo | undefined = ast.getMemberAccessContext()?.symbol;
-    targetSymbol ??= this.indexer.findSymbolByName(word, document.uri.toString());
+    targetSymbol ??= this.indexer.findSymbolByName(word, document.uri.toString(), position.line);
 
     if (!targetSymbol) {
       const constraint = ast.getGenericParametersInScope().get(word.toLowerCase());
       if (constraint) {
-        targetSymbol = this.indexer.findSymbolByName(constraint, document.uri.toString());
+        targetSymbol = this.indexer.findSymbolByName(
+          constraint,
+          document.uri.toString(),
+          position.line,
+        );
       }
     }
 

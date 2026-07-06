@@ -4,8 +4,13 @@ import { isRecord } from "../project-config";
 export interface MinifyOptimizationOptions {
   readonly enabled: boolean;
   readonly stripComments: boolean;
-  readonly removeUnused: boolean;
-  readonly mergeNamespaces: boolean;
+}
+
+export interface PruneOptimizationOptions {
+  readonly enabled: boolean;
+  readonly report: boolean;
+  readonly strategy: "principal-closure";
+  readonly alwaysInclude: readonly string[];
 }
 
 export interface UglifyOptimizationOptions {
@@ -15,6 +20,7 @@ export interface UglifyOptimizationOptions {
 export interface BuildOptimizationOptions {
   readonly sourceMap: boolean;
   readonly minify: MinifyOptimizationOptions;
+  readonly prune: PruneOptimizationOptions;
   readonly uglify: UglifyOptimizationOptions;
 }
 
@@ -23,8 +29,12 @@ export const DEFAULT_BUILD_OPTIMIZATION_OPTIONS: BuildOptimizationOptions = Obje
   minify: Object.freeze({
     enabled: false,
     stripComments: true,
-    removeUnused: false,
-    mergeNamespaces: false,
+  }),
+  prune: Object.freeze({
+    enabled: false,
+    report: false,
+    strategy: "principal-closure",
+    alwaysInclude: Object.freeze([]),
   }),
   uglify: Object.freeze({
     enabled: false,
@@ -34,6 +44,7 @@ export const DEFAULT_BUILD_OPTIMIZATION_OPTIONS: BuildOptimizationOptions = Obje
 export type BuildOptimizationOverride = Partial<{
   readonly sourceMap: boolean;
   readonly minify: Partial<MinifyOptimizationOptions>;
+  readonly prune: Partial<PruneOptimizationOptions>;
   readonly uglify: Partial<UglifyOptimizationOptions>;
 }>;
 
@@ -44,6 +55,7 @@ export function resolveBuildOptimizationOptions(
   const buildRaw = isRecord(metadata.build) ? metadata.build : {};
   const optimizationRaw = isRecord(buildRaw.optimization) ? buildRaw.optimization : {};
   const minifyRaw = isRecord(optimizationRaw.minify) ? optimizationRaw.minify : {};
+  const pruneRaw = isRecord(optimizationRaw.prune) ? optimizationRaw.prune : {};
   const uglifyRaw = isRecord(optimizationRaw.uglify) ? optimizationRaw.uglify : {};
 
   const legacyMinifyEnabled = metadata.opcoes.minify === true;
@@ -62,14 +74,20 @@ export function resolveBuildOptimizationOptions(
           : typeof legacyStripComments === "boolean"
             ? legacyStripComments
             : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.stripComments,
-      removeUnused:
-        typeof minifyRaw.removeUnused === "boolean"
-          ? minifyRaw.removeUnused
-          : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.removeUnused,
-      mergeNamespaces:
-        typeof minifyRaw.mergeNamespaces === "boolean"
-          ? minifyRaw.mergeNamespaces
-          : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.mergeNamespaces,
+    },
+    prune: {
+      enabled:
+        typeof pruneRaw.enabled === "boolean"
+          ? pruneRaw.enabled
+          : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.enabled,
+      report:
+        typeof pruneRaw.report === "boolean"
+          ? pruneRaw.report
+          : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.report,
+      strategy: "principal-closure",
+      alwaysInclude: Array.isArray(pruneRaw.alwaysInclude)
+        ? pruneRaw.alwaysInclude.filter((item): item is string => typeof item === "string")
+        : DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.alwaysInclude,
     },
     uglify: {
       enabled:
@@ -92,8 +110,12 @@ function mergeBuildOptimizationOptions(
     minify: {
       enabled: override.minify?.enabled ?? base.minify.enabled,
       stripComments: override.minify?.stripComments ?? base.minify.stripComments,
-      removeUnused: override.minify?.removeUnused ?? base.minify.removeUnused,
-      mergeNamespaces: override.minify?.mergeNamespaces ?? base.minify.mergeNamespaces,
+    },
+    prune: {
+      enabled: override.prune?.enabled ?? base.prune.enabled,
+      report: override.prune?.report ?? base.prune.report,
+      strategy: "principal-closure",
+      alwaysInclude: override.prune?.alwaysInclude ?? base.prune.alwaysInclude,
     },
     uglify: {
       enabled: override.uglify?.enabled ?? base.uglify.enabled,

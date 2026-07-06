@@ -98,14 +98,14 @@ export const symbols: SystemSymbolInfo[] = [
   // ───────── Informação do RDBMS ─────────
   {
     name: "RDBMS",
-    kind: "method",
-    type: "String",
+    kind: "property",
+    type: "TRDBMS",
     isShared: true,
     isPrivate: false,
     parameters: [],
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     containerName: "Connection",
-    description: "Retorna o tipo de RDBMS ativo no ERP (ex: ASA, MSSQL, POSTGRESQL).",
+    description: "Tipo de RDBMS ativo no ERP (ex: ASA, MSSQL, POSTGRESQL).",
   },
 ];

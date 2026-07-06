@@ -15,6 +15,8 @@ import type {
 } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { TypeResolver } from "../../analysis/type-resolver";
+import { getOrBuildWithScopeIndex } from "../../analysis/with-scope-index";
+import { LanguageProcessor } from "../../analysis/language-processor";
 import { DiagnosticsLinter } from "../diagnostics";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
 import {
@@ -130,11 +132,16 @@ export class MembersRule implements Rule {
       return;
     }
 
-    let typeName = TypeResolver.resolveExpressionType(
+    const lintUnit = LanguageProcessor.getInstance().getOrParse(
+      context.document.uri.toString(),
+      context.document.getText(),
+    ).unit;
+    let typeName = TypeResolver.resolveMemberAccessTargetType(
       node.target,
       context.document,
       lineIdx,
       context.indexer,
+      lintUnit,
     );
     let isStaticAccess = false;
     const staticAccess = this.resolveStaticReceiverAccess(node.target, context);
@@ -1057,6 +1064,15 @@ export class MembersRule implements Rule {
     const lineIdx = node.loc.startLine - 1;
     const expr = node.expression;
 
+    if (
+      expr.kind === "MemberAccess" &&
+      expr.target.kind === "Identifier" &&
+      expr.target.name &&
+      this.tryReportWithRelativeNoParenCall(expr, lineIdx, context)
+    ) {
+      return;
+    }
+
     if (expr.kind === "Identifier" || expr.kind === "MemberAccess") {
       const parameterlessCallable = this.resolveParameterlessFinalCall(expr, lineIdx, context);
       if (parameterlessCallable) {
@@ -1490,6 +1506,19 @@ export class MembersRule implements Rule {
     }
 
     if (expr.kind !== "MemberAccess") return undefined;
+
+    if (expr.target.kind === "Identifier" && expr.target.name) {
+      const namespaceMember = TypeResolver.findMember(
+        expr.target.name,
+        expr.member,
+        context.indexer,
+        0,
+      );
+      if (this.isParameterlessCallable(namespaceMember)) {
+        return namespaceMember;
+      }
+    }
+
     const targetType = TypeResolver.resolveExpressionType(
       expr.target,
       context.document,
@@ -1574,17 +1603,114 @@ export class MembersRule implements Rule {
     context.report(diag);
   }
 
+  private tryReportWithRelativeNoParenCall(
+    expr: MemberAccess,
+    lineIdx: number,
+    context: RuleContext,
+  ): boolean {
+    if (expr.target.kind !== "Identifier" || !expr.target.name) {
+      return false;
+    }
+    const calleeName = expr.target.name;
+    const callable = TypeResolver.findUnqualifiedCallable(
+      calleeName,
+      context.document,
+      lineIdx,
+      context.indexer,
+      [undefined],
+    );
+    if (!callable || !this.isCallableSymbol(callable)) {
+      return false;
+    }
+
+    const unit = LanguageProcessor.getInstance().getOrParse(
+      context.document.uri.toString(),
+      context.document.getText(),
+    ).unit;
+    const withTarget = getOrBuildWithScopeIndex(unit).getInnermostTarget(lineIdx + 1);
+    if (!withTarget) {
+      return false;
+    }
+    const withType = TypeResolver.resolveExpressionType(
+      withTarget,
+      context.document,
+      lineIdx,
+      context.indexer,
+    );
+    if (!withType) {
+      return false;
+    }
+    const withMember = TypeResolver.findMember(withType, expr.member, context.indexer);
+    if (!withMember || this.isCallableSymbol(withMember)) {
+      return false;
+    }
+
+    const lineText = context.lines[lineIdx] ?? "";
+    const calleeStart = expr.target.loc?.startChar ?? expr.loc?.startChar ?? 0;
+    const calleeEnd = this.findTokenEnd(lineText, calleeStart, calleeName);
+    const memberStartChar = expr.memberLoc?.startChar ?? this.findMemberTokenStart(lineText, expr);
+    const memberEndChar = this.resolveMemberEndChar(expr.memberLoc, expr.member, memberStartChar);
+    const argumentStartChar = this.findLeadingDotArgumentStart(lineText, memberStartChar);
+    const range = new vscode.Range(lineIdx, calleeStart, lineIdx, calleeEnd);
+    const diag = new vscode.Diagnostic(
+      range,
+      `Chamada do método "${callable.name}" sem parênteses é aceita pelo compilador, mas deve ser escrita como "${callable.name}(...)".`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.CallParenthesesMismatch;
+    const payload: CallParenthesesMismatchPayload = {
+      code: DiagnosticCodes.CallParenthesesMismatch,
+      line: lineIdx,
+      insertColumn: calleeEnd,
+      wrapRange: {
+        startChar: argumentStartChar,
+        endChar: memberEndChar,
+      },
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
+    return true;
+  }
+
   private resolveStandaloneValueMember(
     expr: MemberAccess,
     lineIdx: number,
     context: RuleContext,
   ): Pick<SymbolInfo, "name"> | undefined {
-    const targetType = TypeResolver.resolveExpressionType(
+    const unit = LanguageProcessor.getInstance().getOrParse(
+      context.document.uri.toString(),
+      context.document.getText(),
+    ).unit;
+    let targetType = TypeResolver.resolveExpressionType(
       expr.target,
       context.document,
       lineIdx,
       context.indexer,
     );
+    if (!targetType && expr.target.kind === "Identifier" && expr.target.name === "") {
+      const withTarget = getOrBuildWithScopeIndex(unit).getInnermostTarget(lineIdx + 1);
+      if (withTarget) {
+        targetType = TypeResolver.resolveExpressionType(
+          withTarget,
+          context.document,
+          lineIdx,
+          context.indexer,
+        );
+      }
+    }
+    if (!targetType && expr.target.kind === "Identifier" && expr.target.name) {
+      const qualified = TypeResolver.findMember(expr.target.name, expr.member, context.indexer);
+      if (qualified) {
+        if (
+          qualified.kind === "method" ||
+          qualified.kind === "declare_function" ||
+          qualified.kind === "declare_sub"
+        ) {
+          return undefined;
+        }
+        return qualified;
+      }
+    }
     if (!targetType) {
       return expr.member.length > 0 ? { name: expr.member } : undefined;
     }
@@ -1652,10 +1778,11 @@ export class MembersRule implements Rule {
   ): vscode.Range {
     if (node.memberLoc) {
       const lineIdx = Math.max(0, node.memberLoc.startLine - 1);
-      const endChar =
-        node.memberLoc.endChar > node.memberLoc.startChar
-          ? node.memberLoc.endChar
-          : node.memberLoc.startChar + node.member.length;
+      const endChar = this.resolveMemberEndChar(
+        node.memberLoc,
+        node.member,
+        node.memberLoc.startChar,
+      );
       return new vscode.Range(lineIdx, node.memberLoc.startChar, lineIdx, endChar);
     }
 
@@ -1666,6 +1793,28 @@ export class MembersRule implements Rule {
       fallbackLineIdx,
       startChar + node.member.length,
     );
+  }
+
+  private resolveMemberEndChar(
+    memberLoc: { readonly startChar: number; readonly endChar: number } | undefined,
+    member: string,
+    memberStartChar: number,
+  ): number {
+    if (memberLoc && memberLoc.endChar > memberLoc.startChar) {
+      return memberLoc.endChar;
+    }
+    return memberStartChar + member.length;
+  }
+
+  private findLeadingDotArgumentStart(lineText: string, memberStartChar: number): number {
+    let cursor = memberStartChar;
+    while (cursor > 0 && /\s/.test(lineText[cursor - 1] ?? "")) {
+      cursor--;
+    }
+    if (lineText[cursor - 1] === ".") {
+      return cursor - 1;
+    }
+    return memberStartChar;
   }
 
   private findMemberTokenStart(lineText: string, node: MemberAccess): number {

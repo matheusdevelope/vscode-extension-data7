@@ -35,8 +35,13 @@ export interface ProjectOptions {
 export interface ProjectBuildOptimizationMinify {
   enabled?: boolean;
   stripComments?: boolean;
-  removeUnused?: boolean;
-  mergeNamespaces?: boolean;
+}
+
+export interface ProjectBuildOptimizationPrune {
+  enabled?: boolean;
+  report?: boolean;
+  strategy?: "principal-closure";
+  alwaysInclude?: readonly string[];
 }
 
 export interface ProjectBuildOptimizationUglify {
@@ -46,6 +51,7 @@ export interface ProjectBuildOptimizationUglify {
 export interface ProjectBuildOptimization {
   sourceMap?: boolean;
   minify?: ProjectBuildOptimizationMinify;
+  prune?: ProjectBuildOptimizationPrune;
   uglify?: ProjectBuildOptimizationUglify;
 }
 

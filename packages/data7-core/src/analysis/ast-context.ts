@@ -2,6 +2,7 @@ import * as vscode from "../platform/vscode-api";
 import type { SymbolInfo } from "./symbol-indexer";
 import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
 import { TypeResolver } from "./type-resolver";
+import { getOrBuildWithScopeIndex } from "./with-scope-index";
 import type { Token } from "../project/parser";
 import { LanguageProcessor } from "./language-processor";
 import type {
@@ -376,6 +377,20 @@ export class D7AstContext {
     const trimmed = lineText.trimEnd();
     if (!trimmed.endsWith(".")) return undefined;
 
+    const leadingDotOnly = trimmed.trimStart().startsWith(".");
+    if (leadingDotOnly) {
+      const withTarget = getOrBuildWithScopeIndex(this.unit).getInnermostTarget(
+        this.position.line + 1,
+      );
+      if (withTarget) {
+        return {
+          memberName: "",
+          receiver: withTarget,
+          arity: 0,
+        };
+      }
+    }
+
     const dotColumn = trimmed.length - 1;
     const receiverPrefix = lineText.slice(0, dotColumn);
     const starts = this.tokens
@@ -687,10 +702,17 @@ export class D7AstContext {
   private findContextualTypeSymbol(typeName: string): SymbolInfo | undefined {
     if (typeName.includes("<")) return undefined;
 
-    const symbol = this.indexer.findSymbolByName(typeName, this.document.uri.toString());
+    const symbol = this.indexer.findSymbolByName(
+      typeName,
+      this.document.uri.toString(),
+      this.position.line,
+    );
     if (
       symbol &&
-      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate")
+      (symbol.kind === "class" ||
+        symbol.kind === "structure" ||
+        symbol.kind === "delegate" ||
+        symbol.kind === "enum")
     ) {
       return symbol;
     }

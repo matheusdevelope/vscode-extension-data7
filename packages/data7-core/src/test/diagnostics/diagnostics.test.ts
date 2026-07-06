@@ -1690,6 +1690,26 @@ End Namespace`);
       expectDiagnostic(diags, DiagnosticCodes.UnknownType, "Forms.Form.naoexiste");
     });
 
+    test("does NOT emit unknown-type for a native Enum used in the same namespace", () => {
+      const diags = runLinter(`Namespace mod_rdbms
+   Public Enum Options
+      SqlServer = 0
+      PostgreSQL = 2
+   End Enum
+
+   Class ModelRDBMS
+      Private _rdbms As Options
+
+      Sub New(pOption As Options)
+         MyBase.New()
+         me._rdbms = pOption
+      End Sub
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
+    });
+
     test("does NOT emit unknown-type diagnostic for valid qualified types", () => {
       const diags = runLinter(`Namespace my_app
    Class TTest
@@ -2367,6 +2387,90 @@ End Namespace`);
          Dim obj As New T
          Dim x As T = obj.logado()
       End Sub
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
+    });
+
+    test("warns for Print .Text inside With as unparenthesized call with wrap quickfix", () => {
+      const diags = runLinter(`Namespace mod_with_print
+   Class Demo
+      Function Show(pPrint As Boolean) As String
+         With New Collections.StringList()
+            .Add("x")
+            If pPrint Then
+               print .Text
+            End If
+            Show = .Text
+         End With
+      End Function
+   End Class
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.LooseValueStatement);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "Print");
+      const payload = (
+        diag as vscode.Diagnostic & {
+          data?: { wrapRange?: { startChar: number; endChar: number } };
+        }
+      ).data;
+      assert.ok(payload?.wrapRange, "expected wrapRange for Print(.Text) quickfix");
+      const sourceLines = `Namespace mod_with_print
+   Class Demo
+      Function Show(pPrint As Boolean) As String
+         With New Collections.StringList()
+            .Add("x")
+            If pPrint Then
+               print .Text
+            End If
+            Show = .Text
+         End With
+      End Function
+   End Class
+End Namespace`.split("\n");
+      const lineText = sourceLines[diag.range.start.line] ?? "";
+      const wrapped = lineText.slice(payload!.wrapRange!.startChar, payload!.wrapRange!.endChar);
+      assert.equal(wrapped.trim(), ".Text", `wrapRange should cover .Text, got "${wrapped}"`);
+    });
+
+    test("warns for Forms.ProcessMessages without parentheses instead of loose-value-statement", () => {
+      const diags = runLinter(`Imports Collections
+
+Namespace console
+   Private Dim _ProcessMessages As Boolean
+   Private Sub Printe(pMessage As String)
+      If _ProcessMessages Then
+         Forms.ProcessMessages
+      End If
+   End Sub
+End Namespace`);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.LooseValueStatement);
+      expectDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch, "ProcessMessages");
+    });
+
+    test("does not warn when a Select Case branch references a native Enum member", () => {
+      const diags = runLinter(`Namespace mod_rdbms
+   Public Enum Options
+      SqlServer = 0
+      PostgreSQL = 2
+      SqLite = 3
+   End Enum
+
+   Class Rdbms
+      Private _rdbms As Options
+
+      Function DefaultSchema() As String
+         Select me._rdbms
+            Case Options.SqlServer
+               DefaultSchema = "dbo"
+            Case Options.PostgreSQL
+               DefaultSchema = "public"
+            Case Options.SqLite
+               DefaultSchema = "main"
+         End Select
+      End Function
    End Class
 End Namespace`);
 

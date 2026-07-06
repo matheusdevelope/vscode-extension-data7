@@ -37,6 +37,10 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
         return `${modPart}Structure ${s.name}`;
       case "delegate":
         return `${modPart}Delegate ${s.type === "Void" ? "Sub" : "Function"} ${s.name}${paramsPart}${s.type !== "Void" ? ` As ${s.type}` : ""}`;
+      case "enum":
+        return `${modPart}Enum ${s.name}`;
+      case "enum-member":
+        return `${s.containerName}.${s.name} = ...`;
       case "declare_sub":
         return `${modPart}Declare Sub ${s.name}${paramsPart}`;
       case "declare_function":
@@ -216,7 +220,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       }
 
       targetSymbol ??=
-        this.indexer.findSymbolByName(word, document.uri.toString()) ??
+        this.indexer.findSymbolByName(word, document.uri.toString(), position.line) ??
         lookupSystemByName(word).find(
           (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
         );
@@ -225,7 +229,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
         const constraint = ast.getGenericParametersInScope().get(wordLower);
         if (constraint) {
           const constraintSymbol =
-            this.indexer.findSymbolByName(constraint, document.uri.toString()) ??
+            this.indexer.findSymbolByName(constraint, document.uri.toString(), position.line) ??
             lookupSystemByName(constraint).find(
               (s) => !s.containerName || s.kind === "namespace" || s.kind === "class",
             );
@@ -266,7 +270,8 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
     if (
       targetSymbol.kind === "class" ||
       targetSymbol.kind === "structure" ||
-      targetSymbol.kind === "namespace"
+      targetSymbol.kind === "namespace" ||
+      targetSymbol.kind === "enum"
     ) {
       const memberLookupName =
         targetSymbol.isGenericParam && targetSymbol.constraintName
@@ -313,7 +318,7 @@ export class D7BasicHoverProvider implements vscode.HoverProvider {
       } else if (m.kind === "indexed-property") {
         const params = m.parameters ? m.parameters.map((p) => p.type).join(", ") : "";
         mSig = `${m.name}(${params}) As ${m.type}`;
-      } else if (m.kind === "property" || m.kind === "variable") {
+      } else if (m.kind === "property" || m.kind === "variable" || m.kind === "enum-member") {
         mSig = `${m.name} As ${m.type}`;
       }
       markdown.appendMarkdown(`- \`${mSig}\` (${m.kind})\n`);

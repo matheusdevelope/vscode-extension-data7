@@ -142,6 +142,18 @@ export const symbols: SystemSymbolInfo[] = [
       "Posição do glyph em relação ao caption (blGlyphLeft, blGlyphRight, blGlyphTop, blGlyphBottom).",
   },
 
+  {
+    name: "Spacing",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "FlatButton",
+    description: "Espaçamento entre o glyph e o caption.",
+  },
+
   // ───────── Events ─────────
   {
     name: "OnClick",
