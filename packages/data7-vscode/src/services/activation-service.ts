@@ -2,11 +2,11 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import {
+  COMMAND_IDS,
   CONFIG_NAMESPACE,
   DiagnosticCodes,
   PROJECT_CONFIG_FILENAME,
   findLegacyDataModulesExcludePattern,
-  getRawConfiguration,
   logger,
   readConfiguration,
   readProjectConfig,
@@ -14,6 +14,7 @@ import {
 
 import { BuildService } from "./build-service";
 import { DependencyService } from "./dependency-service";
+import { ExtensionSettingsService } from "./extension-settings-service";
 import { ProjectService } from "./project-service";
 
 /**
@@ -112,7 +113,7 @@ export class ActivationService {
     );
 
     if (choice === "Desenvolver (Decompor no VS Code)") {
-      await vscode.commands.executeCommand("data7.openProject", vscode.Uri.file(doc.fileName));
+      await vscode.commands.executeCommand(COMMAND_IDS.openProject, vscode.Uri.file(doc.fileName));
     } else if (choice === "Executar no Data7") {
       await BuildService.runProjectFileDirectly(doc.fileName);
     } else if (choice === "Abrir no Developer Studio") {
@@ -152,7 +153,7 @@ export class ActivationService {
         selectedProj = pick;
       }
       const fullPath = path.join(workspaceDir, selectedProj);
-      await vscode.commands.executeCommand("data7.openProject", vscode.Uri.file(fullPath));
+      await vscode.commands.executeCommand(COMMAND_IDS.openProject, vscode.Uri.file(fullPath));
     } catch (err: unknown) {
       logger.error("Erro ao buscar arquivos .7Proj no workspace.", err);
     }
@@ -204,40 +205,9 @@ export class ActivationService {
     );
     if (choice !== "Remover padrão") return;
 
-    const cfg = getRawConfiguration();
-    const inspection = cfg.inspect<string[]>("exclude");
-    const stripFrom = (value: readonly string[] | undefined): string[] | undefined => {
-      if (!value) return undefined;
-      const filtered = value.filter((p) => p !== offending);
-      return filtered.length === value.length ? undefined : filtered;
-    };
-
-    // Update at each scope where the pattern is present so we do not silently
-    // promote a workspace-only setting to the global level.
-    const updates: { value: string[] | undefined; target: vscode.ConfigurationTarget }[] = [
-      {
-        value: stripFrom(inspection?.workspaceFolderValue),
-        target: vscode.ConfigurationTarget.WorkspaceFolder,
-      },
-      {
-        value: stripFrom(inspection?.workspaceValue),
-        target: vscode.ConfigurationTarget.Workspace,
-      },
-      { value: stripFrom(inspection?.globalValue), target: vscode.ConfigurationTarget.Global },
-    ];
-
-    for (const update of updates) {
-      if (update.value === undefined) continue;
-      try {
-        await cfg.update("exclude", update.value, update.target);
-      } catch (err: unknown) {
-        logger.warn(
-          `Falha ao atualizar data7.exclude (${String(update.target)}): ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
+    await ExtensionSettingsService.removeLegacyExcludePattern(offending);
     vscode.window.showInformationMessage(
-      `Padrão "${offending}" removido de "${CONFIG_NAMESPACE}.exclude". Os símbolos em "data7_modules/" voltarão a aparecer no autocomplete.`,
+      `Padrão "${offending}" removido dos padrões ignorados. Os símbolos em "data7_modules/" voltarão a aparecer no autocomplete.`,
     );
   }
 
@@ -281,18 +251,18 @@ export class ActivationService {
   private static registerStatusBarItems(context: vscode.ExtensionContext): void {
     const backItem = this.createStatusBarButton({
       priority: 100,
-      command: "data7.openParentFolder",
+      command: COMMAND_IDS.openParentFolder,
       text: "$(arrow-left) Voltar para Repositório",
       tooltip: "Clique para voltar para a pasta de projetos principal",
     });
     const docsItem = this.createStatusBarButton({
       priority: 99,
-      command: "data7.generateSystemLibraryDocs",
+      command: COMMAND_IDS.generateSystemLibraryDocs,
       text: "$(book) Docs SL",
       tooltip: "Data7: gerar documentação da System Library para este projeto",
     });
     const projectItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
-    projectItem.command = "data7.showOutput";
+    projectItem.command = COMMAND_IDS.showOutput;
     projectItem.show();
     this.refreshProjectStatus(projectItem);
 

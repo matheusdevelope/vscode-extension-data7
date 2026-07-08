@@ -302,7 +302,7 @@ describe("parser/serializer", () => {
       "Class C",
       "   Sub Run()",
       "      Imports mod_logger",
-      "      Dim _form As New TFormCard(\"demo\")",
+      '      Dim _form As New TFormCard("demo")',
       "      _form.Show()",
       "      _form.Free()",
       "   End Sub",

@@ -36,6 +36,7 @@ import * as fs from "fs";
 
 import { ProjectService } from "./project-service";
 import { RepositoryService } from "./repository-service";
+import { ExtensionSettingsService } from "./extension-settings-service";
 
 import { WorkspaceFixService } from "./workspace-fix-service";
 
@@ -172,23 +173,14 @@ export class DiagnosticService {
     // Invalidate cached repo scans when the user changes settings or files on disk.
     const cfgWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration(DIAGNOSTIC_SOURCE)) {
-        this.workspaceCache.clear();
-        this.refreshAllActive();
-        // `data7.exclude` directly drives what the symbol indexer skips; a
-        // change to it (adding/removing globs) leaves the in-memory cache
-        // inconsistent with what would now be visible. Trigger a workspace
-        // re-index so the indexer's view matches the new settings.
-        if (e.affectsConfiguration(`${DIAGNOSTIC_SOURCE}.exclude`)) {
-          WorkspaceSymbolIndexer.getInstance()
-            .indexWorkspace(vscode.workspace.workspaceFolders)
-            .catch((err) => {
-              logger.warn(
-                `Falha ao reindexar workspace após mudança em data7.exclude: ${err instanceof Error ? err.message : String(err)}`,
-              );
-            });
-        }
+        this.handleExtensionSettingsChanged();
       }
     });
+    context.subscriptions.push(
+      ExtensionSettingsService.onDidChange(() => {
+        this.handleExtensionSettingsChanged();
+      }),
+    );
     const jsonWatcher = vscode.workspace.createFileSystemWatcher(`**/${PROJECT_CONFIG_FILENAME}`);
     jsonWatcher.onDidChange((uri) => {
       this.invalidateWorkspaceCacheFor(uri.fsPath);
@@ -200,6 +192,18 @@ export class DiagnosticService {
       this.invalidateWorkspaceCacheFor(uri.fsPath);
     });
     context.subscriptions.push(cfgWatcher, jsonWatcher);
+  }
+
+  private static handleExtensionSettingsChanged(): void {
+    this.workspaceCache.clear();
+    this.refreshAllActive();
+    WorkspaceSymbolIndexer.getInstance()
+      .indexWorkspace(vscode.workspace.workspaceFolders)
+      .catch((err) => {
+        logger.warn(
+          `Falha ao reindexar workspace após mudança nas configurações Data7: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   public static getCollection(): vscode.DiagnosticCollection {

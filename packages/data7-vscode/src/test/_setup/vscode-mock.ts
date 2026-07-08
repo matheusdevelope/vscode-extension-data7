@@ -296,6 +296,13 @@ class EventEmitter<T> {
   }
 }
 
+class Disposable {
+  constructor(private readonly callOnDispose: () => void) {}
+  dispose(): void {
+    this.callOnDispose();
+  }
+}
+
 // ===========================================================================
 // Cancellation token
 // ===========================================================================
@@ -439,6 +446,7 @@ const saveTextDocumentListeners: unknown[] = [];
 
 const mockVsCode = {
   EventEmitter,
+  Disposable,
   Range,
   Position,
   Diagnostic,

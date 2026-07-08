@@ -51,6 +51,17 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Acessa e modifica o conteúdo textual em edição (independente de display masks).",
   },
   {
+    name: "Color",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "TcxCustomTextEdit",
+    description: "Cor para preencher o background.",
+  },
+  {
     name: "ParentColor",
     kind: "property",
     type: "Boolean",

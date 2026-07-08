@@ -2,7 +2,12 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as vscode from "vscode";
-import { DiagnosticCodes, LegacyDiagnosticCodes, setDiagnosticPayload } from "@data7/core";
+import {
+  DiagnosticCodes,
+  LegacyDiagnosticCodes,
+  COMMAND_IDS,
+  setDiagnosticPayload,
+} from "@data7/core";
 import type {
   CallParenthesesMismatchPayload,
   DeadCodePayload,
@@ -308,7 +313,7 @@ describe("D7BasicCodeActionProvider", () => {
       const [declareFix] = actions;
       assert.ok(declareFix);
       assert.ok(declareFix.title.includes("mod_x"));
-      assert.equal(declareFix.command?.command, "data7.installModule");
+      assert.equal(declareFix.command?.command, COMMAND_IDS.installModule);
       assert.deepEqual(declareFix.command?.arguments?.[0], "mod_x");
     });
 
@@ -332,7 +337,7 @@ describe("D7BasicCodeActionProvider", () => {
       assert.equal(actions.length, 1);
       const [installFix] = actions;
       assert.ok(installFix);
-      assert.equal(installFix.command?.command, "data7.installModule");
+      assert.equal(installFix.command?.command, COMMAND_IDS.installModule);
     });
   });
 

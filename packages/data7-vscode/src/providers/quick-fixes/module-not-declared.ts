@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { DiagnosticCodes } from "@data7/core";
+import { COMMAND_IDS, DiagnosticCodes } from "@data7/core";
 import type { ModuleNotDeclaredPayload } from "@data7/core";
 
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
@@ -23,7 +23,7 @@ export function addDeclareDependencyFix(
   action.isPreferred = false;
   action.command = {
     title: action.title,
-    command: "data7.installModule",
+    command: COMMAND_IDS.installModule,
     arguments: [payload.moduleName, document.uri],
   };
   actions.push(action);
@@ -57,7 +57,7 @@ export function addDeclareDependencyBulkFix(
   action.diagnostics = [diagnostic];
   action.command = {
     title: action.title,
-    command: "data7.installModulesBulk",
+    command: COMMAND_IDS.installModulesBulk,
     arguments: [Array.from(moduleNames)],
   };
   actions.push(action);

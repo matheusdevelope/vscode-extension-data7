@@ -4,7 +4,6 @@ import * as vscode from "vscode";
 import {
   WorkspaceSymbolIndexer,
   LanguageProcessor,
-  CONFIG_NAMESPACE,
   COMMAND_IDS,
   LANGUAGE_IDS,
   readConfiguration,
@@ -20,6 +19,8 @@ import { QuickActionsProvider } from "./providers/quick-actions-provider";
 
 import { ActivationService } from "./services/activation-service";
 import { DiagnosticService } from "./services/diagnostic-service";
+import { ExtensionSettingsService } from "./services/extension-settings-service";
+import { registerExtensionSettingsEditor } from "./services/extension-settings-editor";
 import { MCPService } from "./services/mcp-service";
 import { RepositoryService } from "./services/repository-service";
 import { PreviewService } from "./services/preview-service";
@@ -40,6 +41,8 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   initLogger(context);
+  ExtensionSettingsService.initialize(context);
+  registerExtensionSettingsEditor(context);
   RepositoryService.initialize(context);
   logger.info("Extensão Data7 Dev Studio ativada.");
 
@@ -264,9 +267,8 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     if (e.document.languageId !== LANGUAGE_IDS.d7basic && !e.document.fileName.endsWith(".bas")) {
       return;
     }
-    const cfg = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
     const saveFeatures = readConfiguration().features.save;
-    const formatOnSave = saveFeatures.autoFormatOnSave || cfg.get<boolean>("autoFormatOnSave");
+    const formatOnSave = saveFeatures.autoFormatOnSave;
     if (!saveFeatures.autoFixOnSave && !formatOnSave) return;
     e.waitUntil(
       Promise.resolve().then(async () => {

@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import {
   DependencyScanner,
-  getRawConfiguration,
   getRepoBasPath,
   initializeExtensionPaths,
   isSafeSegment,
@@ -16,6 +15,7 @@ import {
 import * as path from "path";
 import * as fs from "fs";
 
+import { ExtensionSettingsService } from "./extension-settings-service";
 import { WorkspaceTrustService } from "./workspace-trust-service";
 
 /**
@@ -88,7 +88,6 @@ export class RepositoryService {
    * Asks the user to pick a folder when none is set; persists it globally.
    */
   public async ensureSharedModulesPath(): Promise<string | undefined> {
-    const cfg = getRawConfiguration();
     let sharedModulesPath = readConfiguration().sharedModulesPath;
     if (!sharedModulesPath || !fs.existsSync(sharedModulesPath)) {
       const selected = await vscode.window.showOpenDialog({
@@ -100,7 +99,7 @@ export class RepositoryService {
       const firstSelected = selected?.[0];
       if (firstSelected) {
         sharedModulesPath = firstSelected.fsPath;
-        await cfg.update("sharedModulesPath", sharedModulesPath, vscode.ConfigurationTarget.Global);
+        await ExtensionSettingsService.updateField("sharedModulesPath", sharedModulesPath);
       } else {
         return undefined;
       }

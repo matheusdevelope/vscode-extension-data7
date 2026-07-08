@@ -30,6 +30,8 @@ export * from "./diagnostics/structural-diagnostics";
 
 // infra
 export * from "./infra/configuration";
+export * from "./infra/configuration-types";
+export * from "./infra/extension-settings";
 export * from "./infra/constants";
 export * from "./infra/extension-paths";
 export * from "./infra/logger";
@@ -44,6 +46,7 @@ export * from "./project/transpiler-types";
 export * from "./project/generics";
 export * from "./project/project-config";
 export * from "./project/project-metadata";
+export * from "./project/default-project-metadata";
 export * from "./project/build-cache";
 export * from "./project/build-snapshot";
 export * from "./project/ast/ast";

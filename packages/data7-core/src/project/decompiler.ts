@@ -4,6 +4,7 @@ import type { ProjectMetadata, VirtualFolder } from "./project-metadata";
 import { isXmlRecord, parseProjectXml, xmlRecord, xmlText, xmlRawText } from "../utils/xml-helpers";
 import { safeJoinInside, isSafeSegment } from "../utils/path-safety";
 import { PROJECT_CONFIG_FILENAME } from "../infra/constants";
+import { createDefaultProjectBuildOptimization } from "./default-project-metadata";
 import { parseBasic } from "./parser";
 
 /**
@@ -46,22 +47,7 @@ export class Decompiler {
         identificacaoBancoDados: xmlText(opcoesSource, "IdentificacaoBancoDados"),
       },
       build: {
-        optimization: {
-          sourceMap: true,
-          minify: {
-            enabled: false,
-            stripComments: false,
-          },
-          prune: {
-            enabled: false,
-            report: false,
-            strategy: "principal-closure",
-            alwaysInclude: [],
-          },
-          uglify: {
-            enabled: false,
-          },
-        },
+        optimization: createDefaultProjectBuildOptimization(),
       },
       virtualFolders: [],
       modulesMetadata: {},

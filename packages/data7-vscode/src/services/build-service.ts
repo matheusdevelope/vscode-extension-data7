@@ -5,7 +5,6 @@ import * as vscode from "vscode";
 import {
   BuildCache,
   PROJECT_CONFIG_FILENAME,
-  getRawConfiguration,
   logger,
   readConfiguration,
   readProjectConfig,
@@ -13,6 +12,7 @@ import {
 import type { BuildProjectOptions, EnsureProjectBuiltResult } from "@data7/core";
 
 import { DependencyService } from "./dependency-service";
+import { ExtensionSettingsService } from "./extension-settings-service";
 import { ProjectService } from "./project-service";
 
 import { WorkspaceTrustService } from "./workspace-trust-service";
@@ -124,8 +124,7 @@ export class BuildService {
       return;
     }
 
-    const cfg = getRawConfiguration();
-    const executorPath = await ProjectService.ensureExecutorPath(cfg);
+    const executorPath = await ProjectService.ensureExecutorPath();
     if (!executorPath) {
       vscode.window.showErrorMessage(
         "Execução cancelada. O caminho do Executor.exe é obrigatório.",
@@ -212,8 +211,7 @@ export class BuildService {
       return;
     }
 
-    const cfg = getRawConfiguration();
-    const executorPath = await ProjectService.ensureExecutorPath(cfg);
+    const executorPath = await ProjectService.ensureExecutorPath();
     if (!executorPath) {
       vscode.window.showErrorMessage(
         "Execução cancelada. O caminho do Executor.exe é obrigatório.",
@@ -222,7 +220,7 @@ export class BuildService {
     }
     if (!fs.existsSync(executorPath)) {
       vscode.window.showErrorMessage(
-        "O Executor.exe configurado não foi encontrado. Revise data7.executorPath.",
+        "O Executor.exe configurado não foi encontrado. Abra as Configurações Data7 e revise o caminho do Executor.",
       );
       return;
     }
@@ -237,11 +235,7 @@ export class BuildService {
       });
       if (input) {
         connectionId = input;
-        await cfg.update(
-          "databaseConnectionId",
-          connectionId,
-          vscode.ConfigurationTarget.Workspace,
-        );
+        await ExtensionSettingsService.updateField("databaseConnectionId", connectionId);
       } else {
         vscode.window.showErrorMessage(
           "ID de conexão do banco de dados é obrigatório para execução.",

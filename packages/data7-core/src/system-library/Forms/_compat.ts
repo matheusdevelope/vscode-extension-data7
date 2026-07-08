@@ -31,7 +31,7 @@ const value = (name: string, description: string): SystemSymbolInfo => ({
 });
 
 export const symbols: SystemSymbolInfo[] = [
-  property("TControl", "Color", "TColor", "Cor principal do controle."),
+  // property("TControl", "Color", "TColor", "Cor principal do controle."),
   property("TControl", "Font", "TFont", "Fonte padrao usada para renderizar texto no controle."),
   property("TControl", "ParentFont", "Boolean", "Indica se o controle herda a fonte do parent."),
 

@@ -5,6 +5,7 @@ import {
   DependencyScanner,
   PROJECT_CONFIG_FILENAME,
   WorkspaceSymbolIndexer,
+  createDefaultProjectMetadata,
   generateProjectGuid,
   getCoreModulesPath,
   isRecord,
@@ -22,6 +23,7 @@ import * as fs from "fs";
 
 import { RepositoryService } from "./repository-service";
 import { DependencyService } from "./dependency-service";
+import { ExtensionSettingsService } from "./extension-settings-service";
 
 /**
  * Returns the first non-empty record under one of the candidate keys.
@@ -111,12 +113,10 @@ export class ProjectService {
   }
 
   /**
-   * Configuration helper to ensure Executor.exe path is configured.
+   * Ensures Executor.exe path is configured in extension settings.
    */
-  public static async ensureExecutorPath(
-    config: vscode.WorkspaceConfiguration,
-  ): Promise<string | undefined> {
-    let executorPath = config.get<string>("executorPath") ?? "";
+  public static async ensureExecutorPath(): Promise<string | undefined> {
+    let executorPath = readConfiguration().executorPath;
     if (!executorPath || executorPath.includes("[Executor.exe") || !fs.existsSync(executorPath)) {
       const selected = await vscode.window.showOpenDialog({
         canSelectFiles: true,
@@ -128,7 +128,7 @@ export class ProjectService {
       const firstSelected = selected?.[0];
       if (firstSelected) {
         executorPath = firstSelected.fsPath;
-        await config.update("executorPath", executorPath, vscode.ConfigurationTarget.Global);
+        await ExtensionSettingsService.updateField("executorPath", executorPath);
       } else {
         return undefined;
       }
@@ -382,11 +382,10 @@ export class ProjectService {
       const defaultBasCode = `' Código Principal do Projeto: ${projectName}\r\nImports Collections\r\n\r\n' Ponto de entrada do script\r\n`;
       fs.writeFileSync(path.join(srcDir, "Principal.bas"), defaultBasCode, "utf-8");
 
-      const configData = {
+      const configData = createDefaultProjectMetadata({
         nome: projectName,
         language,
         version,
-        targetPlatform: "Default",
         opcoes: {
           autor: author,
           versao: version,
@@ -397,12 +396,7 @@ export class ProjectService {
           preScript: "",
           identificacaoBancoDados: connectionId,
         },
-        virtualFolders: [
-          { nome: "Unidades (1)", id: generateProjectGuid(), pastaId: "", aberta: "Sim" },
-        ],
-        modulesMetadata: {},
-        dependencies: {},
-      };
+      });
 
       fs.writeFileSync(
         path.join(projectDir, PROJECT_CONFIG_FILENAME),

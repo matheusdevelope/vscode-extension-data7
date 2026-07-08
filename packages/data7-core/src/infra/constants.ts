@@ -80,6 +80,7 @@ export const COMMAND_IDS = {
   previewMcpClientConfig: "data7.mcp.previewClientConfig",
 
   // Utility commands
+  openSettings: "data7.settings.open",
   openParentFolder: "data7.util.openParentFolder",
   showOutput: "data7.util.showOutput",
 } as const;

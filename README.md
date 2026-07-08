@@ -125,7 +125,7 @@ O `@data7/core` nao importa o modulo runtime `vscode`; ele usa um adapter puro e
 
 1. Instale a extensão (ou rode em modo dev com `F5` dentro deste repositório).
 2. Abra uma pasta contendo um arquivo `.7Proj` â€” a extensão oferecerá decompor para edição no VS Code.
-3. Configure o caminho do Executor em **Settings** â†’ `data7.executorPath` (a extensão também perguntará na 1Âª execução).
+3. Abra **Data7: Configurações** na sidebar **Ações Rápidas** (seção Configuração) e configure o caminho do Executor (a extensão também perguntará na 1ª execução).
 4. Use `F5` para rodar o projeto, `Ctrl+Shift+B` para compilar.
 
 ## Empacotamento VSIX
@@ -134,37 +134,39 @@ Use `npm run build:extension -w vscode-extension-data7` ou rode o mesmo comando 
 
 ## Comandos principais
 
-| Comando                                        | Atalho             | Descrição                                                  |
-| ---------------------------------------------- | ------------------ | ---------------------------------------------------------- |
-| `Data7: Abrir Projeto`                         | â€”                | Decompõe um `.7Proj` em estrutura `.bas` editável          |
-| `Data7: Criar Novo Projeto`                    | â€”                | Cria um projeto Data7 do zero                              |
-| `Data7: Compilar/Rebuildar Projeto`            | `Ctrl+Shift+B`     | Empacota a árvore atual no `.7Proj`                        |
-| `Data7: Executar Projeto`                      | `F5`               | Roda no Executor do Data7                                  |
-| `Data7: Abrir no Developer Studio`             | â€”                | Abre no IDE legado                                         |
-| `Data7: Instalar Módulo Compartilhado`         | â€”                | Sincroniza um módulo do repositório para `data7_modules/`  |
-| `Data7: Instalar Módulos Selecionados`         | â€”                | Instala os módulos marcados no Gerenciador de Módulos      |
-| `Data7: Atualizar Dependências do Projeto`     | â€”                | Refresh completo de `data7.json#dependencies`              |
-| `Data7: Remover Módulos Selecionados`          | â€”                | Remove módulos marcados do manifesto e de `data7_modules/` |
-| `Data7: Gerar Documentação da System Library`  | â€”                | Gera `.md` por namespace em `docs/system-library/`         |
-| `Data7: Sincronizar Documentação no AGENTS.md` | â€”                | Injeta bloco gerado no `AGENTS.md` do workspace            |
-| `Data7: Mostrar SaÃ­da`                        | â€”                | Abre o canal "Data7" no painel Output                      |
-| `Data7: Reiniciar/Rodar Linter no Projeto`     | â€”                | Reavalia todo o projeto e exibe resumo de diagnósticos     |
-| `Data7: Linter - Corrigir Arquivo Atual`       | `Ctrl+Alt+Shift+F` | Aplica Quick Fixes corretivos no `.bas` ativo              |
+Comandos aparecem na paleta agrupados por categoria (`Data7`, `Data7 Projeto`, `Data7 Módulos`, `Data7 Linter`, etc.). Acesso rápido pela sidebar **Ações Rápidas** (agrupadas por seção).
+
+| Comando (paleta)                          | Atalho             | Descrição                              |
+| ----------------------------------------- | ------------------ | -------------------------------------- |
+| `Data7: Configurações`                    | —                  | Editor interno de configurações        |
+| `Data7 Projeto: Novo Projeto`             | `Ctrl+Alt+N`       | Cria projeto com `data7.json` completo |
+| `Data7 Projeto: Abrir Projeto`            | `Ctrl+Alt+O`       | Decompõe `.7Proj` em `.bas` editável   |
+| `Data7 Projeto: Compilar`                 | `Ctrl+Shift+B`     | Empacota no `.7Proj`                   |
+| `Data7 Projeto: Executar`                 | `F5`               | Roda no Executor                       |
+| `Data7 Projeto: Decompor`                 | `Ctrl+Alt+X`       | Decompõe in-place o projeto ativo      |
+| `Data7 Módulos: Instalar Módulo`          | `Ctrl+Alt+I`       | Instala módulo do repositório          |
+| `Data7 Módulos: Sincronizar Dependências` | `Ctrl+Alt+U`       | Atualiza `data7.json#dependencies`     |
+| `Data7 Linter: Analisar Projeto`          | `Ctrl+Alt+L`       | Linter em todo o workspace             |
+| `Data7 Linter: Corrigir Arquivo`          | `Ctrl+Alt+Shift+F` | Quick fixes no `.bas` ativo            |
+| `Data7 Linter: Corrigir Projeto`          | `Ctrl+Alt+F`       | Correções em todo o workspace          |
+| `Data7 Prévia: Prévia (Lado a Lado)`      | `Ctrl+Alt+P`       | Código transpilado ao lado             |
+| `Data7: Mostrar Saída`                    | `Ctrl+Alt+Shift+O` | Canal de log da extensão               |
+
+Comandos exclusivos de contexto (Gerenciador de Módulos, menu do editor) não aparecem na paleta: instalar/atualizar/remover selecionados, prévia na aba atual, instalação em lote via quick fix.
 
 ## Configurações
 
-Veja `Settings` â†’ busca por `data7.`:
+Todas as opções da extensão ficam no editor interno **Data7: Configurações** (`data7.settings.open`), persistidas em `extension-settings.json` no armazenamento global da extensão.
 
-| Chave                                           | Tipo     | Default                                             | Descrição                                                                                                                                                                  |
-| ----------------------------------------------- | -------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data7.executorPath`                            | string   | â€”                                                 | Caminho do `Executor.exe` ou `D7MG.exe`                                                                                                                                    |
-| `data7.sharedModulesPath`                       | string   | â€”                                                 | Pasta global de módulos compartilhados                                                                                                                                     |
-| `data7.userName` / `companyCode` / `branchCode` | int      | `1`                                                 | Códigos passados ao Executor (`-U` / `-E` / `-F`)                                                                                                                          |
-| `data7.databaseConnectionId`                    | string   | â€”                                                 | Fallback de conexão (`-C`) apenas para executar `.7Proj` diretamente; projetos com `data7.json` usam `opcoes.identificacaoBancoDados`                                      |
-| `data7.exclude`                                 | string[] | `["**/node_modules/**", "**/.git/**", "**/out/**"]` | Globs ignorados pelo indexador e pelo linter. `data7_modules/**` é tratado separadamente: indexado para resolução de tipos, mas o linter não emite diagnósticos sobre eles |
-| `data7.diagnosticSeverity`                      | object   | `{}`                                                | Sobrescreve a severidade por código (`{"unused-import": "info"}`)                                                                                                          |
-| `data7.autoFormatOnSave`                        | bool     | `false`                                             | Formata arquivos `.bas` automaticamente ao salvar                                                                                                                          |
-| `data7.features`                                | object   | veja abaixo                                         | Habilita recursos opcionais por categoria: linguagem, automações de workspace/save/build e prévia                                                                          |
+| Grupo               | Opções                                                                   |
+| ------------------- | ------------------------------------------------------------------------ |
+| Ambiente            | `executorPath`, `sharedModulesPath`                                      |
+| Execução (fallback) | `userName`, `companyCode`, `branchCode`, `databaseConnectionId`          |
+| Indexação / linter  | `exclude`, `diagnosticSeverity`                                          |
+| Funcionalidades     | `features.*` (generics, sugars, linter, save, build, preview, workspace) |
+| Açúcares            | `sugars.enabled`, `sugars.enabledIds`, `sugars.disabledIds`              |
+
+Projetos usam `data7.json` para metadados de build e execução (`opcoes.*`, `build.optimization`, `dependencies`). Novos projetos já nascem com o bloco completo `build.optimization`.
 
 `data7.features` mantém os recursos existentes ativos por padrão, exceto o auto-fix antes do build, que fica desligado para evitar uma varredura completa a cada execução. Exemplo para usar somente o núcleo, sem extensões de linguagem nem automações de workspace:
 
@@ -188,7 +190,7 @@ Veja `Settings` â†’ busca por `data7.`:
 
 O linter também cobre regras de robustez usadas nos demos: acesso de membro incompleto (`obj.`), `Const` tipada, `Shared` inválido fora de rotinas/estado `Private Shared`, `Public` redundante, declarações não usadas, acesso solto a campo/propriedade/constante, `invalid-declaration` para `Overrides` mal formado ou sem base `Overridable`/`MustOverride`, e supersets de herança `MustInherit`/`NotInheritable`/`MustOverride`. Esses modificadores de herança existem para análise da extensão e são removidos antes do código final entregue ao compilador Data7.
 
-O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `prune.enabled`/`prune.report`/`prune.alwaysInclude`, `uglify.enabled` e `sourceMap`. O passe `prune` remove namespaces fora da cadeia alcançável a partir de `Principal.bas`/`Main` em todos os módulos do build (incluindo dependências e `core_modules`). As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade.
+O manifesto `data7.json` aceita o bloco `build.optimization` para o pipeline de otimização em implantação: `minify.enabled`, `minify.stripComments`, `prune.enabled`/`prune.report`/`prune.alwaysInclude`, `uglify.enabled` e `sourceMap`. O passe `prune` remove namespaces fora da cadeia alcançável a partir de `Principal.bas`/`Main` em todos os módulos do build (incluindo dependências e `core_modules`). As chaves legadas `opcoes.minify` e `opcoes.stripComments` continuam aceitas por compatibilidade. O empacotamento ordena os módulos do `.7Proj` por dependência de namespace (imports e referências qualificadas) para que o compilador nativo encontre cada namespace já declarado acima no XML.
 
 ## Suprimir diagnósticos com comentários
 

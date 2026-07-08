@@ -23,7 +23,7 @@ describe("readConfiguration features", () => {
     assert.equal(features.diagnostics.enabled, true);
     assert.equal(features.diagnostics.lintWorkspaceOnStartup, false);
     assert.equal(features.save.autoFixOnSave, true);
-    assert.equal(features.save.autoFormatOnSave, true);
+    assert.equal(features.save.autoFormatOnSave, false);
     assert.equal(features.build.autoFixBeforeBuild, false);
     assert.equal(features.preview.enabled, true);
   });

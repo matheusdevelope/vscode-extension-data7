@@ -137,209 +137,255 @@
     },
     "commands": [
       {
-        "command": "data7.project.open",
-        "title": "01 - Projeto - Abrir Existente",
+        "command": "data7.settings.open",
+        "title": "Configurações",
         "category": "Data7",
-        "icon": "$(folder-opened)",
-        "detail": "Abre um arquivo de projeto Data7 (.7proj) no VS Code"
+        "icon": "$(settings-gear)",
+        "detail": "Abre o editor de configurações da extensão (Executor, features, linter, açúcares)"
       },
       {
         "command": "data7.project.new",
-        "title": "01 - Projeto - Criar Novo",
-        "category": "Data7",
-        "detail": "Cria um novo projeto Data7 (.7proj)"
+        "title": "Novo Projeto",
+        "category": "Data7 Projeto",
+        "icon": "$(add)",
+        "detail": "Cria um novo projeto Data7 com data7.json completo"
       },
       {
-        "command": "data7.project.openInDevStudio",
-        "title": "01 - Projeto - Abrir no DevStudio",
-        "category": "Data7",
-        "detail": "Abre o projeto Data7 ativo no Developer Studio"
+        "command": "data7.project.open",
+        "title": "Abrir Projeto",
+        "category": "Data7 Projeto",
+        "icon": "$(folder-opened)",
+        "detail": "Decompõe um .7Proj em estrutura .bas editável"
       },
       {
         "command": "data7.project.build",
-        "title": "01 - Projeto - Compilar",
-        "category": "Data7",
-        "detail": "Compila o projeto Data7 ativo"
+        "title": "Compilar",
+        "category": "Data7 Projeto",
+        "icon": "$(tools)",
+        "detail": "Empacota a árvore atual no .7Proj"
       },
       {
         "command": "data7.project.run",
-        "title": "01 - Projeto - Executar",
-        "category": "Data7",
-        "detail": "Executa o projeto Data7 ativo no Executor"
+        "title": "Executar",
+        "category": "Data7 Projeto",
+        "icon": "$(play)",
+        "detail": "Executa o projeto ativo no Executor Data7"
       },
       {
         "command": "data7.project.decompose",
-        "title": "01 - Projeto - Decompor",
-        "category": "Data7",
-        "detail": "Decompõe um projeto .7proj em arquivos .bas individuais"
+        "title": "Decompor",
+        "category": "Data7 Projeto",
+        "detail": "Decompõe o .7Proj ativo in-place em arquivos .bas"
       },
       {
-        "command": "data7.modules.publishLocal",
-        "title": "01 - Projeto - Publicar Módulo Localmente",
-        "category": "Data7",
-        "detail": "Valida e publica o módulo ativo no repositório privado local"
-      },
-      {
-        "command": "data7.modules.publishOnline",
-        "title": "01 - Projeto - Publicar Módulo Online",
-        "category": "Data7",
-        "detail": "Valida e publica o módulo ativo no repositório remoto público"
-      },
-      {
-        "command": "data7.modules.unpublishOnline",
-        "title": "01 - Projeto - Remover Módulo Online",
-        "category": "Data7",
-        "icon": "$(cloud-upload)",
-        "detail": "Abre um Pull Request para remover um módulo do repositório remoto público"
+        "command": "data7.project.openInDevStudio",
+        "title": "Abrir no Dev Studio",
+        "category": "Data7 Projeto",
+        "icon": "$(link-external)",
+        "detail": "Abre o projeto ativo no Developer Studio legado"
       },
       {
         "command": "data7.modules.install",
-        "title": "01 - Projeto - Instalar Módulo",
-        "category": "Data7",
-        "detail": "Instala um módulo Data7 no projeto ativo"
+        "title": "Instalar Módulo",
+        "category": "Data7 Módulos",
+        "icon": "$(cloud-download)",
+        "detail": "Instala um módulo do repositório no projeto ativo"
       },
       {
         "command": "data7.modules.installBulk",
-        "title": "01 - Projeto - Instalar Módulos Em Massa",
-        "category": "Data7",
-        "detail": "Instala múltiplos módulos Data7 no projeto ativo"
+        "title": "Instalar em Lote",
+        "category": "Data7 Módulos",
+        "detail": "Instala vários módulos de uma vez (usado por quick fixes em lote)"
       },
       {
         "command": "data7.modules.installSelected",
-        "title": "01 - Projeto - Instalar Módulos Selecionados",
-        "category": "Data7",
+        "title": "Instalar Selecionados",
+        "category": "Data7 Módulos",
         "icon": "$(cloud-download)",
         "detail": "Instala os módulos marcados no Gerenciador de Módulos"
       },
       {
         "command": "data7.modules.updateSelected",
-        "title": "01 - Projeto - Atualizar Módulos Selecionados",
-        "category": "Data7",
+        "title": "Atualizar Selecionados",
+        "category": "Data7 Módulos",
         "icon": "$(sync)",
         "detail": "Atualiza os módulos marcados no Gerenciador de Módulos"
       },
       {
         "command": "data7.modules.remove",
-        "title": "01 - Projeto - Remover Módulo",
-        "category": "Data7",
+        "title": "Remover Módulo",
+        "category": "Data7 Módulos",
         "icon": "$(trash)",
-        "detail": "Remove um módulo Data7 do projeto ativo"
+        "detail": "Remove um módulo do projeto ativo"
       },
       {
         "command": "data7.modules.removeSelected",
-        "title": "01 - Projeto - Remover Módulos Selecionados",
-        "category": "Data7",
+        "title": "Remover Selecionados",
+        "category": "Data7 Módulos",
         "icon": "$(trash)",
         "detail": "Remove os módulos marcados no Gerenciador de Módulos"
       },
       {
         "command": "data7.modules.updateDependencies",
-        "title": "01 - Projeto - Atualizar Módulos",
-        "category": "Data7",
+        "title": "Sincronizar Dependências",
+        "category": "Data7 Módulos",
         "icon": "$(sync)",
-        "detail": "Atualiza as dependências do projeto Data7 ativo"
+        "detail": "Instala ou atualiza todas as dependências do data7.json"
       },
       {
         "command": "data7.modules.suggestDependencies",
-        "title": "01 - Projeto - Sugerir Dependências (Auto-Scan)",
-        "category": "Data7",
-        "detail": "Escaneia o código do projeto e sugere a inclusão de dependências ausentes"
+        "title": "Sugerir Dependências",
+        "category": "Data7 Módulos",
+        "icon": "$(search)",
+        "detail": "Escaneia o código e sugere dependências ausentes no data7.json"
       },
       {
         "command": "data7.modules.importToRepository",
-        "title": "03 - Repositório - Importar Módulo",
-        "category": "Data7",
-        "detail": "Importa um módulo ou projeto para o repositório local da extensão"
+        "title": "Importar para Repositório",
+        "category": "Data7 Módulos",
+        "detail": "Importa um módulo ou projeto para o repositório privado da extensão"
       },
       {
         "command": "data7.modules.bulkImportToRepository",
-        "title": "03 - Repositório - Importar Módulos Em Massa",
-        "category": "Data7",
-        "detail": "Importa múltiplos módulos ou projetos para o repositório local da extensão"
+        "title": "Importar em Lote",
+        "category": "Data7 Módulos",
+        "detail": "Importa vários módulos ou projetos para o repositório privado"
       },
       {
         "command": "data7.modules.exploreRepository",
-        "title": "03 - Repositório - Explorar Módulos",
-        "category": "Data7",
-        "detail": "Abre o repositório de módulos Data7 no explorador de arquivos"
+        "title": "Explorar Repositório",
+        "category": "Data7 Módulos",
+        "icon": "$(folder-library)",
+        "detail": "Abre o repositório de módulos no explorador de arquivos"
+      },
+      {
+        "command": "data7.modules.publishLocal",
+        "title": "Publicar Localmente",
+        "category": "Data7 Módulos",
+        "icon": "$(cloud-upload)",
+        "detail": "Valida e publica o módulo ativo no repositório privado"
+      },
+      {
+        "command": "data7.modules.publishOnline",
+        "title": "Publicar Online",
+        "category": "Data7 Módulos",
+        "icon": "$(cloud)",
+        "detail": "Valida e publica o módulo ativo no repositório remoto"
+      },
+      {
+        "command": "data7.modules.unpublishOnline",
+        "title": "Remover Online",
+        "category": "Data7 Módulos",
+        "icon": "$(cloud-download)",
+        "detail": "Abre PR para remover módulo do repositório remoto"
       },
       {
         "command": "data7.linter.run",
-        "title": "04 - Linter - Analisar Workspace",
-        "category": "Data7",
+        "title": "Analisar Projeto",
+        "category": "Data7 Linter",
         "icon": "$(refresh)",
-        "detail": "Executa o linter Data7 em todo o workspace"
+        "detail": "Executa o linter em todo o workspace"
       },
       {
         "command": "data7.linter.fixActiveFile",
-        "title": "04 - Linter - Corrigir Arquivo Atual",
-        "category": "Data7",
+        "title": "Corrigir Arquivo",
+        "category": "Data7 Linter",
         "icon": "$(wand)",
-        "detail": "Aplica as correcoes automaticas do linter no arquivo aberto"
+        "detail": "Aplica correções automáticas no arquivo .bas ativo"
       },
       {
         "command": "data7.linter.fixAllWorkspace",
-        "title": "04 - Linter - Corrigir Workspace",
-        "category": "Data7",
+        "title": "Corrigir Projeto",
+        "category": "Data7 Linter",
         "icon": "$(tools)",
-        "detail": "Aplica todas as correções automáticas do linter em todo o workspace"
+        "detail": "Aplica todas as correções automáticas no workspace"
       },
       {
         "command": "data7.preview.transpiledCode",
-        "title": "02 - Prévia - Ver Código Transpilado (lado a lado)",
-        "category": "Data7",
+        "title": "Prévia (Lado a Lado)",
+        "category": "Data7 Prévia",
         "icon": "$(split-horizontal)",
-        "detail": "Mostra a prévia do código Data7 Basic transpilado em uma aba lateral"
+        "detail": "Mostra o código transpilado em editor ao lado"
       },
       {
         "command": "data7.preview.transpiledCodeActive",
-        "title": "02 - Prévia - Ver Código Transpilado (aba ativo)",
-        "category": "Data7",
-        "detail": "Mostra a prévia do código Data7 Basic transpilado na aba ativa"
+        "title": "Prévia (Aba Atual)",
+        "category": "Data7 Prévia",
+        "detail": "Mostra o código transpilado substituindo a aba ativa"
       },
       {
         "command": "data7.docs.generateSystemLibrary",
-        "title": "06 - Documentação - Gerar System Library",
-        "category": "Data7",
+        "title": "Gerar System Library",
+        "category": "Data7 Docs",
         "icon": "$(book)",
-        "detail": "Gera a documentação da System Library do Data7"
+        "detail": "Gera documentação .md da System Library"
       },
       {
         "command": "data7.docs.injectToAgentsMd",
-        "title": "06 - Documentação - Sincronizar AGENTS.md",
-        "category": "Data7",
+        "title": "Sincronizar AGENTS.md",
+        "category": "Data7 Docs",
         "icon": "$(file-add)",
-        "detail": "Sincroniza a documentação da System Library no arquivo AGENTS.md"
+        "detail": "Injeta documentação da System Library no AGENTS.md"
       },
       {
         "command": "data7.mcp.installServer",
-        "title": "05 - MCP - Instalar/Atualizar Servidor",
-        "category": "Data7",
+        "title": "Instalar Servidor MCP",
+        "category": "Data7 MCP",
         "icon": "$(extensions)",
-        "detail": "Instala ou atualiza o servidor MCP (Model Context Protocol) para Data7"
+        "detail": "Instala ou atualiza o servidor MCP da extensão"
       },
       {
         "command": "data7.mcp.previewClientConfig",
-        "title": "05 - MCP - Prévia Config Cliente",
-        "category": "Data7",
+        "title": "Configuração MCP",
+        "category": "Data7 MCP",
         "icon": "$(json)",
-        "detail": "Mostra a configuração do cliente MCP para integração com ferramentas de IA"
-      },
-      {
-        "command": "data7.util.openParentFolder",
-        "title": "07 - Utilidades - Abrir Pasta Pai",
-        "category": "Data7",
-        "detail": "Abre a pasta pai do arquivo ou diretório ativo"
+        "detail": "Mostra JSON de configuração para Cursor, Claude ou Continue"
       },
       {
         "command": "data7.util.showOutput",
-        "title": "07 - Utilidades - Mostrar Log de Saída",
+        "title": "Mostrar Saída",
         "category": "Data7",
         "icon": "$(output)",
-        "detail": "Mostra o canal de saída da extensão Data7"
+        "detail": "Abre o canal de log da extensão Data7"
+      },
+      {
+        "command": "data7.util.openParentFolder",
+        "title": "Voltar à Pasta Pai",
+        "category": "Data7",
+        "detail": "Volta para a pasta pai do projeto (barra de status)"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "data7.modules.installSelected",
+          "when": "false"
+        },
+        {
+          "command": "data7.modules.updateSelected",
+          "when": "false"
+        },
+        {
+          "command": "data7.modules.removeSelected",
+          "when": "false"
+        },
+        {
+          "command": "data7.modules.installBulk",
+          "when": "false"
+        },
+        {
+          "command": "data7.modules.unpublishOnline",
+          "when": "false"
+        },
+        {
+          "command": "data7.preview.transpiledCodeActive",
+          "when": "false"
+        },
+        {
+          "command": "data7.util.openParentFolder",
+          "when": "false"
+        }
+      ],
       "explorer/context": [
         {
           "command": "data7.project.open",
@@ -511,7 +557,7 @@
       },
       {
         "command": "data7.util.showOutput",
-        "key": "ctrl+alt+o"
+        "key": "ctrl+alt+shift+o"
       }
     ],
     "walkthroughs": [
@@ -523,12 +569,12 @@
           {
             "id": "configure-executor",
             "title": "1. Configurar o executor Data7",
-            "description": "Aponte a extensão para o `Executor.exe` (ou `D7MG.exe`) do seu ambiente Data7. Sem ele, F5 não consegue rodar projetos.\n[Abrir Settings](command:workbench.action.openSettings?%22data7.executorPath%22)",
+            "description": "Aponte a extensão para o `Executor.exe` (ou `D7MG.exe`) do seu ambiente Data7. Sem ele, F5 não consegue rodar projetos.\n[Abrir Configurações Data7](command:data7.settings.open)",
             "media": {
               "markdown": "media/walkthrough-step1.md"
             },
             "completionEvents": [
-              "onSettingChanged:data7.executorPath"
+              "onCommand:data7.settings.open"
             ]
           },
           {
@@ -633,217 +679,7 @@
           "message": 5
         }
       }
-    ],
-    "configuration": {
-      "title": "Data7 Configuration",
-      "properties": {
-        "data7.executorPath": {
-          "type": "string",
-          "default": "C:\\Data7\\bin\\Executor.exe",
-          "description": "Caminho absoluto para o executável do Executor do Data7 (ex: C:\\Data7\\bin\\Executor.exe)."
-        },
-        "data7.sharedModulesPath": {
-          "type": "string",
-          "default": "",
-          "description": "Caminho da pasta global contendo os módulos compartilhados (.7Proj ou .bas) que podem ser importados automaticamente."
-        },
-        "data7.userName": {
-          "type": "string",
-          "default": "Administrador",
-          "description": "Nome do Usuário (-U) para passar ao Executor."
-        },
-        "data7.companyCode": {
-          "type": "integer",
-          "default": 1,
-          "description": "Código da Empresa (-E) para passar ao Executor."
-        },
-        "data7.branchCode": {
-          "type": "integer",
-          "default": 1,
-          "description": "Código da Filial (-F) para passar ao Executor."
-        },
-        "data7.databaseConnectionId": {
-          "type": "string",
-          "default": "",
-          "description": "UUID de Conexão com o Banco de Dados (-C) usado apenas como fallback ao executar um .7Proj diretamente. Projetos com data7.json usam opcoes.identificacaoBancoDados."
-        },
-        "data7.exclude": {
-          "type": "array",
-          "default": [
-            "**/node_modules/**",
-            "**/.git/**",
-            "**/out/**"
-          ],
-          "items": {
-            "type": "string"
-          },
-          "description": "Globs ignorados pelo indexador de símbolos e pelo linter (formato `glob` do VS Code). `data7_modules/**` é tratado separadamente: os arquivos lá são indexados para tipos/autocomplete, mas o linter não emite diagnósticos sobre eles."
-        },
-        "data7.diagnosticSeverity": {
-          "type": "object",
-          "default": {},
-          "additionalProperties": {
-            "type": "string",
-            "enum": [
-              "error",
-              "warning",
-              "info",
-              "hint",
-              "off"
-            ]
-          },
-          "description": "Sobrescreve a severidade padrão por código de diagnóstico (ex.: { \"unused-import\": \"info\", \"unsupported-member\": \"error\", \"event-signature-mismatch\": \"off\" }). Códigos válidos incluem: missing-import, unused-import, duplicate-import, module-not-found, module-not-declared, unknown-member, private-member-access, event-signature-mismatch, unsupported-member, not-enumerable, unknown-suppression-code, invalid-interpolation, ternary-context-unsupported, unknown-template, generic-arity-mismatch, duplicate-template, class-generic-method-unsupported, flat-name-collision, instantiation-limit-exceeded, unknown-type, duplicate-declaration, incomplete-member-access, unterminated-block, typed-const-unsupported, invalid-shared-member, redundant-public-modifier, unused-declaration, loose-value-statement, abstract-instantiation, sealed-inheritance, mustoverride-not-implemented, invalid-class-modifier-combination, declaration-parentheses-mismatch, declare-name-parentheses, return-assignment-in-catch."
-        },
-        "data7.autoFormatOnSave": {
-          "type": "boolean",
-          "default": false,
-          "deprecationMessage": "Deprecado em favor de `editor.formatOnSave` (suporte nativo do VS Code). Defina `\"editor.formatOnSave\": true` em `[d7basic]` para o mesmo efeito.",
-          "markdownDescription": "**Deprecado.** Use `#editor.formatOnSave#` no escopo `[d7basic]`. Quando habilitado, formata automaticamente o arquivo `.bas` ao salvar."
-        },
-        "data7.features": {
-          "type": "object",
-          "default": {
-            "language": {
-              "generics": true,
-              "sugars": true
-            },
-            "diagnostics": {
-              "enabled": true,
-              "lintWorkspaceOnStartup": false
-            },
-            "workspace": {
-              "detectProjectFiles": true,
-              "installMcpServerOnStartup": true
-            },
-            "save": {
-              "autoFixOnSave": true,
-              "autoFormatOnSave": false
-            },
-            "build": {
-              "autoFixBeforeBuild": false
-            },
-            "preview": {
-              "enabled": true
-            }
-          },
-          "properties": {
-            "language": {
-              "type": "object",
-              "properties": {
-                "generics": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Ativa a análise, o IntelliSense e a monomorfização de generics."
-                },
-                "sugars": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Ativa o pipeline de açúcares sintáticos; use data7.sugars para selecionar IDs específicos."
-                }
-              }
-            },
-            "diagnostics": {
-              "type": "object",
-              "properties": {
-                "enabled": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Ativa os diagnósticos do linter para arquivos Data7 Basic e os comandos manuais de lint."
-                },
-                "lintWorkspaceOnStartup": {
-                  "type": "boolean",
-                  "default": false,
-                  "description": "Executa a análise completa do linter no workspace ao abrir a IDE. Desativado por padrão para evitar custo inicial em projetos grandes; o comando manual continua disponível."
-                }
-              }
-            },
-            "workspace": {
-              "type": "object",
-              "properties": {
-                "detectProjectFiles": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Oferece abrir arquivos .7proj detectados ao iniciar ou abrir documentos."
-                },
-                "installMcpServerOnStartup": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Instala ou atualiza automaticamente o binário MCP no armazenamento global da extensão."
-                }
-              }
-            },
-            "save": {
-              "type": "object",
-              "properties": {
-                "autoFixOnSave": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Aplica correções automáticas de sintaxe e estilo ao salvar arquivos .bas."
-                },
-                "autoFormatOnSave": {
-                  "type": "boolean",
-                  "default": false,
-                  "description": "Executa o formatador Data7 ao salvar quando não houver correções automáticas."
-                }
-              }
-            },
-            "build": {
-              "type": "object",
-              "properties": {
-                "autoFixBeforeBuild": {
-                  "type": "boolean",
-                  "default": false,
-                  "description": "Aplica Quick Fixes nos arquivos alterados antes de compilar, executar ou abrir no Developer Studio. Desligado por padrão para não atrasar projetos grandes."
-                }
-              }
-            },
-            "preview": {
-              "type": "object",
-              "properties": {
-                "enabled": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "Ativa a prévia ao vivo do código transpilado e seus listeners."
-                }
-              }
-            }
-          },
-          "description": "Recursos opcionais da extensão, organizados por categoria. Alterações de ativação requerem recarregar a janela."
-        },
-        "data7.sugars": {
-          "type": "object",
-          "default": {
-            "enabled": true,
-            "enabledIds": [],
-            "disabledIds": []
-          },
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true,
-              "description": "Habilita ou desabilita o pipeline central de açúcares sintáticos no build, preview e ferramentas de transpilação."
-            },
-            "enabledIds": {
-              "type": "array",
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "description": "Quando preenchido, limita o pipeline aos IDs de sugars informados."
-            },
-            "disabledIds": {
-              "type": "array",
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "description": "IDs de sugars a desabilitar mesmo quando o pipeline geral estiver ligado."
-            }
-          },
-          "description": "Configura o pipeline central de açúcares sintáticos da linguagem Data7 Basic."
-        }
-      }
-    }
+    ]
   },
   "capabilities": {
     "untrustedWorkspaces": {

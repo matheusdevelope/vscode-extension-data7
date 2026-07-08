@@ -132,6 +132,58 @@ End Namespace
       });
     });
 
+    test("orders modules by namespace dependencies including qualified references", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_consumer
+Namespace mod_principal
+   Class TPrincipalClass
+      Public Sub Main()
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_provider.bas"),
+          `'@Module
+Namespace mod_provider
+   Class TProvider
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_consumer.bas"),
+          `'@Module
+Namespace mod_consumer
+   Sub Run()
+      mod_provider.TProvider
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        const moduleOrder = [...xml.matchAll(/<(mod_[^>]+)>/g)].map((match) => match[1]);
+        assert.ok(
+          moduleOrder.indexOf("mod_provider") < moduleOrder.indexOf("mod_consumer"),
+          "provider must be declared before consumer when referenced via qualified access",
+        );
+      });
+    });
+
     test("monomorphizes generic modules copied into data7_modules", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);
