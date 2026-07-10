@@ -1,33 +1,14 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const bk = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TBevelKind",
-  isShared: true,
-  isPrivate: false,
-  range: SYSTEM_RANGE,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TBevelKind",
   containerName: "Forms",
-  description: description,
+  description: "Tipo de bevel (efeito 3D) usado em molduras de controles.",
+  values: [
+    ["bkNone", "Sem bevel."],
+    ["bkTile", "Bevel em mosaico (efeito de tijolos)."],
+    ["bkSoft", "Bevel suave (sombra leve)."],
+    ["bkFlat", "Bevel plano (linha única)."],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TBevelKind",
-    kind: "class",
-    type: "TBevelKind",
-    isShared: false,
-    isPrivate: false,
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Tipo de bevel (efeito 3D) usado em molduras de controles.",
-  },
-
-  bk("bkNone", "Sem bevel."),
-  bk("bkTile", "Bevel em mosaico (efeito de tijolos)."),
-  bk("bkSoft", "Bevel suave (sombra leve)."),
-  bk("bkFlat", "Bevel plano (linha única)."),
-];

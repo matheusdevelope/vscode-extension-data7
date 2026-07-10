@@ -7,6 +7,13 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Corrigido
+- **Teste `SQL.Connection.RDBMS`:** `new-containers.test.ts` ainda esperava `kind: "method"` para `RDBMS`, mas a definição em `SQL/Connection.ts` já havia sido atualizada para `kind: "property"`/`type: "TRDBMS"` (retorno tipado pelo enum, acessado sem parênteses). O teste foi separado do loop de métodos de transação e passa a validar `kind: "property"` e `type: "TRDBMS"`.
+
+### Refatorado
+- **`system-library/` — DSL semântica centralizada:** `symbol-helpers.ts` ganhou `defineEnum()` (unifica os três estilos legados de enum — `buildEnumVal()` solto, helpers locais como `ak()`/`bs()`, e literais manuais completos — em uma única chamada declarativa), `param()` (atalho para `ParameterInfo`), suporte a `variadicParameters`/`kind`/`indexed` em `MethodSpec`, e `buildGlobalFunctions()` para funções globais sem namespace. `buildClassSymbols` passa a aceitar `kind: "structure"` para records (`TPoint`, `TRect`). 34 arquivos de enum (`TAlign`, `TModalResult`, `TAnchorKind`, `TColor`, `TCursor`, etc.) foram migrados automaticamente para `defineEnum`; `FlatButton`, `TCustomButtonedEdit`, `TCustomEdit`, `TFont`, `TPoint`, `TRect`, `FontConfig`, `TBorderIcon` e `StringList` foram reescritos com `buildClassSymbols`/`param`. `Forms/Grid.ts` teve seus builders locais duplicados (`toProperty`/`toMethod`/`mapParams`/`UNSUP_NOTE`) removidos em favor dos helpers compartilhados, mantendo sua estrutura de tabelas (`properties`/`events`/`methods`). Todas as migrações foram validadas por comparação estrutural do `SYSTEM_SYMBOLS` resultante antes/depois (0 divergências em 3093 símbolos).
+- **Correção de duplicidade em `index.ts`:** `TAlign`/`TAlignment` eram espalhados (`...spread`) duas vezes em `SYSTEM_SYMBOLS` (uma vez na seção "Forms — utility", outra na seção "Globals"); a segunda ocorrência foi removida.
+
 ### Adicionado
 - **Editor de configurações da extensão:** comando `Data7: Configurações` (`data7.settings.open`) com painel webview para Executor, módulos compartilhados, features, açúcares, linter e fallbacks de execução. Persistência em `extension-settings.json` no armazenamento global (migração automática do antigo `settings.json`).
 - **Template completo de `data7.json`:** criação de projeto e decompilação incluem `build.optimization` com `sourceMap`, `minify`, `prune` e `uglify`.

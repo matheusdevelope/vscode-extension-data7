@@ -1,38 +1,19 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const ps = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TPenStyle",
-  isShared: true,
-  isPrivate: false,
-  range: SYSTEM_RANGE,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TPenStyle",
   containerName: "Drawing",
-  description: description,
+  description: "Estilo de traço de uma TPen. Usado em Canvas.Pen.Style e TShape.Pen.Style.",
+  values: [
+    ["psSolid", "Linha contínua (sólida)."],
+    ["psDash", "Linha tracejada (—  —  —)."],
+    ["psDot", "Linha pontilhada (· · ·)."],
+    ["psDashDot", "Linha traço-ponto (— · — ·)."],
+    ["psDashDotDot", "Linha traço-ponto-ponto (— · · — · ·)."],
+    ["psClear", "Sem linha (invisível)."],
+    ["psInsideFrame", "Linha dentro do contorno da forma (somente com largura > 1)."],
+    ["psUserStyle", "Estilo customizado definido pelo usuário (combinações de dashes)."],
+    ["psAlternate", "Pixels alternados (mais fino que psDot)."],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TPenStyle",
-    kind: "class",
-    type: "TPenStyle",
-    isShared: false,
-    isPrivate: false,
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: "Drawing",
-    description: "Estilo de traço de uma TPen. Usado em Canvas.Pen.Style e TShape.Pen.Style.",
-  },
-
-  ps("psSolid", "Linha contínua (sólida)."),
-  ps("psDash", "Linha tracejada (—  —  —)."),
-  ps("psDot", "Linha pontilhada (· · ·)."),
-  ps("psDashDot", "Linha traço-ponto (— · — ·)."),
-  ps("psDashDotDot", "Linha traço-ponto-ponto (— · · — · ·)."),
-  ps("psClear", "Sem linha (invisível)."),
-  ps("psInsideFrame", "Linha dentro do contorno da forma (somente com largura > 1)."),
-  ps("psUserStyle", "Estilo customizado definido pelo usuário (combinações de dashes)."),
-  ps("psAlternate", "Pixels alternados (mais fino que psDot)."),
-];

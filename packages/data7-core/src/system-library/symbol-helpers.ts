@@ -2,14 +2,42 @@ import type { ParameterInfo } from "../analysis/symbol-indexer";
 import type { SystemContainer, SystemSymbolInfo } from "./types";
 
 /**
- * Helpers compartilhados pelos arquivos de `system-library/` que descrevem
- * classes inteiras a partir de tabelas de "autocomplete + suportado" (ver as
- * planilhas `instrução.txt` dentro de `docs/Documentação Data7/`).
+ * Helpers compartilhados por TODOS os arquivos de `system-library/` que
+ * descrevem namespaces, classes e enums a partir de tabelas de "autocomplete +
+ * suportado" (ver as planilhas `instrução.txt` em `docs/Documentação Data7/`).
  *
- * O objetivo é evitar a repetição dos blocos
- *   `range: { startLine: 0, … }`, `fileUri: "system://library"`,
- *   `isShared: false`, `isPrivate: false` em cada símbolo, e padronizar a
- * mensagem mostrada para itens `isUnsupported: true`.
+ * Convenção de autoria de um novo arquivo de símbolos:
+ *
+ * ```ts
+ * import type { SystemSymbolInfo } from "../types";
+ * import { buildClassSymbols, param } from "../symbol-helpers";
+ *
+ * export const symbols: SystemSymbolInfo[] = buildClassSymbols({
+ *   className: "FlatButton",
+ *   namespaceContainer: "Forms",
+ *   inheritsFrom: "Forms.TButtonControl",
+ *   description: "Botão plano customizável.",
+ *   properties: [
+ *     { name: "Caption", type: "String", description: "Texto exibido no botão." },
+ *   ],
+ *   methods: [
+ *     {
+ *       name: "Click",
+ *       returns: "Void",
+ *       params: [param("pSender", "TObject")],
+ *       description: "Dispara o evento de clique.",
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * Para namespaces com funções/constantes globais (sem classe "dona"), use
+ * `buildNamespaceSymbols`. Para tipos enumerados (`kind: "class"` + um valor
+ * `kind: "variable"` por membro), use `defineEnum`. Para funções globais sem
+ * namespace (ex.: `CStr`, `Print`, `Left`), use `buildGlobalFunctions`.
+ *
+ * Nenhum arquivo de símbolos deve declarar `range`/`fileUri` manualmente, nem
+ * reimplementar `mapParams`/`UNSUP_NOTE` localmente — sempre importe daqui.
  */
 
 /** Range "sintético" usado por todos os símbolos do system-library. */
@@ -60,6 +88,16 @@ export interface MethodSpec {
   readonly description: string;
   readonly isUnsupported?: boolean;
   readonly overloads?: readonly (readonly ParamSpec[])[];
+  /** Aridade mínima com aceitação de qualquer quantidade extra (ex.: `Array()` VB). */
+  readonly variadicParameters?: boolean;
+  /** Sobrescreve `kind` (padrão `"method"`). Use `"declare_sub"`/`"declare_function"` para DLL externs. */
+  readonly kind?: "method" | "declare_sub" | "declare_function";
+  /**
+   * Quando `true`, emitido como `kind: "indexed-property"` em vez de método —
+   * usado por acessores Delphi como `Cells(ACol, ARow)` que ficam na tabela de
+   * `methods` (para reaproveitar `params`) mas se comportam como propriedade.
+   */
+  readonly indexed?: boolean;
 }
 
 export interface ConstSpec {
@@ -69,8 +107,37 @@ export interface ConstSpec {
   readonly isUnsupported?: boolean;
 }
 
+/** Atalho para criar um `ParameterInfo` sem repetir `isByRef`/`isOptional` quando falsos. */
+export function param(
+  name: string,
+  type: string,
+  opts?: {
+    readonly isByRef?: boolean;
+    readonly isOptional?: boolean;
+    readonly defaultValue?: string;
+  },
+): ParameterInfo {
+  return {
+    name,
+    type,
+    isByRef: opts?.isByRef ?? false,
+    isOptional: opts?.isOptional ?? false,
+    defaultValue: opts?.defaultValue,
+  };
+}
+
+function mapParams(params: readonly ParamSpec[]): ParameterInfo[] {
+  return params.map((p) => param(p.name, p.type, p));
+}
+
 interface BuildClassOptions {
-  readonly className: SystemContainer;
+  /**
+   * Nome da classe. Tipado como `string` (não `SystemContainer`) porque nem
+   * toda classe é referenciada como `containerName` em outro arquivo — mas
+   * quando ela TEM `properties`/`methods`, o valor é usado como o
+   * `containerName` desses membros (ver cast interno em `containerName`).
+   */
+  readonly className: string;
   /** Container do qual a classe é membro (ex.: `Forms`, `SQL`, `Data7`). */
   readonly namespaceContainer?: SystemContainer;
   readonly inheritsFrom?: string;
@@ -82,16 +149,8 @@ interface BuildClassOptions {
    * Use `true` para classes "singleton" do ERP (ex.: `SQL.Connection`).
    */
   readonly isShared?: boolean;
-}
-
-function mapParams(params: readonly ParamSpec[]): ParameterInfo[] {
-  return params.map((p) => ({
-    name: p.name,
-    type: p.type,
-    isByRef: p.isByRef ?? false,
-    isOptional: p.isOptional ?? false,
-    defaultValue: p.defaultValue,
-  }));
+  /** Sobrescreve `kind` do símbolo raiz (padrão `"class"`). Use `"structure"` para records/tuplas (ex.: `TPoint`, `TRect`). */
+  readonly kind?: "class" | "structure";
 }
 
 /** Constrói o vetor completo de `SystemSymbolInfo` para uma classe inteira. */
@@ -101,7 +160,7 @@ export function buildClassSymbols(opts: BuildClassOptions): SystemSymbolInfo[] {
 
   symbols.push({
     name: opts.className,
-    kind: "class",
+    kind: opts.kind ?? "class",
     type: opts.className,
     isShared,
     isPrivate: false,
@@ -122,7 +181,7 @@ export function buildClassSymbols(opts: BuildClassOptions): SystemSymbolInfo[] {
       parameters: prop.indexed ? mapParams(prop.params ?? []) : undefined,
       range: { ...SYSTEM_RANGE },
       fileUri: SYSTEM_URI,
-      containerName: opts.className,
+      containerName: opts.className as SystemContainer,
       description: prop.description,
       isUnsupported: prop.isUnsupported,
     });
@@ -131,15 +190,16 @@ export function buildClassSymbols(opts: BuildClassOptions): SystemSymbolInfo[] {
   for (const method of opts.methods ?? []) {
     symbols.push({
       name: method.name,
-      kind: "method",
+      kind: method.indexed ? "indexed-property" : (method.kind ?? "method"),
       type: method.returns,
       isShared,
       isPrivate: false,
       parameters: mapParams(method.params),
       overloads: method.overloads?.map(mapParams),
+      variadicParameters: method.variadicParameters,
       range: { ...SYSTEM_RANGE },
       fileUri: SYSTEM_URI,
-      containerName: opts.className,
+      containerName: opts.className as SystemContainer,
       description: method.description,
       isUnsupported: method.isUnsupported,
     });
@@ -181,12 +241,13 @@ export function buildNamespaceSymbols(opts: BuildNamespaceOptions): SystemSymbol
   for (const fn of opts.functionsAndSubs ?? []) {
     symbols.push({
       name: fn.name,
-      kind: "method",
+      kind: fn.kind ?? "method",
       type: fn.returns,
       isShared: true,
       isPrivate: false,
       parameters: mapParams(fn.params),
       overloads: fn.overloads?.map(mapParams),
+      variadicParameters: fn.variadicParameters,
       range: { ...SYSTEM_RANGE },
       fileUri: SYSTEM_URI,
       containerName: opts.namespace,
@@ -245,4 +306,78 @@ export function buildEnumVal(
     description,
     containerName,
   };
+}
+
+/** Um valor de enum: `[nome, descrição]` ou a forma expandida com `isUnsupported`. */
+export type EnumValueSpec =
+  | readonly [name: string, description: string]
+  | { readonly name: string; readonly description: string; readonly isUnsupported?: boolean };
+
+interface DefineEnumOptions {
+  /** Nome do tipo enumerado (ex.: `TAlign`, `TModalResult`). */
+  readonly name: string;
+  /** Container do qual o tipo é membro (ex.: `Forms`). Omitido = global. */
+  readonly containerName?: SystemContainer;
+  readonly description: string;
+  readonly values: readonly EnumValueSpec[];
+}
+
+/**
+ * Constrói um tipo enumerado inteiro (símbolo `kind: "class"` + um símbolo
+ * `kind: "variable"` por valor) em uma única chamada. Substitui os três
+ * estilos legados: chamadas soltas de `buildEnumVal`, helpers locais
+ * (`ak()`, `bs()`, …) e literais manuais completos (ex.: `TModalResult`).
+ */
+export function defineEnum(opts: DefineEnumOptions): SystemSymbolInfo[] {
+  const values = opts.values.map((v) => {
+    if (Array.isArray(v)) {
+      const [name, description] = v as readonly [string, string];
+      return { name, description, isUnsupported: undefined as boolean | undefined };
+    }
+    return v as {
+      readonly name: string;
+      readonly description: string;
+      readonly isUnsupported?: boolean;
+    };
+  });
+  return [
+    {
+      name: opts.name,
+      kind: "class",
+      type: opts.name,
+      isShared: false,
+      isPrivate: false,
+      range: { ...SYSTEM_RANGE },
+      fileUri: SYSTEM_URI,
+      containerName: opts.containerName,
+      description: opts.description,
+    },
+    ...values.map((v) => ({
+      ...buildEnumVal(v.name, opts.name, v.description, opts.containerName),
+      isUnsupported: v.isUnsupported,
+    })),
+  ];
+}
+
+/**
+ * Constrói funções/subs globais sem namespace "dono" (ex.: `CStr`, `Print`,
+ * `Left`, em `Globals/Functions.ts`). Para funções pertencentes a um
+ * namespace (`System.Pi`, `dateUtils.toStringFormat`, …), use
+ * `buildNamespaceSymbols` com `functionsAndSubs`.
+ */
+export function buildGlobalFunctions(specs: readonly MethodSpec[]): SystemSymbolInfo[] {
+  return specs.map((fn) => ({
+    name: fn.name,
+    kind: fn.kind ?? "declare_function",
+    type: fn.returns,
+    isShared: true,
+    isPrivate: false,
+    parameters: mapParams(fn.params),
+    overloads: fn.overloads?.map(mapParams),
+    variadicParameters: fn.variadicParameters,
+    range: { ...SYSTEM_RANGE },
+    fileUri: SYSTEM_URI,
+    description: fn.description,
+    isUnsupported: fn.isUnsupported,
+  }));
 }

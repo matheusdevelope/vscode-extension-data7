@@ -1,109 +1,24 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TPosition",
-    kind: "class",
-    type: "TPosition",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Descreve o posicionamento de um Form na tela (Form.Position).",
-  },
-
-  // ───────── Constantes ─────────
-  {
-    name: "poDesigned",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Form aparece com a posição/tamanho que tinha em tempo de design (0).",
-  },
-  {
-    name: "poDefault",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Posição e tamanho determinados pelo sistema operacional (1).",
-  },
-  {
-    name: "poDefaultPosOnly",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Mantém o tamanho de design; sistema operacional escolhe a posição (2).",
-  },
-  {
-    name: "poDefaultSizeOnly",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Mantém a posição de design; sistema operacional escolhe o tamanho (3).",
-  },
-  {
-    name: "poScreenCenter",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Centralizado na tela; mantém o tamanho de design (4).",
-  },
-  {
-    name: "poDesktopCenter",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Centralizado no desktop; mantém o tamanho de design (5).",
-  },
-  {
-    name: "poMainFormCenter",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Centralizado no Form principal da aplicação — apenas para forms secundários (6).",
-  },
-  {
-    name: "poOwnerFormCenter",
-    kind: "variable",
-    type: "TPosition",
-    isShared: true,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description:
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TPosition",
+  containerName: "Forms",
+  description: "Descreve o posicionamento de um Form na tela (Form.Position).",
+  values: [
+    ["poDesigned", "Form aparece com a posição/tamanho que tinha em tempo de design (0)."],
+    ["poDefault", "Posição e tamanho determinados pelo sistema operacional (1)."],
+    ["poDefaultPosOnly", "Mantém o tamanho de design; sistema operacional escolhe a posição (2)."],
+    ["poDefaultSizeOnly", "Mantém a posição de design; sistema operacional escolhe o tamanho (3)."],
+    ["poScreenCenter", "Centralizado na tela; mantém o tamanho de design (4)."],
+    ["poDesktopCenter", "Centralizado no desktop; mantém o tamanho de design (5)."],
+    [
+      "poMainFormCenter",
+      "Centralizado no Form principal da aplicação — apenas para forms secundários (6).",
+    ],
+    [
+      "poOwnerFormCenter",
       "Centralizado no Form do Owner (cai em poMainFormCenter se Owner não for Form) (7).",
-  },
-];
+    ],
+  ],
+});

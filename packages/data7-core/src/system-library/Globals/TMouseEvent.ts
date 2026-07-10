@@ -10,7 +10,7 @@ export const symbols: SystemSymbolInfo[] = [
     isPrivate: false,
     parameters: [
       { name: "Sender", type: "TObject", isByRef: false, isOptional: false },
-      { name: "Button", type: "TMouseButton", isByRef: false, isOptional: false },
+      // { name: "Button", type: "TMouseButton", isByRef: false, isOptional: false },
       { name: "Shift", type: "TShiftState", isByRef: false, isOptional: false },
       { name: "X", type: "Integer", isByRef: false, isOptional: false },
       { name: "Y", type: "Integer", isByRef: false, isOptional: false },
@@ -18,6 +18,6 @@ export const symbols: SystemSymbolInfo[] = [
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     description:
-      "Assinatura dos eventos OnMouseDown/OnMouseUp. Button indica qual botão, Shift as teclas modificadoras pressionadas, X/Y as coordenadas do ponteiro relativas ao controle.",
+      "Assinatura dos eventos OnMouseDown/OnMouseUp/OnMouseMove. Shift as teclas modificadoras pressionadas, X/Y as coordenadas do ponteiro relativas ao controle.",
   },
 ];

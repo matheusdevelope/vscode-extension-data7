@@ -1,36 +1,15 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const pbst = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TProgressBarStyle",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TProgressBarStyle",
   containerName: "Forms",
-  description: description,
+  description: "Estilo de uma ProgressBar (ProgressBar.Style).",
+  values: [
+    ["pbstNormal", "Barra padrão — exibe Position entre Min e Max."],
+    [
+      "pbstMarquee",
+      'Animação contínua ("marquee") — usa quando o tempo de operação é indeterminado.',
+    ],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TProgressBarStyle",
-    kind: "class",
-    type: "TProgressBarStyle",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Estilo de uma ProgressBar (ProgressBar.Style).",
-  },
-
-  pbst("pbstNormal", "Barra padrão — exibe Position entre Min e Max."),
-  pbst(
-    "pbstMarquee",
-    'Animação contínua ("marquee") — usa quando o tempo de operação é indeterminado.',
-  ),
-];

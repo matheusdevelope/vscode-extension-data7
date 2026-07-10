@@ -1,39 +1,18 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const bs = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TBevelShape",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TBevelShape",
   containerName: "Forms",
-  description: description,
+  description:
+    "Forma de uma Border (TBevel). Define se o bevel é um retângulo cheio, uma linha simples ou apenas um espaçador.",
+  values: [
+    ["bsBox", "Caixa retangular preenchida (4 lados)."],
+    ["bsFrame", "Moldura retangular (4 lados, sem preenchimento)."],
+    ["bsTopLine", "Apenas uma linha no topo."],
+    ["bsBottomLine", "Apenas uma linha na base."],
+    ["bsLeftLine", "Apenas uma linha à esquerda."],
+    ["bsRightLine", "Apenas uma linha à direita."],
+    ["bsSpacer", "Espaçador invisível (não desenha nada, ocupa apenas espaço)."],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TBevelShape",
-    kind: "class",
-    type: "TBevelShape",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description:
-      "Forma de uma Border (TBevel). Define se o bevel é um retângulo cheio, uma linha simples ou apenas um espaçador.",
-  },
-
-  bs("bsBox", "Caixa retangular preenchida (4 lados)."),
-  bs("bsFrame", "Moldura retangular (4 lados, sem preenchimento)."),
-  bs("bsTopLine", "Apenas uma linha no topo."),
-  bs("bsBottomLine", "Apenas uma linha na base."),
-  bs("bsLeftLine", "Apenas uma linha à esquerda."),
-  bs("bsRightLine", "Apenas uma linha à direita."),
-  bs("bsSpacer", "Espaçador invisível (não desenha nada, ocupa apenas espaço)."),
-];

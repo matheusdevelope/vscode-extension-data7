@@ -108,7 +108,7 @@ const overrides: readonly PropSpec[] = [
   },
   {
     name: "Color",
-    type: "Variant",
+    type: "Integer",
     description: "Cor de fundo herdada de TControl — não aplicável ao relatório." + UNSUP_NOTE,
     isUnsupported: true,
   },

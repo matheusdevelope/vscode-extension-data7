@@ -53,7 +53,7 @@ export const symbols: SystemSymbolInfo[] = [
   {
     name: "Color",
     kind: "property",
-    type: "Boolean",
+    type: "Integer",
     isShared: false,
     isPrivate: false,
     range: SYSTEM_RANGE,

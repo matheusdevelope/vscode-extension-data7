@@ -1,35 +1,14 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const pbs = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TProgressBarState",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TProgressBarState",
   containerName: "Forms",
-  description: description,
+  description:
+    "Estado visual de uma ProgressBar (ProgressBar.State) — afeta a cor da barra preenchida.",
+  values: [
+    ["pbsNormal", "Estado normal — barra verde."],
+    ["pbsError", "Estado de erro — barra vermelha."],
+    ["pbsPaused", "Estado pausado — barra amarela."],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TProgressBarState",
-    kind: "class",
-    type: "TProgressBarState",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description:
-      "Estado visual de uma ProgressBar (ProgressBar.State) — afeta a cor da barra preenchida.",
-  },
-
-  pbs("pbsNormal", "Estado normal — barra verde."),
-  pbs("pbsError", "Estado de erro — barra vermelha."),
-  pbs("pbsPaused", "Estado pausado — barra amarela."),
-];

@@ -22,7 +22,7 @@ export const symbols: SystemSymbolInfo[] = [
     kind: "property",
     type: "Variant",
     isShared: false,
-    isPrivate: false,
+    isPrivate: true,
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     containerName: "Imagem",
@@ -121,4 +121,16 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "Imagem",
     description: "Carrega uma imagem a partir de um arquivo.",
   },
+  {
+    name: "LoadFromBase64",
+    kind: "method",
+    type: "Void",
+    isShared: false,
+    isPrivate: false,
+    parameters: [{ name: "pBase64", type: "String", isByRef: false, isOptional: false }],
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "Imagem",
+    description: "Carrega uma imagem a partir de um base64.",
+  }
 ];

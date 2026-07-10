@@ -1,49 +1,37 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
-
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const bi = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TBorderIcon",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
-  containerName: "Forms",
-  description: description,
-});
+import { buildClassSymbols, buildEnumVal } from "../symbol-helpers";
 
 export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TBorderIcon",
-    kind: "class",
-    type: "TBorderIcon",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
+  ...buildClassSymbols({
+    className: "TBorderIcon",
+    namespaceContainer: "Forms",
     description:
       "Ícone presente na barra de título de um Form (Form.BorderIcons). Conjunto (set): TBorderIcons = set of TBorderIcon.",
-  },
-  {
-    name: "TBorderIcons",
-    kind: "class",
-    type: "TBorderIcons",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
+  }),
+  ...buildClassSymbols({
+    className: "TBorderIcons",
+    namespaceContainer: "Forms",
     description:
       "Set Delphi `set of TBorderIcon` — coleção de ícones exibidos na barra de título do formulário (biSystemMenu, biMinimize, biMaximize, biHelp).",
-  },
-
-  bi("biSystemMenu", "Menu de sistema (ícone do app no canto esquerdo)."),
-  bi("biMinimize", "Botão de minimizar."),
-  bi("biMaximize", "Botão de maximizar."),
-  bi("biHelp", 'Botão de ajuda ("?" — usado em diálogos modais).'),
-  bi("biAlwaysOnTop", "Indicador de janela sempre no topo (em alguns temas)."),
+  }),
+  buildEnumVal(
+    "biSystemMenu",
+    "TBorderIcon",
+    "Menu de sistema (ícone do app no canto esquerdo).",
+    "Forms",
+  ),
+  buildEnumVal("biMinimize", "TBorderIcon", "Botão de minimizar.", "Forms"),
+  buildEnumVal("biMaximize", "TBorderIcon", "Botão de maximizar.", "Forms"),
+  buildEnumVal(
+    "biHelp",
+    "TBorderIcon",
+    'Botão de ajuda ("?" — usado em diálogos modais).',
+    "Forms",
+  ),
+  buildEnumVal(
+    "biAlwaysOnTop",
+    "TBorderIcon",
+    "Indicador de janela sempre no topo (em alguns temas).",
+    "Forms",
+  ),
 ];

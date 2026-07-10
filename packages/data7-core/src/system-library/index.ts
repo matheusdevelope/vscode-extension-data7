@@ -213,7 +213,7 @@ import { symbols as sym_SQL_TField } from "./SQL/TField";
 import { symbols as sym_SQL_aliases } from "./SQL/_aliases";
 
 // ───────── System ─────────
-import { symbols as sym_System_IOUtils } from "./System/IOUtils";
+// import { symbols as sym_System_IOUtils } from "./System/IOUtils";
 import { symbols as sym_System_System } from "./System/System";
 
 // ───────── System.Classes ─────────
@@ -284,9 +284,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_Forms,
   ...sym_Forms_MessageBox,
   ...sym_Forms_ProcessMessages,
-  ...sym_Globals_TAlign,
   ...sym_Globals_TButtonLayout,
-  ...sym_Globals_TAlignment,
   ...sym_Globals_TMargins,
   // Forms — type aliases & intermediate classes
   ...sym_Forms_aliases,
@@ -427,7 +425,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_SQL_TField,
   ...sym_SQL_aliases,
   // System
-  ...sym_System_IOUtils,
+  // ...sym_System_IOUtils,
   ...sym_System_System,
   // System.Classes
   ...sym_SystemClasses_SystemClasses,

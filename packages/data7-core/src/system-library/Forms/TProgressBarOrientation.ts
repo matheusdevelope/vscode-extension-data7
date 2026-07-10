@@ -1,33 +1,12 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const pb = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TProgressBarOrientation",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TProgressBarOrientation",
   containerName: "Forms",
-  description: description,
+  description: "Orientação de uma ProgressBar (ProgressBar.Orientation).",
+  values: [
+    ["pbHorizontal", "Barra horizontal (cresce da esquerda para a direita)."],
+    ["pbVertical", "Barra vertical (cresce de baixo para cima)."],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TProgressBarOrientation",
-    kind: "class",
-    type: "TProgressBarOrientation",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Orientação de uma ProgressBar (ProgressBar.Orientation).",
-  },
-
-  pb("pbHorizontal", "Barra horizontal (cresce da esquerda para a direita)."),
-  pb("pbVertical", "Barra vertical (cresce de baixo para cima)."),
-];

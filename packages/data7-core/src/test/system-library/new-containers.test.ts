@@ -101,20 +101,20 @@ describe("XML.IXMLNodeList", () => {
 });
 
 describe("SQL.Connection — métodos de transação", () => {
-  for (const name of [
-    "StartTransaction",
-    "Commit",
-    "Rollback",
-    "InTransaction",
-    "DefaultSchema",
-    "RDBMS",
-  ]) {
+  for (const name of ["StartTransaction", "Commit", "Rollback", "InTransaction", "DefaultSchema"]) {
     test(`${name} existe`, () => {
       const m = findMember("Connection", name);
       assert.ok(m, `Connection.${name} deve existir`);
       assert.equal(m.kind, "method");
     });
   }
+
+  test("RDBMS existe como property tipada TRDBMS", () => {
+    const m = findMember("Connection", "RDBMS");
+    assert.ok(m, "Connection.RDBMS deve existir");
+    assert.equal(m.kind, "property");
+    assert.equal(m.type, "TRDBMS");
+  });
 
   test("StartTransaction aceita pDescricao opcional", () => {
     const m = findMember("Connection", "StartTransaction");

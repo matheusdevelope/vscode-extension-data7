@@ -1,34 +1,13 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const ws = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TWindowState",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TWindowState",
   containerName: "Forms",
-  description: description,
+  description: "Estado atual de uma janela (Form.WindowState).",
+  values: [
+    ["wsNormal", "Janela em tamanho/posição normal."],
+    ["wsMinimized", "Janela minimizada."],
+    ["wsMaximized", "Janela maximizada."],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TWindowState",
-    kind: "class",
-    type: "TWindowState",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description: "Estado atual de uma janela (Form.WindowState).",
-  },
-
-  ws("wsNormal", "Janela em tamanho/posição normal."),
-  ws("wsMinimized", "Janela minimizada."),
-  ws("wsMaximized", "Janela maximizada."),
-];

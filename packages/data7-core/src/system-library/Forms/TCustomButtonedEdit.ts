@@ -1,82 +1,40 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { buildClassSymbols } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TCustomButtonedEdit",
-    kind: "class",
-    type: "TCustomButtonedEdit",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    inheritsFrom: "TCustomEdit",
-    description:
-      "Classe ancestral VCL (`Vcl.ExtCtrls.TCustomButtonedEdit`) de edits com botões embutidos. Adiciona LeftButton e RightButton (TEditButton) sobre TCustomEdit. Base de TButtonedEdit.",
-  },
-
-  // ───────── Properties (LeftButton/RightButton + Images) ─────────
-  {
-    name: "LeftButton",
-    kind: "property",
-    type: "Variant",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "TCustomButtonedEdit",
-    description:
-      "Botão embutido à esquerda do texto (TEditButton). Configurável via ImageIndex, HotImageIndex, PressedImageIndex, DisabledImageIndex, Hint, Visible, Enabled.",
-  },
-  {
-    name: "RightButton",
-    kind: "property",
-    type: "Variant",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "TCustomButtonedEdit",
-    description:
-      "Botão embutido à direita do texto (TEditButton). Configurável via ImageIndex, HotImageIndex, PressedImageIndex, DisabledImageIndex, Hint, Visible, Enabled.",
-  },
-  {
-    name: "Images",
-    kind: "property",
-    type: "Variant",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "TCustomButtonedEdit",
-    description:
-      "ImageList que fornece os ícones para LeftButton e RightButton. Cada botão referencia via ImageIndex.",
-  },
-
-  // ───────── Events ─────────
-  {
-    name: "OnLeftButtonClick",
-    kind: "property",
-    type: "TNotifyEvent",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "TCustomButtonedEdit",
-    description: "Ocorre quando o usuário clica no botão esquerdo (LeftButton).",
-  },
-  {
-    name: "OnRightButtonClick",
-    kind: "property",
-    type: "TNotifyEvent",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "TCustomButtonedEdit",
-    description: "Ocorre quando o usuário clica no botão direito (RightButton).",
-  },
-];
+export const symbols: SystemSymbolInfo[] = buildClassSymbols({
+  className: "TCustomButtonedEdit",
+  namespaceContainer: "Forms",
+  inheritsFrom: "TCustomEdit",
+  description:
+    "Classe ancestral VCL (`Vcl.ExtCtrls.TCustomButtonedEdit`) de edits com botões embutidos. Adiciona LeftButton e RightButton (TEditButton) sobre TCustomEdit. Base de TButtonedEdit.",
+  properties: [
+    {
+      name: "LeftButton",
+      type: "Variant",
+      description:
+        "Botão embutido à esquerda do texto (TEditButton). Configurável via ImageIndex, HotImageIndex, PressedImageIndex, DisabledImageIndex, Hint, Visible, Enabled.",
+    },
+    {
+      name: "RightButton",
+      type: "Variant",
+      description:
+        "Botão embutido à direita do texto (TEditButton). Configurável via ImageIndex, HotImageIndex, PressedImageIndex, DisabledImageIndex, Hint, Visible, Enabled.",
+    },
+    {
+      name: "Images",
+      type: "Variant",
+      description:
+        "ImageList que fornece os ícones para LeftButton e RightButton. Cada botão referencia via ImageIndex.",
+    },
+    {
+      name: "OnLeftButtonClick",
+      type: "TNotifyEvent",
+      description: "Ocorre quando o usuário clica no botão esquerdo (LeftButton).",
+    },
+    {
+      name: "OnRightButtonClick",
+      type: "TNotifyEvent",
+      description: "Ocorre quando o usuário clica no botão direito (RightButton).",
+    },
+  ],
+});

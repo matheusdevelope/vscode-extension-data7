@@ -1,39 +1,18 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const bd = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TBiDiMode",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TBiDiMode",
   containerName: "Forms",
-  description: description,
+  description:
+    "Modo bidirecional do controle (suporte a idiomas Right-to-Left como Árabe e Hebraico). Usado em TControl.BiDiMode.",
+  values: [
+    ["bdLeftToRight", "Layout esquerda-para-direita (padrão para idiomas ocidentais)."],
+    ["bdRightToLeft", "Layout direita-para-esquerda (inverte ordem de leitura e alinhamento)."],
+    ["bdRightToLeftNoAlign", "Direita-para-esquerda mas mantém o alinhamento original."],
+    [
+      "bdRightToLeftReadingOnly",
+      "Apenas a ordem de leitura é invertida; layout permanece esquerda-para-direita.",
+    ],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TBiDiMode",
-    kind: "class",
-    type: "TBiDiMode",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description:
-      "Modo bidirecional do controle (suporte a idiomas Right-to-Left como Árabe e Hebraico). Usado em TControl.BiDiMode.",
-  },
-
-  bd("bdLeftToRight", "Layout esquerda-para-direita (padrão para idiomas ocidentais)."),
-  bd("bdRightToLeft", "Layout direita-para-esquerda (inverte ordem de leitura e alinhamento)."),
-  bd("bdRightToLeftNoAlign", "Direita-para-esquerda mas mantém o alinhamento original."),
-  bd(
-    "bdRightToLeftReadingOnly",
-    "Apenas a ordem de leitura é invertida; layout permanece esquerda-para-direita.",
-  ),
-];

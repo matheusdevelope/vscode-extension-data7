@@ -1,4 +1,5 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
+import { UNSUP_NOTE, buildClassSymbols } from "../symbol-helpers";
+import type { PropSpec, MethodSpec } from "../symbol-helpers";
 import type { SystemSymbolInfo, SystemContainer } from "../types";
 
 /**
@@ -24,49 +25,13 @@ import type { SystemSymbolInfo, SystemContainer } from "../types";
  */
 
 const FORMS: SystemContainer = "Forms";
-const GRID_CONTAINER = "Grid";
-
-interface ParamSpec {
-  readonly name: string;
-  readonly type: string;
-  readonly isByRef?: boolean;
-  readonly isOptional?: boolean;
-  readonly defaultValue?: string;
-}
-
-interface PropertySpec {
-  readonly name: string;
-  readonly type: string;
-  readonly description: string;
-  readonly isUnsupported?: boolean;
-}
-
-interface MethodSpec {
-  readonly name: string;
-  readonly returns: string;
-  readonly params: readonly ParamSpec[];
-  readonly description: string;
-  readonly isUnsupported?: boolean;
-  /**
-   * Marca os acessores que são *indexed properties* em Delphi (ex.: `Cells`,
-   * `ColWidth`, `CellColor`). Eles ficam no mesmo storage de `methods` para
-   * permitir a declaração de parâmetros, mas são emitidos com
-   * `kind: 'indexed-property'`, o que dá hover/SignatureHelp adequados.
-   */
-  readonly indexed?: boolean;
-  /** Overloads adicionais (assinaturas alternativas) do mesmo símbolo. */
-  readonly overloads?: readonly (readonly ParamSpec[])[];
-}
-
-const UNSUP_NOTE =
-  " Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member.";
 
 // ───────────────────────────────────────────────────────────────────────────
 // Properties — exclusivas do Grid (ou que sobrescrevem ancestrais como
 // `unsupported`). Membros já declarados em TControl/TWinControl/TCustomControl/
 // TComponent/TObject/TPersistent foram intencionalmente omitidos.
 // ───────────────────────────────────────────────────────────────────────────
-const properties: readonly PropertySpec[] = [
+const properties: readonly PropSpec[] = [
   // ───────── Override de ancestrais marcados como "Não" ─────────
   {
     name: "CustomHint",
@@ -1991,7 +1956,7 @@ const properties: readonly PropertySpec[] = [
 // ───────────────────────────────────────────────────────────────────────────
 // Eventos (kind: property) com delegate associado.
 // ───────────────────────────────────────────────────────────────────────────
-const events: readonly PropertySpec[] = [
+const events: readonly PropSpec[] = [
   {
     name: "OnColumnMoved",
     type: "TMovedEvent",
@@ -3783,75 +3748,14 @@ const methods: readonly MethodSpec[] = [
 ];
 
 // ───────────────────────────────────────────────────────────────────────────
-// Builders → SystemSymbolInfo
+// Símbolos finais — delegado a `buildClassSymbols` (ver `../symbol-helpers`).
 // ───────────────────────────────────────────────────────────────────────────
-function toProperty(spec: PropertySpec): SystemSymbolInfo {
-  return {
-    name: spec.name,
-    kind: "property",
-    type: spec.type,
-    isShared: false,
-    isPrivate: false,
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: GRID_CONTAINER,
-    description: spec.description,
-    ...(spec.isUnsupported ? { isUnsupported: true } : {}),
-  };
-}
-
-interface MappedParam {
-  name: string;
-  type: string;
-  isByRef: boolean;
-  isOptional: boolean;
-  defaultValue?: string;
-}
-
-function mapParams(params: readonly ParamSpec[]): MappedParam[] {
-  return params.map((p) => ({
-    name: p.name,
-    type: p.type,
-    isByRef: p.isByRef ?? false,
-    isOptional: p.isOptional ?? false,
-    ...(p.defaultValue !== undefined ? { defaultValue: p.defaultValue } : {}),
-  }));
-}
-
-function toMethod(spec: MethodSpec): SystemSymbolInfo {
-  return {
-    name: spec.name,
-    kind: spec.indexed ? "indexed-property" : "method",
-    type: spec.returns,
-    isShared: false,
-    isPrivate: false,
-    parameters: mapParams(spec.params),
-    ...(spec.overloads && spec.overloads.length > 0
-      ? { overloads: spec.overloads.map((o) => mapParams(o)) }
-      : {}),
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: GRID_CONTAINER,
-    description: spec.description,
-    ...(spec.isUnsupported ? { isUnsupported: true } : {}),
-  };
-}
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "Grid",
-    kind: "class",
-    type: "Grid",
-    isShared: false,
-    isPrivate: false,
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: FORMS,
-    inheritsFrom: "TGrade",
-    description:
-      "Componente de grade (Grid) para exibição e manipulação tabular de dados. Wrapper Data7 sobre TGrade (especialização TMS TAdvColumnGrid). Herda toda a cadeia VCL/TMS — ver `_aliases.ts`.",
-  },
-  ...properties.map(toProperty),
-  ...events.map(toProperty),
-  ...methods.map(toMethod),
-];
+export const symbols: SystemSymbolInfo[] = buildClassSymbols({
+  className: "Grid",
+  namespaceContainer: FORMS,
+  inheritsFrom: "TGrade",
+  description:
+    "Componente de grade (Grid) para exibição e manipulação tabular de dados. Wrapper Data7 sobre TGrade (especialização TMS TAdvColumnGrid). Herda toda a cadeia VCL/TMS — ver `_aliases.ts`.",
+  properties: [...properties, ...events],
+  methods,
+});

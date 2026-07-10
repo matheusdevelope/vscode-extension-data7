@@ -402,6 +402,19 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "TcxCustomEdit",
     description: "Texto/Caption exibido no editor.",
   },
+
+  {
+    name: "Color",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "TcxCustomEdit",
+    description: "Define ou obtém a cor de fundo do controle",
+  },
+
   // ───────── Data7-specific (wrapper sobre Properties.HelpId/Hint do Data7) ─────────
   {
     name: "Ajuda",

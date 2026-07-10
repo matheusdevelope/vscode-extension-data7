@@ -16,6 +16,18 @@ export const symbols: SystemSymbolInfo[] = [
       "Classe base de janelas (formulários) da VCL Delphi. Adiciona suporte a posição inicial, borda, ícone, modalidade, eventos de ciclo de vida (OnCreate, OnShow, OnClose) e exibição como diálogo (ShowModal).",
   },
 
+  {
+    name: "Color",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "TScrollingWinControl",
+    description: "Define ou obtém a cor de fundo do controle",
+  },
+
   // ───────── Properties (TCustomForm) ─────────
   {
     name: "Caption",

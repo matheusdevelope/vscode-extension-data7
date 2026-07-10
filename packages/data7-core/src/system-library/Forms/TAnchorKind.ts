@@ -1,39 +1,18 @@
-import { SYSTEM_RANGE, SYSTEM_URI } from "../symbol-helpers";
 import type { SystemSymbolInfo } from "../types";
+import { defineEnum } from "../symbol-helpers";
 
-const range = { startLine: 0, startChar: 0, endLine: 0, endChar: 0 } as const;
-
-const ak = (name: string, description: string): SystemSymbolInfo => ({
-  name: name,
-  kind: "variable",
-  type: "TAnchorKind",
-  isShared: true,
-  isPrivate: false,
-  range: range,
-  fileUri: SYSTEM_URI,
+export const symbols: SystemSymbolInfo[] = defineEnum({
+  name: "TAnchorKind",
   containerName: "Forms",
-  description: description,
+  description:
+    "Borda à qual o controle se ancora no seu parent (TControl.Anchors). Conjunto (set): TAnchors = set of TAnchorKind. Combine vários valores para ancorar em múltiplas bordas.",
+  values: [
+    ["akLeft", "Ancora à borda esquerda do parent (mantém Left fixo)."],
+    ["akTop", "Ancora à borda superior do parent (mantém Top fixo)."],
+    ["akRight", "Ancora à borda direita (Width acompanha redimensionamento horizontal do parent)."],
+    [
+      "akBottom",
+      "Ancora à borda inferior (Height acompanha redimensionamento vertical do parent).",
+    ],
+  ],
 });
-
-export const symbols: SystemSymbolInfo[] = [
-  {
-    name: "TAnchorKind",
-    kind: "class",
-    type: "TAnchorKind",
-    isShared: false,
-    isPrivate: false,
-    range: range,
-    fileUri: SYSTEM_URI,
-    containerName: "Forms",
-    description:
-      "Borda à qual o controle se ancora no seu parent (TControl.Anchors). Conjunto (set): TAnchors = set of TAnchorKind. Combine vários valores para ancorar em múltiplas bordas.",
-  },
-
-  ak("akLeft", "Ancora à borda esquerda do parent (mantém Left fixo)."),
-  ak("akTop", "Ancora à borda superior do parent (mantém Top fixo)."),
-  ak("akRight", "Ancora à borda direita (Width acompanha redimensionamento horizontal do parent)."),
-  ak(
-    "akBottom",
-    "Ancora à borda inferior (Height acompanha redimensionamento vertical do parent).",
-  ),
-];

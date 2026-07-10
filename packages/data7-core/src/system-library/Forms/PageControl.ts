@@ -73,4 +73,29 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "PageControl",
     description: "Exibe ou oculta a moldura do card.",
   },
+
+  {
+    name: "Color",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "PageControl",
+    description: "Define ou obtém a cor de fundo do controle",
+  },
+
+  {
+    name: "BackgroundColor",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "PageControl",
+    description: "Define ou obtem a cor de fundo do controle",
+  },
+
 ];
