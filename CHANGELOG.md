@@ -8,6 +8,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ## [Unreleased]
 
 ### Corrigido
+- **VSIX — linter de workspace:** o comando **Data7 Linter: Analisar Projeto** falhava com `Cannot find module '...\lint-worker.js'` porque o worker thread do lint paralelo não era empacotado no `.vsix`. O `package:prepare` agora gera `out/lint-worker.js` (bundle esbuild do `@data7/core`) e o `.vscodeignore` passa a incluí-lo no pacote.
 - **Teste `SQL.Connection.RDBMS`:** `new-containers.test.ts` ainda esperava `kind: "method"` para `RDBMS`, mas a definição em `SQL/Connection.ts` já havia sido atualizada para `kind: "property"`/`type: "TRDBMS"` (retorno tipado pelo enum, acessado sem parênteses). O teste foi separado do loop de métodos de transação e passa a validar `kind: "property"` e `type: "TRDBMS"`.
 
 ### Refatorado

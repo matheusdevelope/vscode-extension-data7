@@ -97,5 +97,4 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "PageControl",
     description: "Define ou obtem a cor de fundo do controle",
   },
-
 ];

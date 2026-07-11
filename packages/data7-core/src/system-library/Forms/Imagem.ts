@@ -132,5 +132,5 @@ export const symbols: SystemSymbolInfo[] = [
     fileUri: SYSTEM_URI,
     containerName: "Imagem",
     description: "Carrega uma imagem a partir de um base64.",
-  }
+  },
 ];

@@ -20,6 +20,7 @@ tsconfig.json
 !out/**/*.d.ts
 out/**
 !out/extension.js
+!out/lint-worker.js
 !out/mcp/
 !out/mcp/server.bundled.js
 !out/mcp/data/
