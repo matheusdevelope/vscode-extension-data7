@@ -679,5 +679,109 @@ End Namespace`;
       assert.ok(labels.includes("Text"), `Text must appear for With StringList; got ${labels}`);
       assert.ok(labels.includes("Count"), `Count must appear for With StringList; got ${labels}`);
     });
+
+    test("suggests symbols from unimported namespaces with auto-import edits", async () => {
+      const usageCode = `Namespace mod_main
+   Class Main
+      Public Sub Run()
+         
+      End Sub
+   End Class
+End Namespace`;
+
+      const libraryCode = `Namespace mod_lib
+   Class HelperClass
+      Public Sub Help()
+      End Sub
+   End Class
+
+   Sub FreeHelperFunc()
+   End Sub
+End Namespace`;
+
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const mainUri = "file:///main.bas";
+      const libUri = "file:///lib.bas";
+      indexer.updateFileContent(mainUri, usageCode);
+      indexer.updateFileContent(libUri, libraryCode);
+      const doc = createMockDoc(mainUri, usageCode);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(doc, pos(3, 9), noopToken, {} as vscode.CompletionContext),
+      )) as unknown as any[];
+
+      const helperClassItem = items.find((i) => labelOf(i) === "HelperClass");
+      assert.ok(
+        helperClassItem,
+        "completion list should suggest HelperClass from unimported mod_lib namespace",
+      );
+      assert.ok(
+        helperClassItem.additionalTextEdits,
+        "HelperClass suggestion should carry auto-import additionalTextEdits",
+      );
+      assert.equal(helperClassItem.additionalTextEdits.length, 1);
+      assert.equal(helperClassItem.additionalTextEdits[0].newText, "Imports mod_lib\r\n");
+
+      const freeFuncItem = items.find((i) => labelOf(i) === "FreeHelperFunc");
+      assert.ok(
+        freeFuncItem,
+        "completion list should suggest FreeHelperFunc from unimported mod_lib namespace",
+      );
+      assert.ok(
+        freeFuncItem.additionalTextEdits,
+        "FreeHelperFunc suggestion should carry auto-import additionalTextEdits",
+      );
+      assert.equal(freeFuncItem.additionalTextEdits.length, 1);
+      assert.equal(freeFuncItem.additionalTextEdits[0].newText, "Imports mod_lib\r\n");
+    });
+
+    test("does NOT suggest auto-import edits when using qualified namespace access", async () => {
+      const usageCode = `Namespace mod_main
+   Class Main
+      Public Sub Run()
+         mod_lib.
+      End Sub
+   End Class
+End Namespace`;
+
+      const libraryCode = `Namespace mod_lib
+   Class HelperClass
+      Public Sub Help()
+      End Sub
+   End Class
+
+   Sub FreeHelperFunc()
+   End Sub
+End Namespace`;
+
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const mainUri = "file:///main.bas";
+      const libUri = "file:///lib.bas";
+      indexer.updateFileContent(mainUri, usageCode);
+      indexer.updateFileContent(libUri, libraryCode);
+      const doc = createMockDoc(mainUri, usageCode);
+
+      const provider = new D7BasicCompletionProvider();
+      const items = (await Promise.resolve(
+        provider.provideCompletionItems(doc, pos(3, 17), noopToken, {} as vscode.CompletionContext),
+      )) as unknown as any[];
+
+      const helperClassItem = items.find((i) => labelOf(i) === "HelperClass");
+      assert.ok(helperClassItem, "completion list should suggest HelperClass after mod_lib.");
+      assert.ok(
+        !helperClassItem.additionalTextEdits,
+        "HelperClass suggestion via qualified access should NOT carry auto-import edits",
+      );
+
+      const freeFuncItem = items.find((i) => labelOf(i) === "FreeHelperFunc");
+      assert.ok(freeFuncItem, "completion list should suggest FreeHelperFunc after mod_lib.");
+      assert.ok(
+        !freeFuncItem.additionalTextEdits,
+        "FreeHelperFunc suggestion via qualified access should NOT carry auto-import edits",
+      );
+    });
   });
 });

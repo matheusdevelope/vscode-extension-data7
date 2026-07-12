@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import * as path from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-metadata";
 import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
@@ -18,7 +18,13 @@ import {
   type TranspileResult,
 } from "./transpiler";
 import { SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
-import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./generics";
+import type {
+  ClassGenericMethodRequest,
+  ExternalGenericTemplate,
+  RequestedGenericInstantiation,
+} from "./generics";
+import { GenericsMonomorphizer } from "./generics";
+import type { TypeReference } from "./ast/ast";
 import {
   resolveBuildOptimizationOptions,
   minifyData7Text,
@@ -71,6 +77,36 @@ function qualifyGenericTypeArgument(
     return typeArg;
   }
   return `${symbol.containerName}.${trimmed}`;
+}
+
+function qualifyClassGenericTypeReference(
+  typeRef: TypeReference,
+  indexer: WorkspaceSymbolIndexer,
+  contextFileUri?: string,
+): TypeReference {
+  const qualifiedName = qualifyGenericTypeArgument(typeRef.name, contextFileUri ?? "", indexer);
+  return {
+    kind: "TypeReference",
+    name: qualifiedName,
+    typeArguments: typeRef.typeArguments.map((arg) =>
+      qualifyClassGenericTypeReference(arg, indexer, contextFileUri),
+    ),
+  };
+}
+
+function qualifyClassGenericMethodRequests(
+  requests: readonly ClassGenericMethodRequest[],
+  indexer: WorkspaceSymbolIndexer,
+): ClassGenericMethodRequest[] {
+  return requests.map((request) => ({
+    ...request,
+    ownerConcreteArgs: request.ownerConcreteArgs.map((typeRef) =>
+      qualifyClassGenericTypeReference(typeRef, indexer),
+    ),
+    methodConcreteArgs: request.methodConcreteArgs.map((typeRef) =>
+      qualifyClassGenericTypeReference(typeRef, indexer),
+    ),
+  }));
 }
 
 const BUILDER_PRIMITIVE_TYPE_NAMES = new Set([
@@ -221,6 +257,14 @@ export class Builder {
     const requestedGenericInstantiations = genericsEnabled
       ? this.collectRequestedGenericInstantiations(indexer, externalGenericTemplates)
       : [];
+    const requestedClassGenericMethods = genericsEnabled
+      ? this.collectRequestedClassGenericMethods(
+          indexer,
+          srcDir,
+          externalGenericTemplates,
+          requestedGenericInstantiations,
+        )
+      : [];
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
         detectEnumerable(
@@ -291,8 +335,11 @@ export class Builder {
             }
           : undefined;
       },
+      resolveListElementType: (typeName: string) =>
+        TypeResolver.resolveListElementType(typeName, indexer),
       externalGenericTemplates,
       requestedGenericInstantiations,
+      requestedClassGenericMethods,
       genericsEnabled,
       sugarOptions: options.sugarOptions,
     };
@@ -390,6 +437,45 @@ export class Builder {
     return requests;
   }
 
+  private static collectRequestedClassGenericMethods(
+    indexer: WorkspaceSymbolIndexer,
+    srcDir: string,
+    externalGenericTemplates: readonly ExternalGenericTemplate[],
+    requestedGenericInstantiations: readonly RequestedGenericInstantiation[],
+  ): ClassGenericMethodRequest[] {
+    const genericTemplateSources: string[] = [];
+    for (const fileSyms of indexer.getAllFileSymbols()) {
+      if (/\bClass\s+TTList\s*</i.test(fileSyms.content)) {
+        genericTemplateSources.push(fileSyms.content);
+      }
+    }
+    if (genericTemplateSources.length === 0) return [];
+
+    const usageSources: string[] = [];
+    const srcDirNormalized = path.resolve(srcDir).toLowerCase();
+    for (const fileSyms of indexer.getAllFileSymbols()) {
+      let filePath: string;
+      try {
+        filePath = fileURLToPath(fileSyms.fileUri);
+      } catch {
+        continue;
+      }
+      if (!path.resolve(filePath).toLowerCase().startsWith(srcDirNormalized)) continue;
+      if (!filePath.toLowerCase().endsWith(".bas")) continue;
+      usageSources.push(fileSyms.content);
+    }
+
+    return qualifyClassGenericMethodRequests(
+      GenericsMonomorphizer.collectWorkspaceClassGenericMethodRequests({
+        externalTemplates: externalGenericTemplates,
+        requestedInstantiations: requestedGenericInstantiations,
+        genericTemplateSources,
+        usageSources,
+      }),
+      indexer,
+    );
+  }
+
   private static buildTranspileCacheContextHash(
     ctx: TranspileContext,
     indexer: WorkspaceSymbolIndexer,
@@ -432,6 +518,11 @@ export class Builder {
             `${a.templateName}<${a.typeArgs.join(",")}>`.localeCompare(
               `${b.templateName}<${b.typeArgs.join(",")}>`,
             ),
+        ),
+        requestedClassGenericMethods: [...(ctx.requestedClassGenericMethods ?? [])].sort((a, b) =>
+          `${a.ownerFlatName}.${a.methodFlatName}`.localeCompare(
+            `${b.ownerFlatName}.${b.methodFlatName}`,
+          ),
         ),
         publicSymbols,
       }),

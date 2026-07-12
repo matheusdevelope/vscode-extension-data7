@@ -98,9 +98,11 @@ DiagnosticsASTWalker.prototype.walk = function (this: any, node: any) {
 };
 
 async function runProfile() {
-  const targetDir = "C:\\Users\\Matheus\\Downloads\\teste\\Conciliacao de Cartoes V4.8";
+  const targetDir =
+    process.env["DATA7_BENCHMARK_WORKSPACE"] ??
+    "C:\\Users\\Matheus\\Downloads\\teste\\Conciliacao de Cartoes V4.8";
   if (!fs.existsSync(targetDir)) {
-    console.log(`Pasta alvo não encontrada: ${targetDir}. profiling local src/.`);
+    console.log(`Pasta alvo não encontrada: ${targetDir}.`);
     return;
   }
   console.log(`Profilando diretório do projeto real: ${targetDir}`);

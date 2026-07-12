@@ -44,6 +44,8 @@ export type {
   MonomorphizationResult,
   MonomorphizerOptions,
   RequestedGenericInstantiation,
+  ClassGenericMethodRequest,
+  CollectWorkspaceClassGenericMethodRequestsOptions,
 } from "./monomorphizer";
 export {
   canonicalNameOf,

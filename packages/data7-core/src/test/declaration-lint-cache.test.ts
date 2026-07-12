@@ -89,4 +89,48 @@ End Namespace
     assert.equal(cache.get(key, "dep-1", "body-2"), undefined);
     assert.equal(cache.get(key, "dep-2", "body-1"), undefined);
   });
+
+  test("correctly flags API vs non-API updates via hasLastUpdateChangedAPI", () => {
+    const uri = "file:///test-api.bas";
+    const original = `Namespace TestNs
+Class TExample
+  Sub DoWork(x As Integer)
+    print(x)
+  End Sub
+End Class
+End Namespace`;
+
+    // Only comments and bodies changed - same API
+    const nonApiChange = `Namespace TestNs
+Class TExample
+  Sub DoWork(x As Integer)
+    ' print added comment
+    print(x)
+  End Sub
+End Class
+End Namespace`;
+
+    // Parameter type changed - API changed
+    const apiChange = `Namespace TestNs
+Class TExample
+  Sub DoWork(x As String)
+    print(x)
+  End Sub
+End Class
+End Namespace`;
+
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+
+    // Initial load
+    indexer.updateFileContent(uri, original);
+    assert.equal(indexer.hasLastUpdateChangedAPI(uri), true);
+
+    // Non-API edit
+    indexer.updateFileContent(uri, nonApiChange);
+    assert.equal(indexer.hasLastUpdateChangedAPI(uri), false);
+
+    // API edit
+    indexer.updateFileContent(uri, apiChange);
+    assert.equal(indexer.hasLastUpdateChangedAPI(uri), true);
+  });
 });

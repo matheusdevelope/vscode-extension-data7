@@ -526,6 +526,12 @@ export class WorkspaceSymbolIndexer {
   public readonly inheritedMembersForClassCache = new Map<string, SymbolInfo[]>();
   private readonly dependencyGraph = new WorkspaceDependencyGraph();
   private readonly fileRevisions = new Map<string, number>();
+  private readonly lastUpdateApiChanged = new Map<string, boolean>();
+
+  public hasLastUpdateChangedAPI(fileUri: string): boolean {
+    const key = this.getCacheKey(fileUri);
+    return this.lastUpdateApiChanged.get(key) ?? true;
+  }
 
   private invalidateAggregateSymbolCaches(): void {
     this.allSymbolsCache = null;
@@ -625,6 +631,7 @@ export class WorkspaceSymbolIndexer {
   private notifyLintCacheInvalidation(
     fileUri: string,
     extraNamespaces: ReadonlySet<string> = new Set<string>(),
+    apiChanged = true,
   ): void {
     const cached = LanguageProcessor.getInstance().getCached(fileUri);
     if (cached?.unit) {
@@ -632,17 +639,24 @@ export class WorkspaceSymbolIndexer {
     }
     const cache = SemanticLintCache.getInstance();
     cache.invalidate(this.lintCacheScope, fileUri);
-    cache.invalidateDependents(this.lintCacheScope, fileUri, this.dependencyGraph, extraNamespaces);
 
-    DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, fileUri);
-    for (const dependentUri of this.dependencyGraph.getDependentFileUris(
-      fileUri,
-      extraNamespaces,
-    )) {
-      DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, dependentUri);
-      const dependentCached = LanguageProcessor.getInstance().getCached(dependentUri);
-      if (dependentCached?.unit) {
-        clearLintTypeResolutionCachesForUnit(dependentCached.unit);
+    if (apiChanged) {
+      cache.invalidateDependents(
+        this.lintCacheScope,
+        fileUri,
+        this.dependencyGraph,
+        extraNamespaces,
+      );
+      DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, fileUri);
+      for (const dependentUri of this.dependencyGraph.getDependentFileUris(
+        fileUri,
+        extraNamespaces,
+      )) {
+        DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, dependentUri);
+        const dependentCached = LanguageProcessor.getInstance().getCached(dependentUri);
+        if (dependentCached?.unit) {
+          clearLintTypeResolutionCachesForUnit(dependentCached.unit);
+        }
       }
     }
   }
@@ -932,11 +946,13 @@ export class WorkspaceSymbolIndexer {
           }
         }
         this.bumpFileRevision(fileUri);
-        this.notifyLintCacheInvalidation(fileUri);
+        this.lastUpdateApiChanged.set(key, true);
+        this.notifyLintCacheInvalidation(fileUri, new Set<string>(), true);
       } else {
         this.cache.delete(key);
         this.bumpFileRevision(fileUri);
-        this.notifyLintCacheInvalidation(fileUri);
+        this.lastUpdateApiChanged.set(key, true);
+        this.notifyLintCacheInvalidation(fileUri, new Set<string>(), true);
       }
       this.invalidateLocalCaches();
       this.syncDependencyGraphEntry(fileUri);
@@ -964,7 +980,8 @@ export class WorkspaceSymbolIndexer {
       const oldParsed = this.cache.get(key);
       if (oldParsed && hashContent(oldParsed.content) === hashContent(content)) {
         if (this.reconcileIndexedFileUri(fileUri)) {
-          this.notifyLintCacheInvalidation(fileUri);
+          this.lastUpdateApiChanged.set(key, false);
+          this.notifyLintCacheInvalidation(fileUri, new Set<string>(), false);
         }
         return;
       }
@@ -981,9 +998,18 @@ export class WorkspaceSymbolIndexer {
       if (readConfiguration().features.language.generics) {
         appendGenericInstantiations(parsed, fileUri, content, this);
       }
+
+      let apiChanged = true;
+      if (oldParsed) {
+        apiChanged =
+          !areImportsEqual(oldParsed.imports, parsed.imports) ||
+          !areSymbolsAPIsEqual(oldParsed.symbols, parsed.symbols);
+      }
+
       this.cache.set(key, parsed);
       this.bumpFileRevision(fileUri);
-      this.notifyLintCacheInvalidation(fileUri);
+      this.lastUpdateApiChanged.set(key, apiChanged);
+      this.notifyLintCacheInvalidation(fileUri, new Set<string>(), apiChanged);
 
       for (const sym of parsed.symbols) {
         if (sym.kind === "namespace") {
@@ -1007,7 +1033,8 @@ export class WorkspaceSymbolIndexer {
       const oldParsed = this.cache.get(key);
       if (oldParsed && hashContent(oldParsed.content) === hashContent(content)) {
         if (this.reconcileIndexedFileUri(fileUri)) {
-          this.notifyLintCacheInvalidation(fileUri);
+          this.lastUpdateApiChanged.set(key, false);
+          this.notifyLintCacheInvalidation(fileUri, new Set<string>(), false);
         }
         return;
       }
@@ -1051,11 +1078,21 @@ export class WorkspaceSymbolIndexer {
         appendGenericInstantiations(parsed, fileUri, content, this);
       }
       parsed.content = content;
+
+      let apiChanged = true;
+      if (oldParsed) {
+        apiChanged =
+          !areImportsEqual(oldParsed.imports, parsed.imports) ||
+          !areSymbolsAPIsEqual(oldParsed.symbols, parsed.symbols);
+      }
+
       this.cache.set(key, parsed);
       this.bumpFileRevision(fileUri);
+      this.lastUpdateApiChanged.set(key, apiChanged);
       this.notifyLintCacheInvalidation(
         fileUri,
         namespacesChanged ? newNamespaces : new Set<string>(),
+        apiChanged,
       );
 
       this.invalidateLocalCaches();
@@ -1080,7 +1117,8 @@ export class WorkspaceSymbolIndexer {
     }
     this.cache.delete(key);
     this.bumpFileRevision(fileUri);
-    this.notifyLintCacheInvalidation(fileUri);
+    this.lastUpdateApiChanged.set(key, true);
+    this.notifyLintCacheInvalidation(fileUri, new Set<string>(), true);
     this.invalidateLocalCaches();
     this.syncDependencyGraphEntry(fileUri);
   }
@@ -1093,6 +1131,7 @@ export class WorkspaceSymbolIndexer {
     this.changedNamespacesInLastUpdate.clear();
     this.dependencyGraph.clear();
     this.fileRevisions.clear();
+    this.lastUpdateApiChanged.clear();
     if (this.lintCacheScope === "host") {
       SemanticLintCache.resetForTests();
       DeclarationLintCache.resetForTests();
@@ -1674,6 +1713,84 @@ function resolveParameterIsByRef(p: {
   const typeLower = typeStr.toLowerCase();
   if (PRIMITIVE_TYPES.has(typeLower) || typeLower === "variant") {
     return false;
+  }
+  return true;
+}
+
+export function areImportsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  for (let i = 0; i < sortedA.length; i++) {
+    if (sortedA[i] !== sortedB[i]) return false;
+  }
+  return true;
+}
+
+function serializeParam(p: ParameterInfo): string {
+  return `${p.name}:${p.type}:${p.isByRef ? "ref" : "val"}:${p.isOptional ? "opt" : "req"}:${p.defaultValue ?? ""}`;
+}
+
+function serializeSymbolAPI(s: SymbolInfo): string {
+  const parts = [
+    s.containerName?.toLowerCase() ?? "",
+    s.kind,
+    s.name.toLowerCase(),
+    s.type.toLowerCase(),
+    s.isShared ? "shared" : "",
+    s.isPrivate ? "private" : "",
+    s.isProtected ? "protected" : "",
+    s.isConst ? "const" : "",
+    s.isReadOnly ? "readonly" : "",
+    s.isMustOverride ? "mustoverride" : "",
+    s.isOverridable ? "overridable" : "",
+    s.variadicParameters ? "variadic" : "",
+    s.isMustInherit ? "mustinherit" : "",
+    s.isNotInheritable ? "notinheritable" : "",
+    s.isShadows ? "shadows" : "",
+    s.nativeArrayRank !== undefined ? `rank:${s.nativeArrayRank}` : "",
+    s.noParentheses ? "noparen" : "",
+    s.inheritsFrom?.toLowerCase() ?? "",
+    s.isUnsupported ? "unsupported" : "",
+    s.isGenericParam ? "genparam" : "",
+    s.constraintName?.toLowerCase() ?? "",
+  ];
+
+  if (s.genericTypeParameters) {
+    parts.push(
+      `gtp:[${s.genericTypeParameters
+        .map((p) => p.toLowerCase())
+        .sort()
+        .join(",")}]`,
+    );
+  }
+
+  if (s.parameters) {
+    parts.push(`params:[${s.parameters.map(serializeParam).join(",")}]`);
+  }
+
+  if (s.overloads) {
+    parts.push(
+      `overloads:[${s.overloads.map((overload) => overload.map(serializeParam).join(",")).join(";")}]`,
+    );
+  }
+
+  return parts.join("|");
+}
+
+export function areSymbolsAPIsEqual(
+  oldSyms: readonly SymbolInfo[],
+  newSyms: readonly SymbolInfo[],
+): boolean {
+  if (oldSyms.length !== newSyms.length) return false;
+
+  const oldSerialized = oldSyms.map(serializeSymbolAPI).sort();
+  const newSerialized = newSyms.map(serializeSymbolAPI).sort();
+
+  for (let i = 0; i < oldSerialized.length; i++) {
+    if (oldSerialized[i] !== newSerialized[i]) {
+      return false;
+    }
   }
   return true;
 }

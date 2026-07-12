@@ -30,7 +30,6 @@ export const PRIMITIVE_TYPES: ReadonlySet<string> = new Set([
   // Treated as primitives so the linter and the audit script don't complain
   // when a Grid property declares its type as `String`, `WideChar`,
   // `Pointer`, etc.
-  "String",
   "widechar",
   "pointer",
   "shortstring",

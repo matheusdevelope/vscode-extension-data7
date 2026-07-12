@@ -66,13 +66,13 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
 
     switch (methodName) {
       case "map":
-        if (!declaration.type || !this.isTTListType(declaration.type)) {
+        if (!declaration.type || !this.isListContainerType(declaration.type)) {
           return undefined;
         }
         this.rememberListVariable(declaration.name, declaration.type);
         return this.expandMapDeclaration(declaration, call.callee, sourceInfo, arrow);
       case "filter":
-        if (!declaration.type || !this.isTTListType(declaration.type)) {
+        if (!declaration.type || !this.isListContainerType(declaration.type)) {
           return undefined;
         }
         this.rememberListVariable(declaration.name, declaration.type);
@@ -566,6 +566,21 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     return name === "ttlist" || name.startsWith("ttlist_");
   }
 
+  /** `TTList<T>` / `TTList_Foo`, or a user subclass such as `Pessoas` extending `TTList<Pessoa>`. */
+  protected isListContainerType(type: TypeReference | undefined): boolean {
+    if (this.isTTListType(type)) return true;
+    if (!type || type.typeArguments.length > 0) return false;
+    return this.resolveListElementTypeName(type.name) !== undefined;
+  }
+
+  protected resolveListElementTypeName(_typeName: string): string | undefined {
+    return undefined;
+  }
+
+  protected extractListElementType(type: TypeReference): TypeReference | undefined {
+    return this.extractTTListElementType(type);
+  }
+
   protected createFunctionalLoop(
     source: Expression,
     _sourceInfo: ListVariableInfo,
@@ -756,7 +771,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   protected rememberListVariable(name: string, type: TypeReference): void {
     this.listVariableScopes[this.listVariableScopes.length - 1]?.set(name.toLowerCase(), {
       type,
-      elementType: this.extractTTListElementType(type),
+      elementType: this.extractListElementType(type),
     });
   }
 

@@ -125,14 +125,18 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (145 arquivos)
+## Índice de exemplos (153 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (59)
+### sugar (63)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
+| [`sugar/array-list/01-primitive-filter-map-reduce.bas`](./sugar/array-list/01-primitive-filter-map-reduce.bas) | array sugar em primitivos — Filter, Map, Some, Every, IndexOf, Reduce com índice (mod_testes_array_primitivo) | `none` | — |
+| [`sugar/array-list/02-object-windowing-chains.bas`](./sugar/array-list/02-object-windowing-chains.bas) | array sugar em objetos — Map homomórfico, First/Last/Slice, Includes, cadeia Filter.Map (mod_testes_array_objetos) | `none` | — |
+| [`sugar/array-list/03-four-stage-chain.bas`](./sugar/array-list/03-four-stage-chain.bas) | cadeia Filter → Map → Map → Reduce com mutação de tipo (mod_exemplo_encadeamento) | `none` | — |
+| [`sugar/array-list/04-subclass-filter.bas`](./sugar/array-list/04-subclass-filter.bas) | Filter em subclasse de TTList retorna o tipo concreto (Principal.bas / Pessoas) | `none` | — |
 | [`sugar/auto-new/_expected/01-simple.bas`](./sugar/auto-new/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/auto-new/01-simple | `none` | — |
 | [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) expandido para `= New T()` | `none` | — |
 | [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/coalesce-assign/01-simple | `none` | — |
@@ -193,7 +197,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (75)
+### diagnostics (79)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -201,6 +205,8 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/auto-new-non-default-ctor/trigger.bas`](./diagnostics/auto-new-non-default-ctor/trigger.bas) | Dim x As New T mas T só tem construtor com args — runtime falha | `auto-new-non-default-ctor@5` | `classe TNeedsArgs sem construtor sem-args` |
 | [`diagnostics/call-parentheses-mismatch/trigger.bas`](./diagnostics/call-parentheses-mismatch/trigger.bas) | missing parentheses for method call with multiple arguments | `call-parentheses-mismatch@12` | `linter implementation for call parentheses validation` |
 | [`diagnostics/chained-global-function-assignment/trigger.bas`](./diagnostics/chained-global-function-assignment/trigger.bas) | assignment from a member chain rooted at a global function | `chained-global-function-assignment@20` | `linter implementation for chained global function assignment detection` |
+| [`diagnostics/chained-instantiation-access/trigger.bas`](./diagnostics/chained-instantiation-access/trigger.bas) | tentativa de encadear acesso a membro diretamente na instanciação (New) | `chained-instantiation-access@16, chained-instantiation-access@17` | — |
+| [`diagnostics/circular-import/trigger.bas`](./diagnostics/circular-import/trigger.bas) | um namespace importando a si mesmo, ou uma referência circular direta/indireta | `circular-import@5` | — |
 | [`diagnostics/class-generic-method-unsupported/trigger.bas`](./diagnostics/class-generic-method-unsupported/trigger.bas) | a generic method declared inside a non-generic class | `class-generic-method-unsupported@9` | `only emitted by the AST monomorphization engine (Fase 6); the live linter does not yet detect generic methods inside classes.` |
 | [`diagnostics/dead-code/trigger.bas`](./diagnostics/dead-code/trigger.bas) | dead code after return | `dead-code@10` | `linter implementation for dead code detection` |
 | [`diagnostics/declaration-parentheses-mismatch/trigger.bas`](./diagnostics/declaration-parentheses-mismatch/trigger.bas) | method declaration missing parentheses | `declaration-parentheses-mismatch@8` | — |
@@ -220,6 +226,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |
 | [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As TEnum> violada por Integer | `generic-constraint-violated@10` | `classes TEnum + CardAdm declaradas no workspace` |
 | [`diagnostics/incomplete-member-access/trigger.bas`](./diagnostics/incomplete-member-access/trigger.bas) | acesso a membro encerrado no ponto sem nome de membro | `incomplete-member-access@8` | — |
+| [`diagnostics/incomplete-property-body/trigger.bas`](./diagnostics/incomplete-property-body/trigger.bas) | Property declarada sem bloco Get/Set e End Property | `incomplete-property-body@7` | — |
 | [`diagnostics/inline-if-then/trigger.bas`](./diagnostics/inline-if-then/trigger.bas) | a sintaxe If Then inline não é recomendada | `inline-if-then@7` | — |
 | [`diagnostics/instance-member-access-on-type/trigger.bas`](./diagnostics/instance-member-access-on-type/trigger.bas) | access to an instance member statically on the type | `instance-member-access-on-type@20` | `o código diagnóstico existe, mas o linter live atual resolve identificadores de classe como tipos antes de marcar acesso estático; pendente wiring do checker` |
 | [`diagnostics/instantiation-limit-exceeded/trigger.bas`](./diagnostics/instantiation-limit-exceeded/trigger.bas) | a generic template that recursively instantiates itself exceeds MAX_INSTANTIATIONS | `instantiation-limit-exceeded@11` | `emitted by the SugarTranspiler at build-time (Fase 6) when the worklist exceeds 10_000 instantiations; the live linter does not run the drain.` |
@@ -237,6 +244,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/missing-import/trigger.bas`](./diagnostics/missing-import/trigger.bas) | tipo de outro módulo do workspace usado sem o Imports correspondente | `missing-import@9` | `módulo "mod_resources" exportando "TResourceLoader" no workspace` |
 | [`diagnostics/missing-mybase-free/trigger.bas`](./diagnostics/missing-mybase-free/trigger.bas) | classe sem o método Sub Free() | `missing-mybase-free@3` | — |
 | [`diagnostics/missing-mybase-new/trigger.bas`](./diagnostics/missing-mybase-new/trigger.bas) | construtor Sub New sem chamada a MyBase.New() | `missing-mybase-new@5` | — |
+| [`diagnostics/missing-return-type/trigger.bas`](./diagnostics/missing-return-type/trigger.bas) | declaração de Function ou Property sem especificar tipo de retorno (As) | `missing-return-type@7, missing-return-type@10` | — |
 | [`diagnostics/missing-return-value/trigger.bas`](./diagnostics/missing-return-value/trigger.bas) | function missing return value | `missing-return-value@7` | `linter implementation for control flow analysis` |
 | [`diagnostics/missing-then/trigger.bas`](./diagnostics/missing-then/trigger.bas) | bloco If sem a palavra-chave Then | `missing-then@4` | — |
 | [`diagnostics/module-not-declared/trigger.bas`](./diagnostics/module-not-declared/trigger.bas) | módulo existe no repositório privado mas não foi adicionado a data7.json#dependencies | `module-not-declared@6` | `módulo "mod_shared_utility" no repositório privado E ausência da entrada em data7.json` |

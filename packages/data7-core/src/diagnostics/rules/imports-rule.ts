@@ -20,6 +20,40 @@ export class ImportsRule implements Rule {
   }
 
   public onEnd(_unit: CompilationUnit, context: RuleContext): void {
+    const fileUri = context.document.uri.toString();
+    const fileSyms = context.indexer.getFileSymbols(fileUri);
+    const activeNamespace = fileSyms?.symbols.find((x) => x.kind === "namespace")?.name;
+    const activeNamespaceLower = activeNamespace?.toLowerCase();
+
+    const isCircular = (startNs: string, targetNs: string): boolean => {
+      const visited = new Set<string>();
+      const queue = [targetNs.toLowerCase()];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current === startNs.toLowerCase()) return true;
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        const currentFiles = context.indexer
+          .getAllSymbols()
+          .filter((s) => s.kind === "namespace" && s.name.toLowerCase() === current)
+          .map((s) => s.fileUri);
+
+        for (const fileUri of currentFiles) {
+          const fileSymsForUri = context.indexer.getFileSymbols(fileUri);
+          if (fileSymsForUri?.imports) {
+            for (const imp of fileSymsForUri.imports) {
+              const impLower = imp.toLowerCase();
+              if (!visited.has(impLower)) {
+                queue.push(impLower);
+              }
+            }
+          }
+        }
+      }
+      return false;
+    };
+
     const directlyReferencedImports = new Set<string>();
     for (const imp of this.imports) {
       if (this.isImportDirectlyReferenced(imp.name, context)) {
@@ -58,6 +92,28 @@ export class ImportsRule implements Rule {
         return;
       }
       seenImports.set(key, imp.loc);
+
+      if (activeNamespaceLower && key === activeNamespaceLower) {
+        const diag = new vscode.Diagnostic(
+          range,
+          `Imports inválido: o namespace "${imp.name}" importa à si mesmo.`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.CircularImport;
+        context.report(diag);
+        return;
+      }
+
+      if (activeNamespaceLower && isCircular(activeNamespaceLower, key)) {
+        const diag = new vscode.Diagnostic(
+          range,
+          `Referência circular detectada: o namespace "${imp.name}" já importa (direta ou transitivamente) o namespace atual "${activeNamespace}".`,
+          vscode.DiagnosticSeverity.Error,
+        );
+        diag.code = DiagnosticCodes.CircularImport;
+        context.report(diag);
+        return;
+      }
 
       const isReferenced =
         directlyReferencedImports.has(key) || transitivelyRequiredImports.has(key);

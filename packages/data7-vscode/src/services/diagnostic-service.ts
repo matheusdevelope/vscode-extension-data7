@@ -382,6 +382,10 @@ export class DiagnosticService {
     const indexer = WorkspaceSymbolIndexer.getInstance();
     const triggerUriStr = triggerUri.toString();
 
+    if (!indexer.hasLastUpdateChangedAPI(triggerUriStr)) {
+      return;
+    }
+
     const extraNamespaces = new Set<string>(indexer.changedNamespacesInLastUpdate);
     indexer.changedNamespacesInLastUpdate.clear();
 

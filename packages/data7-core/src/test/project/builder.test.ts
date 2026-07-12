@@ -8,6 +8,22 @@ import { Decompiler } from "../../project/decompiler";
 import { DependencyScanner } from "../../analysis/dependency-scanner";
 import { getRepoBasPath, getCoreModulesPath } from "../../infra/extension-paths";
 import { withTempDir } from "../_helpers/temp-dir";
+import { loadExample, loadFixture } from "../_helpers/fixtures";
+
+/** Drops the leading `' @tag:` documentation header from a canonical example. */
+function stripExampleHeader(source: string): string {
+  const lines = source.split("\n");
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index]?.trim() ?? "";
+    if (line === "" || line.startsWith("' @") || line === "'") {
+      index++;
+      continue;
+    }
+    break;
+  }
+  return lines.slice(index).join("\n");
+}
 
 /** Fabricates a minimal valid Data7 project on disk inside `dir`. */
 function seedProject(dir: string): { destXml: string } {
@@ -39,7 +55,7 @@ function seedProject(dir: string): { destXml: string } {
   const principal = `
 Namespace mod_principal
    Class TPrincipalClass
-      Public Sub Main()
+      Sub Main()
          ' hello world
       End Sub
    End Class
@@ -340,6 +356,89 @@ End Namespace
         assert.match(xml, /Imports mod_tlist/);
         assert.match(xml, /Dim colors As TTList_Color = New TTList_Color\(\)/);
         assert.match(xml, /colors\.Push\(Color\.Red\)/);
+      });
+    });
+
+    test("builds primitive array-list operations from canonical example", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_testes_array_primitivo.bas"),
+          stripExampleHeader(loadExample("sugar/array-list/01-primitive-filter-map-reduce.bas")),
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_testes_array_primitivo
+
+Sub Main()
+   mod_testes_array_primitivo.ExecutarTesteArrayPrimitivo()
+End Sub
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `'@Module
+${loadFixture("array-list/ttlist-stub.bas")}
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Dim numeros As TTList_Integer = New TTList_Integer\(\)/);
+        assert.match(xml, /numeros\.Unshift\(0\)/);
+        assert.match(xml, /numeros\.Find\(HelperNumero\.FindMaiorQue4\)/);
+        assert.doesNotMatch(xml, /\bpItem As T\b/);
+      });
+    });
+
+    test("builds four-stage array-list chain with intermediate Map/Reduce monomorphs", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_exemplo_encadeamento.bas"),
+          stripExampleHeader(loadExample("sugar/array-list/03-four-stage-chain.bas")),
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_exemplo_encadeamento
+
+Sub Main()
+   mod_exemplo_encadeamento.ProcessarUpgradesCG125()
+End Sub
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `'@Module
+${loadFixture("array-list/ttlist-stub.bas")}
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Imports mod_tlist/);
+        assert.match(xml, /Dim carrinhoPecas As TTList_PecaMoto = New TTList_PecaMoto\(\)/);
+        assert.match(xml, /Dim relatorioFinal As String/);
+        assert.match(xml, /Map_OrdemServico/);
+        assert.match(xml, /Map_String/);
+        assert.match(xml, /Reduce_String/);
+        assert.doesNotMatch(xml, /\bpItem As T\b/);
       });
     });
 

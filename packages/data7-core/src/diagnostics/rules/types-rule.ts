@@ -14,7 +14,7 @@ import type {
   PropertyDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
-import type { MissingReturnTypePayload } from "../diagnostic-codes";
+import type { IncompletePropertyBodyPayload, MissingReturnTypePayload } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { DiagnosticsLinter } from "../diagnostics";
 import { TypeResolver } from "../../analysis/type-resolver";
@@ -63,6 +63,7 @@ export class TypesRule implements Rule {
         break;
       case "PropertyDeclaration":
         this.checkPropertyMissingType(node, context);
+        this.checkPropertyIncompleteBody(node, context);
         break;
     }
   }
@@ -82,6 +83,27 @@ export class TypesRule implements Rule {
       code: DiagnosticCodes.MissingReturnType,
       declarationName: node.name,
       declarationKind: "property",
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
+  }
+
+  private checkPropertyIncompleteBody(node: PropertyDeclaration, context: RuleContext): void {
+    if (!node.loc) return;
+    const oneLinerWithoutBlock = !node.hasBlock;
+    const emptyBlock = node.hasBlock && !node.getter && !node.setter;
+    if (!oneLinerWithoutBlock && !emptyBlock) return;
+
+    const lineIdx = node.loc.startLine - 1;
+    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+    const message = oneLinerWithoutBlock
+      ? `A property "${node.name}" deve declarar o corpo completo com Get, Set e End Property.`
+      : `A property "${node.name}" deve declarar pelo menos um accessor Get ou Set antes de End Property.`;
+    const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+    diag.code = DiagnosticCodes.IncompletePropertyBody;
+    const payload: IncompletePropertyBodyPayload = {
+      code: DiagnosticCodes.IncompletePropertyBody,
+      propertyName: node.name,
     };
     setDiagnosticPayload(diag, payload);
     context.report(diag);

@@ -669,9 +669,10 @@ End Namespace`;
       indexer.updateFileContent(templateUri, templateCode);
       createMockDoc(templateUri, templateCode);
 
+      const hasFlatProduct = indexer.getAllSymbols().some((s) => s.name === "TTList_Product");
       assert.equal(
-        TypeResolver.findClassSymbol("TTList<Product>", indexer),
-        undefined,
+        hasFlatProduct,
+        false,
         "test setup must exercise resolver fallback without a synthetic TTList_Product class",
       );
       assert.ok(TypeResolver.findMember("TTList<Product>", "Pop", indexer), "own generic member");
@@ -793,14 +794,14 @@ End Namespace`;
       createMockDoc(uri, FIXTURE);
 
       assert.ok(TypeResolver.findClassSymbol("TList<Product>", indexer), "real usage indexed");
+      const hasFlatPhantom = indexer.getAllSymbols().some((s) => s.name === "TList_Phantom");
+      assert.equal(hasFlatPhantom, false, "comment-mentioned TList<Phantom> must NOT be indexed");
+      const hasFlatAlsoPhantom = indexer
+        .getAllSymbols()
+        .some((s) => s.name === "TList_AlsoPhantom");
       assert.equal(
-        TypeResolver.findClassSymbol("TList<Phantom>", indexer),
-        undefined,
-        "comment-mentioned TList<Phantom> must NOT be indexed",
-      );
-      assert.equal(
-        TypeResolver.findClassSymbol("TList<AlsoPhantom>", indexer),
-        undefined,
+        hasFlatAlsoPhantom,
+        false,
         "string-literal TList<AlsoPhantom> must NOT be indexed",
       );
     });

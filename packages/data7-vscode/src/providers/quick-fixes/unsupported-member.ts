@@ -32,7 +32,7 @@ export function addUnsupportedMemberFixes(
     vscode.CodeActionKind.QuickFix,
   );
   commentAction.diagnostics = [diagnostic];
-  commentAction.isPreferred = false;
+  commentAction.isPreferred = true;
   {
     const indentMatch = /^(\s*)/.exec(lineText);
     const indent = indentMatch?.[1] ?? "";

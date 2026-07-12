@@ -67,6 +67,13 @@ interface RankedCompletionItem {
   readonly item: vscode.CompletionItem;
 }
 
+interface AutoImportContext {
+  readonly activeNamespaceLower?: string;
+  readonly importedNamespaces: ReadonlySet<string>;
+  readonly insertLine: number;
+  readonly disabled?: boolean;
+}
+
 function completionLabelText(item: vscode.CompletionItem): string {
   return typeof item.label === "string" ? item.label : item.label.label;
 }
@@ -108,6 +115,11 @@ function matchesContainer(containerName: string | undefined, typeName: string): 
 
 export class D7BasicCompletionProvider implements vscode.CompletionItemProvider {
   private indexer = WorkspaceSymbolIndexer.getInstance();
+  private allNamespaces = new Set<string>();
+  private autoImportCtx: AutoImportContext = {
+    importedNamespaces: new Set(),
+    insertLine: 0,
+  };
 
   public provideCompletionItems(
     document: vscode.TextDocument,
@@ -119,6 +131,34 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     const tracker = new TimeTracker(
       `Completion no arquivo ${vscode.workspace.asRelativePath(document.uri)}`,
     );
+
+    // Precompute import context once per request to avoid O(N * L) document scans
+    const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
+    const activeNamespace = fileSyms?.symbols.find((x) => x.kind === "namespace")?.name;
+    const activeNamespaceLower = activeNamespace?.toLowerCase();
+    const importedNamespaces = new Set<string>(
+      fileSyms?.imports.map((imp) => imp.toLowerCase()) ?? [],
+    );
+
+    let insertLine = 0;
+    for (let i = 0; i < document.lineCount; i++) {
+      const lineText = document.lineAt(i).text.trim();
+      if (lineText.toLowerCase().startsWith("imports ")) insertLine = i + 1;
+    }
+
+    this.autoImportCtx = {
+      activeNamespaceLower,
+      importedNamespaces,
+      insertLine,
+    };
+
+    this.allNamespaces.clear();
+    SYSTEM_SYMBOLS.forEach((s) => {
+      if (s.kind === "namespace") this.allNamespaces.add(s.name.toLowerCase());
+    });
+    this.indexer.getAllSymbols().forEach((s) => {
+      if (s.kind === "namespace") this.allNamespaces.add(s.name.toLowerCase());
+    });
 
     try {
       const result = this.provideCompletionItemsInternal(document, position, token, _context);
@@ -146,6 +186,13 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
     const activeClass = ast.getActiveClassSymbol();
     const memberAccess = ast.getMemberAccessContext();
+
+    if (memberAccess !== undefined) {
+      this.autoImportCtx = {
+        ...this.autoImportCtx,
+        disabled: true,
+      };
+    }
 
     if (memberAccess?.receiver) {
       const receiverText = ast.expressionToText(memberAccess.receiver);
@@ -469,7 +516,13 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       if (!s.containerName) return true;
       if (s.kind === "namespace") return true;
       if (s.kind === "declare_function" || s.kind === "declare_sub") return true;
-      return isTypeSymbol(s) && !namespaceScopeNames.has(s.containerName.toLowerCase());
+
+      const containerLower = s.containerName.toLowerCase();
+      if (this.allNamespaces.has(containerLower)) {
+        return !namespaceScopeNames.has(containerLower);
+      }
+
+      return isTypeSymbol(s) && !namespaceScopeNames.has(containerLower);
     };
 
     return [
@@ -561,10 +614,7 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
       item.detail = `(Nao suportado pelo compilador Data7) ${item.detail}`;
     }
 
-    if (
-      s.containerName &&
-      (s.kind === "class" || s.kind === "structure" || s.kind === "delegate" || s.kind === "enum")
-    ) {
+    if (s.containerName && this.allNamespaces.has(s.containerName.toLowerCase())) {
       this.addAutoImportEdit(item, s, document);
     }
 
@@ -584,27 +634,23 @@ export class D7BasicCompletionProvider implements vscode.CompletionItemProvider 
     s: SymbolInfo,
     document: vscode.TextDocument,
   ): void {
+    if (this.autoImportCtx.disabled) return;
     if (!s.containerName) return;
     const containerLower = s.containerName.toLowerCase();
     const isVclOrSystem = containerLower.startsWith("vcl") || containerLower.startsWith("system");
     if (isVclOrSystem) return;
 
-    const fileSyms = this.indexer.getFileSymbols(document.uri.toString());
-    const activeNamespace = fileSyms?.symbols.find((x) => x.kind === "namespace")?.name;
-    const isCurrentNamespace = activeNamespace?.toLowerCase() === containerLower;
-    const isAlreadyImported = fileSyms?.imports.some((imp) => imp.toLowerCase() === containerLower);
+    const isCurrentNamespace = this.autoImportCtx.activeNamespaceLower === containerLower;
+    const isAlreadyImported = this.autoImportCtx.importedNamespaces.has(containerLower);
     if (isCurrentNamespace || isAlreadyImported) return;
-
-    let insertLine = 0;
-    for (let i = 0; i < document.lineCount; i++) {
-      const lineText = document.lineAt(i).text.trim();
-      if (lineText.toLowerCase().startsWith("imports ")) insertLine = i + 1;
-    }
 
     item.detail = `(Auto Import de ${s.containerName}) ${item.detail}`;
     item.additionalTextEdits = [
       new vscode.TextEdit(
-        new vscode.Range(new vscode.Position(insertLine, 0), new vscode.Position(insertLine, 0)),
+        new vscode.Range(
+          new vscode.Position(this.autoImportCtx.insertLine, 0),
+          new vscode.Position(this.autoImportCtx.insertLine, 0),
+        ),
         `Imports ${s.containerName}\r\n`,
       ),
     ];

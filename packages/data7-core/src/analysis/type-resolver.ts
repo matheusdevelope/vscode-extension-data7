@@ -841,7 +841,19 @@ export class TypeResolver {
             }
           }
           return finishCalleeReturn(
-            applyMethodGenericSubstitutions(member.type, member, expr, document, lineIdx, indexer),
+            refineFunctionalListReturnType(
+              targetType,
+              expr,
+              applyMethodGenericSubstitutions(
+                member.type,
+                member,
+                expr,
+                document,
+                lineIdx,
+                indexer,
+              ),
+              indexer,
+            ),
           );
         }
         const fileSyms = indexer.getFileSymbols(document.uri.toString());
@@ -1995,6 +2007,23 @@ export class TypeResolver {
     }
     return false;
   }
+
+  public static resolveListElementType(
+    typeName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    const parsed = parseGenericTypeReference(typeName);
+    if (parsed?.base.toLowerCase() === "ttlist" && parsed.args.length > 0) {
+      return parsed.args[0];
+    }
+    const lower = typeName.toLowerCase();
+    if (lower.startsWith("ttlist_")) {
+      return typeName.slice("TTList_".length);
+    }
+    const classSymbol = TypeResolver.findClassSymbol(typeName, indexer);
+    const parent = classSymbol ? TypeResolver.resolveParent(classSymbol) : undefined;
+    return parent ? TypeResolver.resolveListElementType(parent, indexer) : undefined;
+  }
 }
 
 function isExternalTypeAcceptedByDeclaration(
@@ -2700,6 +2729,70 @@ function expressionToTypeString(expr: Expression): string | undefined {
     }
   }
   return undefined;
+}
+
+function flatMethodGenericArgs(methodName: string): string[] {
+  const underscore = methodName.indexOf("_");
+  if (underscore < 0) return [];
+  const suffix = methodName.slice(underscore + 1);
+  return suffix ? suffix.split("_").filter(Boolean) : [];
+}
+
+/**
+ * TTList functional methods (filter/map/…) are declared to return `TTList<T>`,
+ * but when invoked on a concrete subclass (e.g. `Pessoas` extends
+ * `TTList<Pessoa>`) the effective return type is the receiver type — matching
+ * {@link import("../project/sugars/plugins/ast/transformer").ASTSugarTransformer}
+ * `inferFunctionalListType`.
+ */
+function refineFunctionalListReturnType(
+  receiverType: string | undefined,
+  invocation: MethodInvocation,
+  declaredReturnType: string | undefined,
+  indexer: WorkspaceSymbolIndexer,
+): string | undefined {
+  if (!receiverType || !declaredReturnType) return declaredReturnType;
+  const itemType = TypeResolver.resolveListElementType(receiverType, indexer);
+  if (!itemType) return declaredReturnType;
+
+  const method = invocation.methodName.toLowerCase().split("_")[0] ?? "";
+  const flatGenericArg = flatMethodGenericArgs(invocation.methodName)[0];
+  const explicitGenericArg = invocation.typeArguments[0]
+    ? typeRefToString(invocation.typeArguments[0])
+    : undefined;
+  const genericArg = flatGenericArg ?? explicitGenericArg;
+
+  if (method === "filter") return receiverType;
+  if (method === "map") {
+    if (genericArg) return `TTList<${genericArg}>`;
+    const parsedMapReturn = parseGenericTypeReference(declaredReturnType ?? "");
+    const mappedElement = parsedMapReturn?.args[0];
+    if (
+      parsedMapReturn?.base === "TTList" &&
+      mappedElement &&
+      mappedElement !== itemType &&
+      !isOpenGenericTypeParameter(mappedElement)
+    ) {
+      return declaredReturnType;
+    }
+    return receiverType;
+  }
+  if (method === "reduce") return genericArg ?? declaredReturnType;
+  if (method === "find") return itemType;
+  if (method === "findindex" || method === "indexof") return "Integer";
+  if (method === "some" || method === "every") return "Boolean";
+  if (method === "first" || method === "last") {
+    return invocation.arguments.length === 0 ? itemType : receiverType;
+  }
+
+  const listPreservingMethods = new Set(["clone", "slice", "splice", "reverse"]);
+  if (listPreservingMethods.has(method)) return receiverType;
+
+  return declaredReturnType;
+}
+
+function isOpenGenericTypeParameter(typeName: string): boolean {
+  return typeName === "T" || /^T[A-Z][a-zA-Z0-9]*$/.test(typeName);
 }
 
 function applyMethodGenericSubstitutions(

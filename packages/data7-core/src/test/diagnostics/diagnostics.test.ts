@@ -7,7 +7,7 @@ import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
 import { DiagnosticCodes, LegacyDiagnosticCodes } from "../../diagnostics/diagnostic-codes";
 import { createMockDoc, registerOpenDocument } from "../_helpers/mock-doc";
 import { expectDiagnostic, expectNoDiagnostic } from "../_helpers/assertions";
-import { loadExample, parseExampleHeader } from "../_helpers/fixtures";
+import { loadExample, loadFixture, parseExampleHeader } from "../_helpers/fixtures";
 
 /**
  * `DiagnosticsLinter.runAdvancedDiagnostics` — full coverage of every canonical
@@ -200,6 +200,49 @@ End Namespace`;
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       const dup = expectDiagnostic(diags, DiagnosticCodes.DuplicateImport, "linha 1");
       assert.equal((dup as { data?: { code?: string } }).data?.code, DiagnosticCodes.UnusedImport);
+    });
+  });
+
+  describe("circular-import", () => {
+    test("emits error when a namespace imports itself", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///self_import.bas";
+      const code = `Imports mod_self
+Namespace mod_self
+   Class C
+      Public Sub Run()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.CircularImport, "importa à si mesmo");
+    });
+
+    test("emits error when namespaces transitively import each other", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uriA = "file:///mod_a.bas";
+      const uriB = "file:///mod_b.bas";
+
+      const codeA = `Imports mod_b
+Namespace mod_a
+   Class CA
+   End Class
+End Namespace`;
+
+      const codeB = `Imports mod_a
+Namespace mod_b
+   Class CB
+   End Class
+End Namespace`;
+
+      registerOpenDocument(uriA);
+      registerOpenDocument(uriB);
+      indexer.updateFileContent(uriA, codeA);
+      indexer.updateFileContent(uriB, codeB);
+
+      const diagsA = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uriA, codeA), indexer);
+      expectDiagnostic(diagsA, DiagnosticCodes.CircularImport, "Referência circular detectada");
     });
   });
 
@@ -555,6 +598,93 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownType);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.ReturnUnrecommended);
+    });
+
+    test("returns subclass type for TTList.Filter on an inherited list class", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_pessoas
+   Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
+
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Filter(pHandler As TFindDel<T>) As TTList<T>
+         Filter = Nothing
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Pessoa
+      Idade As Integer
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Pessoas
+      Inherits TTList<Pessoa>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim list As New Pessoas()
+   list.Push(New Pessoa())
+   Dim newList As Pessoas = list.Filter(Function(_pessoa As Pessoa) _pessoa.Idade > 40)
+End Namespace`;
+      const uri = "file:///pessoas_filter.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("resolves TTList.Last() as the list element type for chained member access", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_last_element
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Push(pValue As T)
+      End Sub
+      Function Last() As T
+         Last = Nothing
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Produto
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub SetNome(pNome As String)
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Dim copiaProdutos As TTList<Produto> = New TTList<Produto>()
+   copiaProdutos.Push(New Produto())
+   copiaProdutos.Last().SetNome("teste")
+End Namespace`;
+      const uri = "file:///last_element.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
 
     test("accepts delegate assignments with Sub side-effect lambdas and Function block lambdas", () => {
@@ -4661,17 +4791,14 @@ End Namespace`;
     expectNoDiagnostic(diags, DiagnosticCodes.MissingReturnValue);
   });
 
-  test("resolves IO.File.ZipFile and Delphi System.IOUtils helper classes", () => {
+  test("resolves IO.File.ZipFile helper classes", () => {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     const uri = "file:///io_helpers_test.bas";
     const code = `Imports IO
-Imports System.IOUtils
 Namespace mod_io_helpers
    Class C
       Public Sub Run(pPath As String)
          Dim zipper As IO.File.ZipFile
-         Dim exists As Boolean = TFile.Exists(pPath)
-         Dim temp As String = TPath.GetTempPath()
          Dim fileName As String = File.ExtractName(pPath)
       End Sub
    End Class
@@ -4800,6 +4927,151 @@ End Namespace`;
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+  });
+
+  describe("array-list + generics integration", () => {
+    function indexExampleWithTtListStub(examplePath: string): {
+      indexer: WorkspaceSymbolIndexer;
+      uri: string;
+      code: string;
+    } {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const stub = loadFixture("array-list/ttlist-stub.bas");
+      const code = loadExample(examplePath);
+      const uri = `file:///array_list_${examplePath.replace(/[/\\.]/g, "_")}.bas`;
+      registerOpenDocument(uri);
+      registerOpenDocument("file:///mod_tlist.bas", "mod_tlist.bas");
+      indexer.updateFileContent("file:///mod_tlist.bas", stub);
+      indexer.updateFileContent(uri, code);
+      return { indexer, uri, code };
+    }
+
+    test("accepts subclass filter assignment from canonical 04-subclass-filter example", () => {
+      const { indexer, uri, code } = indexExampleWithTtListStub(
+        "sugar/array-list/04-subclass-filter.bas",
+      );
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("resolves Some Every and external delegate Find on primitive array sugar", () => {
+      const code = `Imports mod_tlist
+
+Namespace mod_testes_array_primitivo
+   Class HelperNumero
+      Shared Function FindMaiorQue4(pValue As Integer, pIdx As Integer, extra As Variant) As Boolean
+         FindMaiorQue4 = pValue > 4
+      End Function
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Sub Run()
+      Dim numeros[] As Integer = [1, 2, 3, 4, 5]
+      Dim temMaiorQue5 As Boolean = numeros.Some(Function(pItem As Integer) As Boolean pItem > 5)
+      Dim todosMaiorOuIgualZero As Boolean = numeros.Every(
+         Function(pItem As Integer) As Boolean pItem >= 0
+      )
+      Dim numeroEncontrado As Integer = numeros.Find(HelperNumero.FindMaiorQue4)
+   End Sub
+End Namespace`;
+      const { indexer, uri } = indexExampleWithTtListStub(
+        "sugar/array-list/04-subclass-filter.bas",
+      );
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
+    });
+
+    test("resolves First Last Slice Includes and chained Filter.Map on object array sugar", () => {
+      const code = `Imports mod_tlist
+
+Namespace mod_testes_array_objetos
+   Class Produto
+      Private nome As String
+      Private preco As Double
+      Sub New(nome As String, preco As Double)
+         MyBase.New()
+         me.nome = nome
+         me.preco = preco
+      End Sub
+      Function GetNome() As String
+         GetNome = nome
+      End Function
+      Function GetPreco() As Double
+         GetPreco = me.preco
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Sub Run()
+      Dim produtos[] As Produto = [New Produto("A", 10.0), New Produto("B", 20.0)]
+      Dim primeiros2[] As Produto = produtos.First(2)
+      Dim ultimos2[] As Produto = produtos.Last(2)
+      Dim faixa[] As Produto = produtos.Slice(1, 2)
+      Dim refProduto As Produto = produtos[0]
+      Dim contem As Boolean = produtos.Includes(refProduto)
+      Dim nomes[] As String = produtos. _
+         Filter(Function(pItem As Produto) As Boolean pItem.GetPreco() > 5.0). _
+         Map<String>(Function(pItem As Produto, pIdx As Integer) As String pItem.GetNome())
+   End Sub
+End Namespace`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const stub = loadFixture("array-list/ttlist-stub.bas");
+      const uri = "file:///array_list_object_windowing.bas";
+      registerOpenDocument(uri);
+      registerOpenDocument("file:///mod_tlist.bas", "mod_tlist.bas");
+      indexer.updateFileContent("file:///mod_tlist.bas", stub);
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+
+    test("resolves four-stage Filter.Map.Map.Reduce chain on flat intermediate list types", () => {
+      const code = loadExample("sugar/array-list/03-four-stage-chain.bas");
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const stub = loadFixture("array-list/ttlist-stub.bas");
+      const uri = "file:///array_list_four_stage.bas";
+      registerOpenDocument(uri);
+      registerOpenDocument("file:///mod_tlist.bas", "mod_tlist.bas");
+      indexer.updateFileContent("file:///mod_tlist.bas", stub);
+      indexer.updateFileContent(uri, code);
+
+      const flatSupport = `Namespace mod_exemplo_encadeamento
+   Class TTList_PecaMoto
+      Function Filter(pHandler As TFindDel_PecaMoto) As TTList_PecaMoto
+      End Function
+      Function Map_OrdemServico(pHandler As TMapDel_PecaMoto_OrdemServico) As TTList_OrdemServico
+      End Function
+   End Class
+   Class TTList_OrdemServico
+      Function Map_String(pHandler As TMapDel_OrdemServico_String) As TTList_String
+      End Function
+   End Class
+   Class TTList_String
+      Function Reduce_String(pHandler As TReduceDel_String_String, pInitial As String) As String
+      End Function
+   End Class
+   Delegate Function TFindDel_PecaMoto(pValue As PecaMoto, i As Integer, extra As Variant) As Boolean
+   Delegate Function TMapDel_PecaMoto_OrdemServico(pValue As PecaMoto, i As Integer, extra As Variant) As OrdemServico
+   Delegate Function TMapDel_OrdemServico_String(pValue As OrdemServico, i As Integer, extra As Variant) As String
+   Delegate Function TReduceDel_String_String(pAcc As String, pItem As String, extra As Variant) As String
+End Namespace`;
+      indexer.updateFileContent("file:///mod_tlist_flat.bas", flatSupport);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
   });
 
@@ -5070,6 +5342,30 @@ End Class`);
       expectDiagnostic(diags, DiagnosticCodes.MissingReturnType, "PropertyDeExemplo");
       expectDiagnostic(diags, DiagnosticCodes.MissingReturnType, "FunctionDeExemplo");
       expectDiagnostic(diags, DiagnosticCodes.MissingReturnType, "SharedFunctionDeExemplo");
+    });
+
+    test("emits incomplete-property-body for Property declared without Get/Set block", () => {
+      const diags = runLinter(`Class Exemplo
+   Property Nome As String
+
+   Property Telefone As String
+      Get
+         Telefone = ""
+      End Get
+      Set(value As String)
+      End Set
+   End Property
+
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`);
+
+      expectDiagnostic(diags, DiagnosticCodes.IncompletePropertyBody, "Nome");
+      const incompleteBody = diags.filter(
+        (diag) => diag.code === DiagnosticCodes.IncompletePropertyBody,
+      );
+      assert.equal(incompleteBody.length, 1);
     });
 
     test("rejects member access chained directly on object creation", () => {

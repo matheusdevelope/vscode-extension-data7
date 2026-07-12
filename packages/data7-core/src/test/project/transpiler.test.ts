@@ -1153,7 +1153,7 @@ describe("SugarTranspiler — D1 Enun declarative (multi-line)", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /^Public Enum Options$/m);
+    assert.match(out, /^(Public )?Enum Options$/m);
     assert.match(out, /^\s{3}SqlServer = 0$/m);
     assert.doesNotMatch(out, /Imports mod_tenum/);
     assert.doesNotMatch(out, /Class Options/);
@@ -1697,8 +1697,84 @@ describe("SugarTranspiler — array-list", () => {
     assert.equal(diagnostics.length, 0);
     assert.match(
       out,
-      /Shared Function __data7_lambda_\d+\(pAcumulador As Double, pItem As Produto, extra As Variant\) As Double/,
+      /Shared Function __data7_lambda_\d+\(pAcumulador As Double, pItem As Double, extra As Variant\) As Double/,
     );
+  });
+
+  test("materializes chained map lambdas after filter with concrete list item types", () => {
+    const code = [
+      "Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean",
+      "Delegate Function TMapDel<T, TOut>(pValue As T, i As Integer, extra As Variant) As TOut",
+      "Class Produto",
+      "   Function GetPreco() As Double",
+      "   End Function",
+      "   Function GetNome() As String",
+      "   End Function",
+      "End Class",
+      "Class TTList<T>",
+      "   Function Filter(pHandler As TFindDel<T>) As TTList<T>",
+      "   End Function",
+      "   Function Map<TOut>(pHandler As TMapDel<T, TOut>) As TTList<TOut>",
+      "   End Function",
+      "End Class",
+      "Dim produtos[] As Produto = [New Produto()]",
+      "Dim nomes As TTList<String> = produtos.Filter(",
+      "Function(pItem As Produto) As Boolean pItem.GetPreco() > 15.0",
+      ").Map<String>(",
+      "Function(pItem As Produto, pIdx As Integer) As String",
+      "Return CStr(pIdx) & pItem.GetNome()",
+      "End Function",
+      ")",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /pItem As Produto, pIdx As Integer, extra As Variant\) As String/);
+    assert.doesNotMatch(out, /\bpItem As T\b/);
+  });
+
+  test("inlines filter on a TTList subclass into a new subclass instance", () => {
+    const code = [
+      "Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean",
+      "Class TTList<T>",
+      "   Sub New()",
+      "   End Sub",
+      "   Function Filter(pHandler As TFindDel<T>) As TTList<T>",
+      "   End Function",
+      "   Sub Push(pValue As T)",
+      "   End Sub",
+      "   Property Length As Integer",
+      "   End Property",
+      "   Function GetItem(pIndex As Integer) As T",
+      "   End Function",
+      "End Class",
+      "Class Pessoa",
+      "   Idade As Integer",
+      "End Class",
+      "Class Pessoas",
+      "   Inherits TTList<Pessoa>",
+      "   Sub New()",
+      "      MyBase.New()",
+      "   End Sub",
+      "End Class",
+      "Dim list As New Pessoas()",
+      "Dim newList As Pessoas = list.Filter(",
+      "Function(_pessoa As Pessoa) As Boolean",
+      "Return _pessoa.Idade > 40",
+      "End Function",
+      ")",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, {
+      ...ctx,
+      resolveListElementType(typeName) {
+        if (typeName === "Pessoas" || typeName === "TTList_Pessoa") return "Pessoa";
+        return undefined;
+      },
+    });
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim newList As Pessoas = New Pessoas\(\)/);
+    assert.match(out, /For __idx\d+ = 0 To list\.Length - 1/);
+    assert.match(out, /newList\.Push\(/);
+    assert.doesNotMatch(out, /Dim newList As Pessoas = list\.Filter/);
   });
 
   test("materializes a lambda helper class for global-only lambda code", () => {

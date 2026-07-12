@@ -15,6 +15,8 @@ export const DiagnosticCodes = {
   UnknownMember: "unknown-member",
   /** The same namespace is imported more than once in the header of the file. */
   DuplicateImport: "duplicate-import",
+  /** The imported namespace directly or transitively imports the current namespace (circular reference) or imports itself. */
+  CircularImport: "circular-import",
   /** A `Private` member of a class is accessed from outside its declaring scope. */
   PrivateMemberAccess: "private-member-access",
   /** A handler assigned to an `OnXxx` event has a signature incompatible with the delegate. */
@@ -275,6 +277,12 @@ export const DiagnosticCodes = {
    * linter can validate call sites and assignments against it.
    */
   MissingReturnType: "missing-return-type",
+  /**
+   * A `Property` declaration omits the required accessor block (`Get`/`Set` and
+   * `End Property`). Data7 does not support auto-properties declared in a single
+   * line (`Property Nome As String`); the body must be explicit.
+   */
+  IncompletePropertyBody: "incomplete-property-body",
   /**
    * A member (method or property) was accessed directly on a `New T()` expression
    * without storing the instance first. This is not allowed in Data7 because the
@@ -655,6 +663,15 @@ export interface MissingReturnTypePayload {
 }
 
 /**
+ * Payload for `IncompletePropertyBody`: identifies which property lacks accessors.
+ */
+export interface IncompletePropertyBodyPayload {
+  code: typeof DiagnosticCodes.IncompletePropertyBody;
+  /** Name of the Property lacking a Get/Set block. */
+  propertyName: string;
+}
+
+/**
  * Payload for `ChainedInstantiationAccess`: identifies the type being instantiated.
  */
 export interface ChainedInstantiationAccessPayload {
@@ -703,6 +720,7 @@ export type DiagnosticPayload =
   | InlineIfThenPayload
   | NamespaceNameConflictPayload
   | MissingReturnTypePayload
+  | IncompletePropertyBodyPayload
   | ChainedInstantiationAccessPayload;
 
 /**

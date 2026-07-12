@@ -1,4 +1,4 @@
-﻿import * as vscode from "vscode";
+import * as vscode from "vscode";
 import { DiagnosticCodes } from "@data7/core";
 import type { UnknownTypePayload } from "@data7/core";
 
@@ -22,7 +22,7 @@ export function addUnknownTypeDidYouMeanFixes(
         vscode.CodeActionKind.QuickFix,
       );
       action.diagnostics = [diagnostic];
-      action.isPreferred = false;
+      action.isPreferred = index === 0;
       const edit = new vscode.WorkspaceEdit();
       edit.replace(document.uri, diagnostic.range, suggestion);
       action.edit = edit;

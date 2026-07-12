@@ -96,6 +96,22 @@ export interface MonomorphizerOptions {
   readonly isTypeDescendantOf?: (typeName: string, baseTypeName: string) => boolean | undefined;
   readonly externalTemplates?: readonly ExternalGenericTemplate[];
   readonly requestedInstantiations?: readonly RequestedGenericInstantiation[];
+  /** Owner-specific generic method requests discovered from workspace sources. */
+  readonly requestedClassGenericMethods?: readonly ClassGenericMethodRequest[];
+}
+
+export interface ClassGenericMethodRequest {
+  readonly ownerClassName: string;
+  readonly ownerFlatName: string;
+  readonly ownerConcreteArgs: readonly TypeReference[];
+  readonly methodName: string;
+  readonly methodFlatName: string;
+  readonly methodConcreteArgs: readonly TypeReference[];
+}
+
+export interface CollectWorkspaceClassGenericMethodRequestsOptions extends MonomorphizerOptions {
+  readonly genericTemplateSources: readonly string[];
+  readonly usageSources: readonly string[];
 }
 
 export interface ExternalGenericTemplate {
@@ -120,23 +136,49 @@ export interface RequestedGenericInstantiation {
 export class GenericsMonomorphizer {
   constructor(private readonly options: MonomorphizerOptions = {}) {}
 
+  /**
+   * Walks workspace `.bas` sources and records owner-specific generic method
+   * requests (e.g. `TTList_OrdemServico.Map_String`) produced by chained
+   * functional list calls. The builder feeds the result into
+   * {@link MonomorphizerOptions.requestedClassGenericMethods} so template
+   * modules such as `mod_tlist` materialize overloads on intermediate list
+   * types, not only on the lists declared in `Dim` lines.
+   */
+  public static collectWorkspaceClassGenericMethodRequests(
+    options: CollectWorkspaceClassGenericMethodRequestsOptions,
+  ): ClassGenericMethodRequest[] {
+    const dummyUnit: CompilationUnit = { kind: "CompilationUnit", members: [] };
+    const ctx = createMonoContext(dummyUnit, options);
+
+    const sugarEngine = new SugarEngine();
+    const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
+
+    for (const code of options.genericTemplateSources) {
+      if (!code.includes("<")) continue;
+      const parsed = parseBasic(code, { plugins });
+      collectAndPruneIn(parsed.unit.members, ctx, false);
+    }
+
+    enqueueRequestedInstantiations(ctx);
+
+    for (const code of options.usageSources) {
+      if (!code.includes("<") && !/\.\s*(?:Filter|Map|Reduce)\s*</i.test(code)) continue;
+      const parsed = parseBasic(code, { plugins });
+      rewriteGenericUsages(parsed.unit, ctx);
+    }
+
+    return Array.from(ctx.classMethodRequests.values()).map((request) => ({
+      ownerClassName: request.ownerClassName,
+      ownerFlatName: request.ownerFlatName,
+      ownerConcreteArgs: request.ownerConcreteArgs.map(deepClone),
+      methodName: request.methodName,
+      methodFlatName: request.methodFlatName,
+      methodConcreteArgs: request.methodConcreteArgs.map(deepClone),
+    }));
+  }
+
   monomorphize(unit: CompilationUnit): MonomorphizationResult {
-    const ctx: MonoContext = {
-      unit,
-      templates: new TemplateRegistry(),
-      instantiated: new GlobalInstantiatedSet(),
-      enqueued: new Set<string>(),
-      worklist: [],
-      flatToCanonical: new Map<string, string>(),
-      warnings: [],
-      options: this.options,
-      externalTemplates: buildExternalTemplateMap(this.options.externalTemplates ?? []),
-      requestableTemplateNames: new Set<string>(),
-      concreteInstantiations: new Map<string, ConcreteInstantiation>(),
-      classGenericMethods: new Map<string, ClassGenericMethodTemplate[]>(),
-      classMethodRequests: new Map<string, ClassGenericMethodRequest>(),
-      classMethodEmitted: new Set<string>(),
-    };
+    const ctx = createMonoContext(unit, this.options);
 
     // Pre-populate templates from sugar utility modules.
     for (const utility of SugarRegistry.getUtilityModules()) {
@@ -265,13 +307,23 @@ interface ClassGenericMethodTemplate {
   readonly method: MethodDeclaration;
 }
 
-interface ClassGenericMethodRequest {
-  readonly ownerClassName: string;
-  readonly ownerFlatName: string;
-  readonly ownerConcreteArgs: readonly TypeReference[];
-  readonly methodName: string;
-  readonly methodFlatName: string;
-  readonly methodConcreteArgs: readonly TypeReference[];
+function createMonoContext(unit: CompilationUnit, options: MonomorphizerOptions): MonoContext {
+  return {
+    unit,
+    templates: new TemplateRegistry(),
+    instantiated: new GlobalInstantiatedSet(),
+    enqueued: new Set<string>(),
+    worklist: [],
+    flatToCanonical: new Map<string, string>(),
+    warnings: [],
+    options,
+    externalTemplates: buildExternalTemplateMap(options.externalTemplates ?? []),
+    requestableTemplateNames: new Set<string>(),
+    concreteInstantiations: new Map<string, ConcreteInstantiation>(),
+    classGenericMethods: new Map<string, ClassGenericMethodTemplate[]>(),
+    classMethodRequests: new Map<string, ClassGenericMethodRequest>(),
+    classMethodEmitted: new Set<string>(),
+  };
 }
 
 function warn(
@@ -986,6 +1038,51 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
             methodConcreteArgs: methodTypeArgs.map(deepClone),
           },
         );
+      }
+    }
+  }
+
+  mergeRequestedClassGenericMethods(ctx);
+}
+
+function mergeRequestedClassGenericMethods(ctx: MonoContext): void {
+  for (const request of ctx.options.requestedClassGenericMethods ?? []) {
+    ctx.classMethodRequests.set(
+      classMethodRequestKey(request.ownerFlatName, request.methodName, request.methodFlatName),
+      {
+        ownerClassName: request.ownerClassName,
+        ownerFlatName: request.ownerFlatName,
+        ownerConcreteArgs: request.ownerConcreteArgs.map(deepClone),
+        methodName: request.methodName,
+        methodFlatName: request.methodFlatName,
+        methodConcreteArgs: request.methodConcreteArgs.map(deepClone),
+      },
+    );
+
+    const ownerTemplate = ctx.templates.get(request.ownerClassName);
+    if (
+      ownerTemplate?.kind === "ClassDeclaration" &&
+      request.ownerConcreteArgs.length === ownerTemplate.typeParameters.length
+    ) {
+      enqueue(ctx, {
+        templateName: request.ownerClassName,
+        concreteArgs: request.ownerConcreteArgs.map(deepClone),
+        flatName: request.ownerFlatName,
+      });
+    }
+
+    if (request.methodName.toLowerCase() === "map" && request.methodConcreteArgs.length > 0) {
+      const outputType = request.methodConcreteArgs[0];
+      if (outputType) {
+        const listTemplate = ctx.templates.get("TTList");
+        if (listTemplate?.kind === "ClassDeclaration" && listTemplate.typeParameters.length === 1) {
+          const flatName = flatNameFromParts("TTList", [outputType]);
+          enqueue(ctx, {
+            templateName: "TTList",
+            concreteArgs: [deepClone(outputType)],
+            flatName,
+          });
+        }
       }
     }
   }

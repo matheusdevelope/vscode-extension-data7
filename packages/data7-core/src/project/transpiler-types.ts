@@ -1,5 +1,9 @@
 import type { EnumerableInfo } from "../analysis/enumerable-detector";
-import type { ExternalGenericTemplate, RequestedGenericInstantiation } from "./generics";
+import type {
+  ClassGenericMethodRequest,
+  ExternalGenericTemplate,
+  RequestedGenericInstantiation,
+} from "./generics";
 import type { SugarEngineOptions } from "./sugars";
 
 /** Diagnostics produced while lowering syntax sugars. */
@@ -51,8 +55,11 @@ export interface TranspileContext {
     argumentCount: number,
   ): TranspileCallableSignature | undefined;
   resolveDelegateSignature?(delegateType: string): TranspileCallableSignature | undefined;
+  /** Resolves the element type `T` for `TTList<T>`, flat `TTList_Foo`, or subclasses. */
+  resolveListElementType?(typeName: string): string | undefined;
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
+  requestedClassGenericMethods?: readonly ClassGenericMethodRequest[];
   /** Enables generic monomorphization. Parsing remains enabled when false so
    * generic source is serialized losslessly instead of being partially read. */
   genericsEnabled?: boolean;

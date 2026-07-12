@@ -30,6 +30,8 @@ import {
   type TypeReference,
   type VariableDeclaration,
 } from "../../project/generics";
+import { deepClone } from "../../project/generics";
+import { serializeUnitWithMap } from "../../project/parser";
 
 // ----------------------------------------------------------------------------
 // Tiny AST builder helpers (test-only; keeps each scenario readable and lets
@@ -530,6 +532,129 @@ describe("GenericsMonomorphizer — generic methods, delegates and return types"
     assert.equal(mapCall.typeArguments.length, 0);
     assert.equal(reduceCall.methodName, "Reduce_Double");
     assert.equal(reduceCall.typeArguments.length, 0);
+  });
+
+  test("collects chained class generic method requests for intermediate list receivers", () => {
+    const T = typeParam("T");
+    const TOut = typeParam("TOut");
+    const TAcc = typeParam("TAcc");
+    const list = classDecl("TTList", {
+      typeParameters: [T],
+      members: [
+        method("Filter", {
+          parameters: [param("handler", typeRef("Variant"))],
+          returnType: typeRef("TTList", [typeRef("T")]),
+        }),
+        method("Map", {
+          typeParameters: [TOut],
+          parameters: [param("handler", typeRef("Variant"))],
+          returnType: typeRef("TTList", [typeRef("TOut")]),
+        }),
+        method("Reduce", {
+          typeParameters: [TAcc],
+          parameters: [param("handler", typeRef("Variant")), param("initial", typeRef("TAcc"))],
+          returnType: typeRef("TAcc"),
+        }),
+      ],
+    });
+    const peca = classDecl("PecaMoto");
+    const ordem = classDecl("OrdemServico");
+    const filterCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: id("carrinhoPecas"),
+      methodName: "Filter",
+      typeArguments: [],
+      arguments: [id("filterHandler")],
+    };
+    const mapOrdemCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: filterCall,
+      methodName: "Map",
+      typeArguments: [typeRef("OrdemServico")],
+      arguments: [id("mapHandler")],
+    };
+    const mapStringCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: mapOrdemCall,
+      methodName: "Map",
+      typeArguments: [typeRef("String")],
+      arguments: [id("mapStringHandler")],
+    };
+    const reduceCall: MethodInvocation = {
+      kind: "MethodInvocation",
+      callee: mapStringCall,
+      methodName: "Reduce",
+      typeArguments: [typeRef("String")],
+      arguments: [id("reduceHandler"), lit("")],
+    };
+    const templateUnit = unit([list]);
+    const usageUnit = unit([
+      peca,
+      ordem,
+      dim("carrinhoPecas", typeRef("TTList", [typeRef("PecaMoto")])),
+      dim("relatorioFinal", typeRef("String"), reduceCall),
+    ]);
+    const templateSource = serializeUnitWithMap(templateUnit, { eol: "\n" }).code;
+    const usageSource = serializeUnitWithMap(usageUnit, { eol: "\n" }).code;
+
+    const requests = GenericsMonomorphizer.collectWorkspaceClassGenericMethodRequests({
+      genericTemplateSources: [templateSource],
+      usageSources: [usageSource],
+      requestedInstantiations: [{ templateName: "TTList", typeArgs: ["PecaMoto"] }],
+    });
+
+    const mapStringOnOrdem = requests.find(
+      (request) =>
+        request.ownerFlatName === "TTList_OrdemServico" && request.methodFlatName === "Map_String",
+    );
+    const reduceStringOnOrdem = requests.find(
+      (request) =>
+        request.ownerFlatName === "TTList_String" && request.methodFlatName === "Reduce_String",
+    );
+    assert.ok(mapStringOnOrdem, "expected Map_String on TTList_OrdemServico");
+    assert.ok(reduceStringOnOrdem, "expected Reduce_String on TTList_String");
+
+    const qualifiedRequests = requests.map((request) => ({
+      ...request,
+      ownerConcreteArgs: request.ownerConcreteArgs.map((typeRef) => ({
+        ...typeRef,
+        name:
+          typeRef.name === "PecaMoto" || typeRef.name === "OrdemServico"
+            ? `mod_exemplo_encadeamento.${typeRef.name}`
+            : typeRef.name,
+      })),
+      methodConcreteArgs: request.methodConcreteArgs.map((typeRef) => ({
+        ...typeRef,
+        name:
+          typeRef.name === "PecaMoto" || typeRef.name === "OrdemServico"
+            ? `mod_exemplo_encadeamento.${typeRef.name}`
+            : typeRef.name,
+      })),
+    }));
+
+    const mapOrdemOnPeca = qualifiedRequests.find(
+      (request) =>
+        request.ownerFlatName === "TTList_PecaMoto" &&
+        request.methodFlatName === "Map_OrdemServico",
+    );
+    assert.equal(mapOrdemOnPeca?.ownerConcreteArgs[0]?.name, "mod_exemplo_encadeamento.PecaMoto");
+    assert.equal(
+      mapOrdemOnPeca?.methodConcreteArgs[0]?.name,
+      "mod_exemplo_encadeamento.OrdemServico",
+    );
+
+    const result = new GenericsMonomorphizer({
+      requestedInstantiations: [{ templateName: "TTList", typeArgs: ["PecaMoto"] }],
+      requestedClassGenericMethods: qualifiedRequests,
+    }).monomorphize(deepClone(templateUnit));
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    const listOrdem = findClass(result.unit.members, "TTList_OrdemServico");
+    assert.ok(listOrdem);
+    assert.ok(classMethod(listOrdem, "Map_String"));
+    const listString = findClass(result.unit.members, "TTList_String");
+    assert.ok(listString);
+    assert.ok(classMethod(listString, "Reduce_String"));
   });
 
   test("tracks arbitrary fluent generic return types across chained method calls", () => {

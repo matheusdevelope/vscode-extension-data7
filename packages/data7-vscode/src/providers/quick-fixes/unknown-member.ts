@@ -21,7 +21,7 @@ export function addDidYouMeanFixes(
       vscode.CodeActionKind.QuickFix,
     );
     action.diagnostics = [diagnostic];
-    action.isPreferred = false;
+    action.isPreferred = idx === 0;
     const edit = new vscode.WorkspaceEdit();
     edit.replace(document.uri, diagnostic.range, suggestion);
     action.edit = edit;

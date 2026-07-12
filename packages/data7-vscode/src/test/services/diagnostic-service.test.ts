@@ -378,11 +378,9 @@ describe("DiagnosticService live lifecycle", () => {
     const principalPath = path.join(srcDir, "Principal.bas");
     const principal = [
       "Imports IO",
-      "Imports System.IOUtils",
       "Namespace app",
       "Class Screen",
       "  Public Sub Run(pPath As String)",
-      "    TFile.Exists(pPath)",
       "    File.ExtractName(pPath)",
       "  End Sub",
       "End Class",

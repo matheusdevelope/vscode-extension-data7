@@ -10,7 +10,12 @@ import type {
   VariableDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
-import type { RedundantPublicModifierPayload, UnusedDeclarationPayload } from "../diagnostic-codes";
+import type {
+  IncompletePropertyBodyPayload,
+  MissingReturnTypePayload,
+  RedundantPublicModifierPayload,
+  UnusedDeclarationPayload,
+} from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 
 const DECLARATIONS_RULE_NODE_KINDS = new Set<Node["kind"]>([

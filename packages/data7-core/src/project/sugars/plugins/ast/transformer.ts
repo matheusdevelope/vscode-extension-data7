@@ -428,7 +428,7 @@ function typeRefToName(type: TypeReference): string {
   return `${type.name}<${type.typeArguments.map(typeRefToName).join(", ")}>`;
 }
 
-function listElementType(typeName: string): string | undefined {
+function listElementTypeFromName(typeName: string): string | undefined {
   const parsed = parseGenericTypeName(typeName);
   if (parsed.args.length > 0 && parsed.name.toLowerCase() === "ttlist") {
     return parsed.args[0];
@@ -436,6 +436,10 @@ function listElementType(typeName: string): string | undefined {
   const lower = typeName.toLowerCase();
   if (lower.startsWith("ttlist_")) return typeName.slice("TTList_".length);
   return undefined;
+}
+
+function isLikelyGenericTypeParameter(typeName: string): boolean {
+  return /^[A-Z]$/.test(typeName.trim());
 }
 
 function flatMethodGenericArgs(methodName: string): string[] {
@@ -621,7 +625,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
   private transformStatementRaw(s: Statement): Statement | Statement[] {
     switch (s.kind) {
       case "VariableDeclaration": {
-        if (s.type && this.isTTListType(s.type)) {
+        if (s.type && this.isListContainerType(s.type)) {
           this.rememberListVariable(s.name, s.type);
         }
 
@@ -688,6 +692,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
           } else {
             s.initializer = this.transformExpression(s.initializer, true, s.loc?.startLine);
           }
+          const subclassListWrap = this.wrapSubclassFunctionalListAssignment(s);
+          if (subclassListWrap) return subclassListWrap;
           if (this.isSugarEnabled("ternary") && s.initializer.kind === "TernaryExpression") {
             const cond = s.initializer.condition;
             const trueExpr = s.initializer.trueExpr;
@@ -1475,9 +1481,12 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
             return this.transformExpression(arg, false, startLine);
           }
           const parameterType = signature?.parameters?.[index]?.type;
-          const delegateSignature =
-            (parameterType ? this.resolveDelegateSignatureForType(parameterType) : undefined) ??
-            this.resolveListProcessingLambdaSignature(receiverType, e, index);
+          const delegateSignature = this.resolveLambdaDelegateSignature(
+            receiverType,
+            e,
+            index,
+            parameterType,
+          );
           return this.materializeLambda(arg, startLine, delegateSignature);
         });
         return e;
@@ -1858,9 +1867,17 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       const declared = lambda.parameters[i];
       const expectedParam = expected[i];
       if (declared) {
-        const expectedType = expectedParam
-          ? this.typeRefFromName(expectedParam.type, declared.loc)
-          : declared.type;
+        const expectedTypeName = expectedParam?.type;
+        const declaredTypeName = typeRefToName(declared.type);
+        const useDeclaredType =
+          expectedTypeName &&
+          isLikelyGenericTypeParameter(expectedTypeName) &&
+          !isLikelyGenericTypeParameter(declaredTypeName);
+        const expectedType = useDeclaredType
+          ? declared.type
+          : expectedParam
+            ? this.typeRefFromName(expectedParam.type, declared.loc)
+            : declared.type;
         result.push({
           ...declared,
           type: this.cloneTypeRef(expectedType),
@@ -2017,6 +2034,123 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     return targetType ? this.resolveDelegateSignatureForType(targetType) : undefined;
   }
 
+  private resolveLambdaDelegateSignature(
+    receiverType: string | undefined,
+    invocation: MethodInvocation,
+    argumentIndex: number,
+    parameterType: string | undefined,
+  ): TypeCallableSignature | undefined {
+    const fromList = this.resolveListProcessingLambdaSignature(
+      receiverType,
+      invocation,
+      argumentIndex,
+    );
+    const fromDelegate = parameterType
+      ? this.resolveDelegateSignatureForType(parameterType)
+      : undefined;
+    if (!fromDelegate) return fromList;
+    if (!fromList) return fromDelegate;
+    return this.mergeDelegateSignaturesPreferringConcrete(fromList, fromDelegate);
+  }
+
+  private mergeDelegateSignaturesPreferringConcrete(
+    concrete: TypeCallableSignature,
+    generic: TypeCallableSignature,
+  ): TypeCallableSignature {
+    const parameters = (generic.parameters ?? []).map((parameter, index) => {
+      const concreteParam = concrete.parameters?.[index];
+      if (
+        concreteParam &&
+        isLikelyGenericTypeParameter(parameter.type) &&
+        !isLikelyGenericTypeParameter(concreteParam.type)
+      ) {
+        return concreteParam;
+      }
+      return concreteParam ?? parameter;
+    });
+    const returnType =
+      generic.type &&
+      isLikelyGenericTypeParameter(generic.type) &&
+      concrete.type &&
+      !isLikelyGenericTypeParameter(concrete.type)
+        ? concrete.type
+        : generic.type;
+    return {
+      type: returnType,
+      parameters,
+    };
+  }
+
+  private resolveListElementType(typeName: string): string | undefined {
+    return this.ctx.resolveListElementType?.(typeName) ?? listElementTypeFromName(typeName);
+  }
+
+  protected override resolveListElementTypeName(typeName: string): string | undefined {
+    return this.resolveListElementType(typeName);
+  }
+
+  protected override extractListElementType(type: TypeReference): TypeReference | undefined {
+    const direct = this.extractTTListElementType(type);
+    if (direct) return direct;
+    const elementType = this.resolveListElementType(type.name);
+    if (!elementType) return undefined;
+    return { kind: "TypeReference", name: elementType, typeArguments: [], loc: type.loc };
+  }
+
+  /**
+   * When a subclass list (e.g. `Pessoas`) calls inherited `Filter`/`Map` that
+   * returns the flat `TTList_T`, copy the result into a new subclass instance.
+   */
+  private wrapSubclassFunctionalListAssignment(
+    declaration: VariableDeclaration,
+  ): Statement[] | undefined {
+    if (!declaration.type || !declaration.initializer) return undefined;
+    if (this.isTTListType(declaration.type)) return undefined;
+    if (!this.isListContainerType(declaration.type)) return undefined;
+    if (declaration.initializer.kind !== "MethodInvocation") return undefined;
+
+    const call = declaration.initializer;
+    if (!call.callee) return undefined;
+    const method = call.methodName.toLowerCase().split("_")[0] ?? "";
+    if (method !== "filter") return undefined;
+
+    const elementType = this.resolveListElementType(declaration.type.name);
+    if (!elementType) return undefined;
+    const simpleElement = elementType.includes(".")
+      ? elementType.slice(elementType.lastIndexOf(".") + 1)
+      : elementType;
+    const flatListType: TypeReference = {
+      kind: "TypeReference",
+      name: `TTList_${simpleElement}`,
+      typeArguments: [],
+      loc: declaration.loc,
+    };
+
+    const tempName = this.freshSource();
+    const tempDeclaration: VariableDeclaration = {
+      kind: "VariableDeclaration",
+      name: tempName,
+      type: flatListType,
+      initializer: call,
+      loc: declaration.loc,
+    };
+    const resultDeclaration = this.createListResultDeclaration(declaration);
+    const pushStatement: ExpressionStatement = {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "MethodInvocation",
+        callee: { kind: "Identifier", name: declaration.name, loc: declaration.loc },
+        methodName: "Push",
+        typeArguments: [],
+        arguments: [{ kind: "Identifier", name: tempName, loc: declaration.loc }],
+        loc: declaration.loc,
+      },
+      loc: declaration.loc,
+    };
+
+    return [tempDeclaration, resultDeclaration, pushStatement];
+  }
+
   private resolveDelegateSignatureForType(typeName: string): TypeCallableSignature | undefined {
     return this.typeCatalog?.resolveDelegateSignature(typeName);
   }
@@ -2050,7 +2184,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     argumentIndex: number,
   ): TypeCallableSignature | undefined {
     if (argumentIndex !== 0) return undefined;
-    const itemType = receiverType ? listElementType(receiverType) : undefined;
+    const itemType = receiverType ? this.resolveListElementType(receiverType) : undefined;
     if (!itemType) return undefined;
 
     const method = invocation.methodName.toLowerCase().split("_")[0] ?? "";
@@ -2104,7 +2238,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     invocation: MethodInvocation,
   ): TypeCallableSignature {
     const substitutions = new Map<string, string>();
-    const itemType = receiverType ? listElementType(receiverType) : undefined;
+    const itemType = receiverType ? this.resolveListElementType(receiverType) : undefined;
     if (itemType) substitutions.set("t", itemType);
 
     const explicitArgs =
@@ -2233,10 +2367,18 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       if (expr.value === null) return "Variant";
       return inferLiteralType(String(expr.value));
     }
+    if (expr.kind === "MethodInvocation") {
+      const functionalListType = this.inferFunctionalListType(expr, startLine);
+      if (functionalListType) return functionalListType;
+    }
     const astType = this.typeCatalog?.resolve(expr, this.activeClass, this.activeMethod);
     if (astType) return astType;
-    const functionalListType = this.inferFunctionalListType(expr, startLine);
-    if (functionalListType) return functionalListType;
+    if (expr.kind === "MethodInvocation") {
+      const nameLower = expr.methodName.toLowerCase();
+      if (nameLower === "cstr" || nameLower === "char" || nameLower === "chr") {
+        return "String";
+      }
+    }
     if (expr.kind === "BinaryExpression") {
       if (expr.operator === "&") return "String";
       if (expr.operator === "+") {
@@ -2257,7 +2399,7 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     if (expr.kind !== "MethodInvocation" || !expr.callee) return undefined;
 
     const receiverType = this.inferType(expr.callee, startLine);
-    const itemType = receiverType ? listElementType(receiverType) : undefined;
+    const itemType = receiverType ? this.resolveListElementType(receiverType) : undefined;
     if (!itemType) return undefined;
 
     const method = expr.methodName.toLowerCase().split("_")[0] ?? "";

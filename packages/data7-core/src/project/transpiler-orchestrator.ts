@@ -118,6 +118,7 @@ export class SugarTranspiler {
         isTypeDescendantOf: ctx.isTypeDescendantOf?.bind(ctx),
         externalTemplates: ctx.externalGenericTemplates,
         requestedInstantiations: ctx.requestedGenericInstantiations,
+        requestedClassGenericMethods: ctx.requestedClassGenericMethods,
       });
       genericsWarnings = monomorphizer.monomorphize(finalUnit).warnings;
     }

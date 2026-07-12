@@ -44,7 +44,7 @@ export function addReturnUnrecommendedFix(
       : `Substituir por 'Exit ${payload.exitType}'`;
   const action = new vscode.CodeAction(label, vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
-  action.isPreferred = false;
+  action.isPreferred = true;
 
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, resolved.range, resolved.replacement);

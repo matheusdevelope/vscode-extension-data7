@@ -1180,6 +1180,7 @@ export class MembersRule implements Rule {
       nameLower === "unassigned";
 
     if (parent) {
+      if (parent.kind === "TypeReference") shouldSkip = true;
       if (parent.kind === "MemberAccess" && parent.member === name) shouldSkip = true;
       if (parent.kind === "MethodInvocation" && parent.methodName === name) shouldSkip = true;
       if (
@@ -1236,17 +1237,37 @@ export class MembersRule implements Rule {
         ((context.activeClassInheritedNames?.has(nameLower) ?? false) ||
           TypeResolver.findMember(context.activeClass.name, name, context.indexer) !== undefined)
       ) ||
-      this.isUnqualifiedSymbolDeclared(name, lineIdx, context) ||
-      SYSTEM_SYMBOL_NAMES.has(nameLower);
+      (this.getMissingImportNamespaceForSymbol(name, lineIdx, context) === undefined &&
+        (this.isWorkspaceSymbolAccessibleFromLine(name, lineIdx, context) ||
+          SYSTEM_SYMBOL_NAMES.has(nameLower) ||
+          this.isNamespaceSymbol(name, context)));
 
     if (isDeclared) return;
 
+    const missingNamespace = this.getMissingImportNamespaceForSymbol(name, lineIdx, context);
     const range = new vscode.Range(
       node.loc.startLine - 1,
       node.loc.startChar,
       node.loc.endLine - 1,
       node.loc.endChar,
     );
+
+    if (missingNamespace) {
+      const diag = new vscode.Diagnostic(
+        range,
+        `O tipo ou classe "${name}" pertence ao módulo "${missingNamespace}", que não foi importado neste arquivo.`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.MissingImport;
+      setDiagnosticPayload(diag, {
+        code: DiagnosticCodes.MissingImport,
+        namespace: missingNamespace,
+        typeName: name,
+      });
+      context.report(diag);
+      return;
+    }
+
     const diag = new vscode.Diagnostic(
       range,
       `O símbolo "${name}" não foi encontrado no escopo atual.`,
@@ -1314,13 +1335,35 @@ export class MembersRule implements Rule {
     );
   }
 
-  private isUnqualifiedSymbolDeclared(
+  private getMissingImportNamespaceForSymbol(
     name: string,
     lineIdx: number,
     context: RuleContext,
-  ): boolean {
-    const symbols = context.indexer.getSymbolsByName(name);
-    if (symbols.length === 0) return false;
+  ): string | undefined {
+    const wsSymbols = context.indexer
+      .getSymbolsByName(name)
+      .filter(
+        (s) =>
+          s.kind === "class" ||
+          s.kind === "structure" ||
+          s.kind === "delegate" ||
+          s.kind === "enum" ||
+          s.kind === "variable",
+      );
+
+    const sysSymbols = lookupSystemByName(name).filter(
+      (s) =>
+        s.kind === "class" ||
+        s.kind === "structure" ||
+        s.kind === "delegate" ||
+        s.kind === "enum" ||
+        s.kind === "variable",
+    );
+
+    const allMatches = [...wsSymbols, ...sysSymbols];
+    if (allMatches.length === 0) {
+      return undefined;
+    }
 
     const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
     const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
@@ -1333,24 +1376,70 @@ export class MembersRule implements Rule {
       )
       .sort((left, right) => right.range.startLine - left.range.startLine)[0]?.name;
 
-    return symbols.some((symbol) => {
-      if (
-        symbol.kind === "class" ||
-        symbol.kind === "structure" ||
-        symbol.kind === "delegate" ||
-        symbol.kind === "namespace"
-      ) {
-        return true;
-      }
+    const hasAccessibleMatch = allMatches.some((symbol) => {
       if (!symbol.containerName) return true;
-      if (!this.isNamespaceSymbol(symbol.containerName, context)) return false;
       const containerLower = symbol.containerName.toLowerCase();
       return containerLower === activeNamespace?.toLowerCase() || imports.has(containerLower);
     });
+
+    if (hasAccessibleMatch) {
+      return undefined;
+    }
+
+    return allMatches[0]?.containerName;
   }
 
   private isNamespaceSymbol(name: string, context: RuleContext): boolean {
     return context.indexer.getSymbolsByName(name).some((symbol) => symbol.kind === "namespace");
+  }
+
+  private isWorkspaceSymbolAccessibleFromLine(
+    name: string,
+    lineIdx: number,
+    context: RuleContext,
+  ): boolean {
+    const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
+    const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
+    const activeNamespace = fileSymbols?.symbols
+      .filter(
+        (symbol) =>
+          symbol.kind === "namespace" &&
+          lineIdx >= symbol.range.startLine &&
+          lineIdx <= symbol.range.endLine,
+      )
+      .sort((left, right) => right.range.startLine - left.range.startLine)[0]
+      ?.name.toLowerCase();
+    const activeClassName = context.activeClass?.name.toLowerCase();
+
+    return context.indexer.getSymbolsByName(name).some((symbol) => {
+      if (
+        symbol.kind === "namespace" ||
+        symbol.kind === "class" ||
+        symbol.kind === "structure" ||
+        symbol.kind === "enum" ||
+        symbol.kind === "delegate"
+      ) {
+        if (!symbol.containerName) return true;
+        const container = symbol.containerName.toLowerCase();
+        return container === activeNamespace || imports.has(container);
+      }
+
+      if (
+        symbol.kind === "variable" ||
+        symbol.kind === "method" ||
+        symbol.kind === "property" ||
+        symbol.kind === "indexed-property"
+      ) {
+        if (!symbol.containerName) return true;
+        const container = symbol.containerName.toLowerCase();
+        if (activeNamespace && container === activeNamespace) return true;
+        if (imports.has(container)) return true;
+        if (activeClassName && container === activeClassName) return true;
+        return false;
+      }
+
+      return false;
+    });
   }
 
   private isProjectGlobalVariableReceiver(receiver: Expression, context: RuleContext): boolean {
