@@ -101,6 +101,92 @@ describe("Builder", () => {
       });
     });
 
+    test("does not duplicate src/Modules when metadata casing differs from disk", async () => {
+      await withTempDir(async (tmp) => {
+        const { destXml } = seedProject(tmp);
+        const modulesDir = path.join(tmp, "src", "Modules", "helpers");
+        fs.mkdirSync(modulesDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_helper.bas"),
+          `Namespace mod_helper
+   Public Sub Help()
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const rootId = "{ROOT-FOLDER-ID}";
+        const modulesId = "{MODULES-LOWER-ID}";
+        const helpersId = "{HELPERS-LOWER-ID}";
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          virtualFolders: { nome: string; id: string; pastaId: string; aberta: string }[];
+        };
+        // Simulate metadata that still carries the lower-case spelling from an
+        // earlier decompile/rename while the filesystem reports "Modules".
+        config.virtualFolders = [
+          { nome: "Unidades (1)", id: rootId, pastaId: "", aberta: "Sim" },
+          { nome: "modules", id: modulesId, pastaId: rootId, aberta: "Nao" },
+          { nome: "helpers", id: helpersId, pastaId: modulesId, aberta: "Nao" },
+        ];
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+        Builder.buildProject(tmp, destXml);
+
+        const updated = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          virtualFolders: { nome: string; id: string; pastaId: string }[];
+        };
+        const root = updated.virtualFolders.find(
+          (f) => !f.pastaId && f.nome.startsWith("Unidades"),
+        );
+        assert.ok(root, "root Unidades folder must exist");
+
+        const moduleFolders = updated.virtualFolders.filter(
+          (f) => f.pastaId === root.id && /^modules$/i.test(f.nome),
+        );
+        assert.equal(
+          moduleFolders.length,
+          1,
+          `expected a single Modules folder under Unidades, got ${moduleFolders
+            .map((f) => f.nome)
+            .join(", ")}`,
+        );
+        assert.equal(moduleFolders[0]?.nome, "Modules", "display name must match disk casing");
+
+        const helpersFolders = updated.virtualFolders.filter(
+          (f) => f.pastaId === moduleFolders[0]?.id && f.nome === "helpers",
+        );
+        assert.equal(helpersFolders.length, 1, "helpers must not be duplicated under Modules");
+
+        // Also cover the already-duplicated metadata case (both casings present).
+        const dupModulesId = "{MODULES-UPPER-ID}";
+        const dupHelpersId = "{HELPERS-UPPER-ID}";
+        config.virtualFolders = [
+          { nome: "Unidades (1)", id: rootId, pastaId: "", aberta: "Sim" },
+          { nome: "modules", id: modulesId, pastaId: rootId, aberta: "Nao" },
+          { nome: "helpers", id: helpersId, pastaId: modulesId, aberta: "Nao" },
+          { nome: "Modules", id: dupModulesId, pastaId: rootId, aberta: "Nao" },
+          { nome: "helpers", id: dupHelpersId, pastaId: dupModulesId, aberta: "Nao" },
+        ];
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+        Builder.__resetBuildCacheForTests();
+        Builder.buildProject(tmp, destXml);
+
+        const cleaned = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          virtualFolders: { nome: string; id: string; pastaId: string }[];
+        };
+        const cleanedRoot = cleaned.virtualFolders.find(
+          (f) => !f.pastaId && f.nome.startsWith("Unidades"),
+        );
+        assert.ok(cleanedRoot);
+        const cleanedModules = cleaned.virtualFolders.filter(
+          (f) => f.pastaId === cleanedRoot.id && /^modules$/i.test(f.nome),
+        );
+        assert.equal(cleanedModules.length, 1, "duplicate Modules/modules entries must collapse");
+      });
+    });
+
     test("transpiles `For Each` sugar over StringList into the classic For form", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);

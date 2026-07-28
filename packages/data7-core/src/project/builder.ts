@@ -231,6 +231,20 @@ export class Builder {
   }
 
   /**
+   * Case-insensitive identity for virtual-folder relative paths.
+   * Windows (and default macOS) treat `src/Modules` and `src/modules` as the
+   * same directory; without normalizing, the builder would keep both entries
+   * from metadata and then create a second tree from the on-disk casing.
+   */
+  private static folderPathKey(relPath: string): string {
+    if (!relPath || relPath === "." || relPath === "") return "";
+    return relPath
+      .replace(/[/\\]+/g, "/")
+      .replace(/^\/+|\/+$/g, "")
+      .toLowerCase();
+  }
+
+  /**
    * Builds a {@link TranspileContext} backed by a detached indexer scoped to
    * THIS build. Using a detached indexer (instead of the extension singleton)
    * guarantees that build-time pre-indexing does not leak into the live
@@ -786,37 +800,91 @@ export class Builder {
     }
 
     const physicalDirs = this.getDirsRecursive(srcDir);
+    // Keys are normalized with folderPathKey() so Windows case variants collide.
     const foldersByPath = new Map<string, string>();
+    const folderRelPathById = new Map<string, string>();
 
     const buildPathMap = (folderId: string): string => {
+      const cached = folderRelPathById.get(folderId);
+      if (cached !== undefined) return cached;
       const folder = virtualFolders.find((f) => f.id === folderId);
       if (!folder) return "";
       if (folder.id === rootFolderId) {
         foldersByPath.set("", folder.id);
+        folderRelPathById.set(folder.id, "");
         return "";
       }
       const parentPath = buildPathMap(folder.pastaId);
       const sanitizedName = folder.nome.replace(/[\\/:*?"<>|]/g, "_");
       const fullPath = parentPath ? path.join(parentPath, sanitizedName) : sanitizedName;
-      foldersByPath.set(fullPath, folder.id);
+      const key = this.folderPathKey(fullPath);
+      // Prefer the first folder that claims a path; later case-variants are dropped below.
+      if (!foldersByPath.has(key)) {
+        foldersByPath.set(key, folder.id);
+      }
+      folderRelPathById.set(folder.id, fullPath);
       return fullPath;
     };
     virtualFolders.forEach((f) => buildPathMap(f.id));
 
+    // Collapse case-variant duplicates left over from earlier builds / renames
+    // (e.g. metadata "modules" + on-disk "Modules" both surviving existsSync).
+    const discardedFolderIds = new Set<string>();
+    const folderIdRemap = new Map<string, string>();
+    for (const folder of virtualFolders) {
+      if (folder.id === rootFolderId) continue;
+      const relPath = folderRelPathById.get(folder.id) ?? buildPathMap(folder.id);
+      const key = this.folderPathKey(relPath);
+      const keptId = foldersByPath.get(key);
+      if (keptId && keptId !== folder.id) {
+        discardedFolderIds.add(folder.id);
+        folderIdRemap.set(folder.id, keptId);
+      }
+    }
+    if (discardedFolderIds.size > 0) {
+      for (const folder of virtualFolders) {
+        const remappedParent = folderIdRemap.get(folder.pastaId);
+        if (remappedParent) {
+          folder.pastaId = remappedParent;
+        }
+      }
+      for (let i = virtualFolders.length - 1; i >= 0; i--) {
+        const folder = virtualFolders[i];
+        if (folder && discardedFolderIds.has(folder.id)) {
+          virtualFolders.splice(i, 1);
+          folderRelPathById.delete(folder.id);
+        }
+      }
+    }
+
+    const resolveFolderId = (relPath: string, fallbackId: string): string =>
+      foldersByPath.get(this.folderPathKey(relPath)) ?? fallbackId;
+
     physicalDirs.forEach((dir) => {
       const relPath = path.relative(srcDir, dir);
-      if (foldersByPath.has(relPath)) return;
+      const key = this.folderPathKey(relPath);
+      const existingId = foldersByPath.get(key);
+      if (existingId) {
+        const existing = virtualFolders.find((f) => f.id === existingId);
+        if (existing) {
+          // Sync display name to the casing reported by the filesystem.
+          existing.nome = path.basename(relPath);
+          folderRelPathById.set(existingId, relPath);
+        }
+        return;
+      }
 
       const parentDir = path.dirname(relPath);
       let parentId = rootFolderId;
       if (parentDir !== "." && parentDir !== "") {
-        parentId = foldersByPath.get(parentDir) ?? rootFolderId;
+        parentId = resolveFolderId(parentDir, rootFolderId);
       }
 
       const newId = generateProjectGuid();
       const folderName = path.basename(relPath);
       virtualFolders.push({ nome: folderName, id: newId, pastaId: parentId, aberta: "Nao" });
-      foldersByPath.set(relPath, newId);
+      foldersByPath.set(key, newId);
+      folderRelPathById.set(newId, relPath);
     });
 
     if (fs.existsSync(data7ModulesDir) && data7ModulesFolderId) {
@@ -825,18 +893,28 @@ export class Builder {
         const relPath = path.relative(data7ModulesDir, dir);
         const virtualRelPath = getVirtualRelPath(relPath);
         const fullRelPath = path.join("data7_modules", virtualRelPath);
-        if (foldersByPath.has(fullRelPath)) return;
+        const key = this.folderPathKey(fullRelPath);
+        const existingId = foldersByPath.get(key);
+        if (existingId) {
+          const existing = virtualFolders.find((f) => f.id === existingId);
+          if (existing && virtualRelPath) {
+            existing.nome = path.basename(virtualRelPath);
+            folderRelPathById.set(existingId, fullRelPath);
+          }
+          return;
+        }
 
         const parentDir = path.dirname(fullRelPath);
         let parentId = data7ModulesFolderId;
         if (parentDir !== "data7_modules" && parentDir !== "") {
-          parentId = foldersByPath.get(parentDir) ?? data7ModulesFolderId;
+          parentId = resolveFolderId(parentDir, data7ModulesFolderId);
         }
 
         const newId = generateProjectGuid();
         const folderName = path.basename(virtualRelPath);
         virtualFolders.push({ nome: folderName, id: newId, pastaId: parentId, aberta: "Nao" });
-        foldersByPath.set(fullRelPath, newId);
+        foldersByPath.set(key, newId);
+        folderRelPathById.set(newId, fullRelPath);
       });
     }
 
@@ -873,7 +951,7 @@ export class Builder {
       if (filename === "Principal") return;
 
       const relFileDir = path.relative(srcDir, path.dirname(filePath));
-      const folderId = relFileDir ? (foldersByPath.get(relFileDir) ?? rootFolderId) : rootFolderId;
+      const folderId = relFileDir ? resolveFolderId(relFileDir, rootFolderId) : rootFolderId;
       const rawCode = fs.readFileSync(filePath, "utf-8");
       const fileUri = pathToFileURL(filePath).toString();
       const transpiled = this.transpileWithCache(
@@ -936,7 +1014,7 @@ export class Builder {
           const virtualPath = virtualRelDir
             ? path.join("data7_modules", virtualRelDir)
             : "data7_modules";
-          const folderId = foldersByPath.get(virtualPath) ?? data7ModulesFolderId!;
+          const folderId = resolveFolderId(virtualPath, data7ModulesFolderId!);
 
           let rawCode = fs.readFileSync(filePath, "utf-8");
 
