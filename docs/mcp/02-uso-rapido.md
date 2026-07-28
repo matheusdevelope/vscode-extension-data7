@@ -88,31 +88,28 @@ O agente apenas copia/edita os identificadores conforme o seu domínio.
 
 O `data` carrega o payload tipado: o agente sabe exatamente que namespace adicionar via `Imports Collections`. Em seguida ele pode chamar `data7_suggest_import` com `typeName: "StringList"` para confirmar a sugestão.
 
-## 4. "Que açúcar uso para iterar sobre uma `StringList`?"
+## 4. "Como crio uma coleção tipada de produtos com Filter e Map?"
 
-**Tool acionado**: `data7_list_sugar`.
+**Tools acionados**: `data7://idioms` → `data7_list_sugar` → `data7_get_canonical_example`.
 
-**O que esperar**: lista de todos os 31 açúcares + exemplo canônico de cada um. Para `for-each`, a entrada inclui:
+**O que esperar**: o preamble de `data7://idioms` orienta a usar `Dim items[] As T` com sugar `array-list` em vez de `StringList` ou subclasse manual `TTList`. Em seguida, `data7_list_sugar` lista o sugar `array-list` com exemplos:
 
 ```json
 {
-  "name": "for-each",
-  "demonstratesFirst": "For Each com tipo explícito sobre Collections.StringList",
-  "hasExpected": true,
-  "examplesCount": 8,
+  "name": "array-list",
+  "demonstratesFirst": "array sugar em primitivos — Filter, Map, Some, Every, IndexOf, Reduce",
   "examples": [
-    "sugar/for-each/01-stringlist-explicit-type",
-    "sugar/for-each/02-stringlist-implicit-type",
-    "sugar/for-each/03-nested-loops",
-    "sugar/for-each/04-not-enumerable",
-    "sugar/for-each/05-method-call-operand"
+    "sugar/array-list/01-primitive-filter-map-reduce",
+    "sugar/array-list/02-object-windowing-chains",
+    "sugar/array-list/03-four-stage-chain",
+    "sugar/array-list/04-subclass-filter"
   ]
 }
 ```
 
-O agente carrega `data7://examples/sugar/for-each/01-stringlist-explicit-type` para ver a forma idiomática completa.
+O agente carrega `data7://examples/sugar/array-list/01-primitive-filter-map-reduce` ou invoca o prompt `data7_array_list_collection` com `{ elementTypeName: "Produto" }`.
 
-## 5. "Como faço `For Each` no formato nativo Data7?"
+## 5. "Como faço `For Each` / array-list no formato nativo Data7?"
 
 **Tool acionado**: `data7_transpile_bas` com um snippet sugarado.
 
@@ -120,13 +117,13 @@ O agente carrega `data7://examples/sugar/for-each/01-stringlist-explicit-type` p
 
 ```json
 {
-  "input": "Imports Collections\nDim list As StringList\nFor Each item As String In list\n   ' uses item\nNext",
-  "output": "Imports Collections\nDim list As StringList\nFor __idx0 = 0 To list.Count - 1\n   Dim item As String = list.Strings(__idx0)\n   ' uses item\nNext",
+  "input": "Imports mod_tlist\nDim numeros[] As Integer = [1, 2, 3]\nFor Each n As Integer In numeros\n   ' uses n\nNext",
+  "output": "... expansão nativa com TTList_Integer e loop indexado ...",
   "diagnostics": []
 }
 ```
 
-Os contadores `__idx0`, `__idx1` … evitam colisão com nomes do usuário. Se o tipo não fosse enumerável, o `diagnostics` traria `not-enumerable`.
+Para `StringList` (interop ERP), o mesmo tool expande `For Each item As String In list` para `list.Strings(__idx0)`. Se o tipo não for enumerável, `diagnostics` traz `not-enumerable`.
 
 ## 6. "Crie uma tela de cadastro" / "Quais controles existem para montar a tela?"
 

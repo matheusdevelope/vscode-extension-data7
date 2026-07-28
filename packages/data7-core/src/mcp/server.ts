@@ -47,6 +47,7 @@ import { registerSuggestImport } from "./tools/suggest-import";
 import { registerModuleSkeleton } from "./prompts/module-skeleton";
 import { registerTEnumPattern } from "./prompts/tenum-pattern";
 import { registerTypedRecordList } from "./prompts/typed-recordlist";
+import { registerArrayListCollection } from "./prompts/array-list-collection";
 import { registerFormSkeleton } from "./prompts/form-skeleton";
 import { createEmptyIndexer, loadWorkspaceIntoIndexer } from "./runtime/workspace-loader";
 import { getServerVersion, setDocsRootOverride } from "./utils/paths";
@@ -136,15 +137,16 @@ export function buildServer(options: BuildServerOptions = {}): {
   registerLintProject(server);
   registerSuggestImport(server, { getIndexer: () => indexer });
 
-  // Prompts (4 templates).
+  // Prompts (5 templates).
   registerModuleSkeleton(server);
   registerTEnumPattern(server);
+  registerArrayListCollection(server);
   registerTypedRecordList(server);
   registerFormSkeleton(server);
 
   const RESOURCE_COUNT = 10;
   const TOOL_COUNT = 12;
-  const PROMPT_COUNT = 4;
+  const PROMPT_COUNT = 5;
   // `registerMeta` last so it can carry the final capability counts.
   registerMeta(server, {
     resourceCount: RESOURCE_COUNT,

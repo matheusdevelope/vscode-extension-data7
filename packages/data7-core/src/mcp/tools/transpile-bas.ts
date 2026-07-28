@@ -46,7 +46,7 @@ export function registerTranspileBas(server: McpServer, deps: TranspileToolDeps)
     {
       title: "Expandir açúcares sintáticos para Data7 Basic nativo",
       description:
-        "Recebe um trecho de .bas com açúcares (For Each, ternário, interpolação, optional chaining, destructuring, etc.) e devolve a expansão nativa + lista de diagnósticos do transpilador.",
+        "Recebe um trecho de .bas com açúcares (array-list, For Each, ternário, interpolação, optional chaining, destructuring, etc.) e devolve a expansão nativa + lista de diagnósticos do transpilador.",
       inputSchema: {
         code: z.string().min(1).describe("Conteúdo `.bas` a transpilar (uma ou mais linhas)."),
       },

@@ -11,7 +11,7 @@
 | `data7://examples/{path}`                         | Um `.bas` específico de `docs/example/` + header `@example` parseado.                    |
 | `data7://examples/index`                          | Índice navegável dos 107 exemplos canônicos.                                              |
 | `data7://diagnostics/codes`                       | Catálogo dos 33 `DiagnosticCodes` com referência aos exemplos de trigger/Quick Fix.       |
-| `data7://idioms`                                  | Convenções idiomáticas + limitações conhecidas concatenadas em um único documento.        |
+| `data7://idioms`                                  | Preamble de preferências (array-list, generics) + convenções idiomáticas + limitações conhecidas. |
 | `data7://real-project/{path}`                     | Qualquer arquivo (`.bas`/`.json`/`.7Proj`/`.md`) do projeto de referência `mod_card_grouper`. |
 | `data7://official/{qualifiedName}`                | Assinatura + descrição + exemplo oficial de um símbolo nativo, extraído da Base de Conhecimento. |
 | `data7://official/index`                          | Lista dos 167 símbolos com exemplo oficial documentado.                                   |
@@ -36,6 +36,7 @@ Atenção: `Forms` é o maior namespace (~71 k tokens). Para detalhe de uma clas
 
 `{path}` é o caminho relativo dentro de `docs/example/`, sem extensão. Exemplos:
 
+- `data7://examples/sugar/array-list/01-primitive-filter-map-reduce`
 - `data7://examples/sugar/for-each/01-stringlist-explicit-type`
 - `data7://examples/diagnostics/missing-import/trigger`
 - `data7://examples/diagnostics/missing-import/after-quickfix`
@@ -51,7 +52,9 @@ Para cada `DiagnosticCode`, informa se existe trigger.bas e/ou after-quickfix.ba
 
 ### `data7://idioms`
 
-Documento consolidado contendo `11-limitacoes-conhecidas.md` + `12-convencoes-idiomaticas.md`. É o "what NOT to write" + "what to write instead" — leitura essencial para qualquer agente que escreva código Data7.
+Documento consolidado com **preamble de preferências para agentes** (hierarquia de coleções: array-list > TTList > StringList), seguido de `12-convencoes-idiomaticas.md` e `11-limitacoes-conhecidas.md`. Leitura essencial antes de gerar código novo.
+
+> O projeto `mod_card_grouper` em `data7://real-project/` usa padrões legados de coleção — consulte-o para telas e domínio ERP, não como modelo para coleções novas.
 
 ### `data7://real-project/{path}`
 
@@ -97,7 +100,7 @@ Payload JSON:
   "version": "0.1.0",
   "snapshotHash": "<12-hex>",
   "namespaces": ["Collections", "Data7", "..."],
-  "capabilities": { "resources": 10, "tools": 11, "prompts": 3 }
+  "capabilities": { "resources": 10, "tools": 12, "prompts": 5 }
 }
 ```
 

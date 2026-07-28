@@ -20,8 +20,9 @@ function buildSkeleton(
     "'@Module",
     `'@Description: ${moduleName} — descrição do módulo.`,
     "",
-    "' System Library",
-    "Imports Collections",
+    "' Workspace / extensão (coleções tipadas modernas)",
+    "Imports mod_tlist",
+    "' Imports Collections  ' use apenas para interop ERP (StringList)",
     "",
     `Namespace ${namespaceName}`,
     "",
@@ -57,7 +58,7 @@ export function registerModuleSkeleton(server: McpServer): void {
     {
       title: "Esqueleto canônico de módulo Data7 Basic",
       description:
-        "Gera um arquivo `.bas` com '@Module header, Imports blocks, Namespace e uma classe inicial. Use para começar um novo módulo do zero.",
+        "Gera um arquivo `.bas` com '@Module header, Imports blocks, Namespace e uma classe inicial. Imports mod_tlist por padrão para coleções modernas; use Collections apenas para interop StringList.",
       argsSchema: {
         moduleName: z
           .string()

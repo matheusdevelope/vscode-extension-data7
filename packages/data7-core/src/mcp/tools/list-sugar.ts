@@ -72,7 +72,7 @@ export function registerListSugar(server: McpServer): void {
     {
       title: "Listar açúcares sintáticos da extensão Data7",
       description:
-        "Enumera todos os açúcares atualmente implementados pelo SugarTranspiler (For Each, ternário, interpolação, destructuring, optional chaining, etc.) com link para o exemplo canônico de cada um.",
+        "Enumera todos os açúcares implementados pelo SugarTranspiler (array-list, For Each, ternário, interpolação, destructuring, optional chaining, generics, etc.) com link para o exemplo canônico de cada um.",
       inputSchema: {
         includeExpected: z
           .boolean()

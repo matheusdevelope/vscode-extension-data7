@@ -46,7 +46,7 @@ export function registerSearchSymbol(server: McpServer): void {
           .min(1)
           .describe(
             "Nome ou prefixo do símbolo a buscar (case-insensitive). " +
-              'Exemplos: "StringList", "TJSON", "Add".',
+              'Exemplos: "TTList", "StringList", "TJSON", "Add".',
           ),
         container: z
           .string()

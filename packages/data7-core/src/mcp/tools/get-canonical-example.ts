@@ -22,7 +22,7 @@ export function registerGetCanonicalExample(server: McpServer): void {
           .string()
           .min(1)
           .describe(
-            'Caminho relativo a docs/example/, sem extensão. Exemplo: "sugar/for-each/01-stringlist-explicit-type".',
+            'Caminho relativo a docs/example/, sem extensão. Exemplo: "sugar/array-list/01-primitive-filter-map-reduce".',
           ),
       },
     },

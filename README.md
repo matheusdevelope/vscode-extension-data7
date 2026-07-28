@@ -116,6 +116,8 @@ O projeto é estruturado como um monorepo via NPM Workspaces, contendo:
 
 O `@data7/core` nao importa o modulo runtime `vscode`; ele usa um adapter puro em `src/platform/vscode-api.ts`. A extensao instala a API real do VS Code no `activate`, enquanto CLI e MCP usam a implementacao standalone do core.
 
+O servidor MCP (`docs/mcp/`) orienta agentes de IA a preferir recursos modernos da linguagem — sugar `array-list`, generics (`TTList<T>`) e `Enun` — em vez de padroes legados como `StringList` manual ou subclasses `TTList` com CType. Consulte `data7://idioms` no cliente MCP.
+
 ### Documentação da System Library
 
 - **`Data7: Gerar Documentação da System Library`** â€” gera `.md` por namespace com classes, eventos, propriedades, cadeia de herança e cross-links.

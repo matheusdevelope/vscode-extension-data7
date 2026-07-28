@@ -4,17 +4,17 @@
 
 ## Cenário A — IA escreve `mod_payments` do zero
 
-**Prompt humano**: "Crie um módulo `mod_payments` com uma classe `TPayment` que herda de `TRecord` e tem os campos `Valor` (Double), `Data` (TDateTime) e `Status` (que é um enum com Pendente/Pago/Cancelado). Inclua também uma `TPaymentList` tipada."
+**Prompt humano**: "Crie um módulo `mod_payments` com uma classe `TPayment` que herda de `TRecord` e tem os campos `Valor` (Double), `Data` (TDateTime) e `Status` (que é um enum com Pendente/Pago/Cancelado). Inclua também uma coleção tipada de pagamentos."
 
 **Sequência de tools**:
 
-1. `data7://idioms` — IA carrega convenções idiomáticas + limitações para entender que `Status` não deve ser `Integer` mas sim TEnum.
-2. `data7_module_skeleton` com `{ moduleName: "mod_payments", namespaceName: "mod_payments", className: "TPayment", baseClass: "TRecord" }` — gera o esqueleto do arquivo principal.
+1. `data7://idioms` — IA carrega o preamble (preferir `array-list`) e convenções (TEnum para `Status`).
+2. `data7_module_skeleton` com `{ moduleName: "mod_payments", namespaceName: "mod_payments", className: "TPayment", baseClass: "TRecord" }` — gera o esqueleto com `Imports mod_tlist`.
 3. `data7_TEnum_pattern` com `{ enumName: "PaymentStatus", values: "Pendente,Pago,Cancelado" }` — gera a classe enum.
-4. `data7_typed_recordlist` com `{ elementTypeName: "TPayment" }` — gera `TPaymentList` + 3 delegates.
-5. `data7_lint_project` com os 3 arquivos (`mod_payments.bas` montado, `mod_payment_status.bas`, `mod_payment_list.bas`) — verifica que tudo está limpo antes de devolver para o humano.
+4. `data7_array_list_collection` com `{ elementTypeName: "TPayment", withFunctionalChain: true }` — gera `Dim payments[] As TPayment` com Filter/Map/Reduce.
+5. `data7_lint_project` com os arquivos montados — verifica que tudo está limpo antes de devolver para o humano.
 
-**Resultado**: o humano recebe 3 arquivos `.bas` prontos, todos passando no linter. Tempo: ~10 segundos. Tokens consumidos: ~3 k (vs ~60 k+ que seriam carregados se a IA usasse `AGENTS.md`).
+**Resultado**: o humano recebe arquivos `.bas` prontos com coleção moderna (`Dim payments[] As TPayment`), sem boilerplate CType/delegates. Para integração com código legado que exige `TPaymentList Inherits TTList`, o agente pode usar `data7_typed_recordlist` como fallback.
 
 ## Cenário B — IA refatora classe legada para usar TEnum
 

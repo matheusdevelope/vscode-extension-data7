@@ -57,6 +57,8 @@ Para qualificar como **enumerável**, o tipo precisa expor:
 
 O detector vive em [`src/analysis/enumerable-detector.ts`](../../src/analysis/enumerable-detector.ts), compartilhado entre transpilador e linter.
 
+`For Each` funciona em qualquer tipo enumerável: `StringList` (interop ERP), `TTList<T>` / `Dim x[] As T` (coleções modernas) e tipos customizados que expõem `Count` + indexer.
+
 | Fonte | Detalhes |
 |---|---|
 | Exemplos | [`docs/example/sugar/for-each/`](../example/sugar/for-each) |
@@ -207,6 +209,43 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 | C1-C4, C7 | `Class TList<T>` + monomorfização (com nested generics, constraints, primitivos via boxing) | [`generic-tlist/`](../example/sugar/generic-tlist) |
 | C5 | default indexer (convenção: `Property Item`) | [`default-indexer/`](../example/sugar/default-indexer) |
 | C6 | `For Each (k, v) In dict` (convenção: For + Names + ValueFromIndex) | [`for-each-kv/`](../example/sugar/for-each-kv) |
+| C8 | **`array-list`** — `Dim x[] As T`, literais `[...]`, `...spread`, `x[i]`, cadeias `.Filter/.Map/.Reduce` | [`array-list/`](../example/sugar/array-list) |
+
+#### `array-list` — coleções tipadas modernas
+
+Sintaxe suportada (requer `language.sugars` + `language.generics`):
+
+```basic
+Imports mod_tlist
+
+Dim numeros[] As Integer = [1, 2, 3, 4, 5]
+Dim mais[] As Integer = [0, ...numeros, 6]
+Dim valor As Integer = numeros[0]
+
+Dim pares[] As Integer = numeros.Filter(
+   Function(pItem As Integer) As Boolean pItem Mod 2 = 0
+)
+
+Dim soma As Integer = numeros.Reduce<Integer>(
+   Function(pAcc As Integer, pItem As Integer) As Integer
+      Return pAcc + pItem
+   End Function,
+   0
+)
+```
+
+Cadeias multilinha exigem `_` após o ponto:
+
+```basic
+produtos. _
+   Filter(Function(p As Produto) As Boolean p.Ativo). _
+   Map<Double>(Function(p As Produto) As Double p.Preco). _
+   Reduce<Double>(Function(acc As Double, v As Double) As Double acc + v, 0.0)
+```
+
+Lambdas usam sintaxe VB-like (`Function(...) As T expr` ou bloco `End Function`) — **não** use `=>`.
+
+Materializa `Dim x[] As T` em `TTList_T` (monomorfizado). Operações funcionais (`map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce`, `forEach`) expandem para loops nativos inline.
 
 ### Fase D — Enum declarativo
 
@@ -249,7 +288,7 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 | H2 | function reference (convenção: nome direto) | [`function-ref/`](../example/sugar/function-ref) |
 | H3 | lambda sem captura (convenção: Shared Function nomeada) | [`lambda/`](../example/sugar/lambda) |
 
-`array-list` tambem cobre operacoes funcionais sobre `TTList`: `map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce` e `forEach`. `map` e `filter` podem usar arrow de expressao (`x => x * 2`) ou bloco (`(x As Integer, idx As Integer) => { ... Return valor }`). Em bloco, o ultimo statement precisa ser `Return <expr>`; esse valor e convertido para `Push(<expr>)` no `map` ou para a condicao do `If` no `filter`. Funcoes que retornam `TTList_*` tambem podem retornar diretamente `lista.map(...)` ou `lista.filter(...)`; o transpiler cria uma temporaria, emite o loop nativo e retorna essa temporaria.
+O sugar `array-list` (Fase C8) cobre operações funcionais sobre `TTList`: `map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce` e `forEach`. Delegates usam sintaxe VB-like — expressão inline (`Function(p As Integer) As Boolean p > 0`) ou bloco com `Return` (`Function(...) ... End Function`). Em bloco no `map`, o último `Return` vira `Push(<expr>)`; no `filter`, vira condição do `If`. Funções que retornam `TTList_*` podem retornar diretamente `lista.Filter(...)` ou `lista.Map(...)`; o transpiler cria temporária, emite o loop nativo e retorna essa temporária.
 
 ### Fase I — Tipos só design-time
 

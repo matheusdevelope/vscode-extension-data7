@@ -40,7 +40,7 @@ export function registerSuggestImport(server: McpServer, deps: SuggestImportTool
           .string()
           .min(1)
           .describe(
-            'Nome simples do tipo (sem namespace). Exemplos: "StringList", "TForm", "TFTP", "TResourceLoader".',
+            'Nome simples do tipo (sem namespace). Exemplos: "TTList", "StringList", "TForm", "TFTP".',
           ),
       },
     },

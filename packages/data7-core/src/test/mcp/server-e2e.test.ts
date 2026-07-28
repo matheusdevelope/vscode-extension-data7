@@ -69,6 +69,21 @@ describe("MCP server e2e — resource reads", () => {
     assert.match(firstText(r), /String/);
   });
 
+  test("idioms resource leads with modern collection guidance", async () => {
+    const r = await client.readResource({ uri: "data7://idioms" });
+    const text = firstText(r);
+    const conventionsIdx = text.indexOf("# 12 — Convenções idiomáticas");
+    const limitationsIdx = text.indexOf("# 11 — Limitações conhecidas");
+    assert.match(text, /Hierarquia de coleções/);
+    assert.match(text, /array-list/);
+    assert.ok(conventionsIdx >= 0, "expected conventions chapter");
+    assert.ok(limitationsIdx >= 0, "expected limitations chapter");
+    assert.ok(
+      conventionsIdx < limitationsIdx,
+      "conventions should appear before limitations in idioms resource",
+    );
+  });
+
   test("meta snapshot reports the capability counts", async () => {
     const r = await client.readResource({ uri: "data7://meta/snapshot" });
     const meta = JSON.parse(firstText(r)) as {
@@ -76,7 +91,7 @@ describe("MCP server e2e — resource reads", () => {
     };
     assert.equal(meta.capabilities.resources, 10);
     assert.equal(meta.capabilities.tools, 12);
-    assert.equal(meta.capabilities.prompts, 4);
+    assert.equal(meta.capabilities.prompts, 5);
   });
 });
 
@@ -124,9 +139,22 @@ describe("MCP server e2e — tools", () => {
 });
 
 describe("MCP server e2e — prompts", () => {
-  test("prompts/list exposes 4 prompts", async () => {
+  test("prompts/list exposes 5 prompts", async () => {
     const r = await client.listPrompts();
-    assert.equal(r.prompts.length, 4);
+    assert.equal(r.prompts.length, 5);
+    const names = r.prompts.map((p) => p.name);
+    assert.ok(names.includes("data7_array_list_collection"));
+  });
+
+  test("data7_array_list_collection generates modern array-list pattern", async () => {
+    const r = await client.getPrompt({
+      name: "data7_array_list_collection",
+      arguments: { elementTypeName: "TPayment" },
+    });
+    const text = r.messages[0]?.content.type === "text" ? r.messages[0].content.text : "";
+    assert.match(text, /Dim items\[\] As TPayment/);
+    assert.match(text, /Imports mod_tlist/);
+    assert.match(text, /\.Filter\(/);
   });
 
   test("data7_form_skeleton(list) generates a grid listing screen", async () => {

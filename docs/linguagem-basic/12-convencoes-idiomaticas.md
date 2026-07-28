@@ -2,6 +2,30 @@
 
 > Padrões de uso recorrentes em projetos Data7 reais — as "boas práticas de facto" extraídas de [`mod_card_grouper/`](./mod_card_grouper) e da System Library.
 
+## 0. Hierarquia de coleções
+
+Para **código novo**, prefira os recursos modernos da extensão antes de padrões legados:
+
+| Cenário | Preferir | Fallback legado |
+|---|---|---|
+| Coleção tipada nova | `Dim items[] As T` + literais `[...]` + `.Filter/.Map/.Reduce` | — |
+| Objetos de domínio | `TTList<T>` via `mod_tlist` + array-list | Subclasse `Inherits TTList<T>` quando `Filter` retorna tipo concreto ([`04-subclass-filter.bas`](../example/sugar/array-list/04-subclass-filter.bas)) |
+| Iteração simples | `For Each` sobre `TTList` / `[]` | `For Each` sobre `StringList` |
+| Strings / interop ERP | `StringList` + `Imports Collections` | — |
+| Enum rico | `Enun` sugar → `TEnum` | Prompt MCP `data7_TEnum_pattern` |
+| Boilerplate CType/delegates | **Evitar** em código novo | Prompt MCP `data7_typed_recordlist` |
+
+Exemplos canônicos de array-list:
+
+- [`sugar/array-list/01-primitive-filter-map-reduce`](../example/sugar/array-list/01-primitive-filter-map-reduce.bas) — primitivos, Filter/Map/Reduce
+- [`sugar/array-list/02-object-windowing-chains`](../example/sugar/array-list/02-object-windowing-chains.bas) — objetos, First/Last/Slice
+- [`sugar/array-list/03-four-stage-chain`](../example/sugar/array-list/03-four-stage-chain.bas) — cadeia multi-estágio
+- [`sugar/array-list/04-subclass-filter`](../example/sugar/array-list/04-subclass-filter.bas) — subclasse quando Filter retorna tipo concreto
+
+Requisitos: `language.sugars` e `language.generics` habilitados nas configurações da extensão (`data7.features`).
+
+> **Nota sobre `mod_card_grouper`**: o projeto de referência usa padrões de produção anteriores (subclasses `TTList` manuais). Trate-o como exemplo de telas e domínio ERP, não como modelo para coleções novas.
+
 ## 1. Padrão `TEnum`
 
 Para enums ricos além do `Enum` nativo simples, o padrão idiomático é uma classe que herda de `TEnum`:
@@ -81,7 +105,39 @@ Next
 
 ## 2. Padrão `TTList` tipado
 
-Como `StringList` é o único tipo de coleção nativo e não suporta generics, o padrão é **subclasse tipada** de uma `TTList` base genérica (que existe em um módulo do workspace, ex.: `mod_base_list`):
+### 2.1 Padrão moderno (preferido): `array-list` + generics
+
+Para coleções tipadas novas, use o sugar `array-list` sobre `TTList<T>` (`mod_tlist`):
+
+```basic
+Imports mod_tlist
+
+Namespace mod_domain
+   Sub Processar()
+      Dim records[] As CardRecord = [New CardRecord(), New CardRecord()]
+
+      Dim ativos[] As CardRecord = records.Filter(
+         Function(p As CardRecord) As Boolean p.Ativo
+      )
+
+      Dim total As Double = ativos. _
+         Map<Double>(Function(p As CardRecord) As Double p.Valor). _
+         Reduce<Double>(Function(acc As Double, v As Double) As Double acc + v, 0.0)
+
+      For Each item As CardRecord In ativos
+         item.Processar()
+      Next
+   End Sub
+End Namespace
+```
+
+Quando `Filter` precisa retornar uma subclasse concreta (ex.: `Pessoas` em vez de `TTList<Pessoa>`), use `Class Pessoas Inherits TTList<Pessoa>` — vide [`04-subclass-filter.bas`](../example/sugar/array-list/04-subclass-filter.bas).
+
+Generics e monomorfização: vide [07-generics.md](./07-generics.md). Prompt MCP para gerar coleção moderna: `data7_array_list_collection`.
+
+### 2.2 Fallback legado (pré-generics / integração)
+
+Use **somente** para integração com código legado ou quando a API exige subclasse com re-tipagem manual via CType. O prompt MCP `data7_typed_recordlist` gera este boilerplate:
 
 ```basic
 Class CardRecordList
@@ -131,13 +187,11 @@ Class CardRecordList
 End Class
 ```
 
-**Características**:
+**Características do fallback**:
 
 - Cada método herdado é "**re-typed**" via `CType(MyBase.<X>(), CardRecord)`.
 - Delegates dedicados (`CardRecordFindDelegate`, `CardRecordMapDelegate`, `CardRecordForEachDelegate`) com `T = CardRecord` resolvido.
 - Métodos funcionais (`Find`, `Filter`, `ForEach`, `Map`) carregam `extra As Variant` para emular captura.
-
-**Futuro**: monomorfização permitirá que `CardRecordList = TList<CardRecord>` seja escrito **diretamente**, sem subclasse boilerplate (vide [07-generics.md](./07-generics.md)).
 
 ## 3. Construtor delegando a base + opções com `With`
 

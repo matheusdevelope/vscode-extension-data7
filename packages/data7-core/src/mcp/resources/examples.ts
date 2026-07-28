@@ -135,7 +135,7 @@ function buildIndexMarkdown(): string {
   lines.push("");
   lines.push(
     "Carregue um exemplo específico via `data7://examples/<category>/<slug>` " +
-      "(por exemplo `data7://examples/sugar/for-each/01-stringlist-explicit-type`).",
+      "(por exemplo `data7://examples/sugar/array-list/01-primitive-filter-map-reduce`).",
   );
   lines.push("");
 

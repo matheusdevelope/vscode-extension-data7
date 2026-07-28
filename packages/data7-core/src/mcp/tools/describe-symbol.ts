@@ -199,13 +199,13 @@ export function registerDescribeSymbol(server: McpServer): void {
     {
       title: "Descrição completa de um símbolo nativo",
       description:
-        "Devolve a definição canônica de um símbolo da System Library + cadeia de herança + exemplo oficial do ERP (quando disponível). Use com nome simples (StringList) ou qualificado (Collections.StringList.Add).",
+        "Devolve a definição canônica de um símbolo da System Library + cadeia de herança + exemplo oficial do ERP (quando disponível). Use com nome simples (TTList, StringList) ou qualificado (Collections.StringList.Add).",
       inputSchema: {
         qualifiedName: z
           .string()
           .min(1)
           .describe(
-            "Nome do símbolo. Aceita forma simples (StringList) ou qualificada (Collections.StringList.Add).",
+            "Nome do símbolo. Aceita forma simples (TTList, StringList) ou qualificada (Collections.StringList.Add).",
           ),
         includeMembers: z
           .boolean()

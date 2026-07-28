@@ -1,6 +1,6 @@
 # 05 — Referência de Prompts
 
-> 4 prompt templates expostos pelo servidor MCP. Cada prompt recebe argumentos tipados (validados via Zod) e devolve uma mensagem `role: "user"` com código Data7 Basic pronto para revisar/colar.
+> 5 prompt templates expostos pelo servidor MCP. Cada prompt recebe argumentos tipados (validados via Zod) e devolve uma mensagem `role: "user"` com código Data7 Basic pronto para revisar/colar.
 
 ## Resumo
 
@@ -8,7 +8,8 @@
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `data7_module_skeleton`      | Esqueleto canônico de um módulo (`'@Module` header + Imports + Namespace + Class).          |
 | `data7_TEnum_pattern`     | Classe TEnum completa (Initialize lazy + 3 overloads de Load + Shared Function por valor). |
-| `data7_typed_recordlist`     | Subclasse tipada de TTList (Find/Filter/Map/ForEach + delegates dedicados).            |
+| `data7_array_list_collection` | Coleção tipada moderna (`Dim items[] As T`, literais, Filter/Map/Reduce). **Preferido para código novo.** |
+| `data7_typed_recordlist`     | Subclasse legada de TTList (Find/Filter/Map/ForEach + delegates + CType). **Somente integração legado.** |
 | `data7_form_skeleton`        | Esqueleto de uma tela (Form privado + `_build` com layout `Align` + eventos + `Show`/`Free`). |
 
 ## Detalhe por prompt
@@ -32,8 +33,9 @@
 '@Module
 '@Description: mod_payments — descrição do módulo.
 
-' System Library
-Imports Collections
+' Workspace / extensão (coleções tipadas modernas)
+Imports mod_tlist
+' Imports Collections  ' use apenas para interop ERP (StringList)
 
 Namespace mod_payments
 
@@ -98,7 +100,51 @@ Class CardAdm
 End Class
 ```
 
-Idiomático para enums ricos baseados em `TEnum`. Use quando a enum nativa `Enum X / End Enum` simples não for suficiente.
+Idiomático para enums ricos baseados em `TEnum`. Use quando a enum nativa `Enum X / End Enum` simples não for suficiente. Para coleções tipadas, prefira `Enun` + `array-list`.
+
+### `data7_array_list_collection`
+
+**Args**:
+
+```json
+{
+  "elementTypeName": "CardRecord",
+  "isObject": true,
+  "withFunctionalChain": true
+}
+```
+
+**O que gera**: padrão moderno com `Imports mod_tlist`, `Dim items[] As T = [...]`, `.Filter/.Map/.Reduce` e `For Each`:
+
+```basic
+Imports mod_tlist
+
+Namespace mod_cardrecord_collection
+   Class CardRecord
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Sub ExemploColecao()
+      Dim items[] As CardRecord = [
+         New CardRecord(),
+         New CardRecord()
+      ]
+      Dim filtrados[] As CardRecord = items.Filter(
+         Function(p As CardRecord) As Boolean True
+      )
+      For Each item As CardRecord In items
+         ' processa item
+      Next
+   End Sub
+End Namespace
+```
+
+Padrão **preferido** para coleções tipadas novas. Requer `language.sugars` e `language.generics` habilitados.
 
 ### `data7_typed_recordlist`
 
@@ -110,7 +156,7 @@ Idiomático para enums ricos baseados em `TEnum`. Use quando a enum nativa `Enum
 }
 ```
 
-**O que gera**: a subclasse tipada de `TTList` + 3 delegates dedicados (`CardRecordFindDelegate`, `CardRecordMapDelegate`, `CardRecordForEachDelegate`), seguindo o padrão de [`docs/linguagem-basic/12-convencoes-idiomaticas.md § 2`](../linguagem-basic/12-convencoes-idiomaticas.md):
+**O que gera**: subclasse legada de `TTList` + 3 delegates dedicados, seguindo [12-convencoes-idiomaticas.md § 2.2](../linguagem-basic/12-convencoes-idiomaticas.md#22-fallback-legado-pré-generics):
 
 ```basic
 Delegate Function CardRecordFindDelegate(pValue As CardRecord, i As Integer, extra As Variant) As Boolean
@@ -137,7 +183,7 @@ Class CardRecordList
 End Class
 ```
 
-Forma idiomática enquanto o monomorfizador AST de generics não está liberado por padrão.
+Forma **legada** — use somente para integração com código existente ou quando `Filter` precisa retornar subclasse concreta. Para código novo, use `data7_array_list_collection`.
 
 ### `data7_form_skeleton`
 
@@ -220,7 +266,8 @@ Todos validam os argumentos via Zod antes de chamar — argumentos inválidos vi
 | -------------------------------------------------------------------- | ------------------------------ |
 | "Crie um arquivo novo `mod_xxx` para fazer Y."                       | `data7_module_skeleton`        |
 | "Eu preciso de um enum com esses 3 valores."                         | `data7_TEnum_pattern`       |
-| "Preciso de uma coleção tipada de `TFoo` com Find/Map/Filter."       | `data7_typed_recordlist`       |
+| "Preciso de uma coleção tipada de `TFoo` com Filter/Map."            | `data7_array_list_collection` |
+| "Preciso integrar com subclasse TTList legada de `TFoo`."            | `data7_typed_recordlist`       |
 | "Crie uma tela/formulário para X."                                   | `data7_form_skeleton`          |
 | "Como ler `TJSONObject`?"                                            | (use o Tool `data7_describe_symbol`, não prompt) |
 | "Eu já tenho o código mas quero entender o açúcar."                  | (use Tool `data7_transpile_bas`) |

@@ -75,11 +75,13 @@ Mesma raiz da limitação #7. A função decora uma coleção como parâmetro, n
 
 Tipos como `type Result<T, E> = Ok<T> | Err<E>` não têm representação nominal em runtime. Use enum-like (TEnum pattern) + campo `Variant` ou herança polimórfica.
 
-### 10. Sem coleção genérica nativa
+### 10. Sem coleção genérica nativa no ERP
 
-A System Library oferece **apenas** `Collections.StringList` (lista de strings + objetos opcionais). Não há `TList<T>`, `TDictionary<K,V>`, `TQueue<T>`, `TStack<T>` nativos.
+A System Library oferece **apenas** `Collections.StringList` (lista de strings + objetos opcionais) como coleção nativa do runtime. Não há `TList<T>`, `TDictionary<K,V>`, `TQueue<T>`, `TStack<T>` nativos no compilador Data7.
 
-**Workaround atual**: classes tipadas derivando de uma `TTList` base (vide [12-convencoes-idiomaticas.md](./12-convencoes-idiomaticas.md)) ou templates `TList<T>` monomorfizados pelo Builder/preview/MCP (vide [07-generics.md](./07-generics.md)).
+**Extensão (tooling)**: a extensão adiciona `TTList<T>` via `mod_tlist`, generics monomorfizados e o sugar `array-list` (`Dim items[] As T`, literais `[...]`, cadeias `.Filter/.Map/.Reduce`). Vide [12-convencoes-idiomaticas.md § 0](./12-convencoes-idiomaticas.md#0--hierarquia-de-coleções) e [07-generics.md](./07-generics.md).
+
+**Fallback legado**: subclasse manual com CType/delegates — vide [12-convencoes-idiomaticas.md § 2](./12-convencoes-idiomaticas.md#2-padrão-ttlist-tipado).
 
 ### 11. `Enum` nativo é limitado
 
@@ -105,32 +107,40 @@ const x = { nome: "João", idade: 30 };  // TypeScript
 
 Não existe no Data7. Tem que declarar uma `Class` nominal. Workaround `Variant` com pares Nome=Valor em `StringList` é pobre.
 
-### 15. Sem array literal `[...]`
+### 15. Sem array literal `[...]` no runtime nativo — **resolvido pelo sugar `array-list`**
 
-```typescript
-const xs = [1, 2, 3];  // TypeScript
-```
-
-Não existe diretamente. **Workaround atual**:
+O compilador Data7 nativo não aceita `[1, 2, 3]`. Com o sugar `array-list` habilitado (`language.sugars`), use:
 
 ```basic
-Dim xs As New StringList
-xs.Add("1")
-xs.Add("2")
-xs.Add("3")
+Imports mod_tlist
+Dim numeros[] As Integer = [1, 2, 3, 4, 5]
+Dim mais[] As Integer = [0, ...numeros, 6]
 ```
 
-**Workaround futuro**: sugar `From { 1, 2, 3 }` em construtor (vide [10-acucares-atuais.md § B4](./10-acucares-atuais.md#fase-b--inicializacao-e-objeto)).
+Exemplos canônicos: [`docs/example/sugar/array-list/`](../example/sugar/array-list/).
 
-### 16. Sem `Slice`, `Splice`, `Filter`, `Map`, `Reduce` em `StringList`
+**Fallback nativo** (sem sugars): `Dim xs As New StringList` + `Add` manual, ou `Push` em `TTList<T>`.
 
-A `StringList` é uma lista crua sem métodos funcionais. Para coleções tipadas você implementa esses operadores manualmente herdando de uma `TTList` base (vide [06-delegates.md](./06-delegates.md)).
+### 16. Sem API funcional em `StringList` nativa
 
-### 17. Sem subscript operator `lista[i]`
+A `StringList` do ERP continua sendo uma lista crua — **sem** `Filter`, `Map`, `Reduce` nativos.
 
-A sintaxe é sempre **chamada de método**: `lista.Strings(i)`, `lista.Item(0)`.
+Para operações funcionais, prefira `Dim items[] As T` / `TTList<T>` com o sugar `array-list` (vide [10-acucares-atuais.md § C8](./10-acucares-atuais.md#fase-c--coleções-e-generics)).
 
-**Workaround futuro**: default indexer (vide [10-acucares-atuais.md § C5](./10-acucares-atuais.md#fase-c--coletas-e-generics)) — `lista(i)` vira `lista.Item(i)`.
+**Fallback legado**: subclasse manual herdando `TTList` com re-tipagem via CType (vide [06-delegates.md](./06-delegates.md) e [12-convencoes-idiomaticas.md § 2](./12-convencoes-idiomaticas.md#22-fallback-legado-pré-generics)).
+
+### 17. Sem subscript operator `lista[i]` no runtime nativo — **resolvido pelo sugar `array-list`**
+
+Em `StringList` nativa, a sintaxe é **chamada de método**: `lista.Strings(i)`, `lista.Item(0)`.
+
+Com `array-list`, use `lista[i]` em coleções `Dim x[] As T` / `TTList<T>`:
+
+```basic
+Dim valor As Integer = numeros[0]
+numeros[1] = 42
+```
+
+Vide [`array-list/01-primitive-filter-map-reduce`](../example/sugar/array-list/01-primitive-filter-map-reduce.bas).
 
 ### 18. Comportamento ambíguo de `+` com `String` + numérico
 

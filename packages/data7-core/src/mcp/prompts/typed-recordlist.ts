@@ -1,11 +1,8 @@
 /**
- * Prompt `data7_typed_recordlist` — generates the canonical typed
- * subclass of `TTList` for a given element type. The pattern
- * comes from `12-convencoes-idiomaticas.md` § 2: since `StringList`
- * is the only native collection and generics are still being rolled
- * out by the AST monomorphizer, the idiomatic way to expose a typed
- * collection today is a thin subclass with re-typed Find/Filter/Map/
- * ForEach methods plus a set of dedicated delegate types.
+ * Prompt `data7_typed_recordlist` — generates the legacy typed
+ * subclass of `TTList` with CType/delegates. Use only for legacy
+ * integration or when Filter must return a concrete subclass type.
+ * For new code, prefer `data7_array_list_collection`.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -82,9 +79,9 @@ export function registerTypedRecordList(server: McpServer): void {
   server.registerPrompt(
     "data7_typed_recordlist",
     {
-      title: "Subclasse tipada de TTList",
+      title: "Subclasse tipada de TTList (legado)",
       description:
-        "Gera a subclasse canônica TTList<T> com delegates Find/Map/ForEach e métodos re-tipados via CType. Use quando o monomorfizador de generics ainda não cobre o caso.",
+        "Gera subclasse TTList com delegates Find/Map/ForEach e re-tipagem via CType. Use somente para integração legada ou quando Filter retorna subclasse concreta. Para código novo, prefira data7_array_list_collection.",
       argsSchema: {
         elementTypeName: z
           .string()
@@ -102,9 +99,9 @@ export function registerTypedRecordList(server: McpServer): void {
             content: {
               type: "text",
               text:
-                `Crie a subclasse tipada \`${args.elementTypeName}List\` usando o padrão TTList. ` +
-                "Adicione os três delegates (Find / Map / ForEach) e re-tipe os métodos herdados via CType. " +
-                "Este padrão é a forma idiomática enquanto o monomorfizador AST não estiver liberado para todos os casos.\n\n" +
+                `Crie a subclasse tipada legada \`${args.elementTypeName}List\` usando o padrão TTList com CType. ` +
+                "Use **somente** para integração com código legado ou quando Filter precisa retornar subclasse concreta. " +
+                "Para código novo, prefira `data7_array_list_collection` com `Dim items[] As T`.\n\n" +
                 "```basic\n" +
                 code +
                 "\n```",

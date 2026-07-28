@@ -32,7 +32,7 @@ describe("MCP server — capability counts", () => {
     assert.equal(counts.tools, 12);
   });
 
-  test("registers 4 Prompts", () => {
-    assert.equal(counts.prompts, 4);
+  test("registers 5 Prompts", () => {
+    assert.equal(counts.prompts, 5);
   });
 });

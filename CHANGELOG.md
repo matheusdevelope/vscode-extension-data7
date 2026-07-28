@@ -8,6 +8,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ## [Unreleased]
 
 ### Adicionado
+- **MCP — orientação para linguagem moderna:** `data7://idioms` agora abre com preamble de hierarquia de coleções (array-list > TTList > StringList), convenções antes de limitações, e novo prompt `data7_array_list_collection`. Documentação em `docs/linguagem-basic/` (§10/15–17, §0/§2 de convenções, Fase C8 de açúcares) e manual `docs/mcp/` atualizados. `data7_typed_recordlist` reframeado como fallback legado.
 - **Testes — array-list + generics:** exemplos canônicos em `docs/example/sugar/array-list/` (primitivos, objetos, cadeia de 4 estágios, subclasse `Pessoas`), fixture compartilhada `ttlist-stub.bas`, helper `array-list-workspace.ts` (monomorfização como no builder), suite `array-list-generics.integration.test.ts` e bloco `array-list + generics integration` em `diagnostics.test.ts`. O `builder.test.ts` cobre build E2E dos exemplos 01 e 03 com `Map_OrdemServico`/`Reduce_String`.
 
 ### Corrigido
