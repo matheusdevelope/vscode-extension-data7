@@ -6,7 +6,7 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
   namespaceContainer: "Forms",
   inheritsFrom: "TWinControl",
   description:
-    "Classe base VCL (`Vcl.StdCtrls.TCustomEdit`) de todos os controles de edição textual nativos do Windows — TEdit, TMaskEdit, TMemo, TButtonedEdit, etc. Adiciona Text, ReadOnly, MaxLength, seleção e operações de clipboard sobre TWinControl.",
+    "Classe base VCL (`Vcl.StdCtrls.TCustomEdit`) de todos os controles de edição textual nativos do Windows — TEdit, TMaskEdit, TMemo, etc. Adiciona Text, ReadOnly, MaxLength, seleção e operações de clipboard sobre TWinControl.",
   properties: [
     { name: "Text", type: "String", description: "Texto exibido e editado no controle." },
     {

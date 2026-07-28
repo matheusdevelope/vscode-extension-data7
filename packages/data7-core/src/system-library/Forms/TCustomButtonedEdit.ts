@@ -6,7 +6,7 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
   namespaceContainer: "Forms",
   inheritsFrom: "TCustomEdit",
   description:
-    "Classe ancestral VCL (`Vcl.ExtCtrls.TCustomButtonedEdit`) de edits com botões embutidos. Adiciona LeftButton e RightButton (TEditButton) sobre TCustomEdit. Base de TButtonedEdit.",
+    "Classe ancestral VCL (`Vcl.ExtCtrls.TCustomButtonedEdit`) de edits com botões embutidos. Adiciona LeftButton e RightButton (TEditButton) sobre TCustomEdit.",
   properties: [
     {
       name: "LeftButton",

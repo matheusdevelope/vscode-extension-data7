@@ -54,7 +54,6 @@ import { symbols as sym_Forms_TcxCustomEdit } from "./Forms/TcxCustomEdit";
 import { symbols as sym_Forms_TcxCustomTextEdit } from "./Forms/TcxCustomTextEdit";
 import { symbols as sym_Forms_TCustomEdit } from "./Forms/TCustomEdit";
 import { symbols as sym_Forms_TCustomButtonedEdit } from "./Forms/TCustomButtonedEdit";
-import { symbols as sym_Forms_TButtonedEdit } from "./Forms/TButtonedEdit";
 import { symbols as sym_Forms_compat } from "./Forms/_compat";
 
 // ───────── Forms — namespace + utility ─────────
@@ -278,7 +277,6 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Forms_TcxCustomTextEdit,
   ...sym_Forms_TCustomEdit,
   ...sym_Forms_TCustomButtonedEdit,
-  ...sym_Forms_TButtonedEdit,
   ...sym_Forms_compat,
   // Forms — utility
   ...sym_Forms_Forms,

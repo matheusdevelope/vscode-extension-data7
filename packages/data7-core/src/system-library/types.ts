@@ -143,7 +143,6 @@ export type SystemContainer =
   | "TcxCustomTextEdit"
   | "TCustomEdit"
   | "TCustomButtonedEdit"
-  | "TButtonedEdit"
   | "TEditLink"
 
   // ───────── Forms — non-visual / utility components ─────────

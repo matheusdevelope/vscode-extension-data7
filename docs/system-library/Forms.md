@@ -110,7 +110,6 @@ TPersistent  (externo)
    │     │  └─ TRzTabSheet
    │     ├─ TCustomEdit
    │     │  └─ TCustomButtonedEdit
-   │     │     └─ TButtonedEdit
    │     ├─ TLabeledEdit
    │     └─ TScrollingWinControl
    │        ├─ TCustomForm
@@ -1334,7 +1333,7 @@ Classe base de todo controle visual da VCL Delphi. Define posição, dimensão, 
 
 **Cadeia completa:** [`TCustomEdit`](#tcustomedit) → [`TWinControl`](#twincontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
 
-Classe ancestral VCL (`Vcl.ExtCtrls.TCustomButtonedEdit`) de edits com botões embutidos. Adiciona LeftButton e RightButton (TEditButton) sobre TCustomEdit. Base de TButtonedEdit.
+Classe ancestral VCL (`Vcl.ExtCtrls.TCustomButtonedEdit`) de edits com botões embutidos. Adiciona LeftButton e RightButton (TEditButton) sobre TCustomEdit.
 
 **Propriedades:**
 
@@ -1371,7 +1370,7 @@ Variante de TWinControl que combina janela nativa do Windows com superfície de 
 
 **Cadeia completa:** [`TWinControl`](#twincontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
 
-Classe base VCL (`Vcl.StdCtrls.TCustomEdit`) de todos os controles de edição textual nativos do Windows — TEdit, TMaskEdit, TMemo, TButtonedEdit, etc. Adiciona Text, ReadOnly, MaxLength, seleção e operações de clipboard sobre TWinControl.
+Classe base VCL (`Vcl.StdCtrls.TCustomEdit`) de todos os controles de edição textual nativos do Windows — TEdit, TMaskEdit, TMemo, etc. Adiciona Text, ReadOnly, MaxLength, seleção e operações de clipboard sobre TWinControl.
 
 **Propriedades:**
 
@@ -3663,8 +3662,7 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 | `TBevelEdges` | `-` | Set de TBevelEdge — quais bordas exibem bevel (beLeft, beTop, beRight, beBottom). |
 | `TBorderIcons` | `-` | Set Delphi `set of TBorderIcon` — coleção de ícones exibidos na barra de título do formulário (biSystemMenu, biMinimize, biMaximize, biHelp). |
 | `TBorderStyle` | `-` | Tipo da propriedade BorderStyle de controles com moldura (Panel, Grid, edits). Sobreposto com TFormBorderStyle: aqui só existem bsNone/bsSingle (controles de moldura simples). |
-| `TBotao` | [`TSSCustomButton`](#tsscustombutton) | Botão base do Data7 (cor, fonte e estilo padronizados). Ancestral de CommandButton, ButtonOk e ButtonCancel. |
-| `TButtonedEdit` | [`TCustomButtonedEdit`](#tcustombuttonededit) | Edit nativo VCL com dois botões opcionais embutidos (`Vcl.ExtCtrls.TButtonedEdit`). Use Images para suprir ícones a partir de um TImageList, referenciados pelas propriedades LeftButton e RightButton herdadas. Não introduz membros próprios além dos herdados de TCustomButtonedEdit. |
+| `TBotao` | [`TSSCustomButton`](#tsscustombutton) | Botão base do Data7 (cor, fonte e estilo padronizados). Ancestral de CommandButton, ButtonOk e ButtonCancel.
 | `TControlGroup` | [`TGraphicControl`](#tgraphiccontrol) | Container visual de agrupamento — ancestral de ControlGroup. |
 | `TCustomDrawGrid` | [`TCustomGrid`](#tcustomgrid) | Variante de TCustomGrid com suporte a desenho customizado de células (OnDrawCell). |
 | `TCustomForm` | [`TScrollingWinControl`](#tscrollingwincontrol) | Classe ancestral de TForm na VCL Delphi. Adiciona ciclo de vida do formulário, modalidade, menu e suporte a OLE. |
