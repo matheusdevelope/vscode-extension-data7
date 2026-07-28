@@ -17,6 +17,13 @@ export interface RuleContext {
   readonly diagnostics: vscode.Diagnostic[];
   readonly unitIndex: LintUnitIndex;
 
+  /** Innermost namespace covering the current walker position (AST-authoritative). */
+  readonly activeNamespace: string | undefined;
+  /**
+   * Outer→inner class names covering the current walker position.
+   * Used so nested types (e.g. `WinAPI.Mouse`) are visible without `Imports`.
+   */
+  readonly activeClassNesting: readonly string[];
   readonly activeClass: ClassDeclaration | undefined;
   readonly activeClassInheritedNames: ReadonlySet<string> | undefined;
   readonly activeMethod: MethodDeclaration | undefined;

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import {
-  parseBasic,
+  LanguageProcessor,
   TypeResolver,
   WorkspaceSymbolIndexer,
   getChainPrefix,
@@ -239,7 +239,11 @@ export class D7BasicSignatureHelpProvider implements vscode.SignatureHelpProvide
     memberName: string,
     document: vscode.TextDocument,
   ): SymbolInfo | undefined {
-    const parsed = parseBasic(document.getText());
+    const parsed = LanguageProcessor.getInstance().getOrParse(
+      document.uri.toString(),
+      document.getText(),
+      document.version,
+    );
     const classDeclaration = findClassDeclaration(parsed.unit.members, className);
     if (!classDeclaration) return undefined;
 

@@ -8,7 +8,6 @@ import {
   type GenericTemplateInfo,
   type GenericUsageOccurrence,
 } from "./generics-analyzer";
-import { parseBasic } from "../project/parser";
 import { SugarRegistry } from "../project/sugar-registry";
 import {
   ASTWalker,
@@ -22,6 +21,7 @@ import { SemanticLintCache } from "./semantic-lint-cache";
 import { DeclarationLintCache } from "./declaration-lint-cache";
 import { clearLintTypeResolutionCachesForUnit } from "./lint-type-resolution-cache";
 import { LanguageProcessor } from "./language-processor";
+import { AnalysisCache } from "./analysis-cache";
 import { hashContent } from "../utils/content-hash";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 
@@ -450,33 +450,10 @@ class SymbolIndexerWalker extends ASTWalker {
 
 export class SymbolParser {
   public static parseBasFile(fileUri: string, content: string): FileSymbols {
-    const lines = content.split(/\r?\n/);
-    const fileSymbols: FileSymbols = {
-      fileUri,
-      filePath: vscode.Uri.parse(fileUri).fsPath,
-      content,
-      imports: [],
-      symbols: [],
-    };
-
-    try {
-      const { unit } = parseBasic(content);
-
-      // Extract imports from top-level ImportsDeclarations
-      for (const member of unit.members) {
-        if (member.kind === "ImportsDeclaration") {
-          fileSymbols.imports.push(member.target);
-        }
-      }
-
-      const walker = new SymbolIndexerWalker(fileUri, lines);
-      walker.run(unit);
-      fileSymbols.symbols = walker.symbols;
-    } catch (err: unknown) {
-      logger.error(`SymbolParser: AST walk failed for ${fileUri}.`, err);
-    }
-
-    return fileSymbols;
+    // Share the LanguageProcessor parse path (sugars/generics plugins + token cache)
+    // so cold indexing stays aligned with live IDE analysis.
+    const cached = LanguageProcessor.getInstance().getOrParse(fileUri, content);
+    return SymbolParser.parseFromAst(fileUri, content, cached.unit);
   }
 
   public static parseFromAst(fileUri: string, content: string, unit: CompilationUnit): FileSymbols {
@@ -825,7 +802,26 @@ export class WorkspaceSymbolIndexer {
 
     for (const folder of workspaceFolders) {
       const folderPath = folder.uri.fsPath;
-      await this.scanDir(folderPath);
+      const diskCache = AnalysisCache.load(folderPath);
+      await this.scanDir(folderPath, diskCache);
+      // Persist warm symbol metadata for faster subsequent cold starts.
+      const files: {
+        fileUri: string;
+        content: string;
+        symbols: FileSymbols;
+      }[] = [];
+      for (const fileSym of this.cache.values()) {
+        const fsPath = fileSym.filePath.toLowerCase();
+        const root = folderPath.toLowerCase();
+        if (fsPath === root || fsPath.startsWith(root + path.sep.toLowerCase())) {
+          files.push({
+            fileUri: fileSym.fileUri,
+            content: fileSym.content,
+            symbols: fileSym,
+          });
+        }
+      }
+      AnalysisCache.save(folderPath, files);
     }
     this.rebuildDependencyGraph();
     this.findMemberCache.clear();
@@ -894,22 +890,43 @@ export class WorkspaceSymbolIndexer {
     });
   }
 
-  private async scanDir(dir: string): Promise<void> {
+  private async scanDir(
+    dir: string,
+    diskCache?: Map<
+      string,
+      {
+        fileUri: string;
+        contentHash: string;
+        imports: readonly string[];
+        symbols: readonly SymbolInfo[];
+      }
+    >,
+  ): Promise<void> {
     if (!fs.existsSync(dir)) return;
     if (isExcluded(dir)) return;
-    const list = fs.readdirSync(dir);
-    for (const file of list) {
-      const filePath = path.join(dir, file);
-      const stat = fs.statSync(filePath);
-      if (stat.isDirectory()) {
-        await this.scanDir(filePath);
+    let entries: fs.Dirent[];
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    let processed = 0;
+    for (const entry of entries) {
+      const filePath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await this.scanDir(filePath, diskCache);
       } else {
         const ext = path.extname(filePath).toLowerCase();
         if (ext === ".bas" || ext === ".d7b") {
           if (isExcluded(filePath)) continue;
           const fileUri = vscode.Uri.file(filePath).toString();
-          this.indexFile(fileUri);
+          this.indexFile(fileUri, diskCache);
         }
+      }
+      processed++;
+      // Yield to the event loop so the extension host stays responsive during cold index.
+      if (processed % 8 === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
       }
     }
   }
@@ -917,7 +934,18 @@ export class WorkspaceSymbolIndexer {
   /**
    * Parse and cache a single file by URI
    */
-  public indexFile(fileUri: string): void {
+  public indexFile(
+    fileUri: string,
+    diskCache?: Map<
+      string,
+      {
+        fileUri: string;
+        contentHash: string;
+        imports: readonly string[];
+        symbols: readonly SymbolInfo[];
+      }
+    >,
+  ): void {
     try {
       const filePath = vscode.Uri.parse(fileUri).fsPath;
       if (isExcluded(filePath)) return;
@@ -934,7 +962,17 @@ export class WorkspaceSymbolIndexer {
 
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, "utf-8");
-        const parsed = SymbolParser.parseBasFile(fileUri, content);
+        let parsed =
+          diskCache !== undefined
+            ? AnalysisCache.tryGetFresh(diskCache, fileUri, content)
+            : undefined;
+        if (!parsed) {
+          parsed = SymbolParser.parseBasFile(fileUri, content);
+        } else {
+          parsed.filePath = filePath;
+          // Still warm LanguageProcessor AST cache for providers.
+          LanguageProcessor.getInstance().getOrParse(fileUri, content);
+        }
         if (readConfiguration().features.language.generics) {
           appendGenericInstantiations(parsed, fileUri, content, this);
         }
@@ -1145,7 +1183,9 @@ export class WorkspaceSymbolIndexer {
   public getFileSymbols(fileUri: string): FileSymbols | undefined {
     const key = this.getCacheKey(fileUri);
     const fileSyms = this.cache.get(key);
-    if (fileSyms && !this.isFileValid(fileSyms.fileUri)) {
+    if (!fileSyms) return undefined;
+    // Detached/worker snapshots are authoritative. Host still prunes deleted files.
+    if (this.lintCacheScope === "host" && !this.isFileValid(fileSyms.fileUri)) {
       this.cache.delete(key);
       return undefined;
     }
@@ -1230,55 +1270,40 @@ export class WorkspaceSymbolIndexer {
     contextLine?: number,
   ): SymbolInfo | undefined {
     const lowerName = name.toLowerCase();
-    const allSymbols = this.getAllSymbols();
 
-    // 1. Look for exact match. When more than one cached symbol shares the
-    //    name (e.g. the same namespace exists in `data7_modules/` AND in a
-    //    repository file that was opened outside the workspace), prefer the
-    //    workspace copy. This keeps go-to-definition and hover deterministic
-    //    even if the cache still holds a stale outside-workspace entry from
-    //    a previous session.
-    const matches = allSymbols.filter((s) => s.name.toLowerCase() === lowerName);
-    const validMatches = matches.filter((s) => this.isFileValid(s.fileUri));
-    const candidatePool = validMatches.length > 0 ? validMatches : matches;
+    // 1. O(1) name-map lookup. Prefer workspace copies when duplicates exist.
+    //    Hot path does not call fs.existsSync — validateCache / cold index prune stale entries.
+    const matches = this.getSymbolsByName(name);
     const contextualMatch = WorkspaceSymbolIndexer.pickContextualNameMatch(
-      candidatePool,
+      matches,
       contextFileUri,
       contextLine,
       this,
     );
-    const match = contextualMatch ?? WorkspaceSymbolIndexer.preferWorkspaceMatch(candidatePool);
+    const match = contextualMatch ?? WorkspaceSymbolIndexer.preferWorkspaceMatch(matches);
     if (match) {
-      if (this.isFileValid(match.fileUri)) {
-        return match;
-      }
-      return undefined;
+      return match;
     }
 
-    // 2. If we have imports, look under imported namespaces
+    // 2. If we have imports, look under imported namespaces via container map.
     if (contextFileUri) {
       const fileSym = this.getFileSymbols(contextFileUri);
       if (fileSym) {
         for (const imp of fileSym.imports) {
-          const qualifiedName = `${imp}.${name}`.toLowerCase();
-          // Match qualified symbols or namespaces — keep the same
-          // workspace-first preference here so an imported namespace also
-          // resolves to its workspace copy when duplicates exist.
-          const qualifiedMatches = allSymbols.filter((s) => {
-            const symbolQualName = s.containerName
-              ? `${s.containerName}.${s.name}`.toLowerCase()
-              : s.name.toLowerCase();
-            return symbolQualName === qualifiedName;
-          });
-          const validQualified = qualifiedMatches.filter((s) => this.isFileValid(s.fileUri));
-          const match = WorkspaceSymbolIndexer.preferWorkspaceMatch(
-            validQualified.length > 0 ? validQualified : qualifiedMatches,
+          const containerSymbols = this.getSymbolsByContainer(imp);
+          const qualifiedMatches = containerSymbols.filter(
+            (s) => s.name.toLowerCase() === lowerName,
           );
-          if (match) {
-            if (this.isFileValid(match.fileUri)) {
-              return match;
-            }
-            return undefined;
+          const preferred = WorkspaceSymbolIndexer.preferWorkspaceMatch(qualifiedMatches);
+          if (preferred) {
+            return preferred;
+          }
+          // Also match fully-qualified symbol names stored without container split.
+          const qualifiedName = `${imp}.${name}`;
+          const byFullName = this.getSymbolsByName(qualifiedName);
+          const fullPreferred = WorkspaceSymbolIndexer.preferWorkspaceMatch(byFullName);
+          if (fullPreferred) {
+            return fullPreferred;
           }
         }
       }

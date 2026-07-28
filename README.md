@@ -68,7 +68,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 Os diagnÃƒÂ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported`, `elseif-whitespace`, `missing-then`, `return-unrecommended` e `return-assignment-in-catch`, com quick fixes correspondentes para o arquivo atual, `source.fixAll.data7` e correção em massa do workspace. Para `missing-then`, comentários inline e seu espaçamento de alinhamento são preservados.
 
 - **Decompositor** (`.7Proj` â†’ árvore de `.bas`): abre um `.7Proj` e gera a estrutura fÃ­sica do projeto.
-- **Builder** (`.bas` â†’ `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências.
+- **Builder** (`.bas` â†’ `.7Proj`): empacota a árvore de volta no XML do Data7 com escaping seguro, GUID novo e respeitando dependências; pastas virtuais são reconciliadas de forma case-insensitive (evita duplicar `Modules`/`modules` no Windows).
 - **Fluxo manual seguro**: decompõe `.7Proj` para edição e recompila sob comando explÃ­cito.
 - **Run** (F5): executa o projeto via Executor do Data7.
 - **Open in DevStudio**: abre o `.7Proj` no Data7 Developer Studio.

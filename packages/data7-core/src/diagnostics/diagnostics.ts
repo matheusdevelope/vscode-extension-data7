@@ -46,6 +46,7 @@ import {
   areSameGenericTemplateCompatible,
   findClosest,
   isLikelyGenericTypeParameter,
+  isSymbolContainerAccessible,
 } from "./diagnostic-helpers";
 import {
   ASTWalker,
@@ -173,6 +174,10 @@ export class DiagnosticsLinter {
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
     diagnostics: vscode.Diagnostic[],
+    options?: {
+      readonly activeNamespace?: string;
+      readonly activeClassNesting?: readonly string[];
+    },
   ): void {
     const typeLower = typeName.toLowerCase();
     if (PRIMITIVE_TYPES.has(typeLower)) return;
@@ -189,7 +194,10 @@ export class DiagnosticsLinter {
     }
 
     const fileSyms = indexer.getFileSymbols(document.uri.toString());
-    const activeNamespace = fileSyms?.symbols.find((s) => s.kind === "namespace")?.name;
+    const activeNamespace =
+      options?.activeNamespace ?? fileSyms?.symbols.find((s) => s.kind === "namespace")?.name;
+    const imports = new Set((fileSyms?.imports ?? []).map((imp) => imp.toLowerCase()));
+    const activeClassNesting = options?.activeClassNesting ?? [];
 
     const workspaceMatches = indexer
       .getSymbolsByName(name)
@@ -224,6 +232,8 @@ export class DiagnosticsLinter {
       diag.code = DiagnosticCodes.UnknownType;
 
       const allTypes = new Set<string>();
+      let typeBudget = 0;
+      const TYPE_SUGGESTION_BUDGET = 400;
       for (const s of indexer.getAllSymbols()) {
         if (
           s.kind === "class" ||
@@ -232,6 +242,8 @@ export class DiagnosticsLinter {
           s.kind === "enum"
         ) {
           allTypes.add(s.name);
+          typeBudget++;
+          if (typeBudget >= TYPE_SUGGESTION_BUDGET) break;
         }
       }
       for (const s of SYSTEM_SYMBOLS) {
@@ -239,7 +251,7 @@ export class DiagnosticsLinter {
           allTypes.add(s.name);
         }
       }
-      const suggestions = findClosest(typeName, Array.from(allTypes));
+      const suggestions = findClosest(typeName, Array.from(allTypes), { maxCandidates: 250 });
       setDiagnosticPayload(diag, {
         code: DiagnosticCodes.UnknownType,
         typeName,
@@ -262,13 +274,14 @@ export class DiagnosticsLinter {
           isValid = true;
           break;
         }
-        const nsLower = ns.toLowerCase();
 
-        if (activeNamespace?.toLowerCase() === nsLower) {
-          isValid = true;
-          break;
-        }
-        if (fileSyms?.imports.some((imp) => imp.toLowerCase() === nsLower)) {
+        if (
+          isSymbolContainerAccessible(ns, {
+            activeNamespace,
+            activeClassNesting,
+            imports,
+          })
+        ) {
           isValid = true;
           break;
         }
@@ -509,6 +522,7 @@ export class DiagnosticsLinter {
   public static runAdvancedDiagnostics(
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
+    options?: { readonly isCancelled?: () => boolean },
   ): vscode.Diagnostic[] {
     const uriStr = document.uri.toString();
     const fingerprint = indexer.buildLintContextFingerprint(uriStr, document.getText());
@@ -519,7 +533,10 @@ export class DiagnosticsLinter {
     }
 
     LintPipelineProfiler.recordSemanticCacheMiss(uriStr);
-    const result = new DiagnosticsLinter().runDiagnostics(document, indexer);
+    const result = new DiagnosticsLinter().runDiagnostics(document, indexer, options);
+    if (options?.isCancelled?.()) {
+      return result;
+    }
     SemanticLintCache.getInstance().set(indexer.lintCacheScope, uriStr, fingerprint, result);
     return result;
   }
@@ -527,6 +544,7 @@ export class DiagnosticsLinter {
   public runDiagnostics(
     document: vscode.TextDocument,
     indexer: WorkspaceSymbolIndexer,
+    options?: { readonly isCancelled?: () => boolean },
   ): vscode.Diagnostic[] {
     if (document.uri.scheme === "data7-preview") {
       return [];
@@ -537,6 +555,7 @@ export class DiagnosticsLinter {
     try {
       const diagnostics: vscode.Diagnostic[] = [];
       const text = document.getText();
+      const isCancelled = options?.isCancelled;
 
       if (this.isStrict) {
         const { errors } = parseBasic(text, { plugins: [] });
@@ -577,6 +596,9 @@ export class DiagnosticsLinter {
       });
 
       // Run the AST-based linter walker
+      if (isCancelled?.()) {
+        return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+      }
       const tWalker = new TimeTracker(" -> Walker do Linter");
       const unitIndex = LintUnitIndex.build(unit);
       const walker = new DiagnosticsASTWalker(
@@ -586,9 +608,14 @@ export class DiagnosticsLinter {
         lines,
         diagnostics,
         unitIndex,
+        isCancelled,
       );
       walker.run(unit);
       tWalker.stopAndLog();
+
+      if (isCancelled?.()) {
+        return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+      }
 
       // Validate duplicate declarations using AST structure
       const tDup = new TimeTracker(" -> Declaracoes Duplicadas");
@@ -773,6 +800,7 @@ function nodeScopeFromLoc(
 }
 
 export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
+  public activeNamespace: string | undefined;
   public activeClass: ClassDeclaration | undefined;
   public activeClassInheritedNames: Set<string> | undefined;
   public activeMethod: MethodDeclaration | undefined;
@@ -780,6 +808,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
   public conditionalBlockDepth = 0;
 
   private readonly parentStackInternal: Node[] = [];
+  private readonly activeClassNestingInternal: string[] = [];
   private readonly scopes: Set<string>[] = [new Set()];
   private readonly allowedTernariesInternal = new Set<Node>();
   private readonly typeParamStack: Set<string>[] = [];
@@ -787,6 +816,9 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
   private readonly rules: readonly Rule[];
   private readonly declarationLintCache = DeclarationLintCache.getInstance();
   private readonly lintDependencyFingerprint: string;
+  private readonly isCancelled?: () => boolean;
+  private nodesVisited = 0;
+  private cancelled = false;
   public readonly unitIndex: LintUnitIndex;
 
   constructor(
@@ -796,6 +828,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     public readonly lines: readonly string[],
     public readonly diagnostics: vscode.Diagnostic[],
     unitIndex: LintUnitIndex,
+    isCancelled?: () => boolean,
   ) {
     super();
     this.unitIndex = unitIndex;
@@ -803,6 +836,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     this.lintDependencyFingerprint = indexer.buildLintDependencyFingerprint(
       document.uri.toString(),
     );
+    this.isCancelled = isCancelled;
     this.rules = [
       new DeclarationsRule(),
       new ImportsRule(),
@@ -818,6 +852,10 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     return this.parentStackInternal;
   }
 
+  public get activeClassNesting(): readonly string[] {
+    return this.activeClassNestingInternal;
+  }
+
   public get allowedTernaries(): ReadonlySet<Node> {
     return this.allowedTernariesInternal;
   }
@@ -829,8 +867,10 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
 
     this.walk(unit);
 
-    for (const rule of this.rules) {
-      rule.onEnd?.(unit, this);
+    if (!this.cancelled) {
+      for (const rule of this.rules) {
+        rule.onEnd?.(unit, this);
+      }
     }
   }
 
@@ -870,6 +910,13 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
   }
 
   public override walk(node: Node): void {
+    if (this.cancelled) return;
+    this.nodesVisited++;
+    if (this.nodesVisited % 64 === 0 && this.isCancelled?.()) {
+      this.cancelled = true;
+      return;
+    }
+
     const parent = this.parentStackInternal[this.parentStackInternal.length - 1];
     const isConditional = node.kind === "IfStatement" || node.kind === "SelectCaseStatement";
 
@@ -887,6 +934,7 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
       this.addLocal(node.name);
     }
 
+    const prevNamespace = this.activeNamespace;
     const prevClass = this.activeClass;
     const prevClassInheritedNames = this.activeClassInheritedNames;
     const prevMethod = this.activeMethod;
@@ -895,7 +943,10 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     let pushedScope = false;
     let pushedTypeParams = false;
 
-    if (node.kind === "ClassDeclaration") {
+    if (node.kind === "NamespaceDeclaration") {
+      this.activeNamespace = node.name;
+    } else if (node.kind === "ClassDeclaration") {
+      this.activeClassNestingInternal.push(node.name);
       this.activeClass = node;
       const classSymbol = TypeResolver.findClassSymbol(node.name, this.indexer);
       this.activeClassInheritedNames = classSymbol
@@ -1045,6 +1096,10 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
       this.typeParamStack.pop();
     }
 
+    this.activeNamespace = prevNamespace;
+    if (node.kind === "ClassDeclaration") {
+      this.activeClassNestingInternal.pop();
+    }
     this.activeClass = prevClass;
     this.activeClassInheritedNames = prevClassInheritedNames;
     this.activeMethod = prevMethod;

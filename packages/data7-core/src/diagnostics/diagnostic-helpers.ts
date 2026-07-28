@@ -6,10 +6,76 @@ import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
 import type { UnknownMemberPayload } from "./diagnostic-codes";
 import type { Expression, MethodInvocation, TypeReference } from "../project/ast/ast";
 
-export function findClosest(query: string, candidates: readonly string[]): string[] {
+/**
+ * Whether a symbol's `containerName` is visible at the current walker position.
+ * Covers: same namespace, explicit Imports, and enclosing/nested class stacks
+ * (e.g. `Mouse` nested in `Class WinAPI` referenced as `Mouse.SetPos` inside
+ * `WinAPI` / sibling nested classes — container is the outer class, not the namespace).
+ */
+export function isSymbolContainerAccessible(
+  containerName: string | undefined,
+  options: {
+    readonly activeNamespace?: string;
+    readonly activeClassNesting?: readonly string[];
+    readonly imports?: ReadonlySet<string>;
+  },
+): boolean {
+  if (!containerName) return true;
+  const containerLower = containerName.toLowerCase();
+  if (options.activeNamespace?.toLowerCase() === containerLower) return true;
+  if (options.imports?.has(containerLower)) return true;
+  if (options.activeClassNesting?.some((name) => name.toLowerCase() === containerLower)) {
+    return true;
+  }
+  return false;
+}
+
+export function findClosest(
+  query: string,
+  candidates: readonly string[],
+  options?: { readonly maxCandidates?: number },
+): string[] {
   const q = query.toLowerCase();
-  const ranked: { name: string; dist: number }[] = [];
+  const maxCandidates = options?.maxCandidates ?? 250;
+
+  // Prefer cheap prefix / substring filters before Levenshtein.
+  const prefixHits: string[] = [];
+  const containsHits: string[] = [];
   for (const candidate of candidates) {
+    const lower = candidate.toLowerCase();
+    if (lower.startsWith(q) && lower !== q) {
+      prefixHits.push(candidate);
+      if (prefixHits.length >= 3) {
+        return prefixHits.slice(0, 3);
+      }
+    } else if (q.length >= 2 && lower.includes(q) && lower !== q) {
+      containsHits.push(candidate);
+    }
+  }
+  if (prefixHits.length > 0) {
+    return prefixHits.slice(0, 3);
+  }
+  if (containsHits.length > 0 && containsHits.length <= 3) {
+    return containsHits.slice(0, 3);
+  }
+
+  const pool =
+    candidates.length <= maxCandidates
+      ? candidates
+      : (() => {
+          const sampled: string[] = containsHits.slice(0, Math.min(containsHits.length, 64));
+          const remaining = maxCandidates - sampled.length;
+          if (remaining <= 0) return sampled;
+          const step = Math.max(1, Math.floor(candidates.length / remaining));
+          for (let i = 0; i < candidates.length && sampled.length < maxCandidates; i += step) {
+            const candidate = candidates[i];
+            if (candidate) sampled.push(candidate);
+          }
+          return sampled;
+        })();
+
+  const ranked: { name: string; dist: number }[] = [];
+  for (const candidate of pool) {
     const dist = levenshtein(q, candidate.toLowerCase());
     if (dist <= 2 && dist > 0) ranked.push({ name: candidate, dist });
   }
@@ -110,6 +176,13 @@ export function typeRefToString(typeRef: TypeReference | undefined): string | un
 export function exprToString(expr: Expression | undefined): string | undefined {
   if (!expr) return undefined;
   if (expr.kind === "Identifier") return expr.name;
+  if (expr.kind === "Literal") {
+    // String literals already include surrounding quotes in the AST value (lexer slice).
+    if (typeof expr.value === "string") return expr.value;
+    if (expr.value === null) return "Nothing";
+    if (typeof expr.value === "boolean") return expr.value ? "True" : "False";
+    return String(expr.value);
+  }
   if (expr.kind === "MemberAccess") {
     const target = exprToString(expr.target);
     return target ? `${target}.${expr.member}` : expr.member;
@@ -117,6 +190,18 @@ export function exprToString(expr: Expression | undefined): string | undefined {
   if (expr.kind === "MethodInvocation") {
     const callee = exprToString(expr.callee);
     return callee ? `${callee}.${expr.methodName}` : expr.methodName;
+  }
+  if (expr.kind === "BinaryExpression") {
+    const left = exprToString(expr.left);
+    const right = exprToString(expr.right);
+    if (!left || !right) return undefined;
+    return `${left} ${expr.operator} ${right}`;
+  }
+  if (expr.kind === "UnaryExpression") {
+    const argument = exprToString(expr.argument);
+    if (!argument) return undefined;
+    const op = expr.operator.toLowerCase() === "not" ? "Not " : expr.operator;
+    return `${op}${argument}`;
   }
   return undefined;
 }

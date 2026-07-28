@@ -223,10 +223,17 @@ function resolveReturnUnrecommendedReplacement(
   const commentStart = findInlineCommentColumn(lineText, returnStart);
   const codeEnd = commentStart === -1 ? lineText.length : commentStart;
   const commentSuffix = commentStart === -1 ? "" : lineText.slice(commentStart);
-  const expressionText =
+  const fromLine = lineText.slice(Math.min(codeEnd, returnStart + "Return".length), codeEnd).trim();
+  const fromPayload =
     payload.expressionText !== undefined && payload.expressionText.trim().length > 0
       ? payload.expressionText.trim()
-      : lineText.slice(Math.min(codeEnd, returnStart + "Return".length), codeEnd).trim();
+      : undefined;
+  // Prefer the full text after Return when the payload only captured a prefix
+  // (e.g. comparison `me._rdbms = pOption` truncated at the first `=`).
+  const expressionText =
+    fromPayload && fromLine.startsWith(fromPayload) && fromLine.length > fromPayload.length
+      ? fromLine
+      : (fromPayload ?? fromLine);
 
   if (payload.isSingleLineIf) {
     const cachedDoc = LanguageProcessor.getInstance().getOrParse(

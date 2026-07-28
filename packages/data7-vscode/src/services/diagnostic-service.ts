@@ -7,7 +7,6 @@ import {
   LANGUAGE_IDS,
   LanguageProcessor,
   PROJECT_CONFIG_FILENAME,
-  SymbolParser,
   WorkspaceSymbolIndexer,
   buildMockDocument,
   debounceKeyed,
@@ -26,6 +25,7 @@ import {
   resolveLintBatchConcurrency,
   isWorkerPoolLintEnabled,
   runWorkspaceLintWithWorkerPool,
+  AnalysisProgram,
   type SerializedLintDiagnostic,
   type LintWorkspaceFileInput,
 } from "@data7/core";
@@ -59,7 +59,7 @@ export interface WorkspaceLintSummary {
 export class DiagnosticService {
   private static _collection: vscode.DiagnosticCollection | undefined;
   /** Debounce for live typing; save/open use immediate refresh. */
-  private static readonly REFRESH_DELAY_MS = 400;
+  private static readonly REFRESH_DELAY_MS = 250;
   private static readonly liveDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly workspaceDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly pendingDependentUris = new Set<string>();
@@ -215,6 +215,7 @@ export class DiagnosticService {
 
   public static markWorkspaceIndexReady(): void {
     this.workspaceIndexReady = true;
+    AnalysisProgram.getInstance().invalidateAllChecks();
     for (const uriKey of this.pendingOpenDocuments) {
       const doc = vscode.workspace.textDocuments.find(
         (candidate) => candidate.uri.toString().toLowerCase() === uriKey,
@@ -802,7 +803,6 @@ export class DiagnosticService {
     let infoCount = 0;
 
     const indexer = WorkspaceSymbolIndexer.getInstance();
-    const snapshot = indexer.exportLintSnapshot();
     const inputs: LintWorkspaceFileInput[] = [];
     const preambleByUri = new Map<string, vscode.Diagnostic[]>();
 
@@ -824,6 +824,7 @@ export class DiagnosticService {
             return;
           }
           const mockDoc = buildMockDocument(uri, content);
+          // ensureParsed during preamble refreshes host index for this file.
           preambleByUri.set(uri.toString(), this.collectPreambleDiagnostics(mockDoc));
           inputs.push({
             uri: uri.toString(),
@@ -838,6 +839,8 @@ export class DiagnosticService {
       return { errorCount, warningCount, infoCount };
     }
 
+    // Export AFTER preamble so every disk file's symbols are in the worker snapshot.
+    const snapshot = indexer.exportLintSnapshot();
     const workerResult = await runWorkspaceLintWithWorkerPool(inputs, snapshot);
 
     for (const uri of diskUris) {
@@ -917,9 +920,17 @@ export class DiagnosticService {
 
     let cachedDoc: ReturnType<LanguageProcessor["getOrParse"]>;
     try {
-      cachedDoc = LintPipelineProfiler.measure("parse", uriStr, () =>
-        LanguageProcessor.getInstance().getOrParse(uriStr, text),
-      );
+      cachedDoc = LintPipelineProfiler.measure("parse", uriStr, () => {
+        const snapshot = AnalysisProgram.getInstance().ensureParsed(uriStr, text, document.version);
+        return {
+          uri: snapshot.uri,
+          unit: snapshot.unit,
+          tokens: snapshot.tokens,
+          errors: snapshot.errors,
+          version: snapshot.version,
+          content: snapshot.content,
+        };
+      });
     } catch (err) {
       logger.error("Falha ao obter AST do LanguageProcessor.", err);
       return [];
@@ -927,12 +938,7 @@ export class DiagnosticService {
 
     if (vscode.workspace.getWorkspaceFolder(document.uri)) {
       LintPipelineProfiler.measure("index-update", uriStr, () => {
-        const parsedSymbols = SymbolParser.parseFromAst(uriStr, text, cachedDoc.unit);
-        WorkspaceSymbolIndexer.getInstance().updateFileContentFromParsed(
-          uriStr,
-          text,
-          parsedSymbols,
-        );
+        // AnalysisProgram.ensureParsed already updated the indexer via parseFromAst.
       });
     }
 
@@ -941,7 +947,7 @@ export class DiagnosticService {
 
     LintPipelineProfiler.measure("module-refs", uriStr, () => {
       try {
-        for (const reference of DependencyScanner.collectModuleReferences(text)) {
+        for (const reference of DependencyScanner.collectModuleReferencesFromUnit(cachedDoc.unit)) {
           const namespace = reference.isExplicit
             ? (reference.name.split(".")[0] ?? reference.name)
             : reference.name;
@@ -1010,9 +1016,21 @@ export class DiagnosticService {
     if (isStale()) return [];
 
     try {
-      const advanced = LintPipelineProfiler.measure("advanced-lint", uriStr, () =>
-        DiagnosticsLinter.runAdvancedDiagnostics(document, WorkspaceSymbolIndexer.getInstance()),
-      );
+      const cancelToken = {
+        get isCancellationRequested(): boolean {
+          return isStale();
+        },
+      };
+      const advanced = LintPipelineProfiler.measure("advanced-lint", uriStr, () => {
+        const check = AnalysisProgram.getInstance().ensureChecked(
+          uriStr,
+          document.getText(),
+          document.version,
+          cancelToken,
+          "active",
+        );
+        return [...check.diagnostics];
+      });
       unsuppressed.push(...advanced);
     } catch (err: unknown) {
       logger.error("Falha ao executar diagnósticos avançados.", err);

@@ -594,10 +594,25 @@ export class ControlFlowRule implements Rule {
       const startC = node.expression.loc.startChar;
       const endL = node.expression.loc.endLine - 1;
       const endC = node.expression.loc.endChar;
-      if (startL === endL) {
+      if (startL === endL && endC > startC) {
         expressionText = (context.lines[startL] ?? "").substring(startC, endC);
-      } else {
+      }
+      if (!expressionText?.trim()) {
         expressionText = exprToString(node.expression);
+      } else {
+        // Prefer AST text only when the source span is a proper truncated prefix
+        // of a larger expression (e.g. comparison left-only), not when AST merely
+        // re-quotes or reformats an already-complete span.
+        const fromAst = exprToString(node.expression);
+        const trimmed = expressionText.trim();
+        if (
+          fromAst &&
+          fromAst !== trimmed &&
+          fromAst.startsWith(trimmed) &&
+          /^[\s=<>!+\-*/&|^]/.test(fromAst.slice(trimmed.length))
+        ) {
+          expressionText = fromAst;
+        }
       }
     }
 

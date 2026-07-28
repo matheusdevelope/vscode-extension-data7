@@ -48,6 +48,9 @@ packages/data7-vscode/docs/
 # Logs
 *.log
 
+# Local Data7 analysis / build caches (workspace-side)
+.data7/
+
 # OS / archive scratch (locally cached external docs are intentionally large
 # HTML scrapes and must not enter the repo).
 "Documentacao Classes Form Delphi/"

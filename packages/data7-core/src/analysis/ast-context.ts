@@ -4,6 +4,7 @@ import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
 import { TypeResolver } from "./type-resolver";
 import { getOrBuildWithScopeIndex } from "./with-scope-index";
 import type { Token } from "../project/parser";
+import { AnalysisProgram } from "./analysis-program";
 import { LanguageProcessor } from "./language-processor";
 import type {
   ClassDeclaration,
@@ -70,12 +71,14 @@ export class D7AstContext {
     public readonly position: vscode.Position,
     private readonly indexer: WorkspaceSymbolIndexer,
   ) {
-    const cached = LanguageProcessor.getInstance().getOrParse(
+    const program = AnalysisProgram.getInstance();
+    const snapshot = program.ensureParsed(
       document.uri.toString(),
       document.getText(),
+      document.version,
     );
-    this.unit = cached.unit;
-    this.tokens = cached.tokens;
+    this.unit = snapshot.unit;
+    this.tokens = snapshot.tokens;
     this.tokenAtPosition = this.findTokenAtPosition(position);
     this.wordRange = this.tokenAtPosition ? tokenRange(this.tokenAtPosition) : undefined;
   }

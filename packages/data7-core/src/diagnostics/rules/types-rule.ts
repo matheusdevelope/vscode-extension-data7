@@ -270,6 +270,10 @@ export class TypesRule implements Rule {
       context.document,
       context.indexer,
       context.diagnostics,
+      {
+        activeNamespace: context.activeNamespace,
+        activeClassNesting: context.activeClassNesting,
+      },
     );
   }
 

@@ -18,6 +18,31 @@ function locOf(loc: TokenLocation, endLoc?: TokenLocation): SourceLocation {
   };
 }
 
+/** Source span covering the full token text (endChar is exclusive). */
+function locOfToken(token: Token): SourceLocation {
+  const width = Math.max(token.value.length, 1);
+  return {
+    startLine: token.loc.line,
+    startChar: token.loc.column,
+    endLine: token.loc.line,
+    endChar: token.loc.column + width,
+  };
+}
+
+function spanLoc(
+  start: SourceLocation | undefined,
+  end: SourceLocation | undefined,
+): SourceLocation | undefined {
+  if (!start) return end;
+  if (!end) return start;
+  return {
+    startLine: start.startLine,
+    startChar: start.startChar,
+    endLine: end.endLine,
+    endChar: end.endChar,
+  };
+}
+
 function locFromExpressionToToken(
   start: Expression,
   endToken: Token,
@@ -87,11 +112,11 @@ export function parsePrefix(parser: Parser): Expression | null {
       normalized.includes(".") || /e/i.test(normalized)
         ? Number.parseFloat(normalized)
         : Number.parseInt(normalized, 10);
-    return { kind: "Literal", value: isNaN(value) ? token.value : value, loc: locOf(token.loc) };
+    return { kind: "Literal", value: isNaN(value) ? token.value : value, loc: locOfToken(token) };
   }
   if (token.kind === "string") {
     parser.advance();
-    return { kind: "Literal", value: token.value, loc: locOf(token.loc) };
+    return { kind: "Literal", value: token.value, loc: locOfToken(token) };
   }
   if (token.kind === "identifier" || token.kind === "keyword") {
     const lower = token.value.toLowerCase();
@@ -112,31 +137,32 @@ export function parsePrefix(parser: Parser): Expression | null {
         kind: "TypeReference",
         name: "",
         typeArguments: [],
-        loc: locOf(token.loc),
+        loc: locOfToken(token),
       };
       return {
         kind: "MethodInvocation",
         methodName: "TypeOf",
         typeArguments: [],
         arguments: [checkedExpr, { kind: "TypeReferenceExpression", type, loc: type.loc }],
-        loc: locOf(token.loc),
+        loc: spanLoc(locOfToken(token), type.loc) ?? locOfToken(token),
       };
     }
     if (lower === "true" || lower === "false") {
       parser.advance();
-      return { kind: "Literal", value: lower === "true", loc: locOf(token.loc) };
+      return { kind: "Literal", value: lower === "true", loc: locOfToken(token) };
     }
     if (lower === "null" || lower === "nothing") {
       parser.advance();
-      return { kind: "Literal", value: null, loc: locOf(token.loc) };
+      return { kind: "Literal", value: null, loc: locOfToken(token) };
     }
     if (lower === "not" || token.value === "!") {
       parser.advance();
+      const argument = parseExpression(parser, Precedence.Unary);
       return {
         kind: "UnaryExpression",
         operator: "Not",
-        argument: parseExpression(parser, Precedence.Unary),
-        loc: locOf(token.loc),
+        argument,
+        loc: spanLoc(locOfToken(token), argument.loc) ?? locOfToken(token),
       };
     }
     if (lower === "new") {
@@ -145,28 +171,34 @@ export function parsePrefix(parser: Parser): Expression | null {
         kind: "TypeReference",
         name: "",
         typeArguments: [],
-        loc: locOf(token.loc),
+        loc: locOfToken(token),
       };
       const hasParentheses = parser.match("punct", "(");
       const args = hasParentheses ? parseArgumentList(parser, true) : [];
+      const closeToken = hasParentheses ? previousToken(parser) : undefined;
+      const endLoc =
+        closeToken && closeToken.kind === "punct" && closeToken.value === ")"
+          ? locOfToken(closeToken)
+          : (type.loc ?? locOfToken(token));
       return {
         kind: "ObjectCreationExpression",
         type,
         arguments: args,
         noParentheses: !hasParentheses,
-        loc: locOf(token.loc),
+        loc: spanLoc(locOfToken(token), endLoc) ?? locOfToken(token),
       };
     }
     parser.advance();
-    return { kind: "Identifier", name: token.value, loc: locOf(token.loc) };
+    return { kind: "Identifier", name: token.value, loc: locOfToken(token) };
   }
   if (token.kind === "punct" && token.value === "-") {
     parser.advance();
+    const argument = parseExpression(parser, Precedence.Unary);
     return {
       kind: "UnaryExpression",
       operator: "-",
-      argument: parseExpression(parser, Precedence.Unary),
-      loc: locOf(token.loc),
+      argument,
+      loc: spanLoc(locOfToken(token), argument.loc) ?? locOfToken(token),
     };
   }
   if (token.kind === "punct" && token.value === "(") {
@@ -382,12 +414,13 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
   const precedence = PRECEDENCES[token.value.toLowerCase()] ?? Precedence.None;
   if (precedence === 0) return null;
   parser.advance();
+  const right = parseExpression(parser, precedence);
   return {
     kind: "BinaryExpression",
     left,
     operator: token.value,
-    right: parseExpression(parser, precedence),
-    loc: left.loc,
+    right,
+    loc: spanLoc(left.loc, right.loc) ?? left.loc,
   };
 }
 

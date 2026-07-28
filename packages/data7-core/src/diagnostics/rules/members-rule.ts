@@ -24,6 +24,7 @@ import {
   exprToString,
   inheritsFromClass,
   isQualifiedTypeInvocation,
+  isSymbolContainerAccessible,
 } from "../diagnostic-helpers";
 import { lookupSystemByName, lookupSystemClassByName, SYSTEM_SYMBOLS } from "../../system-library";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
@@ -584,14 +585,12 @@ export class MembersRule implements Rule {
     }
   }
 
-  private findMissingImportForCallable(
-    methodName: string,
-    lineIdx: number,
-    context: RuleContext,
-  ): string | undefined {
+  private resolveActiveNamespaceName(lineIdx: number, context: RuleContext): string | undefined {
+    if (context.activeNamespace) {
+      return context.activeNamespace;
+    }
     const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
-    const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
-    const activeNamespace = fileSymbols?.symbols
+    return fileSymbols?.symbols
       .filter(
         (symbol) =>
           symbol.kind === "namespace" &&
@@ -599,7 +598,16 @@ export class MembersRule implements Rule {
           lineIdx <= symbol.range.endLine,
       )
       .sort((left, right) => right.range.startLine - left.range.startLine)[0]?.name;
-    const activeClassName = context.activeClass?.name.toLowerCase();
+  }
+
+  private findMissingImportForCallable(
+    methodName: string,
+    lineIdx: number,
+    context: RuleContext,
+  ): string | undefined {
+    const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
+    const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
+    const activeNamespace = this.resolveActiveNamespaceName(lineIdx, context);
 
     const candidate = context.indexer.getSymbolsByName(methodName).find((symbol) => {
       if (
@@ -611,10 +619,15 @@ export class MembersRule implements Rule {
       }
       const container = symbol.containerName;
       if (!container) return false;
-      const containerLower = container.toLowerCase();
-      if (containerLower === activeClassName) return false;
-      if (activeNamespace && containerLower === activeNamespace.toLowerCase()) return false;
-      if (imports.has(containerLower)) return false;
+      if (
+        isSymbolContainerAccessible(container, {
+          activeNamespace,
+          activeClassNesting: context.activeClassNesting,
+          imports,
+        })
+      ) {
+        return false;
+      }
       return context.indexer.getSymbolsByName(container).some((item) => item.kind === "namespace");
     });
 
@@ -1367,20 +1380,15 @@ export class MembersRule implements Rule {
 
     const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
     const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
-    const activeNamespace = fileSymbols?.symbols
-      .filter(
-        (symbol) =>
-          symbol.kind === "namespace" &&
-          lineIdx >= symbol.range.startLine &&
-          lineIdx <= symbol.range.endLine,
-      )
-      .sort((left, right) => right.range.startLine - left.range.startLine)[0]?.name;
+    const activeNamespace = this.resolveActiveNamespaceName(lineIdx, context);
 
-    const hasAccessibleMatch = allMatches.some((symbol) => {
-      if (!symbol.containerName) return true;
-      const containerLower = symbol.containerName.toLowerCase();
-      return containerLower === activeNamespace?.toLowerCase() || imports.has(containerLower);
-    });
+    const hasAccessibleMatch = allMatches.some((symbol) =>
+      isSymbolContainerAccessible(symbol.containerName, {
+        activeNamespace,
+        activeClassNesting: context.activeClassNesting,
+        imports,
+      }),
+    );
 
     if (hasAccessibleMatch) {
       return undefined;
@@ -1400,16 +1408,7 @@ export class MembersRule implements Rule {
   ): boolean {
     const fileSymbols = context.indexer.getFileSymbols(context.document.uri.toString());
     const imports = new Set((fileSymbols?.imports ?? []).map((item) => item.toLowerCase()));
-    const activeNamespace = fileSymbols?.symbols
-      .filter(
-        (symbol) =>
-          symbol.kind === "namespace" &&
-          lineIdx >= symbol.range.startLine &&
-          lineIdx <= symbol.range.endLine,
-      )
-      .sort((left, right) => right.range.startLine - left.range.startLine)[0]
-      ?.name.toLowerCase();
-    const activeClassName = context.activeClass?.name.toLowerCase();
+    const activeNamespace = this.resolveActiveNamespaceName(lineIdx, context);
 
     return context.indexer.getSymbolsByName(name).some((symbol) => {
       if (
@@ -1419,9 +1418,11 @@ export class MembersRule implements Rule {
         symbol.kind === "enum" ||
         symbol.kind === "delegate"
       ) {
-        if (!symbol.containerName) return true;
-        const container = symbol.containerName.toLowerCase();
-        return container === activeNamespace || imports.has(container);
+        return isSymbolContainerAccessible(symbol.containerName, {
+          activeNamespace,
+          activeClassNesting: context.activeClassNesting,
+          imports,
+        });
       }
 
       if (
@@ -1430,12 +1431,11 @@ export class MembersRule implements Rule {
         symbol.kind === "property" ||
         symbol.kind === "indexed-property"
       ) {
-        if (!symbol.containerName) return true;
-        const container = symbol.containerName.toLowerCase();
-        if (activeNamespace && container === activeNamespace) return true;
-        if (imports.has(container)) return true;
-        if (activeClassName && container === activeClassName) return true;
-        return false;
+        return isSymbolContainerAccessible(symbol.containerName, {
+          activeNamespace,
+          activeClassNesting: context.activeClassNesting,
+          imports,
+        });
       }
 
       return false;

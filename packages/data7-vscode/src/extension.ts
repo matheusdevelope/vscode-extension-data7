@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import {
   WorkspaceSymbolIndexer,
   LanguageProcessor,
+  AnalysisProgram,
   COMMAND_IDS,
   LANGUAGE_IDS,
   readConfiguration,
@@ -143,22 +144,28 @@ export function activate(context: vscode.ExtensionContext): void {
 
 function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   const indexer = WorkspaceSymbolIndexer.getInstance();
-  indexer
-    .indexWorkspace(vscode.workspace.workspaceFolders)
-    .then(() => {
-      DiagnosticService.markWorkspaceIndexReady();
-      const diagnosticsFeatures = readConfiguration().features.diagnostics;
-      if (!diagnosticsFeatures.enabled) return;
-      if (diagnosticsFeatures.lintWorkspaceOnStartup) {
-        void DiagnosticService.lintWorkspace(false);
-        return;
+  void vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Window,
+      title: "Data7: indexando workspace…",
+    },
+    async () => {
+      try {
+        await indexer.indexWorkspace(vscode.workspace.workspaceFolders);
+        DiagnosticService.markWorkspaceIndexReady();
+        const diagnosticsFeatures = readConfiguration().features.diagnostics;
+        if (!diagnosticsFeatures.enabled) return;
+        if (diagnosticsFeatures.lintWorkspaceOnStartup) {
+          void DiagnosticService.lintWorkspace(false);
+          return;
+        }
+        DiagnosticService.refreshOpenDocuments();
+        DiagnosticService.pruneClosedDiagnostics();
+      } catch (err) {
+        logger.error("Erro ao indexar workspace.", err);
       }
-      DiagnosticService.refreshOpenDocuments();
-      DiagnosticService.pruneClosedDiagnostics();
-    })
-    .catch((err) => {
-      logger.error("Erro ao indexar workspace.", err);
-    });
+    },
+  );
 
   const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
   const isReadOnlyOrModule = (fsPath: string): boolean => {
@@ -172,18 +179,21 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
       (doc) => doc.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
     );
     if (openDoc?.isDirty) return;
+    AnalysisProgram.getInstance().close(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidCreate((uri) => {
     if (isReadOnlyOrModule(uri.fsPath)) return;
+    AnalysisProgram.getInstance().close(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidDelete((uri) => {
     if (isReadOnlyOrModule(uri.fsPath)) return;
+    AnalysisProgram.getInstance().close(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.removeFile(uri.toString());
     DiagnosticService.clearDiagnostics(uri);
@@ -191,10 +201,11 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(basWatcher);
 
-  // Listen to document changes to update AST cache reactively
+  // Update Program/index immediately so providers see fresh symbols;
+  // heavy check remains debounced by DiagnosticService.
   const docChangeListener = vscode.workspace.onDidChangeTextDocument((e) => {
     if (e.document.languageId === LANGUAGE_IDS.d7basic || e.document.fileName.endsWith(".bas")) {
-      LanguageProcessor.getInstance().handleDocumentChange(
+      AnalysisProgram.getInstance().update(
         e.document.uri.toString(),
         e.document.getText(),
         e.document.version,
@@ -204,6 +215,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
   const docCloseListener = vscode.workspace.onDidCloseTextDocument((doc) => {
     if (doc.languageId === LANGUAGE_IDS.d7basic || doc.fileName.endsWith(".bas")) {
+      AnalysisProgram.getInstance().close(doc.uri.toString());
       LanguageProcessor.getInstance().invalidate(doc.uri.toString());
       // Workspace-file diagnostics are preserved by DiagnosticService.onDidCloseTextDocument.
       if (!vscode.workspace.getWorkspaceFolder(doc.uri)) {

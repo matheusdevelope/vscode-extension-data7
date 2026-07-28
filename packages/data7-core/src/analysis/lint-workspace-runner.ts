@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import * as vscode from "../platform/vscode-api";
 import { LanguageProcessor } from "./language-processor";
+import { SymbolParser } from "./symbol-indexer";
 import { DiagnosticsLinter } from "../diagnostics/diagnostics";
 import type { WorkspaceSymbolIndexer } from "./symbol-indexer";
 import { buildMockDocument } from "../utils/text-edit-utils";
@@ -42,14 +43,20 @@ export function resolveLintWorkerCount(): number {
 }
 
 /**
- * Runs advanced diagnostics on one file without mutating the shared symbol index.
+ * Runs advanced diagnostics on one file.
+ * Refreshes the file's symbols from the content being linted so same-namespace
+ * resolution does not depend on URI/fs quirks between host snapshot and worker.
  */
 export function runLintFileDiagnosticsOnly(
   file: LintWorkspaceFileInput,
   indexer: WorkspaceSymbolIndexer,
 ): readonly vscode.Diagnostic[] {
-  const mockDoc = buildMockDocument(vscode.Uri.file(file.filePath), file.content);
-  LanguageProcessor.getInstance().getOrParse(file.uri, file.content);
+  // Prefer the stable workspace URI string over Uri.file(fsPath) so lookups
+  // match snapshot keys produced on the extension host.
+  const mockDoc = buildMockDocument(vscode.Uri.parse(file.uri), file.content);
+  const cached = LanguageProcessor.getInstance().getOrParse(file.uri, file.content);
+  const symbols = SymbolParser.parseFromAst(file.uri, file.content, cached.unit);
+  indexer.updateFileContentFromParsed(file.uri, file.content, symbols);
   return DiagnosticsLinter.runAdvancedDiagnostics(mockDoc, indexer);
 }
 

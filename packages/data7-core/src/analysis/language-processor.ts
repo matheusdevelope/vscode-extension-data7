@@ -1,18 +1,17 @@
 import * as fs from "node:fs";
 import * as vscode from "../platform/vscode-api";
-import { parseBasic, tokenize, GenericsParserPlugin, parseExpr } from "../project/parser";
+import { parseBasic, parseExpr } from "../project/parser";
 import type { CompilationUnit, Expression } from "../project/ast/ast";
 import type { ParseError } from "../project/parser/parser-errors";
 import type { Token } from "../project/parser/token-types";
 import { logger } from "../infra/logger";
-import { readConfiguration } from "../infra/configuration";
-import { SugarEngine } from "../project/sugars";
 import { SemanticLintCache } from "./semantic-lint-cache";
 import { DeclarationLintCache } from "./declaration-lint-cache";
 import {
   clearLocalScopeIndexCache,
   clearLintTypeResolutionCachesForUnit,
 } from "./lint-type-resolution-cache";
+import { createConfiguredParseOptions } from "./parse-config";
 
 export interface CachedDocument {
   readonly uri: string;
@@ -66,7 +65,7 @@ export class LanguageProcessor {
   /**
    * Retrieves the cached AST and tokens for a given document URI, or parses it on-demand.
    */
-  public getOrParse(uri: string, content?: string): CachedDocument {
+  public getOrParse(uri: string, content?: string, version = 0): CachedDocument {
     const key = this.normalizeUri(uri);
     const cached = this.cache.get(key);
 
@@ -79,7 +78,7 @@ export class LanguageProcessor {
     let actualContent = content;
     actualContent ??= this.readDocumentContent(uri) ?? "";
 
-    return this.parseAndCache(uri, actualContent, 0);
+    return this.parseAndCache(uri, actualContent, version);
   }
 
   /**
@@ -87,6 +86,15 @@ export class LanguageProcessor {
    */
   public getCached(uri: string): CachedDocument | undefined {
     return this.cache.get(this.normalizeUri(uri));
+  }
+
+  /**
+   * Returns a cached document only when the buffer version matches.
+   */
+  public getCachedForVersion(uri: string, version: number): CachedDocument | undefined {
+    const cached = this.getCached(uri);
+    if (!cached || cached.version !== version) return undefined;
+    return cached;
   }
 
   /**
@@ -108,6 +116,7 @@ export class LanguageProcessor {
 
   /**
    * Processes a change in a document, triggering a debounced re-parse.
+   * Prefer AnalysisProgram.update for the unified path; kept for compatibility.
    */
   public handleDocumentChange(uri: string, content: string, version: number): void {
     const key = this.normalizeUri(uri);
@@ -128,25 +137,10 @@ export class LanguageProcessor {
     this.debouncers.set(key, debouncer);
   }
 
-  private parseAndCache(uri: string, content: string, version: number): CachedDocument {
+  public parseAndCache(uri: string, content: string, version: number): CachedDocument {
     const key = this.normalizeUri(uri);
     try {
-      const configuration = readConfiguration();
-      const sugarConfig = configuration.sugars;
-      const sugarEngine = new SugarEngine({
-        enabled: configuration.features.language.sugars && sugarConfig.enabled,
-        enabledSugarIds: sugarConfig.enabledIds,
-        disabledSugarIds: sugarConfig.disabledIds,
-      });
-      const plugins = [
-        ...sugarEngine.createParserPlugins(),
-        ...(configuration.features.language.generics ? [new GenericsParserPlugin()] : []),
-      ];
-      const { unit, errors } = parseBasic(content, {
-        plugins,
-        preserveLine: sugarEngine.createDisabledSyntaxLinePreserver(),
-      });
-      const tokens = tokenize(content);
+      const { unit, errors, tokens } = parseBasic(content, createConfiguredParseOptions());
       const cachedDoc: CachedDocument = {
         uri,
         unit,

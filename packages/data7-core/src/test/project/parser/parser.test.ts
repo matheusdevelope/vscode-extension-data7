@@ -90,6 +90,32 @@ describe("parser/parser", () => {
     }
   });
 
+  test("BinaryExpression loc spans left operator and right (Return equality)", () => {
+    const src = [
+      "Function Equal(pOption As Integer) As Boolean",
+      "   Return me._rdbms = pOption",
+      "End Function",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    const stmt = m.body[0];
+    assert.equal(stmt?.kind, "ReturnStatement");
+    if (stmt?.kind !== "ReturnStatement" || !stmt.expression) {
+      assert.fail("expected ReturnStatement with expression");
+    }
+    assert.equal(stmt.expression.kind, "BinaryExpression");
+    const line = src.split("\n")[1] ?? "";
+    const loc = stmt.expression.loc;
+    assert.ok(loc, "BinaryExpression must have loc");
+    const spanned = line.substring(loc.startChar, loc.endChar);
+    assert.equal(spanned, "me._rdbms = pOption");
+    assert.ok(
+      (stmt.loc?.endChar ?? 0) > (stmt.loc?.startChar ?? 0),
+      "ReturnStatement loc must span the full statement",
+    );
+  });
+
   test("parses indexed member access with multiple bracket arguments", () => {
     const src = ["Sub Run()", '   me.Grid.Cells[0, 1] = "A"', "End Sub"].join("\n");
     const r = parse(src);

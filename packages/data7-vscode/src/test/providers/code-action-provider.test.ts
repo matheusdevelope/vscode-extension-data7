@@ -1073,6 +1073,67 @@ describe("D7BasicCodeActionProvider", () => {
       expectEdit(fix.edit, { type: "replace", textIncludes: "Exit Function" });
     });
 
+    test("return-unrecommended keeps full comparison expression after Equals", async () => {
+      const source = "         Return me._rdbms = pOption\n";
+      const doc = mockDoc(source);
+      // Truncated payload reproduces the historic BinaryExpression loc bug.
+      const payload: ReturnUnrecommendedPayload = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 0,
+        startChar: 9,
+        endChar: 34,
+        expressionText: "me._rdbms",
+        exitType: "Function",
+        targetName: "Equal",
+        isConditional: false,
+      };
+      const range = new vscode.Range(0, 9, 0, 34);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Equal"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "replace", textIncludes: "Equal = me._rdbms = pOption" });
+      const applied = applyReplaceEdit(source, fix.edit.edits[0]);
+      assert.equal(applied.trim(), "Equal = me._rdbms = pOption");
+    });
+
+    test("return-unrecommended does not double-quote string literals", async () => {
+      const source = '               Return "SqlServer"\n';
+      const doc = mockDoc(source);
+      const payload: ReturnUnrecommendedPayload = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 0,
+        startChar: 15,
+        endChar: 32,
+        expressionText: '"SqlServer"',
+        exitType: "Function",
+        targetName: "ToString",
+        isConditional: true,
+      };
+      const range = new vscode.Range(0, 15, 0, 32);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("ToString"));
+      assert.ok(fix);
+      const applied = applyReplaceEdit(source, fix.edit.edits[0]);
+      assert.match(applied, /ToString = "SqlServer"/);
+      assert.ok(!applied.includes('""SqlServer""'), applied);
+    });
+
     test("redundant-terminal-exit removes the whole terminal line", async () => {
       const source = [
         "      Public Sub Run()",

@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (153 arquivos)
+## Índice de exemplos (154 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -197,7 +197,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (79)
+### diagnostics (80)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -262,6 +262,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/redundant-public-modifier/trigger.bas`](./diagnostics/redundant-public-modifier/trigger.bas) | Public explicito e redundante porque a visibilidade default ja e publica | `redundant-public-modifier@6` | — |
 | [`diagnostics/redundant-terminal-exit/trigger.bas`](./diagnostics/redundant-terminal-exit/trigger.bas) | Exit Sub terminal redundante no fim exato da rotina | `redundant-terminal-exit@9` | — |
 | [`diagnostics/return-assignment-in-catch/trigger.bas`](./diagnostics/return-assignment-in-catch/trigger.bas) | retorno por atribuicao dentro de Catch rejeitado pelo compilador nativo | `return-assignment-in-catch@11` | — |
+| [`diagnostics/return-unrecommended/equality-comparison.bas`](./diagnostics/return-unrecommended/equality-comparison.bas) | Return com comparação (=) deve preservar a expressão completa no quick fix | `return-unrecommended@4` | — |
 | [`diagnostics/return-unrecommended/trigger.bas`](./diagnostics/return-unrecommended/trigger.bas) | uso de Return em função onde a forma preferida é atribuição ao nome da rotina | `return-unrecommended@4` | — |
 | [`diagnostics/sealed-inheritance/trigger.bas`](./diagnostics/sealed-inheritance/trigger.bas) | classe NotInheritable nao pode ser herdada | `sealed-inheritance@12` | — |
 | [`diagnostics/shared-return-global-function/trigger.bas`](./diagnostics/shared-return-global-function/trigger.bas) | shared-return-global-function warning when shared function return variable is assigned directly from global function | `shared-return-global-function@9` | `linter implementation for shared return global function detection` |

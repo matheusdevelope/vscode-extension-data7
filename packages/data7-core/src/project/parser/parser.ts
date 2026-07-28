@@ -99,6 +99,8 @@ import {
 export interface ParseResult {
   readonly unit: CompilationUnit;
   readonly errors: readonly ParseError[];
+  /** Token stream produced for this parse — reuse instead of re-tokenizing. */
+  readonly tokens: readonly Token[];
 }
 
 export enum Precedence {
@@ -173,7 +175,7 @@ export function parse(source: string, options?: ParseOptions): ParseResult {
   ];
   const parser = new Parser(tokens, sourceLines, plugins, options?.preserveLine);
   const unit = parser.parseCompilationUnit();
-  return { unit, errors: parser.errors };
+  return { unit, errors: parser.errors, tokens };
 }
 
 export function parseExpr(source: string, options?: ParseOptions): Expression {
@@ -573,10 +575,14 @@ export class Parser {
       expression = this.parseExpression();
     }
 
+    const endLoc = expression?.loc
+      ? { line: expression.loc.endLine, column: expression.loc.endChar }
+      : { line: startLoc.line, column: startLoc.column + "Return".length };
+
     return {
       kind: "ReturnStatement",
       expression,
-      loc: locOf(startLoc),
+      loc: locOf(startLoc, endLoc),
     };
   }
 

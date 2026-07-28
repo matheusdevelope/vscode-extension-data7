@@ -64,7 +64,7 @@ function lintFileCold(
 
   LintPipelineProfiler.measure("module-refs", uriStr, () => {
     try {
-      for (const reference of DependencyScanner.collectModuleReferences(content)) {
+      for (const reference of DependencyScanner.collectModuleReferencesFromUnit(cachedDoc.unit)) {
         void reference;
       }
     } catch {
@@ -239,6 +239,9 @@ async function runBenchmark(): Promise<void> {
 
   console.log(
     `\n[LINT-BENCH] Resumo: index=${indexMs.toFixed(0)}ms, lint_cold=${coldLintMs.toFixed(0)}ms, lint_cold_async=${parallelLintMs.toFixed(0)}ms, lint_cold_workers=${workerLintMs.toFixed(0)}ms, lint_warm=${warmLintMs.toFixed(0)}ms, speedup=${(coldLintMs / Math.max(warmLintMs, 1)).toFixed(2)}x`,
+  );
+  console.log(
+    `[LINT-BENCH] Metas (project_context): warm ~100ms (demo), edit médio <150ms pós-debounce, arquivo grande <500ms ou cancel cooperativo, completion zero-reparse se version==snapshot.`,
   );
 }
 
