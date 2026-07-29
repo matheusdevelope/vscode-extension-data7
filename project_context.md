@@ -200,7 +200,9 @@ Açúcares atualmente suportados:
 
 #### `Dim x As New T` (auto-new sem `()`)
 
-- Açúcar para `Dim x As T = New T()`. Funciona com tipos monomorfizados pelo generics-pass (`Dim list As New TList<Product>` vira `Dim list As TList_Product = New TList_Product()`).
+- Açúcar para a forma idiomática `Dim x As New T()`. Também colapsa `Dim x As T = New T()` (e variações com qualificação/`casing` equivalentes) de volta para `As New T()`. Quando o tipo declarado e o tipo construído diferem de fato (`Dim x As Base = New Derived()`), a forma explícita é preservada.
+- **Exceção — fields de classe:** o compilador Data7 rejeita `As New` em campos (`Esperado um Identificador, mas foi encontrado "New"`). Fields continuam emitidos como `Private _x As T = New T()`.
+- Funciona com tipos monomorfizados pelo generics-pass (`Dim list As New TList<Product>` vira `Dim list As New TList_Product()`).
 - Diagnostic: `auto-new-non-default-ctor`.
 
 #### `Class T<T>` + `Delegate <T>` + `Sub Foo<T>` (generics — dois pipelines)

@@ -5,7 +5,7 @@
 Namespace mod_demo
    Class TDemo
       Public Sub Run()
-         Dim p As TPessoa = New TPessoa()
+         Dim p As New TPessoa()
          With p
             .Nome = "Joao"
             .Idade = 30

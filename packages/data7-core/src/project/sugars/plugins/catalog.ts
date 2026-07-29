@@ -161,7 +161,8 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
   metadata({
     id: "auto-new",
     displayName: "Auto New",
-    description: "Normalizes Dim x As New T into an explicit constructor initializer.",
+    description:
+      "Normalizes Dim x As New T into Dim x As New T(), and collapses As T = New T() for locals when types match. Class fields keep As T = New T().",
     enabledByDefault: true,
     syntaxKinds: ["VariableDeclaration"],
     diagnosticCodes: ["auto-new-non-default-ctor"],

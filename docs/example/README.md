@@ -138,7 +138,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/array-list/03-four-stage-chain.bas`](./sugar/array-list/03-four-stage-chain.bas) | cadeia Filter → Map → Map → Reduce com mutação de tipo (mod_exemplo_encadeamento) | `none` | — |
 | [`sugar/array-list/04-subclass-filter.bas`](./sugar/array-list/04-subclass-filter.bas) | Filter em subclasse de TTList retorna o tipo concreto (Principal.bas / Pessoas) | `none` | — |
 | [`sugar/auto-new/_expected/01-simple.bas`](./sugar/auto-new/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/auto-new/01-simple | `none` | — |
-| [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) expandido para `= New T()` | `none` | — |
+| [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) normalizado para `As New T()` | `none` | — |
 | [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/coalesce-assign/01-simple | `none` | — |
 | [`sugar/coalesce-assign/01-simple.bas`](./sugar/coalesce-assign/01-simple.bas) | ??= compound assignment — vira If x = NULL Then x = y | `none` | — |
 | [`sugar/destructure-array/_expected/01-basic.bas`](./sugar/destructure-array/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/destructure-array/01-basic | `none` | — |

@@ -48,10 +48,10 @@ describe("array-list + generics integration", () => {
         [],
       );
       expectNoBlockingTranspileDiagnostics(diagnostics);
-      assert.match(out, /Dim numeros As TTList_Integer = New TTList_Integer\(\)/);
+      assert.match(out, /Dim numeros As New TTList_Integer\(\)/);
       assert.match(out, /numeros\.Unshift\(0\)/);
-      assert.match(out, /Dim pares As TTList_Integer = New TTList_Integer\(\)/);
-      assert.match(out, /Dim textos As TTList_String = New TTList_String\(\)/);
+      assert.match(out, /Dim pares As New TTList_Integer\(\)/);
+      assert.match(out, /Dim textos As New TTList_String\(\)/);
       assert.doesNotMatch(out, /\bpItem As T\b/);
       assert.match(out, /textos\.Push\("Item " & CStr\(__src2\) & " = " & CStr\(__src1\)\)/);
       assert.match(
@@ -73,8 +73,8 @@ describe("array-list + generics integration", () => {
         ["Produto"],
       );
       expectNoBlockingTranspileDiagnostics(diagnostics);
-      assert.match(out, /Dim produtos As TTList_Produto = New TTList_Produto\(\)/);
-      assert.match(out, /Dim produtosRenomeados As TTList_Produto = New TTList_Produto\(\)/);
+      assert.match(out, /Dim produtos As New TTList_Produto\(\)/);
+      assert.match(out, /Dim produtosRenomeados As New TTList_Produto\(\)/);
       assert.match(out, /produtos\.First\(2\)/);
       assert.match(out, /produtos\.Last\(2\)/);
       assert.match(out, /produtos\.Slice\(1, 3\)/);
@@ -95,7 +95,7 @@ describe("array-list + generics integration", () => {
         ["PecaMoto", "OrdemServico"],
       );
       expectNoBlockingTranspileDiagnostics(diagnostics);
-      assert.match(out, /Dim carrinhoPecas As TTList_PecaMoto = New TTList_PecaMoto\(\)/);
+      assert.match(out, /Dim carrinhoPecas As New TTList_PecaMoto\(\)/);
       assert.match(out, /Dim relatorioFinal As String/);
       assert.doesNotMatch(out, /\bpItem As T\b/);
       assert.match(out, /pItem As PecaMoto, pIdx As Integer, extra As Variant\) As OrdemServico/);
@@ -126,7 +126,7 @@ describe("array-list + generics integration", () => {
       };
       const { code: out, diagnostics } = SugarTranspiler.transpile(code, transpileCtx);
       assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
-      assert.match(out, /Dim newList As Pessoas = New Pessoas\(\)/);
+      assert.match(out, /Dim newList As New Pessoas\(\)/);
       assert.match(out, /For __idx\d+ = 0 To list\.Length - 1/);
       assert.match(out, /newList\.Push\(/);
       assert.doesNotMatch(out, /Dim newList As Pessoas = list\.filter/i);

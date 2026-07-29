@@ -199,7 +199,7 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 |---|---|---|
 | B1 | object initializer — `New T() With { .X = 1, .Y = 2 }` | [`object-init/`](../example/sugar/object-init) |
 | B2 | `Using x As New T(...) / ... / End Using` (multi-line) | [`using/`](../example/sugar/using) |
-| B3 | auto-new — `Dim x As New TList<T>` (sem `()`) | [`auto-new/`](../example/sugar/auto-new) |
+| B3 | auto-new — `Dim` → `As New T()`; fields de classe mantêm `As T = New T()` | [`auto-new/`](../example/sugar/auto-new) |
 | B4 | spread em literal (convenção atual) | [`spread-collection/`](../example/sugar/spread-collection) |
 
 ### Fase C — Coleções e generics

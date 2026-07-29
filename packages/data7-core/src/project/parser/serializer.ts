@@ -398,6 +398,8 @@ function serializeField(
   options: SerializeOptions,
 ): void {
   out.setLine(f.loc);
+  // Class fields must keep `As T = New T(...)`: the Data7 compiler rejects
+  // `As New T(...)` on fields ("Esperado um Identificador, mas foi encontrado New").
   const initStr = f.initializer ? ` = ${emitExpression(f.initializer)}` : "";
   const dimensionsStr = emitNativeArrayDimensions(f.nativeArrayDimensions);
   out.push(
@@ -522,10 +524,53 @@ function emitBodyStatement(s: OpaqueStatement, depth: number, options: Serialize
 
 function emitVariableDeclaration(v: VariableDeclaration, options: SerializeOptions): string {
   const dimensionsStr = emitNativeArrayDimensions(v.nativeArrayDimensions);
+  const modsStr = v.modifiers && v.modifiers.length > 0 ? emitModifiers(v.modifiers, options) : "";
+  const asNew = emitAsNewClause(v.type, v.initializer);
+  if (asNew !== undefined) {
+    return `${modsStr}${v.isConst ? "Const " : "Dim "}${v.name}${dimensionsStr}${asNew}`;
+  }
   const typeStr = v.type !== undefined ? " As " + emitTypeRef(v.type) : "";
   const initStr = v.initializer !== undefined ? " = " + emitExpression(v.initializer) : "";
-  const modsStr = v.modifiers && v.modifiers.length > 0 ? emitModifiers(v.modifiers, options) : "";
   return `${modsStr}${v.isConst ? "Const " : "Dim "}${v.name}${dimensionsStr}${typeStr}${initStr}`;
+}
+
+/**
+ * Prefer the idiomatic `As New T(args)` form when a Dim/Const declaration is
+ * initialized by constructing the same object type (`Dim x As T = New T()` /
+ * `Dim x As New T`). Keeps `As Base = New Derived()` when types differ.
+ * Class fields intentionally stay on the explicit form — see `serializeField`.
+ */
+function emitAsNewClause(
+  declaredType: TypeReference | undefined,
+  initializer: Expression | undefined,
+): string | undefined {
+  if (initializer?.kind !== "ObjectCreationExpression") return undefined;
+  if (!typeRefsCompatibleForAsNew(declaredType, initializer.type)) return undefined;
+  const args = initializer.arguments.map(emitExpression).join(", ");
+  return ` As New ${emitTypeRef(initializer.type)}(${args})`;
+}
+
+function typeRefsCompatibleForAsNew(
+  declared: TypeReference | undefined,
+  created: TypeReference,
+): boolean {
+  if (declared === undefined || declared.name.length === 0) return true;
+  if (typeSimpleName(declared.name).toLowerCase() !== typeSimpleName(created.name).toLowerCase()) {
+    return false;
+  }
+  if (declared.typeArguments.length !== created.typeArguments.length) return false;
+  for (let i = 0; i < declared.typeArguments.length; i++) {
+    const a = declared.typeArguments[i];
+    const b = created.typeArguments[i];
+    if (a === undefined || b === undefined) return false;
+    if (!typeRefsCompatibleForAsNew(a, b)) return false;
+  }
+  return true;
+}
+
+function typeSimpleName(name: string): string {
+  const lastDot = name.lastIndexOf(".");
+  return lastDot >= 0 ? name.slice(lastDot + 1) : name;
 }
 
 function emitNativeArrayDimensions(dimensions: readonly Expression[] | undefined): string {

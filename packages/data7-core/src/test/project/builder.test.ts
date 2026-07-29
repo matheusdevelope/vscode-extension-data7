@@ -323,7 +323,7 @@ End Namespace
 
         const xml = fs.readFileSync(destXml, "utf-8");
         assert.match(xml, /Class Box_Integer/);
-        assert.match(xml, /Dim box As Box_Integer = New Box_Integer\(\)/);
+        assert.match(xml, /Dim box As New Box_Integer\(\)/);
         assert.doesNotMatch(xml, /Class Box&lt;T&gt;/);
       });
     });
@@ -440,7 +440,7 @@ End Namespace
 
         const xml = fs.readFileSync(destXml, "utf-8");
         assert.match(xml, /Imports mod_tlist/);
-        assert.match(xml, /Dim colors As TTList_Color = New TTList_Color\(\)/);
+        assert.match(xml, /Dim colors As New TTList_Color\(\)/);
         assert.match(xml, /colors\.Push\(Color\.Red\)/);
       });
     });
@@ -478,7 +478,7 @@ ${loadFixture("array-list/ttlist-stub.bas")}
         Builder.buildProject(tmp, destXml);
 
         const xml = fs.readFileSync(destXml, "utf-8");
-        assert.match(xml, /Dim numeros As TTList_Integer = New TTList_Integer\(\)/);
+        assert.match(xml, /Dim numeros As New TTList_Integer\(\)/);
         assert.match(xml, /numeros\.Unshift\(0\)/);
         assert.match(xml, /numeros\.Find\(HelperNumero\.FindMaiorQue4\)/);
         assert.doesNotMatch(xml, /\bpItem As T\b/);
@@ -519,7 +519,7 @@ ${loadFixture("array-list/ttlist-stub.bas")}
 
         const xml = fs.readFileSync(destXml, "utf-8");
         assert.match(xml, /Imports mod_tlist/);
-        assert.match(xml, /Dim carrinhoPecas As TTList_PecaMoto = New TTList_PecaMoto\(\)/);
+        assert.match(xml, /Dim carrinhoPecas As New TTList_PecaMoto\(\)/);
         assert.match(xml, /Dim relatorioFinal As String/);
         assert.match(xml, /Map_OrdemServico/);
         assert.match(xml, /Map_String/);
@@ -637,7 +637,7 @@ End Namespace
 Namespace mod_principal
    Class Program
       Public Sub Main()
-         Dim helper As THelper = New THelper()
+         Dim helper As New THelper()
          helper.Touch()
       End Sub
    End Class

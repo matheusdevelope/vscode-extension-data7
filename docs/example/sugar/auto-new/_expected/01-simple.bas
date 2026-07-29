@@ -5,7 +5,7 @@
 Namespace mod_demo
    Class TDemo
       Public Sub Run()
-         Dim list As StringList = New StringList()
+         Dim list As New StringList()
          list.Add("a")
       End Sub
    End Class

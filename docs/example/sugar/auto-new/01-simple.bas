@@ -1,5 +1,5 @@
 ' @example: sugar/auto-new/01-simple
-' @demonstrates: Dim x As New T (sem `()`) expandido para `= New T()`
+' @demonstrates: Dim x As New T (sem `()`) normalizado para `As New T()`
 ' @diagnostics: none
 ' @transpiled-to: sugar/auto-new/_expected/01-simple.bas
 '

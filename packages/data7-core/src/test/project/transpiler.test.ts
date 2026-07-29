@@ -387,7 +387,7 @@ describe("SugarTranspiler.transpile", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Dim _list As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /Dim _list As New TTList_Integer\(\)/);
     assert.doesNotMatch(out, /TTList<Integer>/);
   });
 
@@ -409,7 +409,7 @@ describe("SugarTranspiler.transpile", () => {
 
     assert.equal(diagnostics.length, 0);
     assert.match(out, /^Imports mod_tlist\r?\n/m);
-    assert.match(out, /Dim _list As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /Dim _list As New TTList_Integer\(\)/);
   });
 
   test("auto-injects namespace imports for materialized flat generic class names", () => {
@@ -424,13 +424,13 @@ describe("SugarTranspiler.transpile", () => {
         },
       },
     );
-    const code = ["Dim _list As TTList_Color = New TTList_Color()"].join("\n");
+    const code = ["Dim _list As New TTList_Color()"].join("\n");
 
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
 
     assert.equal(diagnostics.length, 0);
     assert.match(out, /^Imports mod_tlist\r?\n/m);
-    assert.match(out, /Dim _list As TTList_Color = New TTList_Color\(\)/);
+    assert.match(out, /Dim _list As New TTList_Color\(\)/);
   });
 
   test("preserves array access after method calls", () => {
@@ -1065,7 +1065,7 @@ describe("SugarTranspiler — B1 object initializer", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
-      `Dim p As TPessoa = New TPessoa()`,
+      `Dim p As New TPessoa()`,
       "With p",
       `   .Nome = "Joao"`,
       "   .Idade = 30",
@@ -1097,11 +1097,40 @@ describe("SugarTranspiler — B2 Using (multi-line)", () => {
 describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
   const ctx = makeContext({});
 
-  test("expands `Dim x As New StringList` into the explicit `= New StringList()` form", () => {
+  test("normalizes `Dim x As New StringList` into `As New StringList()` (keeps idiomatic form)", () => {
     const code = `Dim list As New StringList`;
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.equal(out, `Dim list As StringList = New StringList()`);
+    assert.equal(out, `Dim list As New StringList()`);
+  });
+
+  test("collapses `Dim x As T = New T()` into idiomatic `As New T()`", () => {
+    const code = [
+      "Dim _form1 As Forms.Form = New Forms.Form()",
+      "Dim _form2 As Form = New forms.Form()",
+      "Dim _form3 As Form = New Form()",
+      "Dim _form4 As New Form()",
+      "Dim _form5 As New Forms.Form()",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.equal(
+      out,
+      [
+        "Dim _form1 As New Forms.Form()",
+        "Dim _form2 As New forms.Form()",
+        "Dim _form3 As New Form()",
+        "Dim _form4 As New Form()",
+        "Dim _form5 As New Forms.Form()",
+      ].join("\n"),
+    );
+  });
+
+  test("keeps distinct declared vs constructed types (polymorphism)", () => {
+    const code = `Dim transport As LogTransport = New TransportConsole()`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.equal(out, `Dim transport As LogTransport = New TransportConsole()`);
   });
 
   test("preserves constructor arguments in `Dim x As New T(args)`", () => {
@@ -1110,15 +1139,23 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
     assert.equal(diagnostics.length, 0);
     assert.equal(
       out,
-      `Dim _info As LogInfo = New LogInfo(pLevel, CStr(pMessage), pExtra, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)`,
+      `Dim _info As New LogInfo(pLevel, CStr(pMessage), pExtra, me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)`,
     );
   });
 
-  test("preserves constructor arguments in class fields declared `As New T(args)`", () => {
-    const code = ["Class Holder", '   Value As New LogInfo(2, "ok")', "End Class"].join("\n");
+  test("expands class fields `As New T(args)` into explicit `As T = New T(args)`", () => {
+    const code = [
+      "Class Holder",
+      '   Private _shortcuts As New TShortcutList()',
+      '   Value As New LogInfo(2, "ok")',
+      "End Class",
+    ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /_shortcuts As TShortcutList = New TShortcutList\(\)/);
     assert.match(out, /Value As LogInfo = New LogInfo\(2, "ok"\)/);
+    assert.doesNotMatch(out, /As New TShortcutList/);
+    assert.doesNotMatch(out, /As New LogInfo/);
   });
 });
 
@@ -1246,7 +1283,7 @@ describe("SugarTranspiler — E4/E5 destructure-array", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.match(out, /Dim first = lista\.Item\(0\)/);
-    assert.match(out, /Dim rest As StringList = New StringList\(\)/);
+    assert.match(out, /Dim rest As New StringList\(\)/);
     assert.match(out, /For __src0 = 1 To lista\.Count - 1/);
     assert.match(out, /rest\.Add\(lista\.Item\(__src0\)\)/);
   });
@@ -1385,7 +1422,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
-      `Dim x As TTList_String = New TTList_String()`,
+      `Dim x As New TTList_String()`,
       `x.Push("a")`,
       `x.Push("b")`,
     ]);
@@ -1416,7 +1453,7 @@ describe("SugarTranspiler — array-list", () => {
     assert.equal(diagnostics.length, 0);
     assert.match(out, /Imports mod_tenum/);
     assert.match(out, /Imports mod_tlist/);
-    assert.match(out, /Dim colors As TTList_Color = New TTList_Color\(\)/);
+    assert.match(out, /Dim colors As New TTList_Color\(\)/);
     assert.match(out, /colors\.Push\(Color\.Red\)/);
   });
 
@@ -1425,7 +1462,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
-      `Dim x As TTList_String = New TTList_String()`,
+      `Dim x As New TTList_String()`,
       `x.Push("a")`,
       `x.Push(other)`,
     ]);
@@ -1436,7 +1473,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.trimEnd().split("\n"), [
-      `Dim x As TTList_String = New TTList_String()`,
+      `Dim x As New TTList_String()`,
       `x.Push("a")`,
       `x.Push("b")`,
     ]);
@@ -1449,7 +1486,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
-      `Dim x As TTList_Product = New TTList_Product()`,
+      `Dim x As New TTList_Product()`,
       `Dim first As Product = x.GetItem(0)`,
       `x.SetItem(1, New Product())`,
     ]);
@@ -1472,10 +1509,10 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
 
-    assert.match(out, /Dim doubled As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /Dim doubled As New TTList_Integer\(\)/);
     assert.match(out, /Dim __src\d+ As Integer = nums\.GetItem\(__idx\d+\)/);
     assert.match(out, /doubled\.Push\(__src\d+ \* 2\)/);
-    assert.match(out, /Dim even As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /Dim even As New TTList_Integer\(\)/);
     assert.match(out, /If __src\d+ Mod 2 = 0 Then[\s\S]*even\.Push\(__src\d+\)/);
     assert.match(
       out,
@@ -1500,9 +1537,9 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
 
-    assert.match(out, /Dim products As TTList_Product = New TTList_Product\(\)/);
+    assert.match(out, /Dim products As New TTList_Product\(\)/);
     assert.match(out, /products\.Push\(New Product\(0, "Manual"\)\)/);
-    assert.match(out, /Dim __src\d+ As TTList_Product = New TTList_Product\(\)/);
+    assert.match(out, /Dim __src\d+ As New TTList_Product\(\)/);
     assert.match(out, /For __idx\d+ = 0 To names\.Length - 1/);
     assert.match(out, /__src\d+\.Push\(New Product\(__src\d+ \+ 1, __src\d+\)\)/);
     assert.match(out, /products\.Push\(__src\d+\)/);
@@ -1546,7 +1583,7 @@ describe("SugarTranspiler — array-list", () => {
     assert.equal(diagnostics.length, 0);
 
     assert.doesNotMatch(out, /=>/);
-    assert.match(out, /Dim __src\d+ As TTList_Integer = New TTList_Integer\(\)/);
+    assert.match(out, /Dim __src\d+ As New TTList_Integer\(\)/);
     assert.match(out, /__src\d+\.Push\(__src\d+ \* 2\)/);
     assert.match(out, /Return __src\d+/);
   });
@@ -1771,7 +1808,7 @@ describe("SugarTranspiler — array-list", () => {
       },
     });
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Dim newList As Pessoas = New Pessoas\(\)/);
+    assert.match(out, /Dim newList As New Pessoas\(\)/);
     assert.match(out, /For __idx\d+ = 0 To list\.Length - 1/);
     assert.match(out, /newList\.Push\(/);
     assert.doesNotMatch(out, /Dim newList As Pessoas = list\.Filter/);
@@ -1804,8 +1841,8 @@ describe("SugarTranspiler — array-list", () => {
       "         Execute = True",
       "      End Function",
       "   End Class",
-      "   Dim _teste As Teste = New Teste()",
-      "   Dim _form2 As Form = New Form()",
+      "   Dim _teste As New Teste()",
+      "   Dim _form2 As New Form()",
       '   _form2.OnShow = Sub(pSender As TObject) _teste.Execute("Teste", 1)',
       "End Namespace",
     ].join("\n");
