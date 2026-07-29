@@ -16,11 +16,7 @@ describe("DiagnosticService live lifecycle", () => {
   const withoutDeclarationStyleWarnings = (
     diagnostics: readonly vscode.Diagnostic[],
   ): vscode.Diagnostic[] =>
-    diagnostics.filter(
-      (diag) =>
-        diag.code !== DiagnosticCodes.RedundantPublicModifier &&
-        diag.code !== DiagnosticCodes.UnusedDeclaration,
-    );
+    diagnostics.filter((diag) => diag.code !== DiagnosticCodes.RedundantPublicModifier);
 
   afterEach(() => {
     (vscode.languages as any).createDiagnosticCollection = originalCreateDiagnosticCollection;

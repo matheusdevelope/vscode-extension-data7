@@ -13,9 +13,13 @@ describe("default-project-metadata", () => {
     assert.deepEqual(optimization.minify, {
       enabled: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.enabled,
       stripComments: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.stripComments,
+      collapseWhitespace: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.collapseWhitespace,
     });
     assert.equal(optimization.prune?.strategy, "principal-closure");
     assert.deepEqual(optimization.prune?.alwaysInclude, []);
+    assert.deepEqual(optimization.prune?.remove, {
+      ...DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.remove,
+    });
   });
 
   test("createDefaultProjectMetadata includes full build.optimization block", () => {

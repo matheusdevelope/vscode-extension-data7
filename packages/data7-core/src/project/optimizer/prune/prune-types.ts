@@ -1,3 +1,6 @@
+export type { DeclarationKind as PruneDeclKind } from "../../../analysis/declaration-reachability";
+export { declarationKey, formatDeclarationLabel } from "../../../analysis/declaration-reachability";
+
 export interface PruneModuleInput {
   readonly moduleName: string;
   readonly fileUri: string;
@@ -9,6 +12,7 @@ export interface PruneReport {
   readonly liveNamespaces: readonly string[];
   readonly excludedNamespaces: readonly string[];
   readonly excludedModules: readonly string[];
+  readonly excludedDeclarations: readonly string[];
   readonly warnings: readonly string[];
 }
 

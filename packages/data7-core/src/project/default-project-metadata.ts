@@ -19,12 +19,14 @@ export function createDefaultProjectBuildOptimization(): ProjectBuildOptimizatio
     minify: {
       enabled: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.enabled,
       stripComments: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.stripComments,
+      collapseWhitespace: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.collapseWhitespace,
     },
     prune: {
       enabled: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.enabled,
       report: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.report,
       strategy: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.strategy,
       alwaysInclude: [...DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.alwaysInclude],
+      remove: { ...DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.remove },
     },
     uglify: {
       enabled: DEFAULT_BUILD_OPTIMIZATION_OPTIONS.uglify.enabled,

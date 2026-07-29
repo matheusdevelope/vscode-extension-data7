@@ -10,12 +10,7 @@ import type {
   VariableDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
-import type {
-  IncompletePropertyBodyPayload,
-  MissingReturnTypePayload,
-  RedundantPublicModifierPayload,
-  UnusedDeclarationPayload,
-} from "../diagnostic-codes";
+import type { RedundantPublicModifierPayload } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 
 const DECLARATIONS_RULE_NODE_KINDS = new Set<Node["kind"]>([
@@ -32,7 +27,7 @@ export class DeclarationsRule implements Rule {
   public readonly supportedNodeKinds = DECLARATIONS_RULE_NODE_KINDS;
 
   public onStart(_unit: CompilationUnit, _context: RuleContext): void {
-    /* trackedDeclarations/references come from LintUnitIndex prepass */
+    /* no file-level state */
   }
 
   public checkNode(node: Node, context: RuleContext): void {
@@ -61,30 +56,8 @@ export class DeclarationsRule implements Rule {
     }
   }
 
-  public onEnd(_unit: CompilationUnit, context: RuleContext): void {
-    for (const declaration of context.unitIndex.trackedDeclarations) {
-      if (context.unitIndex.references.has(declaration.name.toLowerCase())) continue;
-      const range = new vscode.Range(
-        declaration.line,
-        declaration.startChar,
-        declaration.line,
-        declaration.endChar,
-      );
-      const diag = new vscode.Diagnostic(
-        range,
-        `Declaração "${declaration.name}" não é utilizada.`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-      diag.code = DiagnosticCodes.UnusedDeclaration;
-      const payload: UnusedDeclarationPayload = {
-        code: DiagnosticCodes.UnusedDeclaration,
-        line: declaration.line,
-        startChar: declaration.startChar,
-        endChar: declaration.endChar,
-      };
-      setDiagnosticPayload(diag, payload);
-      context.report(diag);
-    }
+  public onEnd(_unit: CompilationUnit, _context: RuleContext): void {
+    /* unused locals/fields are covered by project-wide `unused-code` reachability */
   }
 
   private checkVariableDeclaration(node: VariableDeclaration, context: RuleContext): void {

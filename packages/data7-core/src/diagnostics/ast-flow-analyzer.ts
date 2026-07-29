@@ -2,7 +2,7 @@ import * as vscode from "../platform/vscode-api";
 import {
   DiagnosticCodes,
   setDiagnosticPayload,
-  type DeadCodePayload,
+  type UnreachableDeclarationPayload,
   type RedundantTerminalExitPayload,
 } from "./diagnostic-codes";
 import { typeRefToString } from "./diagnostic-helpers";
@@ -97,13 +97,13 @@ export class ASTFlowAnalyzer {
     );
     const diagnostic = new vscode.Diagnostic(
       range,
-      "Código inalcançável detectado (dead-code).",
+      "Código inalcançável detectado (unreachable-declaration).",
       vscode.DiagnosticSeverity.Warning,
     );
-    diagnostic.code = DiagnosticCodes.DeadCode;
+    diagnostic.code = DiagnosticCodes.UnreachableDeclaration;
     diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
-    const payload: DeadCodePayload = {
-      code: DiagnosticCodes.DeadCode,
+    const payload: UnreachableDeclarationPayload = {
+      code: DiagnosticCodes.UnreachableDeclaration,
       startLine: lineIndex,
       endLine: lineIndex,
     };
@@ -129,13 +129,13 @@ export class ASTFlowAnalyzer {
     );
     const diagnostic = new vscode.Diagnostic(
       range,
-      "Bloco de código inalcançável detectado (dead-code).",
+      "Bloco de código inalcançável detectado (unreachable-declaration).",
       vscode.DiagnosticSeverity.Warning,
     );
-    diagnostic.code = DiagnosticCodes.DeadCode;
+    diagnostic.code = DiagnosticCodes.UnreachableDeclaration;
     diagnostic.tags = [vscode.DiagnosticTag.Unnecessary];
-    const payload: DeadCodePayload = {
-      code: DiagnosticCodes.DeadCode,
+    const payload: UnreachableDeclarationPayload = {
+      code: DiagnosticCodes.UnreachableDeclaration,
       startLine,
       endLine,
     };

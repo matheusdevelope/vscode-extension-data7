@@ -18,11 +18,7 @@ describe("DiagnosticsLinter", () => {
   const withoutDeclarationStyleWarnings = (
     diagnostics: readonly vscode.Diagnostic[],
   ): vscode.Diagnostic[] =>
-    diagnostics.filter(
-      (diag) =>
-        diag.code !== DiagnosticCodes.RedundantPublicModifier &&
-        diag.code !== DiagnosticCodes.UnusedDeclaration,
-    );
+    diagnostics.filter((diag) => diag.code !== DiagnosticCodes.RedundantPublicModifier);
 
   // -------------------------------------------------------------------------
   // missing-import / Principal.bas / qualified types / Inherits
@@ -808,7 +804,7 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
 
-    test("does not report dead-code for statements inside delegate lambda bodies", () => {
+    test("does not report unreachable-declaration for statements inside delegate lambda bodies", () => {
       const indexer = WorkspaceSymbolIndexer.createDetached();
       const code = `Namespace mod_lambda_dead_code
    Delegate Sub TForEachDel<T>(pValue As T, i As Integer, extra As Variant)
@@ -854,7 +850,7 @@ End Namespace`;
       indexer.updateFileContent(uri, code);
 
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-      expectNoDiagnostic(diags, DiagnosticCodes.DeadCode);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnreachableDeclaration);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.LambdaSignatureMismatch);
     });
@@ -2333,7 +2329,6 @@ Dim configFinal As PlexConfig = _conector. _
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
       expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
-      expectNoDiagnostic(diags, DiagnosticCodes.UnusedDeclaration);
       expectNoDiagnostic(diags, DiagnosticCodes.RedundantTerminalExit);
     });
 
@@ -3160,7 +3155,7 @@ End Namespace`,
    End Class
 End Namespace`,
       );
-      expectNoDiagnostic(diags, DiagnosticCodes.DeadCode);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnreachableDeclaration);
     });
 
     test("does not mark inline comments after Return as dead code", () => {
@@ -3193,7 +3188,7 @@ End Namespace`,
    End Class
 End Namespace`,
       );
-      expectNoDiagnostic(diags, DiagnosticCodes.DeadCode);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnreachableDeclaration);
     });
 
     test("marks a branch dead when a variable is known to be NULL", () => {
@@ -3221,7 +3216,7 @@ End Namespace`,
    End Class
 End Namespace`,
       );
-      expectDiagnostic(diags, DiagnosticCodes.DeadCode);
+      expectDiagnostic(diags, DiagnosticCodes.UnreachableDeclaration);
     });
 
     test("accepts TypeOf ... Is checks against generic type references", () => {
@@ -3573,7 +3568,7 @@ Dim _pair As TPair<Integer>`;
     });
   });
 
-  test("groups statically unreachable branches into one dead-code diagnostic", () => {
+  test("groups statically unreachable branches into one unreachable-declaration diagnostic", () => {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     const uri = "file:///dead_code_block.bas";
     const code = `Namespace mod_dead
@@ -3590,7 +3585,7 @@ End Namespace`;
     indexer.updateFileContent(uri, code);
     const doc = createMockDoc(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
-    const deadCode = diags.filter((diag: any) => diag.code === DiagnosticCodes.DeadCode);
+    const deadCode = diags.filter((diag: any) => diag.code === DiagnosticCodes.UnreachableDeclaration);
 
     assert.equal(deadCode.length, 1);
     assert.equal(deadCode[0]?.range.start.line, 4);

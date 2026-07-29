@@ -35,6 +35,22 @@ export interface ProjectOptions {
 export interface ProjectBuildOptimizationMinify {
   enabled?: boolean;
   stripComments?: boolean;
+  collapseWhitespace?: boolean;
+}
+
+export interface ProjectBuildOptimizationPruneRemove {
+  namespaces?: boolean;
+  classes?: boolean;
+  structures?: boolean;
+  enums?: boolean;
+  delegates?: boolean;
+  methods?: boolean;
+  declareMethods?: boolean;
+  fields?: boolean;
+  properties?: boolean;
+  consts?: boolean;
+  variables?: boolean;
+  unusedImports?: boolean;
 }
 
 export interface ProjectBuildOptimizationPrune {
@@ -42,6 +58,7 @@ export interface ProjectBuildOptimizationPrune {
   report?: boolean;
   strategy?: "principal-closure";
   alwaysInclude?: readonly string[];
+  remove?: ProjectBuildOptimizationPruneRemove;
 }
 
 export interface ProjectBuildOptimizationUglify {

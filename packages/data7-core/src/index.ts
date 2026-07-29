@@ -3,6 +3,7 @@ export { PROJECT_CONFIG_FILENAME } from "./infra/constants";
 export { flatNameOf } from "./analysis/generics-analyzer";
 
 // analysis
+export * from "./analysis/declaration-reachability";
 export * from "./analysis/ast-context";
 export * from "./analysis/dependency-scanner";
 export * from "./analysis/enumerable-detector";
@@ -33,6 +34,7 @@ export * from "./diagnostics/diagnostic-helpers";
 export * from "./diagnostics/ast-flow-analyzer";
 export * from "./diagnostics/generic-diagnostics";
 export * from "./diagnostics/structural-diagnostics";
+export * from "./diagnostics/unused-code-analyzer";
 
 // infra
 export * from "./infra/configuration";
@@ -55,6 +57,7 @@ export * from "./project/project-metadata";
 export * from "./project/default-project-metadata";
 export * from "./project/build-cache";
 export * from "./project/build-snapshot";
+export * from "./project/optimizer";
 export * from "./project/ast/ast";
 export * from "./project/ast/clone";
 export * from "./project/parser";

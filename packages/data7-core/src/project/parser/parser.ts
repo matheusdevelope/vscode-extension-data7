@@ -1153,9 +1153,18 @@ export class Parser {
     const endKw = this.advance(); // 'End'
     const next = this.peek();
     if (Parser.eq(next, kind)) {
-      return this.advance().loc;
+      const closing = this.advance();
+      // Point past the closing keyword so SourceLocation.endChar covers
+      // the full "End Sub" / "End Class" phrase (VS Code ranges are end-exclusive).
+      return {
+        line: closing.loc.line,
+        column: closing.loc.column + closing.value.length,
+      };
     }
-    return endKw.loc;
+    return {
+      line: endKw.loc.line,
+      column: endKw.loc.column + endKw.value.length,
+    };
   }
 
   public skipToEndOfLine(): string | undefined {

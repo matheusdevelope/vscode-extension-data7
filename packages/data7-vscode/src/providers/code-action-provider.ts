@@ -75,15 +75,15 @@ import {
   addFinallyBlockUnsupportedFix,
   addFinallyBlockUnsupportedBulkFix,
 } from "./quick-fixes/finally-block-unsupported";
-import { addDeadCodeCommentFix, addDeadCodeCommentBulkFix } from "./quick-fixes/dead-code";
+import {
+  addUnreachableDeclarationCommentFix,
+  addUnreachableDeclarationCommentBulkFix,
+} from "./quick-fixes/unreachable-declaration";
 import {
   addRedundantPublicModifierFix,
   addRedundantPublicModifierBulkFix,
 } from "./quick-fixes/redundant-public-modifier";
-import {
-  addUnusedDeclarationFix,
-  addUnusedDeclarationBulkFix,
-} from "./quick-fixes/unused-declaration";
+import { addUnusedCodeFix, addUnusedCodeBulkFix } from "./quick-fixes/unused-code";
 
 // Source actions
 import { addOrganizeImportsAction } from "./source-actions/organize-imports";
@@ -221,9 +221,9 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         addRedundantTerminalExitFix(actions, document, diagnostic);
         addRedundantTerminalExitBulkFix(actions, document, diagnostic);
         break;
-      case DiagnosticCodes.DeadCode:
-        addDeadCodeCommentFix(actions, document, diagnostic);
-        addDeadCodeCommentBulkFix(actions, document, diagnostic);
+      case DiagnosticCodes.UnreachableDeclaration:
+        addUnreachableDeclarationCommentFix(actions, document, diagnostic);
+        addUnreachableDeclarationCommentBulkFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.ReturnAssignmentInCatch:
         addReturnAssignmentInCatchFix(actions, document, diagnostic);
@@ -241,9 +241,9 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
         addRedundantPublicModifierFix(actions, document, diagnostic);
         addRedundantPublicModifierBulkFix(actions, document, diagnostic);
         break;
-      case DiagnosticCodes.UnusedDeclaration:
-        addUnusedDeclarationFix(actions, document, diagnostic);
-        addUnusedDeclarationBulkFix(actions, document, diagnostic);
+      case DiagnosticCodes.UnusedCode:
+        addUnusedCodeFix(actions, document, diagnostic);
+        addUnusedCodeBulkFix(actions, document, diagnostic);
         break;
       case "expected-token":
         if (diagnostic.message.toLowerCase().includes("expected 'then'")) {
@@ -318,7 +318,7 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
 
     for (const diagnostic of sortedDiags) {
       const code = getDiagnosticCode(diagnostic);
-      if (code === DiagnosticCodes.UnusedImport || code === DiagnosticCodes.UnusedDeclaration) {
+      if (code === DiagnosticCodes.UnusedImport || code === DiagnosticCodes.UnusedCode) {
         continue;
       }
       const actions = this.getQuickFixesForDiagnostic(document, diagnostic);

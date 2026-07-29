@@ -125,7 +125,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (154 arquivos)
+## Índice de exemplos (155 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
@@ -197,7 +197,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (80)
+### diagnostics (81)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -208,7 +208,6 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/chained-instantiation-access/trigger.bas`](./diagnostics/chained-instantiation-access/trigger.bas) | tentativa de encadear acesso a membro diretamente na instanciação (New) | `chained-instantiation-access@16, chained-instantiation-access@17` | — |
 | [`diagnostics/circular-import/trigger.bas`](./diagnostics/circular-import/trigger.bas) | um namespace importando a si mesmo, ou uma referência circular direta/indireta | `circular-import@5` | — |
 | [`diagnostics/class-generic-method-unsupported/trigger.bas`](./diagnostics/class-generic-method-unsupported/trigger.bas) | a generic method declared inside a non-generic class | `class-generic-method-unsupported@9` | `only emitted by the AST monomorphization engine (Fase 6); the live linter does not yet detect generic methods inside classes.` |
-| [`diagnostics/dead-code/trigger.bas`](./diagnostics/dead-code/trigger.bas) | dead code after return | `dead-code@10` | `linter implementation for dead code detection` |
 | [`diagnostics/declaration-parentheses-mismatch/trigger.bas`](./diagnostics/declaration-parentheses-mismatch/trigger.bas) | method declaration missing parentheses | `declaration-parentheses-mismatch@8` | — |
 | [`diagnostics/declare-name-parentheses/trigger.bas`](./diagnostics/declare-name-parentheses/trigger.bas) | Declare name cannot use empty parentheses before Lib/Alias | `declare-name-parentheses@6` | — |
 | [`diagnostics/default-indexer-missing/trigger.bas`](./diagnostics/default-indexer-missing/trigger.bas) | list(i) usado mas o tipo não declara Item(Integer) | `default-indexer-missing@5` | `classe TBag sem Property Item(Integer) no workspace` |
@@ -276,9 +275,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/unknown-symbol/trigger.bas`](./diagnostics/unknown-symbol/trigger.bas) | reference to a symbol that does not exist in the scope | `unknown-symbol@8` | — |
 | [`diagnostics/unknown-template/trigger.bas`](./diagnostics/unknown-template/trigger.bas) | usage of TList<T> without the template declared in scope | `unknown-template@9` | — |
 | [`diagnostics/unknown-type/trigger.bas`](./diagnostics/unknown-type/trigger.bas) | referência a tipo que não existe no workspace ou na biblioteca do sistema | `unknown-type@8` | — |
+| [`diagnostics/unreachable-declaration/trigger.bas`](./diagnostics/unreachable-declaration/trigger.bas) | codigo apos Return e inalcancavel | `unreachable-declaration@10` | — |
 | [`diagnostics/unsupported-member/trigger.bas`](./diagnostics/unsupported-member/trigger.bas) | acesso a propriedade marcada isUnsupported=true na System Library (não traduzida pelo compilador Data7) | `unsupported-member@11` | — |
 | [`diagnostics/unterminated-block/trigger.bas`](./diagnostics/unterminated-block/trigger.bas) | bloco Sub sem End Sub emite erro estrutural local | `unterminated-block@7` | — |
-| [`diagnostics/unused-declaration/trigger.bas`](./diagnostics/unused-declaration/trigger.bas) | declaracao local nao usada | `unused-declaration@6` | — |
+| [`diagnostics/unused-code/ok-reachable.bas`](./diagnostics/unused-code/ok-reachable.bas) | classe usada a partir de Principal.Main não gera unused-code | `none` | — |
+| [`diagnostics/unused-code/trigger.bas`](./diagnostics/unused-code/trigger.bas) | classe de namespace sem uso a partir de Principal.Main | `unused-code@13` | — |
 | [`diagnostics/unused-import/trigger.bas`](./diagnostics/unused-import/trigger.bas) | diretiva Imports declarada mas nenhum símbolo do namespace é referenciado | `unused-import@5` | — |
 | [`diagnostics/using-non-disposable/trigger.bas`](./diagnostics/using-non-disposable/trigger.bas) | Using sobre tipo sem Free na cadeia — Builder gera .Free() mesmo assim | `using-non-disposable@5` | `classe TNotDisposable sem Free no workspace` |
 
@@ -306,4 +307,4 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
-| [`regression/teste-arrays-reduced.bas`](./regression/teste-arrays-reduced.bas) | fixture reduzido do demo teste_arrays para parser, linter e supersets de heranca | `typed-const-unsupported@26, invalid-shared-member@23, redundant-public-modifier@25, unused-declaration@26, loose-value-statement@28, abstract-instantiation@29, sealed-inheritance@15, mustoverride-not-implemented@18` | — |
+| [`regression/teste-arrays-reduced.bas`](./regression/teste-arrays-reduced.bas) | fixture reduzido do demo teste_arrays para parser, linter e supersets de heranca | `typed-const-unsupported@26, invalid-shared-member@23, redundant-public-modifier@25, loose-value-statement@28, abstract-instantiation@29, sealed-inheritance@15, mustoverride-not-implemented@18` | — |

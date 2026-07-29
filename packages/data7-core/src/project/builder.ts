@@ -29,6 +29,7 @@ import {
   resolveBuildOptimizationOptions,
   minifyData7Text,
   pruneBuildModules,
+  uglifyBuildModules,
   type BuildOptimizationOptions,
   type BuildOptimizationOverride,
 } from "./optimizer";
@@ -206,12 +207,13 @@ export class Builder {
 
   private static optimizeCode(
     code: string,
-    minifyEnabled: boolean,
+    optimizationOptions: BuildOptimizationOptions,
     stripCommentsEnabled: boolean,
   ): string {
     return minifyData7Text(code, {
-      enabled: minifyEnabled,
+      enabled: optimizationOptions.minify.enabled,
       stripComments: stripCommentsEnabled,
+      collapseWhitespace: optimizationOptions.minify.collapseWhitespace,
     });
   }
 
@@ -657,7 +659,6 @@ export class Builder {
     const optimizationOptions =
       options.optimizationOptions ??
       resolveBuildOptimizationOptions(metadata, options.optimizationOverride);
-    const minify = optimizationOptions.minify.enabled;
     const stripComments = this.shouldStripComments(metadata, optimizationOptions);
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
       srcDir,
@@ -1188,10 +1189,11 @@ export class Builder {
     );
 
     // 4. Report transpilation diagnostics and optimize/add to compile list
+    //    Order: prune (above) → minify → uglify (stub)
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
-    const mainCode = this.optimizeCode(
+    let mainCode = this.optimizeCode(
       moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
-      minify,
+      optimizationOptions,
       stripComments,
     );
 
@@ -1201,7 +1203,7 @@ export class Builder {
       if (!code) return;
       modulesToCompile.push({
         name: m.name,
-        code: this.optimizeCode(code, minify, stripComments),
+        code: this.optimizeCode(code, optimizationOptions, stripComments),
         folderId: m.folderId,
         aberto: false,
         ordemAbertura: 0,
@@ -1213,7 +1215,7 @@ export class Builder {
       this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
       const code = moduleCode(m.name, m.code);
       if (!code) return;
-      const optimized = this.optimizeCode(code, minify, stripComments);
+      const optimized = this.optimizeCode(code, optimizationOptions, stripComments);
 
       newModulesMetadata[m.name] = {
         nome: m.name,
@@ -1239,13 +1241,31 @@ export class Builder {
 
       modulesToCompile.push({
         name: m.name,
-        code: this.optimizeCode(code, minify, stripComments),
+        code: this.optimizeCode(code, optimizationOptions, stripComments),
         folderId: m.folderId,
         aberto: false,
         ordemAbertura: 0,
       });
     });
 
+    if (optimizationOptions.uglify.enabled) {
+      const uglifyInputs = [
+        { moduleName: "Principal", fileUri: mainUri, code: mainCode },
+        ...modulesToCompile.map((m) => ({
+          moduleName: m.name,
+          fileUri: m.name,
+          code: m.code,
+        })),
+      ];
+      const uglified = uglifyBuildModules(uglifyInputs, optimizationOptions.uglify);
+      mainCode = uglified.modules.get("Principal") ?? mainCode;
+      for (const module of modulesToCompile) {
+        const next = uglified.modules.get(module.name);
+        if (next !== undefined) {
+          module.code = next;
+        }
+      }
+    }
     // Order virtual folders: root first, data7_modules folder next, then the rest.
     const orderedFolders: VirtualFolder[] = [];
     const root = virtualFolders.find((f) => f.id === rootFolderId);

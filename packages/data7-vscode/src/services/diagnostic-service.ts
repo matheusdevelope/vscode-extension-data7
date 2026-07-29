@@ -26,8 +26,13 @@ import {
   isWorkerPoolLintEnabled,
   runWorkspaceLintWithWorkerPool,
   AnalysisProgram,
+  collectUnusedCodeDiagnostics,
+  resolveBuildOptimizationOptions,
+  DEFAULT_REACHABILITY_REMOVE_OPTIONS,
   type SerializedLintDiagnostic,
   type LintWorkspaceFileInput,
+  type ProjectMetadata,
+  type ReachabilityModuleInput,
 } from "@data7/core";
 import type { SharedModuleInfo } from "@data7/core";
 
@@ -72,6 +77,9 @@ export class DiagnosticService {
   private static readonly suppressLiveLintUntil = new Map<string, number>();
   private static dependentPropagationScheduled = false;
   private static pendingDependentTriggerUri: vscode.Uri | undefined;
+  /** Project-wide unused-code diagnostics keyed by uri (lowercase). */
+  private static unusedCodeByUri = new Map<string, vscode.Diagnostic[]>();
+  private static unusedCodeRefreshScheduled = false;
 
   /** Cache of expensive workspace-level data, keyed by workspaceDir. */
   private static workspaceCache = new Map<string, WorkspaceDiagnosticCache>();
@@ -247,8 +255,10 @@ export class DiagnosticService {
 
   public static clearDiagnostics(uri: vscode.Uri): void {
     this._collection?.delete(uri);
-    this.liveDiagnosticUris.delete(uri.toString().toLowerCase());
-    this.workspaceDiagnosticUris.delete(uri.toString().toLowerCase());
+    const key = uri.toString().toLowerCase();
+    this.liveDiagnosticUris.delete(key);
+    this.workspaceDiagnosticUris.delete(key);
+    this.unusedCodeByUri.delete(key);
   }
 
   public static replaceDiagnosticsFromBatch(
@@ -263,10 +273,11 @@ export class DiagnosticService {
         this._collection?.delete(entry.uri);
         this.liveDiagnosticUris.delete(uriKey);
         this.workspaceDiagnosticUris.delete(uriKey);
+        this.unusedCodeByUri.delete(uriKey);
         continue;
       }
 
-      this._collection?.set(entry.uri, [...entry.diagnostics]);
+      this.publishMergedDiagnostics(entry.uri, [...entry.diagnostics], "workspace");
       const isOpen = vscode.workspace.textDocuments.some(
         (doc) => doc.uri.toString().toLowerCase() === uriKey,
       );
@@ -345,10 +356,10 @@ export class DiagnosticService {
     }
 
     LintPipelineProfiler.measure("publish", document.uri.toString(), () => {
-      this._collection?.set(document.uri, unsuppressed);
-      this.liveDiagnosticUris.set(uriKey, document.uri);
-      this.workspaceDiagnosticUris.delete(uriKey);
+      this.publishMergedDiagnostics(document.uri, unsuppressed, "live");
     });
+
+    this.scheduleUnusedCodeRefresh();
 
     if (
       reevaluateDependent &&
@@ -597,9 +608,8 @@ export class DiagnosticService {
     }
     // Otherwise lint from disk without opening an editor tab.
     const diags = this.lintFileFromDisk(uri);
-    this._collection?.set(uri, diags);
-    this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
-    return diags;
+    this.publishMergedDiagnostics(uri, diags, "workspace");
+    return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
   }
 
   public static async lintWorkspace(showNotification = false): Promise<void> {
@@ -776,6 +786,8 @@ export class DiagnosticService {
       WorkspaceFixService.isBatchFixInProgress = false;
     }
 
+    await this.refreshUnusedCodeDiagnostics(uris);
+
     return { errorCount, warningCount, infoCount, fileCount: uris.length };
   }
 
@@ -789,9 +801,8 @@ export class DiagnosticService {
     }
 
     const diags = await this.lintFileFromDiskAsync(uri);
-    this._collection?.set(uri, diags);
-    this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
-    return diags;
+    this.publishMergedDiagnostics(uri, diags, "workspace");
+    return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
   }
 
   private static async lintDiskUrisWithWorkerPool(
@@ -850,9 +861,8 @@ export class DiagnosticService {
         workerResult.diagnosticsByUri.get(uriStr) ?? [],
       );
       const merged = [...preamble, ...advanced];
-      this._collection?.set(uri, merged);
-      this.workspaceDiagnosticUris.set(uri.toString().toLowerCase(), uri);
-      for (const diag of merged) {
+      this.publishMergedDiagnostics(uri, merged, "workspace");
+      for (const diag of this._collection?.get(uri) ?? merged) {
         if (diag.severity === vscode.DiagnosticSeverity.Error) {
           errorCount++;
         } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
@@ -1098,8 +1108,203 @@ export class DiagnosticService {
   private static clearWorkspaceDiagnostics(): void {
     for (const uri of this.workspaceDiagnosticUris.values()) {
       this._collection?.delete(uri);
+      this.unusedCodeByUri.delete(uri.toString().toLowerCase());
     }
     this.workspaceDiagnosticUris.clear();
+  }
+
+  /**
+   * Publishes file diagnostics merged with any project-wide unused-code hits.
+   */
+  private static publishMergedDiagnostics(
+    uri: vscode.Uri,
+    baseDiags: readonly vscode.Diagnostic[],
+    origin: "live" | "workspace",
+  ): void {
+    const key = uri.toString().toLowerCase();
+    const withoutUnusedCode = baseDiags.filter(
+      (d) => d.code !== DiagnosticCodes.UnusedCode,
+    );
+    const unusedCode = this.unusedCodeByUri.get(key) ?? [];
+    this._collection?.set(uri, [...withoutUnusedCode, ...unusedCode]);
+    if (origin === "live") {
+      this.liveDiagnosticUris.set(key, uri);
+      this.workspaceDiagnosticUris.delete(key);
+    } else {
+      this.workspaceDiagnosticUris.set(key, uri);
+    }
+  }
+
+  private static scheduleUnusedCodeRefresh(): void {
+    if (this.unusedCodeRefreshScheduled) return;
+    this.unusedCodeRefreshScheduled = true;
+    setTimeout(() => {
+      this.unusedCodeRefreshScheduled = false;
+      void this.refreshUnusedCodeDiagnostics();
+    }, 600);
+  }
+
+  /**
+   * Recomputes declaration reachability for the workspace and overlays
+   * Recomputes declaration reachability for the workspace and overlays
+   * `unused-code` hints without wiping per-file lint results.
+   */
+  private static async refreshUnusedCodeDiagnostics(uris?: readonly vscode.Uri[]): Promise<void> {
+    if (!this.isEnabled()) return;
+
+    const basUris = uris ?? (await this.findWorkspaceBasFiles());
+    if (basUris.length === 0) {
+      this.republishUnusedCodeMap(new Map());
+      return;
+    }
+
+    const byWorkspace = new Map<string, vscode.Uri[]>();
+    for (const uri of basUris) {
+      const folder = vscode.workspace.getWorkspaceFolder(uri);
+      if (!folder) continue;
+      const workspaceDir = folder.uri.fsPath;
+      const list = byWorkspace.get(workspaceDir) ?? [];
+      list.push(uri);
+      byWorkspace.set(workspaceDir, list);
+    }
+
+    // Multi-root: also cover files found without an open folder match via path roots.
+    if (byWorkspace.size === 0) {
+      for (const uri of basUris) {
+        const paths = ProjectService.findProjectPaths(uri.fsPath);
+        if (!paths) continue;
+        const list = byWorkspace.get(paths.workspaceDir) ?? [];
+        list.push(uri);
+        byWorkspace.set(paths.workspaceDir, list);
+      }
+    }
+
+    const nextMap = new Map<string, vscode.Diagnostic[]>();
+
+    for (const [workspaceDir, workspaceUris] of byWorkspace) {
+      const modules = await this.collectReachabilityModules(workspaceUris);
+      if (modules.length === 0) continue;
+
+      const options = this.resolveReachabilityOptions(workspaceDir);
+      const hits = collectUnusedCodeDiagnostics(modules, options);
+
+      for (const hit of hits) {
+        const key = hit.fileUri.toLowerCase();
+        const module = modules.find((m) => m.fileUri.toLowerCase() === key);
+        const filtered = module
+          ? this.filterSuppressedDiagnostics(module.code, [hit.diagnostic])
+          : [hit.diagnostic];
+        if (filtered.length === 0) continue;
+        const list = nextMap.get(key) ?? [];
+        list.push(...filtered);
+        nextMap.set(key, list);
+      }
+    }
+
+    this.republishUnusedCodeMap(nextMap);
+  }
+
+  private static republishUnusedCodeMap(nextMap: Map<string, vscode.Diagnostic[]>): void {
+    const previousKeys = [...this.unusedCodeByUri.keys()];
+    this.unusedCodeByUri = nextMap;
+    const allKeys = new Set([...previousKeys, ...nextMap.keys()]);
+
+    for (const key of allKeys) {
+      const tracked = this.liveDiagnosticUris.get(key) ?? this.workspaceDiagnosticUris.get(key);
+      let uri = tracked;
+      if (!uri) {
+        try {
+          uri = vscode.Uri.parse(key);
+        } catch {
+          continue;
+        }
+      }
+      const existing = this._collection?.get(uri) ?? [];
+      const base = existing.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
+      const unusedCode = nextMap.get(key) ?? [];
+      if (base.length === 0 && unusedCode.length === 0) {
+        this._collection?.delete(uri);
+        continue;
+      }
+      this._collection?.set(uri, [...base, ...unusedCode]);
+      if (!tracked) {
+        this.workspaceDiagnosticUris.set(key, uri);
+      }
+    }
+  }
+
+  private static resolveReachabilityOptions(workspaceDir: string): {
+    alwaysInclude: readonly string[];
+    remove: typeof DEFAULT_REACHABILITY_REMOVE_OPTIONS;
+  } {
+    const configJsonPath = path.join(workspaceDir, PROJECT_CONFIG_FILENAME);
+    try {
+      const cfg = readProjectConfig(configJsonPath);
+      if (cfg) {
+        const metadata = cfg.raw as unknown as ProjectMetadata;
+        const resolved = resolveBuildOptimizationOptions(metadata);
+        return {
+          alwaysInclude: resolved.prune.alwaysInclude,
+          remove: resolved.prune.remove,
+        };
+      }
+    } catch (err) {
+      logger.warn(
+        `Falha ao resolver prune options em ${workspaceDir}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    return {
+      alwaysInclude: [],
+      remove: DEFAULT_REACHABILITY_REMOVE_OPTIONS,
+    };
+  }
+
+  private static async collectReachabilityModules(
+    uris: readonly vscode.Uri[],
+  ): Promise<ReachabilityModuleInput[]> {
+    const modules: ReachabilityModuleInput[] = [];
+    for (const uri of uris) {
+      const openDoc = vscode.workspace.textDocuments.find(
+        (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
+      );
+      let code: string;
+      if (openDoc) {
+        code = openDoc.getText();
+      } else {
+        try {
+          code = await fs.promises.readFile(uri.fsPath, "utf-8");
+        } catch (err) {
+          logger.warn(
+            `Falha ao ler ${uri.fsPath} para reachability: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          continue;
+        }
+      }
+      const base = path.basename(uri.fsPath);
+      const moduleName = base.replace(/\.(bas|d7b)$/i, "");
+      modules.push({
+        moduleName,
+        fileUri: uri.toString(),
+        code,
+      });
+    }
+    return modules;
+  }
+
+  private static filterSuppressedDiagnostics(
+    text: string,
+    diagnostics: readonly vscode.Diagnostic[],
+  ): vscode.Diagnostic[] {
+    const suppressed = extractSuppressedCodes(text);
+    return diagnostics.filter((diag) => {
+      const code = typeof diag.code === "string" ? diag.code : undefined;
+      if (!code) return true;
+      return !isSuppressed(suppressed, diag.range.start.line, code);
+    });
   }
 }
 

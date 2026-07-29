@@ -195,8 +195,11 @@ export const DiagnosticCodes = {
   InvalidSharedMember: "invalid-shared-member",
   /** An explicit `Public` modifier repeats the default visibility. */
   RedundantPublicModifier: "redundant-public-modifier",
-  /** A declaration is never referenced. */
-  UnusedDeclaration: "unused-declaration",
+  /**
+   * A declaration is unused project-wide: not reachable from Principal / Main /
+   * keep seeds (same graph as `build.optimization.prune`).
+   */
+  UnusedCode: "unused-code",
   /** A value member was used as a standalone statement. */
   LooseValueStatement: "loose-value-statement",
   /** A `MustInherit` class was instantiated directly. */
@@ -249,8 +252,12 @@ export const DiagnosticCodes = {
   MissingReturnValue: "missing-return-value",
   /** A final `Exit Sub`/`Exit Function`/`Exit Property` or empty `Return` is redundant. */
   RedundantTerminalExit: "redundant-terminal-exit",
-  /** Unreachable/dead code following a return/exit or inside always-false constant conditionals. */
-  DeadCode: "dead-code",
+  /**
+   * Code that cannot execute because control flow already returned/exited/threw,
+   * or because a constant conditional is always false. Distinct from `unused-code`
+   * (declarations never referenced from Principal).
+   */
+  UnreachableDeclaration: "unreachable-declaration",
   /** Incompatible types assigned to a variable or function return value. */
   TypeMismatch: "type-mismatch",
   /** Else If used with a space instead of ElseIf. */
@@ -574,12 +581,6 @@ export interface RedundantTerminalExitPayload {
   endChar: number;
 }
 
-export interface DeadCodePayload {
-  code: typeof DiagnosticCodes.DeadCode;
-  startLine: number;
-  endLine: number;
-}
-
 export interface CallParenthesesMismatchPayload {
   code: typeof DiagnosticCodes.CallParenthesesMismatch;
   line: number;
@@ -597,11 +598,23 @@ export interface RedundantPublicModifierPayload {
   endChar: number;
 }
 
-export interface UnusedDeclarationPayload {
-  code: typeof DiagnosticCodes.UnusedDeclaration;
+export interface UnusedCodePayload {
+  code: typeof DiagnosticCodes.UnusedCode;
+  kind: string;
+  name: string;
+  namespace: string;
+  ownerClass?: string;
   line: number;
   startChar: number;
   endChar: number;
+  /** Inclusive end line of the declaration block (0-based). Defaults to `line` when omitted. */
+  endLine?: number;
+}
+
+export interface UnreachableDeclarationPayload {
+  code: typeof DiagnosticCodes.UnreachableDeclaration;
+  startLine: number;
+  endLine: number;
 }
 
 export interface ChainedGlobalFunctionAssignmentPayload {
@@ -710,10 +723,10 @@ export type DiagnosticPayload =
   | MissingThenPayload
   | ReturnUnrecommendedPayload
   | RedundantTerminalExitPayload
-  | DeadCodePayload
   | CallParenthesesMismatchPayload
   | RedundantPublicModifierPayload
-  | UnusedDeclarationPayload
+  | UnusedCodePayload
+  | UnreachableDeclarationPayload
   | ChainedGlobalFunctionAssignmentPayload
   | SharedReturnGlobalFunctionPayload
   | ReturnAssignmentInCatchPayload

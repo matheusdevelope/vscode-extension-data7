@@ -10,7 +10,6 @@ import {
 } from "@data7/core";
 import type {
   CallParenthesesMismatchPayload,
-  DeadCodePayload,
   ElseIfWhitespacePayload,
   FinallyBlockUnsupportedPayload,
   InlineIfThenPayload,
@@ -26,6 +25,8 @@ import type {
   UnknownMemberPayload,
   UnsupportedMemberPayload,
   UnusedImportPayload,
+  UnusedCodePayload,
+  UnreachableDeclarationPayload,
 } from "@data7/core";
 
 import { D7BasicCodeActionProvider } from "../../providers/code-action-provider";
@@ -2080,8 +2081,8 @@ describe("D7BasicCodeActionProvider", () => {
     });
   });
 
-  describe("dead-code", () => {
-    test("comments every line in the dead block", async () => {
+  describe("unreachable-declaration", () => {
+    test("comments every line in the unreachable block", async () => {
       const codeText = [
         "Namespace app",
         "  Sub Run()",
@@ -2093,8 +2094,8 @@ describe("D7BasicCodeActionProvider", () => {
         "End Namespace",
       ].join("\n");
       const doc = mockDoc(codeText);
-      const payload: DeadCodePayload = {
-        code: DiagnosticCodes.DeadCode,
+      const payload: UnreachableDeclarationPayload = {
+        code: DiagnosticCodes.UnreachableDeclaration,
         startLine: 3,
         endLine: 4,
       };
@@ -2106,7 +2107,11 @@ describe("D7BasicCodeActionProvider", () => {
           new vscode.Range(3, 6, 4, 29),
           {
             diagnostics: [
-              diagWith(DiagnosticCodes.DeadCode, payload, new vscode.Range(3, 6, 4, 29)),
+              diagWith(
+                DiagnosticCodes.UnreachableDeclaration,
+                payload,
+                new vscode.Range(3, 6, 4, 29),
+              ),
             ],
           } as any,
           noopToken,
@@ -2129,6 +2134,55 @@ describe("D7BasicCodeActionProvider", () => {
           ["insert", 4, 6, "' "],
         ],
       );
+    });
+  });
+
+  describe("unused-code", () => {
+    test("removes the whole unused declaration block", async () => {
+      const codeText = [
+        "Namespace mod_principal",
+        "   Class Program",
+        "      Public Sub Main()",
+        "      End Sub",
+        "   End Class",
+        "End Namespace",
+        "",
+        "Namespace mod_orphan",
+        "   Class DeadClass",
+        "   End Class",
+        "End Namespace",
+      ].join("\n");
+      const doc = mockDoc(codeText);
+      const payload: UnusedCodePayload = {
+        code: DiagnosticCodes.UnusedCode,
+        kind: "class",
+        name: "DeadClass",
+        namespace: "mod_orphan",
+        line: 8,
+        startChar: 3,
+        endChar: 12,
+        endLine: 9,
+      };
+
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(8, 3, 9, 12),
+          {
+            diagnostics: [
+              diagWith(DiagnosticCodes.UnusedCode, payload, new vscode.Range(8, 3, 9, 12)),
+            ],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.title.includes("Remover declaração não usada"),
+      );
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "delete", line: 8 });
     });
   });
 });

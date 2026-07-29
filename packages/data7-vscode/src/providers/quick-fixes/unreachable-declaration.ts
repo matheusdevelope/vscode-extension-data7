@@ -1,38 +1,46 @@
 import * as vscode from "vscode";
 import { DiagnosticCodes } from "@data7/core";
-import type { DeadCodePayload } from "@data7/core";
+import type { UnreachableDeclarationPayload } from "@data7/core";
 
 import { hasDiagnosticCode, readDiagnosticPayload } from "../code-action-helpers";
 
-export function addDeadCodeCommentFix(
+export function addUnreachableDeclarationCommentFix(
   actions: vscode.CodeAction[],
   document: vscode.TextDocument,
   diagnostic: vscode.Diagnostic,
 ): void {
-  const payload = readDiagnosticPayload<DeadCodePayload>(diagnostic, DiagnosticCodes.DeadCode);
+  const payload = readDiagnosticPayload<UnreachableDeclarationPayload>(
+    diagnostic,
+    DiagnosticCodes.UnreachableDeclaration,
+  );
   if (!payload) return;
 
-  const action = new vscode.CodeAction("Comentar bloco morto", vscode.CodeActionKind.QuickFix);
+  const action = new vscode.CodeAction("Comentar bloco inalcançável", vscode.CodeActionKind.QuickFix);
   action.diagnostics = [diagnostic];
   action.isPreferred = false;
   action.edit = buildCommentEdit(document, [payload]);
   actions.push(action);
 }
 
-export function addDeadCodeCommentBulkFix(
+export function addUnreachableDeclarationCommentBulkFix(
   actions: vscode.CodeAction[],
   document: vscode.TextDocument,
   diagnostic: vscode.Diagnostic,
 ): void {
   const payloads = vscode.languages
     .getDiagnostics(document.uri)
-    .filter((diag) => hasDiagnosticCode(diag, DiagnosticCodes.DeadCode))
-    .map((diag) => readDiagnosticPayload<DeadCodePayload>(diag, DiagnosticCodes.DeadCode))
-    .filter((payload): payload is DeadCodePayload => payload !== undefined);
+    .filter((diag) => hasDiagnosticCode(diag, DiagnosticCodes.UnreachableDeclaration))
+    .map((diag) =>
+      readDiagnosticPayload<UnreachableDeclarationPayload>(
+        diag,
+        DiagnosticCodes.UnreachableDeclaration,
+      ),
+    )
+    .filter((payload): payload is UnreachableDeclarationPayload => payload !== undefined);
   if (payloads.length <= 1) return;
 
   const action = new vscode.CodeAction(
-    "Comentar todos os blocos mortos neste arquivo",
+    "Comentar todos os blocos inalcançáveis neste arquivo",
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
@@ -42,7 +50,7 @@ export function addDeadCodeCommentBulkFix(
 
 function buildCommentEdit(
   document: vscode.TextDocument,
-  payloads: readonly DeadCodePayload[],
+  payloads: readonly UnreachableDeclarationPayload[],
 ): vscode.WorkspaceEdit {
   const edit = new vscode.WorkspaceEdit();
   const lines = new Set<number>();

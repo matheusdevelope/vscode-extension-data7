@@ -53,7 +53,8 @@ export const DiagnosticCodes = {
 | [`typed-const-unsupported`](../example/diagnostics/typed-const-unsupported) | error | `Const Nome As Tipo = valor` |
 | [`invalid-shared-member`](../example/diagnostics/invalid-shared-member) | error | `Shared` em campo público/default, propriedade, delegate, classe ou estrutura |
 | [`redundant-public-modifier`](../example/diagnostics/redundant-public-modifier) | warning | `Public` explícito onde a visibilidade já é pública por padrão |
-| [`unused-declaration`](../example/diagnostics/unused-declaration) | warning | declaração local/campo privado/constante não referenciada |
+| [`unused-code`](../example/diagnostics/unused-code) | hint | declaração sem uso a partir de Principal/Main (reachability/prune) |
+| [`unreachable-declaration`](../example/diagnostics/unreachable-declaration) | warning | código após Return/Exit/Throw ou condicional constante falsa |
 | [`loose-value-statement`](../example/diagnostics/loose-value-statement) | error | valor de campo/propriedade/constante usado como statement solto |
 | [`abstract-instantiation`](../example/diagnostics/abstract-instantiation) | error | `New` direto de classe `MustInherit` |
 | [`sealed-inheritance`](../example/diagnostics/sealed-inheritance) | error | `Inherits` de classe `NotInheritable` |
