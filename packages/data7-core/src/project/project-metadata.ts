@@ -51,6 +51,8 @@ export interface ProjectBuildOptimizationPruneRemove {
   consts?: boolean;
   variables?: boolean;
   unusedImports?: boolean;
+  /** Intra-procedure DCE of unused `Dim`/`Const` locals. */
+  localVariables?: boolean;
 }
 
 export interface ProjectBuildOptimizationPrune {

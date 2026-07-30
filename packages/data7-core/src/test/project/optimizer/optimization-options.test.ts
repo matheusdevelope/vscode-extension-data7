@@ -101,6 +101,7 @@ describe("resolveBuildOptimizationOptions", () => {
     assert.equal(options.prune.remove.methods, false);
     assert.equal(options.prune.remove.unusedImports, false);
     assert.equal(options.prune.remove.classes, true);
+    assert.equal(options.prune.remove.localVariables, true);
     assert.equal(options.uglify.enabled, true);
   });
 

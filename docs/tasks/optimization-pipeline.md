@@ -35,8 +35,9 @@ Este arquivo acompanha a implementação de `minify`, `prune` por declaração, 
 - [ ] Reescrever referências globais de namespaces/classes/membros/tipos/imports.
 - [ ] Reescrever variáveis locais/parâmetros com escopo correto.
 - [x] Isolar motor de reachability em `analysis/declaration-reachability` e expor `unused-code` no linter (`unreachable-declaration` fica para fluxo morto).
+- [x] Prune efetivo no Builder via o mesmo motor (`pruneBuildModules` → `analyzeDeclarationReachability`), com parse parcial e teste de paridade com `unused-code`.
 - [ ] Aplicar prune visual/feedback contínuo no editor além do warning (opcional UI).
-- [ ] Flag futura `localVariables` (DCE intra-procedimento).
+- [x] Flag `localVariables` (DCE intra-procedimento de `Dim`/`Const` locais sem uso e sem efeito colateral).
 - [ ] Emitir `.data7/build/*.map.json` e `*.uglify-map.json`.
 - [x] Cobrir flags isoladas e combinadas em testes do optimizer.
 - [x] Atualizar README, CHANGELOG, project_context e exemplos canônicos.
@@ -70,7 +71,8 @@ Este arquivo acompanha a implementação de `minify`, `prune` por declaração, 
           "properties": true,
           "consts": true,
           "variables": true,
-          "unusedImports": true
+          "unusedImports": true,
+          "localVariables": true
         }
       },
       "uglify": {

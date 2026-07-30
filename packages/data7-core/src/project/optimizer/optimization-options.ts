@@ -21,6 +21,11 @@ export interface PruneRemoveOptions {
   readonly consts: boolean;
   readonly variables: boolean;
   readonly unusedImports: boolean;
+  /**
+   * Drop unused method/property `Dim`/`Const` locals with side-effect-free
+   * (or absent) initializers. Independent of declaration-level reachability.
+   */
+  readonly localVariables: boolean;
 }
 
 export interface PruneOptimizationOptions {
@@ -55,6 +60,7 @@ export const DEFAULT_PRUNE_REMOVE_OPTIONS: PruneRemoveOptions = Object.freeze({
   consts: true,
   variables: true,
   unusedImports: true,
+  localVariables: true,
 });
 
 export const DEFAULT_BUILD_OPTIMIZATION_OPTIONS: BuildOptimizationOptions = Object.freeze({
@@ -161,6 +167,7 @@ function resolvePruneRemoveOptions(removeRaw: Record<string, unknown>): PruneRem
     consts: read("consts"),
     variables: read("variables"),
     unusedImports: read("unusedImports"),
+    localVariables: read("localVariables"),
   };
 }
 
@@ -194,6 +201,7 @@ function mergeBuildOptimizationOptions(
         consts: override.prune?.remove?.consts ?? base.prune.remove.consts,
         variables: override.prune?.remove?.variables ?? base.prune.remove.variables,
         unusedImports: override.prune?.remove?.unusedImports ?? base.prune.remove.unusedImports,
+        localVariables: override.prune?.remove?.localVariables ?? base.prune.remove.localVariables,
       },
     },
     uglify: {

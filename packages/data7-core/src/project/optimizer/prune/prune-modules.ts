@@ -5,6 +5,7 @@ import {
   formatDeclarationLabel,
   type ReachabilityModuleInput,
 } from "../../../analysis/declaration-reachability";
+import { pruneLocalVariablesInUnit } from "./local-variable-dce";
 import {
   hasNamespaceDeclarations,
   rewriteCompilationUnit,
@@ -32,9 +33,17 @@ export function pruneBuildModules(
   const analysis = analyzeDeclarationReachability(inputs, {
     alwaysInclude: options.alwaysInclude,
     remove: options.remove,
+    allowPartialParse: true,
   });
 
   if (analysis.skippedDueToParseErrors) {
+    const warnings = analysis.unparsedModuleNames.some((name) => name.toLowerCase() === "principal")
+      ? ["Prune skipped because Principal failed to parse."]
+      : analysis.unparsedModuleNames.length > 0
+        ? [
+            `Prune skipped because module(s) failed to parse: ${analysis.unparsedModuleNames.join(", ")}.`,
+          ]
+        : ["Prune skipped because at least one module failed to parse."];
     return {
       modules: new Map(modules.map((module) => [module.moduleName, module.code])),
       excludedModuleNames: new Set(),
@@ -44,16 +53,22 @@ export function pruneBuildModules(
         excludedNamespaces: [],
         excludedModules: [],
         excludedDeclarations: [],
-        warnings: ["Prune skipped because at least one module failed to parse."],
+        warnings,
       },
     };
   }
 
-  const { live, index, parsed } = analysis;
+  const { live, index, parsed, unparsedModuleNames } = analysis;
+  const unparsed = new Set(unparsedModuleNames.map((name) => name.toLowerCase()));
   const optimized = new Map<string, string>();
   const excludedModuleNames = new Set<string>();
   const excludedNamespaces: string[] = [];
   const excludedDeclarations: string[] = [];
+  const warnings: string[] = [];
+
+  for (const name of unparsedModuleNames) {
+    warnings.push(`Prune kept original source for unparsed module "${name}".`);
+  }
 
   for (const decl of index.declarations) {
     if (decl.kind !== "namespace") continue;
@@ -63,6 +78,11 @@ export function pruneBuildModules(
   }
 
   for (const module of parsed) {
+    if (unparsed.has(module.input.moduleName.toLowerCase())) {
+      optimized.set(module.input.moduleName, module.input.code);
+      continue;
+    }
+
     if (shouldExcludeEntireModule(module, live, options.remove, index)) {
       excludedModuleNames.add(module.input.moduleName);
       for (const decl of index.declarations) {
@@ -74,14 +94,17 @@ export function pruneBuildModules(
       continue;
     }
 
-    const rewritten = rewriteCompilationUnit(
-      module.parse.unit,
-      module,
-      index,
-      live,
-      options.remove,
-    );
+    let rewritten = rewriteCompilationUnit(module.parse.unit, module, index, live, options.remove);
     excludedDeclarations.push(...rewritten.excludedDeclarations);
+
+    if (options.remove.localVariables) {
+      const locals = pruneLocalVariablesInUnit(rewritten.unit);
+      rewritten = {
+        unit: locals.unit,
+        excludedDeclarations: rewritten.excludedDeclarations,
+      };
+      excludedDeclarations.push(...locals.removed);
+    }
 
     if (!hasNamespaceDeclarations(rewritten.unit.members)) {
       if (module.input.moduleName.toLowerCase() === "principal") {
@@ -116,7 +139,7 @@ export function pruneBuildModules(
         excludedNamespaces,
         excludedModules: [...excludedModuleNames],
         excludedDeclarations,
-        warnings: [],
+        warnings,
       }
     : undefined;
 
