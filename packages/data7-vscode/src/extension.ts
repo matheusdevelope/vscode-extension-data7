@@ -182,6 +182,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     AnalysisProgram.getInstance().close(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
+    DiagnosticService.scheduleExternalFileRefresh(uri);
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidCreate((uri) => {
@@ -189,6 +190,7 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     AnalysisProgram.getInstance().close(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
+    DiagnosticService.scheduleExternalFileRefresh(uri);
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidDelete((uri) => {
@@ -237,6 +239,15 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
       const oldPath = path.normalize(file.oldUri.fsPath).toLowerCase();
       const newPath = path.normalize(file.newUri.fsPath).toLowerCase();
       indexer.renameWorkspaceFolder(oldPath, newPath);
+      AnalysisProgram.getInstance().close(file.oldUri.toString());
+      LanguageProcessor.getInstance().invalidate(file.oldUri.toString());
+      DiagnosticService.clearDiagnostics(file.oldUri);
+      if (file.newUri.fsPath.toLowerCase().endsWith(".bas")) {
+        AnalysisProgram.getInstance().close(file.newUri.toString());
+        LanguageProcessor.getInstance().invalidate(file.newUri.toString());
+        indexer.indexFile(file.newUri.toString());
+        DiagnosticService.scheduleExternalFileRefresh(file.newUri);
+      }
       scheduleDependencyRefreshForFile(file.oldUri.fsPath);
       scheduleDependencyRefreshForFile(file.newUri.fsPath);
     }

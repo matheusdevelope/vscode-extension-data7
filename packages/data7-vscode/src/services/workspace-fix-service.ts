@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import {
+  AnalysisProgram,
   DIAGNOSTIC_SOURCE,
   DiagnosticsLinter,
   LanguageProcessor,
@@ -234,23 +235,39 @@ export class WorkspaceFixService {
           // Build a lightweight mock document (no VS Code events fired).
           const mockDoc = buildMockDocument(uri, content);
           const diagnostics = this.collectDiagnosticsFromDocument(mockDoc);
-          if (diagnostics.length === 0) continue;
+          if (diagnostics.length === 0) {
+            // Disk is clean — still clear any stale Problems entry from a prior lint.
+            diagnosticsAfterFix.push({ uri, diagnostics: [] });
+            continue;
+          }
 
           const fixEdit = provider.buildFixAllWorkspaceEdit(mockDoc, diagnostics);
-          if (!fixEdit) continue;
+          if (!fixEdit) {
+            // Non-fixable issues remain; republish so Problems matches current disk.
+            diagnosticsAfterFix.push({ uri, diagnostics });
+            continue;
+          }
 
           // Collect the TextEdits for this file from the WorkspaceEdit.
           const textEdits = this.extractTextEditsForDocument(uri, fixEdit.edit);
-          if (textEdits.length === 0) continue;
+          if (textEdits.length === 0) {
+            diagnosticsAfterFix.push({ uri, diagnostics });
+            continue;
+          }
 
           // Apply edits in-memory (no applyEdit → no onDidChangeTextDocument).
           const correctedContent = applyTextEditsToContent(content, textEdits);
-          if (correctedContent === content) continue;
+          if (correctedContent === content) {
+            diagnosticsAfterFix.push({ uri, diagnostics });
+            continue;
+          }
 
           // Write corrected file directly to disk.
           if (options.save !== false) {
             fs.writeFileSync(uri.fsPath, correctedContent, "utf-8");
-            // Invalidate parser cache so hover/completion reflects new content.
+            // Drop parse/check snapshots so live providers and a later refresh
+            // cannot reuse pre-fix AST / diagnostic caches.
+            AnalysisProgram.getInstance().close(uri.toString());
             LanguageProcessor.getInstance().invalidate(uri.toString());
             const correctedMockDoc = buildMockDocument(uri, correctedContent);
             diagnosticsAfterFix.push({
@@ -278,6 +295,16 @@ export class WorkspaceFixService {
       try {
         const { DiagnosticService } = await import("./diagnostic-service");
         DiagnosticService.replaceDiagnosticsFromBatch(diagnosticsAfterFix);
+        // If revert failed or a delayed document event fires, keep batch Results
+        // from being overwritten by a stale open buffer for a short window.
+        for (const entry of diagnosticsAfterFix) {
+          const openDoc = vscode.workspace.textDocuments.find(
+            (doc) => doc.uri.toString().toLowerCase() === entry.uri.toString().toLowerCase(),
+          );
+          if (openDoc) {
+            DiagnosticService.suppressLiveLintForUri(openDoc.uri, openDoc.isDirty ? 2000 : 800);
+          }
+        }
       } catch {
         // Avoid circular-dependency crash if import fails.
       }
@@ -440,9 +467,10 @@ export class WorkspaceFixService {
     uri: vscode.Uri,
     edit: vscode.WorkspaceEdit,
   ): vscode.TextEdit[] {
+    const uriKey = uri.toString().toLowerCase();
     if (typeof edit.entries === "function") {
       for (const [entryUri, edits] of edit.entries()) {
-        if (entryUri.toString() === uri.toString()) {
+        if (entryUri.toString().toLowerCase() === uriKey) {
           return edits;
         }
       }
@@ -458,7 +486,7 @@ export class WorkspaceFixService {
         | { type: "insert"; uri: vscode.Uri; position: vscode.Position; text: string }
         | { type: "replace"; uri: vscode.Uri; range: vscode.Range; text: string }
         | { type: "delete"; uri: vscode.Uri; range: vscode.Range };
-      if (entry.uri.toString() !== uri.toString()) continue;
+      if (entry.uri.toString().toLowerCase() !== uriKey) continue;
       if (entry.type === "insert") {
         textEdits.push(vscode.TextEdit.insert(entry.position, entry.text));
       } else if (entry.type === "replace") {

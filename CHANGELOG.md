@@ -8,6 +8,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ## [Unreleased]
 
 ### Corrigido
+- **Linter — Problems stale após correção:** o ajuste em massa passa a republicar (ou limpar) diagnósticos para cada arquivo analisado, inclusive quando o disco já está limpo; o watcher de `.bas` agenda refresh debounceado de arquivos com Problems publicados; `DiagnosticCollection` reutiliza a mesma Uri canônica no set/delete (evita órfãos por casing no Windows).
 - **Quick Fix `call-parentheses-mismatch` em mismatch de aridade:** diagnósticos de assinatura/argumentos (`AddCustomHeader(umArg)` quando a assinatura exige dois) deixam de anexar payload de edição e o Quick Fix não oferece mais "Adicionar parenteses '()'", evitando reescrever `foo(arg)` em `foo()(arg)` no save / fix-all.
 - **Uglify — `GetDefault().Printe` (função bare no namespace):** o tipo de retorno de funções de namespace sem receptor (`GetDefault() As Logger`) passa a alimentar o rename de `.Printe` / membros colidentes na cadeia.
 - **Uglify — overloads `Last() As TItem` vs `Last(n) As TList`:** o índice guarda aridade→tipo de retorno e a cadeia `Fields.Last().Options` usa o overload de 0 args (`TField`), não o de lista.

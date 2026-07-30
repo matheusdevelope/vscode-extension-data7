@@ -16,6 +16,17 @@ export const symbols: SystemSymbolInfo[] = [
       "Agrupador visual de controles desenhado via Canvas (sem janela própria). Equivalente ao TControlGroup do Data7.",
   },
   {
+    name: "Color",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "ControlGroup",
+    description: "Cor associada ao agrupador visual.",
+  },
+  {
     name: "Text",
     kind: "property",
     type: "String",

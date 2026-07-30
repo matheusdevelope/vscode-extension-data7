@@ -716,4 +716,113 @@ describe("DiagnosticService live lifecycle", () => {
       (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
     }
   });
+
+  test("replaceDiagnosticsFromBatch clears stale Problems when disk content is already clean", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_stale.bas");
+    const dirty = [
+      "Namespace mod_stale",
+      "Class C",
+      "  Public Sub Run()",
+      "    Dim value As MissingType",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    const clean = ["Namespace mod_stale", "End Namespace", ""].join("\n");
+    fs.writeFileSync(basPath, dirty, "utf8");
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+
+    DiagnosticService.lintFile(uri);
+    const key = uri.toString().toLowerCase();
+    assert.ok((entries.get(key)?.length ?? 0) > 0, "precondition: stale diagnostics published");
+
+    // Simulate workspace-fix finding a already-corrected file on disk.
+    fs.writeFileSync(basPath, clean, "utf8");
+    DiagnosticService.replaceDiagnosticsFromBatch([{ uri, diagnostics: [] }]);
+
+    assert.equal(entries.has(key), false, "clean disk must clear stale Problems entries");
+  });
+
+  test("scheduleExternalFileRefresh re-lints closed files that already have Problems", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_external.bas");
+    const dirty = [
+      "Namespace mod_external",
+      "Class C",
+      "  Public Sub Run()",
+      "    Dim value As MissingType",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    const clean = ["Namespace mod_external", "End Namespace", ""].join("\n");
+    fs.writeFileSync(basPath, dirty, "utf8");
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    DiagnosticService.markWorkspaceIndexReady();
+
+    DiagnosticService.lintFile(uri);
+    const key = uri.toString().toLowerCase();
+    assert.ok((entries.get(key)?.length ?? 0) > 0);
+
+    mockTextDocuments.length = 0;
+    fs.writeFileSync(basPath, clean, "utf8");
+    DiagnosticService.scheduleExternalFileRefresh(uri);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    const after = entries.get(key) ?? [];
+    assert.equal(
+      after.some((diag) => diag.code === DiagnosticCodes.UnknownType),
+      false,
+      "external disk fix must refresh closed-file Problems",
+    );
+  });
 });

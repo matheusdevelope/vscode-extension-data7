@@ -89,7 +89,21 @@ export class DiagnosticService {
       DiagnosticService.refreshDiagnosticsNow(document, false);
     },
     DiagnosticService.REFRESH_DELAY_MS,
-    (document: vscode.TextDocument) => document.uri.toString(),
+    (document: vscode.TextDocument) => document.uri.toString().toLowerCase(),
+  );
+
+  /**
+   * Debounced refresh for external disk changes (file watcher / batch writes).
+   * Kept separate from live typing debounce so keystroke lint stays at 250ms
+   * while disk events can coalesce briefly without skipping open-buffer edits.
+   */
+  private static readonly EXTERNAL_REFRESH_DELAY_MS = 200;
+  private static externalRefreshDebounced = debounceKeyed(
+    (uri: vscode.Uri) => {
+      DiagnosticService.refreshFromExternalChange(uri);
+    },
+    DiagnosticService.EXTERNAL_REFRESH_DELAY_MS,
+    (uri: vscode.Uri) => uri.toString().toLowerCase(),
   );
 
   public static initialize(context: vscode.ExtensionContext): void {
@@ -254,11 +268,22 @@ export class DiagnosticService {
   }
 
   public static clearDiagnostics(uri: vscode.Uri): void {
-    this._collection?.delete(uri);
-    const key = uri.toString().toLowerCase();
+    const key = this.uriKey(uri);
+    this.deleteFromCollection(uri);
     this.liveDiagnosticUris.delete(key);
     this.workspaceDiagnosticUris.delete(key);
     this.unusedCodeByUri.delete(key);
+  }
+
+  /**
+   * Schedules a single-file diagnostic refresh after an on-disk change
+   * (FileSystemWatcher, batch fix write). Skips while a batch fix/lint runs
+   * and when the open buffer is dirty (editor owns that content).
+   */
+  public static scheduleExternalFileRefresh(uri: vscode.Uri): void {
+    if (WorkspaceFixService.isBatchFixInProgress) return;
+    if (uri.scheme !== "file") return;
+    this.externalRefreshDebounced(uri);
   }
 
   public static replaceDiagnosticsFromBatch(
@@ -268,26 +293,18 @@ export class DiagnosticService {
     }[],
   ): void {
     for (const entry of entries) {
-      const uriKey = entry.uri.toString().toLowerCase();
+      const uriKey = this.uriKey(entry.uri);
       if (entry.diagnostics.length === 0) {
-        this._collection?.delete(entry.uri);
-        this.liveDiagnosticUris.delete(uriKey);
-        this.workspaceDiagnosticUris.delete(uriKey);
-        this.unusedCodeByUri.delete(uriKey);
+        this.clearDiagnostics(entry.uri);
         continue;
       }
 
-      this.publishMergedDiagnostics(entry.uri, [...entry.diagnostics], "workspace");
-      const isOpen = vscode.workspace.textDocuments.some(
-        (doc) => doc.uri.toString().toLowerCase() === uriKey,
+      const isOpen = vscode.workspace.textDocuments.some((doc) => this.uriKey(doc.uri) === uriKey);
+      this.publishMergedDiagnostics(
+        entry.uri,
+        [...entry.diagnostics],
+        isOpen ? "live" : "workspace",
       );
-      if (isOpen) {
-        this.liveDiagnosticUris.set(uriKey, entry.uri);
-        this.workspaceDiagnosticUris.delete(uriKey);
-      } else {
-        this.workspaceDiagnosticUris.set(uriKey, entry.uri);
-        this.liveDiagnosticUris.delete(uriKey);
-      }
     }
   }
 
@@ -295,7 +312,7 @@ export class DiagnosticService {
     const openUris = new Set(
       vscode.workspace.textDocuments
         .filter((document) => this.isLiveDiagnosticDocument(document))
-        .map((document) => document.uri.toString().toLowerCase()),
+        .map((document) => this.uriKey(document.uri)),
     );
     for (const uriKey of Array.from(this.liveDiagnosticUris.keys())) {
       if (!openUris.has(uriKey)) {
@@ -303,7 +320,7 @@ export class DiagnosticService {
         // Do not prune diagnostics for workspace files
         if (uri && !vscode.workspace.getWorkspaceFolder(uri)) {
           this.liveDiagnosticUris.delete(uriKey);
-          this._collection?.delete(uri);
+          this.deleteFromCollection(uri);
         }
       }
     }
@@ -1062,7 +1079,59 @@ export class DiagnosticService {
     this.dependentPropagationScheduled = false;
     this.pendingDependentTriggerUri = undefined;
     this.refreshDebounced.cancelAll();
+    this.externalRefreshDebounced.cancelAll();
     SemanticLintCache.resetForTests();
+  }
+
+  private static uriKey(uri: vscode.Uri): string {
+    return uri.toString().toLowerCase();
+  }
+
+  /**
+   * Prefer the Uri object already stored in the collection maps so
+   * `DiagnosticCollection.set/delete` hit the same key VS Code indexed.
+   * Windows path casing otherwise leaves orphan Problem entries.
+   */
+  private static resolveCollectionUri(uri: vscode.Uri): vscode.Uri {
+    const key = this.uriKey(uri);
+    return this.liveDiagnosticUris.get(key) ?? this.workspaceDiagnosticUris.get(key) ?? uri;
+  }
+
+  private static deleteFromCollection(uri: vscode.Uri): void {
+    const tracked = this.resolveCollectionUri(uri);
+    this._collection?.delete(tracked);
+    if (tracked.toString() !== uri.toString()) {
+      this._collection?.delete(uri);
+    }
+  }
+
+  private static refreshFromExternalChange(uri: vscode.Uri): void {
+    if (WorkspaceFixService.isBatchFixInProgress) return;
+    if (!this.isEnabled()) return;
+    if (uri.scheme !== "file") return;
+    if (isExcluded(uri.fsPath) || isReadOnlyModuleFile(uri.fsPath)) {
+      this.clearDiagnostics(uri);
+      return;
+    }
+
+    const openDoc = vscode.workspace.textDocuments.find(
+      (doc) => this.uriKey(doc.uri) === this.uriKey(uri),
+    );
+    if (openDoc?.isDirty) return;
+
+    if (openDoc) {
+      this.refreshDiagnosticsNow(openDoc, true);
+      return;
+    }
+
+    // Closed files: only re-lint when we already published diagnostics for them,
+    // so bulk disk churn (git checkout of untouched trees) stays cheap.
+    const key = this.uriKey(uri);
+    if (!this.liveDiagnosticUris.has(key) && !this.workspaceDiagnosticUris.has(key)) {
+      return;
+    }
+
+    this.lintFile(uri, false);
   }
 
   private static deserializeWorkerDiagnostics(
@@ -1107,8 +1176,8 @@ export class DiagnosticService {
 
   private static clearWorkspaceDiagnostics(): void {
     for (const uri of this.workspaceDiagnosticUris.values()) {
-      this._collection?.delete(uri);
-      this.unusedCodeByUri.delete(uri.toString().toLowerCase());
+      this.deleteFromCollection(uri);
+      this.unusedCodeByUri.delete(this.uriKey(uri));
     }
     this.workspaceDiagnosticUris.clear();
   }
@@ -1121,15 +1190,23 @@ export class DiagnosticService {
     baseDiags: readonly vscode.Diagnostic[],
     origin: "live" | "workspace",
   ): void {
-    const key = uri.toString().toLowerCase();
+    const key = this.uriKey(uri);
+    const previous = this.liveDiagnosticUris.get(key) ?? this.workspaceDiagnosticUris.get(key);
+    // Keep a stable Uri identity for DiagnosticCollection across live/workspace publishes.
+    const canonical = previous ?? uri;
+    if (previous && previous.toString() !== uri.toString()) {
+      this._collection?.delete(uri);
+    }
+
     const withoutUnusedCode = baseDiags.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
     const unusedCode = this.unusedCodeByUri.get(key) ?? [];
-    this._collection?.set(uri, [...withoutUnusedCode, ...unusedCode]);
+    this._collection?.set(canonical, [...withoutUnusedCode, ...unusedCode]);
     if (origin === "live") {
-      this.liveDiagnosticUris.set(key, uri);
+      this.liveDiagnosticUris.set(key, canonical);
       this.workspaceDiagnosticUris.delete(key);
     } else {
-      this.workspaceDiagnosticUris.set(key, uri);
+      this.workspaceDiagnosticUris.set(key, canonical);
+      this.liveDiagnosticUris.delete(key);
     }
   }
 
@@ -1221,7 +1298,7 @@ export class DiagnosticService {
       const base = existing.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
       const unusedCode = nextMap.get(key) ?? [];
       if (base.length === 0 && unusedCode.length === 0) {
-        this._collection?.delete(uri);
+        this.deleteFromCollection(uri);
         continue;
       }
       this._collection?.set(uri, [...base, ...unusedCode]);
