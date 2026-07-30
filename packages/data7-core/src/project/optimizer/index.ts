@@ -9,7 +9,7 @@ export {
   type PruneRemoveOptions,
   type UglifyOptimizationOptions,
 } from "./optimization-options";
-export { minifyData7Text, type TextMinifyOptions } from "./minify";
+export { minifyData7Text, minifyData7TextWithMap, type TextMinifyOptions } from "./minify";
 export {
   pruneBuildModules,
   type PruneModuleInput,

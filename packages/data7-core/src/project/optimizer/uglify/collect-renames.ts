@@ -5,6 +5,7 @@ import type {
   Statement,
   TopLevelMember,
 } from "../../ast/ast";
+import type { Data7SymbolMapping } from "../../source-map";
 import { ShortNameAllocator } from "./name-allocator";
 import { isUglifyLocalReservedName, isUglifyReservedName } from "./reserved-names";
 import { buildUserTypeIndex, type UserTypeIndex } from "./user-type-index";
@@ -41,10 +42,13 @@ export interface UglifyRenameMaps {
   readonly namespaceMembers: ReadonlyMap<string, ReadonlySet<string>>;
   /** User type → members / inheritance for typed member-access gating. */
   readonly userTypes: UserTypeIndex;
+  /** Declaration renames for source-map / uglify-map artifacts. */
+  readonly symbols: readonly Data7SymbolMapping[];
 }
 
 export interface ParsedUglifyModule {
   readonly moduleName: string;
+  readonly fileUri: string;
   readonly code: string;
   readonly unit: CompilationUnit;
 }
@@ -93,6 +97,9 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
   const systemCollidingMembers = new Set<string>();
   const nestedTypes = new Map<string, Map<string, string>>();
   const namespaceMembers = new Map<string, Set<string>>();
+  const symbols: Data7SymbolMapping[] = [];
+  let currentFileUri = "";
+  let currentScope: string | undefined;
 
   const claim = (
     bucket: Map<string, string>,
@@ -100,6 +107,7 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
     code: string,
     startLine: number | undefined,
     skip: (n: string, c: string, line: number | undefined) => boolean,
+    kind: string,
   ): void => {
     const lower = name.toLowerCase();
     if (bucket.has(lower)) return;
@@ -107,7 +115,15 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
       allocator.markTaken(name);
       return;
     }
-    bucket.set(lower, allocator.next());
+    const short = allocator.next();
+    bucket.set(lower, short);
+    symbols.push({
+      originalName: name,
+      generatedName: short,
+      kind,
+      fileUri: currentFileUri,
+      ...(currentScope ? { scope: currentScope } : {}),
+    });
   };
 
   const claimMember = (name: string, code: string, startLine: number | undefined): void => {
@@ -117,10 +133,18 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
       allocator.markTaken(name);
       return;
     }
-    members.set(lower, allocator.next());
+    const short = allocator.next();
+    members.set(lower, short);
     if (isUglifyReservedName(name)) {
       systemCollidingMembers.add(lower);
     }
+    symbols.push({
+      originalName: name,
+      generatedName: short,
+      kind: "member",
+      fileUri: currentFileUri,
+      ...(currentScope ? { scope: currentScope } : {}),
+    });
   };
 
   const recordNamespaceMember = (namespaceLower: string | undefined, name: string): void => {
@@ -149,9 +173,18 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
     code: string,
     parentLower: string,
   ): void => {
+    const previousScope = currentScope;
+    currentScope = parentLower;
     for (const member of classMembers) {
       if (member.kind === "ClassDeclaration") {
-        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace);
+        claim(
+          types,
+          member.name,
+          code,
+          member.loc?.startLine,
+          shouldSkipTypeOrNamespace,
+          "nested-type",
+        );
         recordNestedType(parentLower, member.name);
         walkClassMembers(member.members, code, member.name.toLowerCase());
         continue;
@@ -170,6 +203,7 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
         claimMember(member.name, code, member.loc?.startLine);
       }
     }
+    currentScope = previousScope;
   };
 
   const walkTop = (
@@ -177,27 +211,36 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
     code: string,
     namespaceLower?: string,
   ): void => {
+    const previousScope = currentScope;
+    currentScope = namespaceLower;
     for (const member of membersList) {
       if (member.kind === "NamespaceDeclaration") {
         namespaceNames.add(member.name.toLowerCase());
-        claim(namespaces, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace);
+        claim(
+          namespaces,
+          member.name,
+          code,
+          member.loc?.startLine,
+          shouldSkipTypeOrNamespace,
+          "namespace",
+        );
         walkTop(member.members, code, member.name.toLowerCase());
         continue;
       }
       if (member.kind === "ClassDeclaration") {
-        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace);
+        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace, "type");
         walkClassMembers(member.members, code, member.name.toLowerCase());
         continue;
       }
       if (member.kind === "EnumDeclaration") {
-        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace);
+        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace, "type");
         for (const entry of member.entries) {
           claimMember(entry.name, code, entry.loc?.startLine ?? member.loc?.startLine);
         }
         continue;
       }
       if (member.kind === "DelegateDeclaration") {
-        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace);
+        claim(types, member.name, code, member.loc?.startLine, shouldSkipTypeOrNamespace, "type");
         continue;
       }
       if (member.kind === "MethodDeclaration") {
@@ -216,9 +259,11 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
         recordNamespaceMember(namespaceLower, member.name);
       }
     }
+    currentScope = previousScope;
   };
 
   for (const module of modules) {
+    currentFileUri = module.fileUri;
     walkTop(module.unit.members, module.code);
   }
 
@@ -233,6 +278,7 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
     nestedTypes,
     namespaceMembers,
     userTypes,
+    symbols,
   };
 }
 

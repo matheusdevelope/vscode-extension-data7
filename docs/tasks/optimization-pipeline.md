@@ -21,8 +21,8 @@ Este arquivo acompanha a implementação de `minify`, `prune` por declaração, 
 - [x] Criar contratos base de source map Data7.
 - [ ] Adicionar comandos separados para build/run/open original e otimizado.
 - [ ] Gerar saídas separadas para variantes original, run e otimizada.
-- [ ] Criar source map Data7 com segmentos e mapa de símbolos.
-- [ ] Compor source map de transpile/sugars/generics com otimizações.
+- [x] Criar source map Data7 com segmentos e mapa de símbolos.
+- [x] Compor source map de transpile/sugars/generics com otimizações.
 - [x] Migrar minify atual para `src/project/optimizer/minify`.
 - [x] Implementar `prune` por fechamento a partir de Principal (namespaces).
 - [x] Implementar `prune` por declaração com flags `remove.*`.
@@ -39,7 +39,7 @@ Este arquivo acompanha a implementação de `minify`, `prune` por declaração, 
 - [x] Prune efetivo no Builder via o mesmo motor (`pruneBuildModules` → `analyzeDeclarationReachability`), com parse parcial e teste de paridade com `unused-code`.
 - [ ] Aplicar prune visual/feedback contínuo no editor além do warning (opcional UI).
 - [x] Flag `localVariables` (DCE intra-procedimento de `Dim`/`Const` locais sem uso e sem efeito colateral).
-- [ ] Emitir `.data7/build/*.map.json` e `*.uglify-map.json`.
+- [x] Emitir `.data7/build/*.map.json` e `*.uglify-map.json`.
 - [x] Cobrir flags isoladas e combinadas em testes do optimizer.
 - [x] Atualizar README, CHANGELOG, project_context e exemplos canônicos.
 

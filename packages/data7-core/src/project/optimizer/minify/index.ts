@@ -1,1 +1,6 @@
-export { minifyData7Text, type TextMinifyOptions } from "./minifier";
+export {
+  minifyData7Text,
+  minifyData7TextWithMap,
+  type MinifyWithMapResult,
+  type TextMinifyOptions,
+} from "./minifier";

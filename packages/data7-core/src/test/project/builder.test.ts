@@ -712,6 +712,75 @@ End Namespace
         assert.doesNotMatch(xml, /DeadClass/);
       });
     });
+
+    test("emits .map.json and uglify-map when sourceMap + uglify are enabled", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          build?: unknown;
+        };
+        config.build = {
+          optimization: {
+            sourceMap: true,
+            minify: { enabled: false, stripComments: false },
+            prune: { enabled: false },
+            uglify: { enabled: true },
+          },
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Namespace mod_app
+  Class Runner
+    Sub Main()
+      Dim helper As New THelper()
+      helper.Run()
+    End Sub
+  End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_helper.bas"),
+          `Namespace helpers
+  Class THelper
+    Sub Run()
+    End Sub
+  End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const mapBeside = `${destXml}.map.json`;
+        const mapUnderBuild = path.join(tmp, ".data7", "build", "TestProject.7Proj.map.json");
+        const uglifyBeside = path.join(tmp, "TestProject.uglify-map.json");
+        assert.ok(fs.existsSync(mapBeside), "source map beside .7Proj");
+        assert.ok(fs.existsSync(mapUnderBuild), "source map under .data7/build");
+        assert.ok(fs.existsSync(uglifyBeside), "uglify-map beside project");
+
+        const sourceMap = JSON.parse(fs.readFileSync(mapBeside, "utf-8")) as {
+          version: number;
+          segments: unknown[];
+          symbols: { originalName: string; generatedName: string; kind: string }[];
+        };
+        assert.equal(sourceMap.version, 1);
+        assert.ok(sourceMap.segments.length > 0, "segments present");
+        assert.ok(
+          sourceMap.symbols.some((s) => s.originalName === "THelper" || s.kind === "type"),
+          "symbols include renamed types/members",
+        );
+        assert.ok(
+          sourceMap.symbols.every((s) => s.generatedName.length > 0),
+          "generated names are non-empty",
+        );
+      });
+    });
   });
 });
 

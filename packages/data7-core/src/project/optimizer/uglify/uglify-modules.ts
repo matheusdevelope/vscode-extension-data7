@@ -1,5 +1,6 @@
 import { deepClone } from "../../ast/clone";
-import { parseBasic, serializeUnit, BUILD_SERIALIZE_OPTIONS } from "../../parser";
+import { parseBasic, serializeUnitWithMap, BUILD_SERIALIZE_OPTIONS } from "../../parser";
+import type { Data7SymbolMapping } from "../../source-map";
 import type { UglifyOptimizationOptions } from "../optimization-options";
 import { collectUglifyRenameMaps, type ParsedUglifyModule } from "./collect-renames";
 import { applyUglifyRenames } from "./rewrite-names";
@@ -12,6 +13,10 @@ export interface UglifyModuleInput {
 
 export interface UglifyResult {
   readonly modules: ReadonlyMap<string, string>;
+  /** Uglified generated line → input (pre-uglify) line, when renaming ran. */
+  readonly lineMaps?: ReadonlyMap<string, number[]>;
+  /** Declaration renames for the source map / uglify-map artifact. */
+  readonly symbols?: readonly Data7SymbolMapping[];
 }
 
 /**
@@ -41,6 +46,7 @@ export function uglifyBuildModules(
     }
     parsed.push({
       moduleName: module.moduleName,
+      fileUri: module.fileUri,
       code: module.code,
       unit: deepClone(parse.unit),
     });
@@ -48,15 +54,15 @@ export function uglifyBuildModules(
 
   const maps = collectUglifyRenameMaps(parsed);
   const result = new Map<string, string>();
+  const lineMaps = new Map<string, number[]>();
   for (const module of parsed) {
     applyUglifyRenames(module.unit, maps);
-    result.set(
-      module.moduleName,
-      serializeUnit(module.unit, {
-        eol: module.code.includes("\r\n") ? "\r\n" : "\n",
-        ...BUILD_SERIALIZE_OPTIONS,
-      }),
-    );
+    const serialized = serializeUnitWithMap(module.unit, {
+      eol: module.code.includes("\r\n") ? "\r\n" : "\n",
+      ...BUILD_SERIALIZE_OPTIONS,
+    });
+    result.set(module.moduleName, serialized.code);
+    lineMaps.set(module.moduleName, serialized.lineMap);
   }
-  return { modules: result };
+  return { modules: result, lineMaps, symbols: maps.symbols };
 }

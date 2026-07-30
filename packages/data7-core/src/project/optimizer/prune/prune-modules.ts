@@ -1,10 +1,11 @@
-import { serializeUnit, BUILD_SERIALIZE_OPTIONS } from "../../parser";
+import { serializeUnitWithMap, BUILD_SERIALIZE_OPTIONS } from "../../parser";
 import type { PruneOptimizationOptions } from "../optimization-options";
 import {
   analyzeDeclarationReachability,
   formatDeclarationLabel,
   type ReachabilityModuleInput,
 } from "../../../analysis/declaration-reachability";
+import { identityLineMap, lineCountOf } from "../../source-map";
 import { pruneLocalVariablesInUnit } from "./local-variable-dce";
 import {
   hasNamespaceDeclarations,
@@ -21,6 +22,9 @@ export function pruneBuildModules(
     return {
       modules: new Map(modules.map((module) => [module.moduleName, module.code])),
       excludedModuleNames: new Set(),
+      lineMaps: new Map(
+        modules.map((module) => [module.moduleName, identityLineMap(lineCountOf(module.code))]),
+      ),
     };
   }
 
@@ -47,6 +51,9 @@ export function pruneBuildModules(
     return {
       modules: new Map(modules.map((module) => [module.moduleName, module.code])),
       excludedModuleNames: new Set(),
+      lineMaps: new Map(
+        modules.map((module) => [module.moduleName, identityLineMap(lineCountOf(module.code))]),
+      ),
       report: {
         strategy: "principal-closure",
         liveNamespaces: [],
@@ -61,6 +68,7 @@ export function pruneBuildModules(
   const { live, index, parsed, unparsedModuleNames } = analysis;
   const unparsed = new Set(unparsedModuleNames.map((name) => name.toLowerCase()));
   const optimized = new Map<string, string>();
+  const lineMaps = new Map<string, number[]>();
   const excludedModuleNames = new Set<string>();
   const excludedNamespaces: string[] = [];
   const excludedDeclarations: string[] = [];
@@ -77,9 +85,23 @@ export function pruneBuildModules(
     }
   }
 
+  const serializePruned = (
+    moduleName: string,
+    code: string,
+    unit: (typeof parsed)[number]["parse"]["unit"],
+  ): void => {
+    const serialized = serializeUnitWithMap(unit, {
+      eol: code.includes("\r\n") ? "\r\n" : "\n",
+      ...BUILD_SERIALIZE_OPTIONS,
+    });
+    optimized.set(moduleName, serialized.code);
+    lineMaps.set(moduleName, serialized.lineMap);
+  };
+
   for (const module of parsed) {
     if (unparsed.has(module.input.moduleName.toLowerCase())) {
       optimized.set(module.input.moduleName, module.input.code);
+      lineMaps.set(module.input.moduleName, identityLineMap(lineCountOf(module.input.code)));
       continue;
     }
 
@@ -108,26 +130,14 @@ export function pruneBuildModules(
 
     if (!hasNamespaceDeclarations(rewritten.unit.members)) {
       if (module.input.moduleName.toLowerCase() === "principal") {
-        optimized.set(
-          module.input.moduleName,
-          serializeUnit(rewritten.unit, {
-            eol: module.input.code.includes("\r\n") ? "\r\n" : "\n",
-            ...BUILD_SERIALIZE_OPTIONS,
-          }),
-        );
+        serializePruned(module.input.moduleName, module.input.code, rewritten.unit);
         continue;
       }
       excludedModuleNames.add(module.input.moduleName);
       continue;
     }
 
-    optimized.set(
-      module.input.moduleName,
-      serializeUnit(rewritten.unit, {
-        eol: module.input.code.includes("\r\n") ? "\r\n" : "\n",
-        ...BUILD_SERIALIZE_OPTIONS,
-      }),
-    );
+    serializePruned(module.input.moduleName, module.input.code, rewritten.unit);
   }
 
   const report: PruneReport | undefined = options.report
@@ -143,5 +153,5 @@ export function pruneBuildModules(
       }
     : undefined;
 
-  return { modules: optimized, excludedModuleNames, report };
+  return { modules: optimized, excludedModuleNames, lineMaps, report };
 }

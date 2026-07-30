@@ -7,38 +7,65 @@ export interface TextMinifyOptions {
   readonly collapseWhitespace?: boolean;
 }
 
+export interface MinifyWithMapResult {
+  readonly code: string;
+  /** generated line index → input line index (0-based). */
+  readonly lineMap: number[];
+}
+
 /**
  * Textual minify only — never removes declarations.
  * Semantic dead-code removal belongs to `build.optimization.prune`.
  */
 export function minifyData7Text(code: string, options: TextMinifyOptions): string {
+  return minifyData7TextWithMap(code, options).code;
+}
+
+/**
+ * Same as {@link minifyData7Text}, also returning a line map for source-map composition.
+ * With only `stripComments`, the map is identity (empty lines preserved).
+ * With `collapseWhitespace`, blank lines are dropped and the map skips them.
+ */
+export function minifyData7TextWithMap(
+  code: string,
+  options: TextMinifyOptions,
+): MinifyWithMapResult {
   const collapseWhitespace = options.enabled && options.collapseWhitespace === true;
   const stripComments = options.stripComments;
 
+  const lines = code.split(/\r?\n/);
   if (!collapseWhitespace && !stripComments) {
-    return code;
+    return {
+      code,
+      lineMap: lines.map((_, index) => index),
+    };
   }
 
-  const lines = code.split(/\r?\n/);
   const resultLines: string[] = [];
+  const lineMap: number[] = [];
 
-  for (const lineText of lines) {
-    let cleanLine = lineText;
+  for (let inputIndex = 0; inputIndex < lines.length; inputIndex++) {
+    let cleanLine = lines[inputIndex] ?? "";
 
     if (stripComments) {
-      cleanLine = DependencyScanner.stripComments(lineText);
+      cleanLine = DependencyScanner.stripComments(cleanLine);
     }
 
     if (collapseWhitespace) {
       const trimmed = cleanLine.trim();
       if (!trimmed) continue;
       resultLines.push(compressWhitespaceOutsideStrings(trimmed));
+      lineMap.push(inputIndex);
     } else {
       resultLines.push(cleanLine);
+      lineMap.push(inputIndex);
     }
   }
 
-  return resultLines.join("\r\n");
+  return {
+    code: resultLines.join("\r\n"),
+    lineMap,
+  };
 }
 
 function compressWhitespaceOutsideStrings(text: string): string {

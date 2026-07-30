@@ -6,3 +6,10 @@ export type {
   Data7SymbolMapping,
 } from "./data7-source-map";
 export { Data7SourceMapBuilder } from "./source-map-builder";
+export {
+  composeLineMaps,
+  identityLineMap,
+  lineCountOf,
+  shiftLineMapForInsert,
+} from "./compose-line-maps";
+export { writeData7SourceMapFiles } from "./write-source-map";

@@ -19,5 +19,10 @@ export interface PruneReport {
 export interface PruneResult {
   readonly modules: ReadonlyMap<string, string>;
   readonly excludedModuleNames: ReadonlySet<string>;
+  /**
+   * When present: pruned generated line → input (pre-prune) line, per module.
+   * Omitted for modules kept verbatim (parse skip) or when prune is disabled.
+   */
+  readonly lineMaps?: ReadonlyMap<string, number[]>;
   readonly report?: PruneReport;
 }

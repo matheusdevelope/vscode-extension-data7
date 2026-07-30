@@ -27,12 +27,21 @@ import { GenericsMonomorphizer } from "./generics";
 import type { TypeReference } from "./ast/ast";
 import {
   resolveBuildOptimizationOptions,
-  minifyData7Text,
+  minifyData7TextWithMap,
   pruneBuildModules,
   uglifyBuildModules,
   type BuildOptimizationOptions,
   type BuildOptimizationOverride,
 } from "./optimizer";
+import {
+  composeLineMaps,
+  Data7SourceMapBuilder,
+  identityLineMap,
+  lineCountOf,
+  shiftLineMapForInsert,
+  writeData7SourceMapFiles,
+  type Data7SymbolMapping,
+} from "./source-map";
 import { topologicalSortModulesByNamespaceDependency } from "./module-dependency-order";
 
 function collectOpenTypeParams(templates: readonly ExternalGenericTemplate[]): ReadonlySet<string> {
@@ -210,7 +219,15 @@ export class Builder {
     optimizationOptions: BuildOptimizationOptions,
     stripCommentsEnabled: boolean,
   ): string {
-    return minifyData7Text(code, {
+    return this.optimizeCodeWithMap(code, optimizationOptions, stripCommentsEnabled).code;
+  }
+
+  private static optimizeCodeWithMap(
+    code: string,
+    optimizationOptions: BuildOptimizationOptions,
+    stripCommentsEnabled: boolean,
+  ): { readonly code: string; readonly lineMap: number[] } {
+    return minifyData7TextWithMap(code, {
       enabled: optimizationOptions.minify.enabled,
       stripComments: stripCommentsEnabled,
       collapseWhitespace: optimizationOptions.minify.collapseWhitespace,
@@ -964,9 +981,18 @@ export class Builder {
       transpileCtx,
       transpileCacheContextHash,
     );
+    const loggerInject = this.injectRuntimeLoggerConfig(
+      mainTranspiledRaw.code,
+      options.vscodeLoggerFilePath,
+    );
     const mainTranspiled: TranspileResult = {
       ...mainTranspiledRaw,
-      code: this.injectRuntimeLoggerConfig(mainTranspiledRaw.code, options.vscodeLoggerFilePath),
+      code: loggerInject.code,
+      lineMap: shiftLineMapForInsert(
+        mainTranspiledRaw.lineMap ?? identityLineMap(lineCountOf(mainTranspiledRaw.code)),
+        loggerInject.insertAt,
+        loggerInject.insertedLines,
+      ),
     };
     if (mainTranspiled.usedSugars) {
       for (const s of mainTranspiled.usedSugars) globalUsedSugars.add(s);
@@ -976,6 +1002,7 @@ export class Builder {
       name: string;
       fileUri: string;
       code: string;
+      lineMap: number[];
       diagnostics: readonly SugarDiagnostic[];
       folderId: string;
       aberto: boolean;
@@ -1025,6 +1052,7 @@ export class Builder {
         name: filename,
         fileUri,
         code: transpiled.code,
+        lineMap: transpiled.lineMap ?? identityLineMap(lineCountOf(transpiled.code)),
         diagnostics: transpiled.diagnostics,
         folderId,
         aberto: resolvedAberto,
@@ -1036,6 +1064,7 @@ export class Builder {
       name: string;
       fileUri: string;
       code: string;
+      lineMap: number[];
       diagnostics: readonly SugarDiagnostic[];
       folderId: string;
     }[] = [];
@@ -1082,6 +1111,7 @@ export class Builder {
             name: filename,
             fileUri,
             code: transpiled.code,
+            lineMap: transpiled.lineMap ?? identityLineMap(lineCountOf(transpiled.code)),
             diagnostics: transpiled.diagnostics,
             folderId,
           });
@@ -1105,6 +1135,7 @@ export class Builder {
       name: string;
       fileUri: string;
       code: string;
+      lineMap: number[];
       folderId: string;
     }
     const modulesToCompile: ModuleData[] = [];
@@ -1118,6 +1149,7 @@ export class Builder {
         name: utility.namespace,
         fileUri: virtualSugarUri,
         code: virtualSugarCode,
+        lineMap: identityLineMap(lineCountOf(virtualSugarCode)),
         folderId: rootFolderId,
       });
     }
@@ -1125,11 +1157,49 @@ export class Builder {
     const onWarning = options.onWarning ?? (() => undefined);
 
     const codeByModuleName = new Map<string, string>();
+    const lineMapByModuleName = new Map<string, number[]>();
+    const fileUriByModuleName = new Map<string, string>();
     const excludedPrunedModules = new Set<string>();
-    codeByModuleName.set("Principal", mainTranspiled.code);
-    for (const m of virtualSugarModules) codeByModuleName.set(m.name, m.code);
-    for (const m of transpiledSrcModules) codeByModuleName.set(m.name, m.code);
-    for (const m of transpiledDepModules) codeByModuleName.set(m.name, m.code);
+
+    const seedModuleTrace = (
+      moduleName: string,
+      fileUri: string,
+      code: string,
+      lineMap: number[],
+    ): void => {
+      codeByModuleName.set(moduleName, code);
+      lineMapByModuleName.set(moduleName, lineMap);
+      fileUriByModuleName.set(moduleName, fileUri);
+    };
+
+    seedModuleTrace(
+      "Principal",
+      mainUri,
+      mainTranspiled.code,
+      mainTranspiled.lineMap ?? identityLineMap(lineCountOf(mainTranspiled.code)),
+    );
+    for (const m of virtualSugarModules) {
+      seedModuleTrace(m.name, m.fileUri, m.code, m.lineMap);
+    }
+    for (const m of transpiledSrcModules) {
+      seedModuleTrace(m.name, m.fileUri, m.code, m.lineMap);
+    }
+    for (const m of transpiledDepModules) {
+      seedModuleTrace(m.name, m.fileUri, m.code, m.lineMap);
+    }
+
+    const composeModuleLineMap = (
+      moduleName: string,
+      passMap: readonly number[] | undefined,
+    ): void => {
+      if (!passMap) return;
+      const previous = lineMapByModuleName.get(moduleName);
+      if (!previous) {
+        lineMapByModuleName.set(moduleName, [...passMap]);
+        return;
+      }
+      lineMapByModuleName.set(moduleName, composeLineMaps(passMap, previous));
+    };
 
     const optimizationModuleInputs = (): {
       readonly moduleName: string;
@@ -1162,10 +1232,12 @@ export class Builder {
       const pruned = pruneBuildModules(optimizationModuleInputs(), optimizationOptions.prune);
       for (const [moduleName, code] of pruned.modules) {
         codeByModuleName.set(moduleName, code);
+        composeModuleLineMap(moduleName, pruned.lineMaps?.get(moduleName));
       }
       for (const moduleName of pruned.excludedModuleNames) {
         excludedPrunedModules.add(moduleName);
         codeByModuleName.delete(moduleName);
+        lineMapByModuleName.delete(moduleName);
       }
       if (pruned.report && pruned.report.warnings.length > 0) {
         for (const warning of pruned.report.warnings) {
@@ -1227,19 +1299,23 @@ export class Builder {
     // 4. Report transpilation diagnostics and optimize/add to compile list
     //    Order: prune (above) → minify → uglify
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
-    let mainCode = this.optimizeCode(
+    const mainMinified = this.optimizeCodeWithMap(
       moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
       optimizationOptions,
       stripComments,
     );
+    let mainCode = mainMinified.code;
+    composeModuleLineMap("Principal", mainMinified.lineMap);
 
     virtualSugarModules.forEach((m) => {
       if (excludedPrunedModules.has(m.name)) return;
       const code = moduleCode(m.name, m.code);
       if (!code) return;
+      const minified = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
+      composeModuleLineMap(m.name, minified.lineMap);
       modulesToCompile.push({
         name: m.name,
-        code: this.optimizeCode(code, optimizationOptions, stripComments),
+        code: minified.code,
         folderId: m.folderId,
         aberto: false,
         ordemAbertura: 0,
@@ -1251,7 +1327,8 @@ export class Builder {
       this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
       const code = moduleCode(m.name, m.code);
       if (!code) return;
-      const optimized = this.optimizeCode(code, optimizationOptions, stripComments);
+      const optimized = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
+      composeModuleLineMap(m.name, optimized.lineMap);
 
       newModulesMetadata[m.name] = {
         nome: m.name,
@@ -1262,7 +1339,7 @@ export class Builder {
 
       modulesToCompile.push({
         name: m.name,
-        code: optimized,
+        code: optimized.code,
         folderId: m.folderId,
         aberto: m.aberto,
         ordemAbertura: m.ordemAbertura,
@@ -1275,32 +1352,42 @@ export class Builder {
       const code = moduleCode(m.name, m.code);
       if (!code) return;
 
+      const optimized = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
+      composeModuleLineMap(m.name, optimized.lineMap);
       modulesToCompile.push({
         name: m.name,
-        code: this.optimizeCode(code, optimizationOptions, stripComments),
+        code: optimized.code,
         folderId: m.folderId,
         aberto: false,
         ordemAbertura: 0,
       });
     });
 
+    let uglifySymbols: readonly Data7SymbolMapping[] = [];
     if (optimizationOptions.uglify.enabled) {
       const uglifyInputs = [
-        { moduleName: "Principal", fileUri: mainUri, code: mainCode },
+        {
+          moduleName: "Principal",
+          fileUri: fileUriByModuleName.get("Principal") ?? mainUri,
+          code: mainCode,
+        },
         ...modulesToCompile.map((m) => ({
           moduleName: m.name,
-          fileUri: m.name,
+          fileUri: fileUriByModuleName.get(m.name) ?? m.name,
           code: m.code,
         })),
       ];
       const uglified = uglifyBuildModules(uglifyInputs, optimizationOptions.uglify);
       mainCode = uglified.modules.get("Principal") ?? mainCode;
+      composeModuleLineMap("Principal", uglified.lineMaps?.get("Principal"));
       for (const module of modulesToCompile) {
         const next = uglified.modules.get(module.name);
         if (next !== undefined) {
           module.code = next;
         }
+        composeModuleLineMap(module.name, uglified.lineMaps?.get(module.name));
       }
+      uglifySymbols = uglified.symbols ?? [];
     }
     // Order virtual folders: root first, data7_modules folder next, then the rest.
     const orderedFolders: VirtualFolder[] = [];
@@ -1328,6 +1415,26 @@ export class Builder {
     }
     fs.writeFileSync(outputFilePath, xml, "utf-8");
 
+    if (optimizationOptions.sourceMap) {
+      const mapBuilder = new Data7SourceMapBuilder();
+      const emitModule = (moduleName: string, generatedCode: string): void => {
+        mapBuilder.addLineMappings(
+          moduleName,
+          generatedCode,
+          fileUriByModuleName.get(moduleName) ?? moduleName,
+          lineMapByModuleName.get(moduleName),
+        );
+      };
+      emitModule("Principal", mainCode);
+      for (const module of sortedModulesToCompile) {
+        emitModule(module.name, module.code);
+      }
+      for (const symbol of uglifySymbols) {
+        mapBuilder.addSymbol(symbol);
+      }
+      writeData7SourceMapFiles(workspaceDir, outputFilePath, mapBuilder.build(outputFilePath));
+    }
+
     metadata.virtualFolders = orderedFolders;
     metadata.modulesMetadata = newModulesMetadata;
     writeProjectConfig(configPath, metadata);
@@ -1335,8 +1442,13 @@ export class Builder {
     return outputFilePath;
   }
 
-  private static injectRuntimeLoggerConfig(code: string, vscodeLoggerFilePath?: string): string {
-    if (!vscodeLoggerFilePath) return code;
+  private static injectRuntimeLoggerConfig(
+    code: string,
+    vscodeLoggerFilePath?: string,
+  ): { readonly code: string; readonly insertAt: number; readonly insertedLines: number } {
+    if (!vscodeLoggerFilePath) {
+      return { code, insertAt: 0, insertedLines: 0 };
+    }
 
     const eol = code.includes("\r\n") ? "\r\n" : "\n";
     const lines = code.split(/\r?\n/);
@@ -1352,7 +1464,11 @@ export class Builder {
     const injected: string[] = [`mod_logger.ConfigureVSCode("${escapedPath}")`];
 
     lines.splice(insertIdx, 0, ...injected);
-    return lines.join(eol);
+    return {
+      code: lines.join(eol),
+      insertAt: insertIdx,
+      insertedLines: injected.length,
+    };
   }
 
   private static shouldStripComments(
