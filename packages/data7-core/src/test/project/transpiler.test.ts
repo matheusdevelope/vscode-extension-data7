@@ -1146,7 +1146,7 @@ describe("SugarTranspiler — B3 auto-new (`As New T`)", () => {
   test("expands class fields `As New T(args)` into explicit `As T = New T(args)`", () => {
     const code = [
       "Class Holder",
-      '   Private _shortcuts As New TShortcutList()',
+      "   Private _shortcuts As New TShortcutList()",
       '   Value As New LogInfo(2, "ok")',
       "End Class",
     ].join("\n");

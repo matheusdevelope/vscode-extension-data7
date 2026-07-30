@@ -82,4 +82,9 @@ export const DEFAULT_REACHABILITY_REMOVE_OPTIONS: ReachabilityRemoveOptions = Ob
 export interface ReachabilityOptions {
   readonly alwaysInclude: readonly string[];
   readonly remove: ReachabilityRemoveOptions;
+  /**
+   * When true, modules with parse errors are omitted from the graph and callers
+   * may keep their original source. Principal parse failure still aborts analysis.
+   */
+  readonly allowPartialParse?: boolean;
 }

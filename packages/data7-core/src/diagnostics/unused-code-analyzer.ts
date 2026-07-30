@@ -89,7 +89,7 @@ export function collectUnusedCodeDiagnostics(
     const ns = decl.namespace ? `${decl.namespace}.` : "";
     const diag = new vscode.Diagnostic(
       range,
-      `${kindLabel(decl.kind)} "${ns}${owner}${decl.name}" não é usado a partir de Principal (será removido no prune).`,
+      `${kindLabel(decl.kind)} "${ns}${owner}${decl.name}" não é usado a partir de Principal.`,
       vscode.DiagnosticSeverity.Hint,
     );
     diag.code = DiagnosticCodes.UnusedCode;

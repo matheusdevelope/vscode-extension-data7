@@ -189,7 +189,11 @@ export function rewriteCompilationUnit(
         continue;
       }
       const target = member.target.trim().toLowerCase();
-      if (live.namespaces.has(target)) {
+      // Only drop Imports that target a project namespace known to be dead.
+      // System/external imports (Collections, IO, …) are not in the reachability index
+      // and must be kept — types like StringList still need them at compile time.
+      const isProjectNamespace = index.namespaceByLower.has(target);
+      if (!isProjectNamespace || live.namespaces.has(target)) {
         members.push(member);
       } else {
         excluded.push(`import:${member.target.trim()}`);

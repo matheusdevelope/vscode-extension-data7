@@ -1122,9 +1122,7 @@ export class DiagnosticService {
     origin: "live" | "workspace",
   ): void {
     const key = uri.toString().toLowerCase();
-    const withoutUnusedCode = baseDiags.filter(
-      (d) => d.code !== DiagnosticCodes.UnusedCode,
-    );
+    const withoutUnusedCode = baseDiags.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
     const unusedCode = this.unusedCodeByUri.get(key) ?? [];
     this._collection?.set(uri, [...withoutUnusedCode, ...unusedCode]);
     if (origin === "live") {

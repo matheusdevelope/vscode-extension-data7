@@ -32,7 +32,10 @@ export interface DeclarationReachabilityResult {
   readonly live: LiveSet;
   readonly index: ReachabilityIndex;
   readonly parsed: readonly ParsedReachabilityModule[];
+  /** True when analysis aborted (e.g. Principal failed to parse, or strict mode with any error). */
   readonly skippedDueToParseErrors: boolean;
+  /** Modules omitted from the graph because they failed to parse (partial mode only). */
+  readonly unparsedModuleNames: readonly string[];
 }
 
 /**
@@ -48,16 +51,34 @@ export function analyzeDeclarationReachability(
     parse: parseBasic(input.code),
   }));
 
-  if (parsed.some((module) => module.parse.errors.length > 0)) {
-    return {
-      live: { declarations: new Set(), namespaces: new Set() },
-      index: buildReachabilityIndex([]),
-      parsed,
-      skippedDueToParseErrors: true,
-    };
+  const failed = parsed.filter((module) => module.parse.errors.length > 0);
+  const ok = parsed.filter((module) => module.parse.errors.length === 0);
+  const unparsedModuleNames = failed.map((module) => module.input.moduleName);
+  const principalFailed = failed.some(
+    (module) => module.input.moduleName.toLowerCase() === "principal",
+  );
+
+  const empty = (): DeclarationReachabilityResult => ({
+    live: { declarations: new Set(), namespaces: new Set() },
+    index: buildReachabilityIndex([]),
+    parsed,
+    skippedDueToParseErrors: true,
+    unparsedModuleNames,
+  });
+
+  if (failed.length > 0) {
+    if (!options.allowPartialParse || principalFailed || ok.length === 0) {
+      return empty();
+    }
   }
 
-  const index = buildReachabilityIndex(parsed);
+  const index = buildReachabilityIndex(ok);
   const live = computeLiveSet(index, options);
-  return { live, index, parsed, skippedDueToParseErrors: false };
+  return {
+    live,
+    index,
+    parsed,
+    skippedDueToParseErrors: false,
+    unparsedModuleNames,
+  };
 }

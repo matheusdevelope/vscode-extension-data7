@@ -247,6 +247,37 @@ export class Builder {
   }
 
   /**
+   * `.7Proj` module tags and `modulesMetadata` are keyed by the `.bas` basename.
+   * Duplicate basenames in different folders silently collapse content (last-write-wins)
+   * while still emitting two XML tags — fail fast instead.
+   */
+  private static assertUniqueModuleBasenames(
+    filePaths: readonly string[],
+    workspaceDir: string,
+  ): void {
+    const firstPathByBase = new Map<string, string>();
+    for (const filePath of filePaths) {
+      const baseName = path.basename(filePath, path.extname(filePath));
+      if (baseName.toLowerCase() === "principal") continue;
+      const key = baseName.toLowerCase();
+      const previous = firstPathByBase.get(key);
+      if (previous !== undefined) {
+        const relPrevious = path.relative(workspaceDir, previous) || previous;
+        const relCurrent = path.relative(workspaceDir, filePath) || filePath;
+        throw new Error(
+          `Módulo duplicado "${baseName}": o nome do arquivo .bas deve ser único em todo o projeto ` +
+            `(é a chave do módulo no .7Proj).\n` +
+            `  - ${relPrevious}\n` +
+            `  - ${relCurrent}\n` +
+            `Renomeie um dos arquivos. Namespaces parciais usam basenames distintos ` +
+            `(ex.: mod_entry.1.bas e mod_entry.2.bas) com o mesmo Namespace.`,
+        );
+      }
+      firstPathByBase.set(key, filePath);
+    }
+  }
+
+  /**
    * Builds a {@link TranspileContext} backed by a detached indexer scoped to
    * THIS build. Using a detached indexer (instead of the extension singleton)
    * guarantees that build-time pre-indexing does not leak into the live
@@ -721,6 +752,11 @@ export class Builder {
     };
 
     const srcFiles = getFilesRecursive(srcDir, ".bas");
+    const dependencyFilesForUniqueness = fs.existsSync(data7ModulesDir)
+      ? getFilesRecursive(data7ModulesDir, ".bas")
+      : [];
+    this.assertUniqueModuleBasenames([...srcFiles, ...dependencyFilesForUniqueness], workspaceDir);
+
     const localModulesCount = srcFiles.filter(
       (filePath) => path.basename(filePath, ".bas") !== "Principal",
     ).length;

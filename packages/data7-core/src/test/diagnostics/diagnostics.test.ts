@@ -3585,7 +3585,9 @@ End Namespace`;
     indexer.updateFileContent(uri, code);
     const doc = createMockDoc(uri, code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
-    const deadCode = diags.filter((diag: any) => diag.code === DiagnosticCodes.UnreachableDeclaration);
+    const deadCode = diags.filter(
+      (diag: any) => diag.code === DiagnosticCodes.UnreachableDeclaration,
+    );
 
     assert.equal(deadCode.length, 1);
     assert.equal(deadCode[0]?.range.start.line, 4);

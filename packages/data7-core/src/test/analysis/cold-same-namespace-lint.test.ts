@@ -200,4 +200,50 @@ End Namespace
       `unexpected type/import diagnostics: ${bad.map((d) => d.message).join("; ")}`,
     );
   });
+
+  test("does not emit unknown-symbol for same-namespace Subs declared in a peer file", () => {
+    const host = WorkspaceSymbolIndexer.getInstance();
+    const entry1Uri = "file:///d:/proj/src/scenarios/mod_entry.1.bas";
+    const entry2Uri = "file:///d:/proj/src/scenarios/mod_entry.2.bas";
+    const entry1Content = `
+Namespace mod_entry
+  Class TApp
+    Public Sub Run()
+      LiveSub()
+    End Sub
+  End Class
+End Namespace
+`.trim();
+    const entry2Content = `
+Namespace mod_entry
+  Sub LiveSub()
+  End Sub
+End Namespace
+`.trim();
+
+    host.updateFileContent(entry1Uri, entry1Content);
+    host.updateFileContent(entry2Uri, entry2Content);
+    const snapshot = host.exportLintSnapshot();
+
+    const detached = WorkspaceSymbolIndexer.createDetached();
+    detached.loadLintSnapshot(snapshot);
+
+    const diagnostics = runLintFileDiagnosticsOnly(
+      {
+        uri: entry1Uri,
+        filePath: "d:\\proj\\src\\scenarios\\mod_entry.1.bas",
+        content: entry1Content,
+      },
+      detached,
+    );
+
+    const unknown = diagnostics.filter(
+      (d) => d.code === DiagnosticCodes.UnknownSymbol || d.code === "unknown-symbol",
+    );
+    assert.deepEqual(
+      unknown.map((d) => d.message),
+      [],
+      `unexpected unknown-symbol: ${unknown.map((d) => d.message).join("; ")}`,
+    );
+  });
 });

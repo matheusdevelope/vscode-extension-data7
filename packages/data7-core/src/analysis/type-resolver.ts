@@ -656,6 +656,16 @@ export class TypeResolver {
     if (localHit) return finishCallable(localHit);
 
     const allSymbols = indexer.getSymbolsByName(methodName).filter(isCallable);
+
+    // Partial namespaces: peers in other files that declare the same Namespace are
+    // visible without Imports (mirrors findVariableSymbol / the Data7 compiler).
+    if (activeNamespace) {
+      const sameNamespaceHit = select(
+        allSymbols.filter((symbol) => symbol.containerName?.toLowerCase() === activeNamespace),
+      );
+      if (sameNamespaceHit) return finishCallable(sameNamespaceHit);
+    }
+
     const imported = new Set((fileSyms?.imports ?? []).map((imp) => imp.toLowerCase()));
     const importedHit = select(
       allSymbols.filter(

@@ -15,7 +15,10 @@ export function addUnreachableDeclarationCommentFix(
   );
   if (!payload) return;
 
-  const action = new vscode.CodeAction("Comentar bloco inalcançável", vscode.CodeActionKind.QuickFix);
+  const action = new vscode.CodeAction(
+    "Comentar bloco inalcançável",
+    vscode.CodeActionKind.QuickFix,
+  );
   action.diagnostics = [diagnostic];
   action.isPreferred = false;
   action.edit = buildCommentEdit(document, [payload]);

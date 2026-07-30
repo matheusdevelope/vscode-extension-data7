@@ -80,6 +80,42 @@ describe("Builder", () => {
       });
     });
 
+    test("fails when two .bas files share the same basename in different folders", async () => {
+      await withTempDir(async (tmp) => {
+        const { destXml } = seedProject(tmp);
+        const scenarios = path.join(tmp, "src", "scenarios");
+        fs.mkdirSync(scenarios, { recursive: true });
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_entry.2.bas"),
+          `Namespace mod_entry
+   Sub DeadSub()
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(scenarios, "mod_entry.2.bas"),
+          `Namespace mod_entry
+   Sub LiveSub()
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+
+        assert.throws(
+          () => Builder.buildProject(tmp, destXml),
+          (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.match(error.message, /Módulo duplicado "mod_entry\.2"/);
+            assert.match(error.message, /mod_entry\.2\.bas/);
+            return true;
+          },
+        );
+      });
+    });
+
     test("does not crash if virtualFolders is missing from data7.json", async () => {
       await withTempDir(async (tmp) => {
         const { destXml } = seedProject(tmp);
