@@ -16,6 +16,8 @@ import {
   D7BasicSemanticTokensProvider,
 } from "./semantic-tokens-provider";
 import { D7BasicSignatureHelpProvider } from "./signature-provider";
+import { D7ProjectSourceMapDefinitionProvider } from "./source-map-definition-provider";
+import { D7ProjectSourceMapHoverProvider } from "./source-map-hover-provider";
 import { D7BasicWorkspaceSymbolProvider } from "./workspace-symbol-provider";
 
 /**
@@ -33,6 +35,11 @@ export function registerLanguageProviders(context: vscode.ExtensionContext): voi
     { language: LANGUAGE_IDS.d7basic },
     { scheme: "file", pattern: "**/*.bas" },
     { scheme: "untitled", pattern: "**/*.bas" },
+  ];
+
+  const projectSelector: vscode.DocumentSelector = [
+    { language: LANGUAGE_IDS.data7project },
+    { scheme: "file", pattern: "**/*.{7proj,7Proj}" },
   ];
 
   context.subscriptions.push(
@@ -63,5 +70,10 @@ export function registerLanguageProviders(context: vscode.ExtensionContext): voi
       new D7BasicSemanticTokensProvider(),
       D7BasicSemanticTokensLegend,
     ),
+    vscode.languages.registerDefinitionProvider(
+      projectSelector,
+      new D7ProjectSourceMapDefinitionProvider(),
+    ),
+    vscode.languages.registerHoverProvider(projectSelector, new D7ProjectSourceMapHoverProvider()),
   );
 }

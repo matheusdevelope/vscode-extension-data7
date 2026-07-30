@@ -3,6 +3,17 @@ import type { SystemSymbolInfo } from "../types";
 
 export const symbols: SystemSymbolInfo[] = [
   {
+    name: "Color",
+    kind: "property",
+    type: "Integer",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "StaticText",
+    description: "Cor do texto.",
+  },
+  {
     name: "Caption",
     kind: "property",
     type: "String",

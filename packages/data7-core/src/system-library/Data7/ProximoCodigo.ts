@@ -10,10 +10,16 @@ export const symbols: SystemSymbolInfo[] = [
     isPrivate: false,
     parameters: [
       {
-        name: "pNomeSequenciador",
+        name: "pNomeSequencia",
         type: "String",
         isByRef: false,
         isOptional: false,
+      },
+      {
+        name: "pCodEmpresa",
+        type: "Integer",
+        isByRef: false,
+        isOptional: true,
       },
     ],
     range: SYSTEM_RANGE,

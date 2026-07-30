@@ -571,7 +571,13 @@ const mockVsCode = {
       return { dispose: () => undefined };
     },
     openTextDocument: async (_path: string): Promise<unknown> => ({}),
-    asRelativePath: (p: string): string => p,
+    asRelativePath: (
+      p: string | { fsPath?: string; path?: string },
+      _includeWorkspaceFolder?: boolean,
+    ): string => {
+      if (typeof p === "string") return p;
+      return p.fsPath ?? p.path ?? "";
+    },
     getWorkspaceFolder: (_uri: unknown): unknown => undefined,
   },
   window: {

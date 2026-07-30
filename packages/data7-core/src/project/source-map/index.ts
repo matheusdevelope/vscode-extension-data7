@@ -13,3 +13,10 @@ export {
   shiftLineMapForInsert,
 } from "./compose-line-maps";
 export { writeData7SourceMapFiles } from "./write-source-map";
+export { parseData7SourceMap, SourceMapLookup } from "./source-map-lookup";
+export {
+  resolveGeneratedPositionFromProjectXml,
+  wordAtColumn,
+  type GeneratedProjectCursorPosition,
+} from "./resolve-generated-position";
+export { loadSourceMapForProjectFile, type ResolveSourceMapFileOptions } from "./load-source-map";
