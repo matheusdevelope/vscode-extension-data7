@@ -636,6 +636,68 @@ describe("D7BasicCodeActionProvider", () => {
       const fixed = applyReplaceEdit(text, action.edit!.edits[0]);
       assert.equal(fixed.trimEnd(), "               print(.Text)");
     });
+
+    test("does not offer parentheses quick fix for arity mismatch without payload", async () => {
+      const text = '_http.addCustomHeader(pKey + ":" + pValue)';
+      const doc = mockDoc(text);
+      const methodStart = text.indexOf("addCustomHeader");
+      const methodEnd = methodStart + "addCustomHeader".length;
+      // Arity mismatches reuse the diagnostic code but must not carry a quick-fix payload.
+      const diagnostic = new vscode.Diagnostic(
+        new vscode.Range(0, methodStart, 0, methodEnd),
+        'Chamada de "addCustomHeader" não corresponde a nenhuma assinatura disponível. Verifique a quantidade de argumentos obrigatórios e opcionais.',
+        vscode.DiagnosticSeverity.Error,
+      );
+      diagnostic.code = DiagnosticCodes.CallParenthesesMismatch;
+      const provider = new D7BasicCodeActionProvider();
+
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(0, methodStart, 0, methodEnd),
+          { diagnostics: [diagnostic] } as any,
+          noopToken,
+        ),
+      )) as unknown as { title: string }[];
+
+      const actions = onlyQuickFixes(all).filter((candidate) =>
+        candidate.title.includes("Adicionar parenteses"),
+      );
+      assert.equal(actions.length, 0);
+    });
+
+    test("does not insert empty parentheses when call site already has them", async () => {
+      const text = '_http.addCustomHeader(pKey + ":" + pValue)';
+      const doc = mockDoc(text);
+      const methodStart = text.indexOf("addCustomHeader");
+      const methodEnd = methodStart + "addCustomHeader".length;
+      // Legacy/buggy payload shape that previously rewrote `foo(arg)` into `foo()(arg)`.
+      const payload: CallParenthesesMismatchPayload = {
+        code: DiagnosticCodes.CallParenthesesMismatch,
+        line: 0,
+        insertColumn: methodEnd,
+      };
+      const diagnostic = diagWith(
+        DiagnosticCodes.CallParenthesesMismatch,
+        payload,
+        new vscode.Range(0, methodStart, 0, methodEnd),
+      );
+      const provider = new D7BasicCodeActionProvider();
+
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          new vscode.Range(0, methodStart, 0, methodEnd),
+          { diagnostics: [diagnostic] } as any,
+          noopToken,
+        ),
+      )) as unknown as { title: string }[];
+
+      const actions = onlyQuickFixes(all).filter((candidate) =>
+        candidate.title.includes("Adicionar parenteses"),
+      );
+      assert.equal(actions.length, 0);
+    });
   });
 
   describe("unknown-type spelling suggestions", () => {

@@ -144,13 +144,7 @@ export const symbols: SystemSymbolInfo[] = [
     isPrivate: false,
     parameters: [
       {
-        name: "pHeaderName",
-        type: "String",
-        isByRef: false,
-        isOptional: false,
-      },
-      {
-        name: "pValue",
+        name: "pHeader",
         type: "String",
         isByRef: false,
         isOptional: false,

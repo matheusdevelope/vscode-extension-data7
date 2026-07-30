@@ -8,6 +8,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ## [Unreleased]
 
 ### Corrigido
+- **Quick Fix `call-parentheses-mismatch` em mismatch de aridade:** diagnósticos de assinatura/argumentos (`AddCustomHeader(umArg)` quando a assinatura exige dois) deixam de anexar payload de edição e o Quick Fix não oferece mais "Adicionar parenteses '()'", evitando reescrever `foo(arg)` em `foo()(arg)` no save / fix-all.
 - **Uglify — `GetDefault().Printe` (função bare no namespace):** o tipo de retorno de funções de namespace sem receptor (`GetDefault() As Logger`) passa a alimentar o rename de `.Printe` / membros colidentes na cadeia.
 - **Uglify — overloads `Last() As TItem` vs `Last(n) As TList`:** o índice guarda aridade→tipo de retorno e a cadeia `Fields.Last().Options` usa o overload de 0 args (`TField`), não o de lista.
 - **Uglify — classes homônimas em namespaces diferentes (`mod_enum.TEnum` vs `mod_tenum.TEnum`):** o índice de tipos passa a chavear `namespace.tipo` e não mescla membros de classes com o mesmo nome simples em namespaces distintos — evita `_value As Integer` sobrescrever `_value As BaseEnum` e deixar `me._value.AsString` sem rename.

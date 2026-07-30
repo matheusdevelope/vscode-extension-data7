@@ -8,6 +8,39 @@ import {
   readDiagnosticPayload,
 } from "../code-action-helpers";
 
+function isFixableCallParenthesesPayload(
+  payload: CallParenthesesMismatchPayload | undefined,
+  document: vscode.TextDocument,
+): payload is CallParenthesesMismatchPayload {
+  if (!payload) return false;
+  if (payload.wrapRange) return true;
+
+  // Inserting "()" is only valid when the call site does not already have parentheses.
+  // Arity-mismatch diagnostics must not carry a payload; this guard is a safety net against
+  // turning `foo(arg)` into `foo()(arg)` if a payload is attached incorrectly.
+  const line = document.lineAt(payload.line).text;
+  const after = line.slice(payload.insertColumn);
+  return !/^\s*\(/.test(after);
+}
+
+function applyCallParenthesesEdit(
+  edit: vscode.WorkspaceEdit,
+  document: vscode.TextDocument,
+  payload: CallParenthesesMismatchPayload,
+): void {
+  if (payload.wrapRange) {
+    const line = document.lineAt(payload.line);
+    const leading = line.text.slice(0, payload.insertColumn);
+    const argumentText = line.text.slice(payload.wrapRange.startChar, payload.wrapRange.endChar);
+    const suffix = line.text.slice(payload.wrapRange.endChar);
+    const fixedLine = `${leading}(${argumentText.trim()})${suffix}`;
+    edit.replace(document.uri, line.range, fixedLine);
+    return;
+  }
+
+  edit.insert(document.uri, new vscode.Position(payload.line, payload.insertColumn), "()");
+}
+
 export function addCallParenthesesMismatchFix(
   actions: vscode.CodeAction[],
   document: vscode.TextDocument,
@@ -17,7 +50,7 @@ export function addCallParenthesesMismatchFix(
     diagnostic,
     DiagnosticCodes.CallParenthesesMismatch,
   );
-  if (!payload) return;
+  if (!isFixableCallParenthesesPayload(payload, document)) return;
 
   const action = new vscode.CodeAction(
     "Adicionar parenteses '()' na chamada",
@@ -27,16 +60,7 @@ export function addCallParenthesesMismatchFix(
   action.isPreferred = true;
 
   const edit = new vscode.WorkspaceEdit();
-  if (payload.wrapRange) {
-    const line = document.lineAt(payload.line);
-    const leading = line.text.slice(0, payload.insertColumn);
-    const argumentText = line.text.slice(payload.wrapRange.startChar, payload.wrapRange.endChar);
-    const suffix = line.text.slice(payload.wrapRange.endChar);
-    const fixedLine = `${leading}(${argumentText.trim()})${suffix}`;
-    edit.replace(document.uri, line.range, fixedLine);
-  } else {
-    edit.insert(document.uri, new vscode.Position(payload.line, payload.insertColumn), "()");
-  }
+  applyCallParenthesesEdit(edit, document, payload);
   action.edit = edit;
   actions.push(action);
 }
@@ -50,7 +74,15 @@ export function addCallParenthesesMismatchBulkFix(
   const matches = dedupeDiagnostics([
     diagnostic,
     ...allDiags.filter((d) => hasDiagnosticCode(d, DiagnosticCodes.CallParenthesesMismatch)),
-  ]);
+  ]).filter((match) =>
+    isFixableCallParenthesesPayload(
+      readDiagnosticPayload<CallParenthesesMismatchPayload>(
+        match,
+        DiagnosticCodes.CallParenthesesMismatch,
+      ),
+      document,
+    ),
+  );
   if (matches.length <= 1) return;
 
   const action = new vscode.CodeAction(
@@ -66,17 +98,8 @@ export function addCallParenthesesMismatchBulkFix(
       match,
       DiagnosticCodes.CallParenthesesMismatch,
     );
-    if (!payload) continue;
-    if (payload.wrapRange) {
-      const line = document.lineAt(payload.line);
-      const leading = line.text.slice(0, payload.insertColumn);
-      const argumentText = line.text.slice(payload.wrapRange.startChar, payload.wrapRange.endChar);
-      const suffix = line.text.slice(payload.wrapRange.endChar);
-      const fixedLine = `${leading}(${argumentText.trim()})${suffix}`;
-      edit.replace(document.uri, line.range, fixedLine);
-    } else {
-      edit.insert(document.uri, new vscode.Position(payload.line, payload.insertColumn), "()");
-    }
+    if (!isFixableCallParenthesesPayload(payload, document)) continue;
+    applyCallParenthesesEdit(edit, document, payload);
   }
   action.edit = edit;
   actions.push(action);

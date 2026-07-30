@@ -374,7 +374,7 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `sub-used-as-function` — um método `Sub` (ou procedimento sem retorno) foi usado em uma expressão ou atribuição que espera um valor. Emite _Error_.
 - `unknown-symbol` — referência a um símbolo (variável, constante, método) inexistente no escopo atual. Membros de instância de classe usados sem qualificação no escopo global do arquivo (fora de métodos) também são reportados. Emite _Error_.
 - `loose-type-statement` — declaração de nome de tipo solto/avulso sozinho em uma linha de código. Emite _Error_.
-- `call-parentheses-mismatch` — chamada de método/procedimento violando as regras estritas de parênteses (por exemplo, chamar funções com parâmetros ou subs com >1 parâmetro sem parênteses). Também emite _Warning_ opcional para chamadas finais sem argumentos escritas sem `()`, com Quick Fix determinístico para inserir os parênteses. Emite _Error_ para violações obrigatórias.
+- `call-parentheses-mismatch` — chamada de método/procedimento violando as regras estritas de parênteses (por exemplo, chamar funções com parâmetros ou subs com >1 parâmetro sem parênteses). Também emite _Warning_ opcional para chamadas finais sem argumentos escritas sem `()`, com Quick Fix determinístico para inserir os parênteses. Emite _Error_ para violações obrigatórias (incluindo mismatch de aridade/assinatura). **Mismatch de aridade não leva Quick Fix** — o payload de edição só existe para os casos de parênteses ausentes / estilo sem `()`.
 - `chained-global-function-assignment` — atribuição direta a partir de cadeia iniciada por função global, como `x = CreateObj().Value()`, que o compilador Data7 pode rejeitar. Emite _Warning_ recomendando armazenar o retorno da função em variável temporária antes de acessar membros.
 - `declaration-parentheses-mismatch` — declaração de método/procedimento sem parâmetros que omite os parênteses. Emite _Warning_.
 - `incomplete-property-body` — uma `Property` foi declarada sem o bloco de acessores exigido (`Get`/`Set` e `End Property`). Data7 não suporta auto-properties de linha única (`Property Nome As String`). Emite _Error_ com payload `IncompletePropertyBodyPayload` (`{ code, propertyName }`).
@@ -401,7 +401,7 @@ Os Quick Fixes disponíveis são:
 - `unknown-suppression-code` → sem Quick Fix. Apenas o warning é exibido.
 - `invalid-interpolation` → sem Quick Fix. Apenas o warning é exibido.
 - `ternary-context-unsupported` → sem Quick Fix. Apenas o warning é exibido.
-- `call-parentheses-mismatch` → "Adicionar parenteses '()' na chamada" para chamadas finais sem argumentos, com bulk gerado automaticamente a partir das correcoes unitarias deterministicamente editaveis.
+- `call-parentheses-mismatch` → "Adicionar parenteses '()' na chamada" apenas para chamadas finais sem argumentos (ou wrap de argumentos sem `()`), com bulk gerado automaticamente a partir das correcoes unitarias deterministicamente editaveis. Mismatch de aridade/assinatura **não** oferece esse Quick Fix.
 - `unreachable-declaration` → "Comentar bloco inalcançável" (e bulk no arquivo).
 - `unused-code` → "Remover declaração não usada" (e bulk "Remover todas as declarações não usadas (projeto) neste arquivo").
 - `chained-global-function-assignment` → sem Quick Fix. Apenas o warning é exibido porque a correcao exige introduzir uma variavel temporaria com tipo/escopo escolhido pelo usuario.

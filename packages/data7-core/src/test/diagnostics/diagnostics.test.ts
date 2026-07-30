@@ -5423,5 +5423,23 @@ Dim opcionalOk As Integer = instancia.FunctionAsIntegerDeExemplo(123)`);
 
       expectNoDiagnostic(diags, DiagnosticCodes.CallParenthesesMismatch);
     });
+
+    test("arity mismatch does not attach a parentheses quick-fix payload", () => {
+      const diags = runLinter(`${exampleClass}
+
+Dim instancia As New Exemplo("titulo")
+Dim faltandoArgs As Integer = instancia.FunctionAsIntegerDeExemplo()`);
+
+      const diag = expectDiagnostic(
+        diags,
+        DiagnosticCodes.CallParenthesesMismatch,
+        "FunctionAsIntegerDeExemplo",
+      );
+      assert.equal(
+        (diag as vscode.Diagnostic & { data?: unknown }).data,
+        undefined,
+        "arity mismatches must not expose insertColumn for the '()' quick fix",
+      );
+    });
   });
 });

@@ -405,7 +405,7 @@ export class MembersRule implements Rule {
             this.isCallableSymbol(exists) &&
             !this.hasCallableArityMatch(typeName, node.methodName, arity, context)
           ) {
-            this.pushInvocationArityDiagnostic(node, exists, lineIdx, startChar, context);
+            this.pushInvocationArityDiagnostic(node, lineIdx, startChar, context);
           } else if (
             exists &&
             isStaticAccess &&
@@ -1504,7 +1504,6 @@ export class MembersRule implements Rule {
 
   private pushInvocationArityDiagnostic(
     node: MethodInvocation,
-    method: SymbolInfo,
     lineIdx: number,
     startChar: number,
     context: RuleContext,
@@ -1516,12 +1515,9 @@ export class MembersRule implements Rule {
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.CallParenthesesMismatch;
-    const payload: CallParenthesesMismatchPayload = {
-      code: DiagnosticCodes.CallParenthesesMismatch,
-      line: lineIdx,
-      insertColumn: startChar + method.name.length,
-    };
-    setDiagnosticPayload(diag, payload);
+    // No quick-fix payload: arity mismatches are not fixable by inserting "()".
+    // Attaching insertColumn here previously made Code Actions rewrite
+    // `foo(arg)` into `foo()(arg)` on save / fix-all.
     context.report(diag);
   }
 
