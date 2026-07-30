@@ -1225,7 +1225,7 @@ export class Builder {
     );
 
     // 4. Report transpilation diagnostics and optimize/add to compile list
-    //    Order: prune (above) → minify → uglify (stub)
+    //    Order: prune (above) → minify → uglify
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
     let mainCode = this.optimizeCode(
       moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,

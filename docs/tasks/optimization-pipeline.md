@@ -30,10 +30,11 @@ Este arquivo acompanha a implementação de `minify`, `prune` por declaração, 
 - [x] Stub `uglifyBuildModules` no Builder.
 - [x] Implementar diretivas `@data7:keep`, `@data7:keep-name`, `@data7:entrypoint`.
 - [x] Corrigir `stripComments` para preservar apostrofos e aspas escapadas dentro de strings.
-- [ ] Implementar classificador de API nativa/System Library.
-- [ ] Implementar alocador global de nomes para uglify agressivo.
-- [ ] Reescrever referências globais de namespaces/classes/membros/tipos/imports.
-- [ ] Reescrever variáveis locais/parâmetros com escopo correto.
+- [x] Implementar classificador de API nativa/System Library (reserved-names a partir de `SYSTEM_SYMBOLS` + keywords).
+- [x] Implementar alocador global de nomes para uglify agressivo.
+- [x] Reescrever referências globais de namespaces/classes/membros/tipos/imports.
+- [x] Reescrever variáveis locais/parâmetros com escopo correto.
+- [x] Rename type-aware de membros que colidem com System Library (receiver user vs system).
 - [x] Isolar motor de reachability em `analysis/declaration-reachability` e expor `unused-code` no linter (`unreachable-declaration` fica para fluxo morto).
 - [x] Prune efetivo no Builder via o mesmo motor (`pruneBuildModules` → `analyzeDeclarationReachability`), com parse parcial e teste de paridade com `unused-code`.
 - [ ] Aplicar prune visual/feedback contínuo no editor além do warning (opcional UI).
