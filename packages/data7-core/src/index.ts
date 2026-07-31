@@ -11,6 +11,7 @@ export * from "./analysis/flow-analyzer";
 export * from "./analysis/generics-analyzer";
 export * from "./analysis/language-processor";
 export * from "./analysis/analysis-program";
+export * from "./analysis/analysis-host";
 export * from "./analysis/file-snapshot";
 export * from "./analysis/check-scheduler";
 export * from "./analysis/expression-type-map";

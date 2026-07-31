@@ -16,7 +16,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
 import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
-import * as vscode from "../../platform/vscode-api";
+import { getAnalysisHost } from "../../analysis/analysis-host";
 
 interface InlineDoc {
   uri: { toString(): string; fsPath: string };
@@ -125,8 +125,14 @@ export function registerLintProject(server: McpServer): void {
         docs.push({ path: file.path, uri, doc: buildInlineDoc(uri, file.content) });
       }
 
-      const allDocs = vscode.workspace.textDocuments as unknown as InlineDoc[];
-      for (const d of docs) allDocs.push(d.doc);
+      const host = getAnalysisHost();
+      host.setOpenDocuments?.(
+        docs.map((d) => ({
+          uri: d.uri,
+          version: 1,
+          getText: () => d.doc.getText(),
+        })),
+      );
 
       const result: Record<string, DiagOut[]> = {};
       try {
@@ -151,10 +157,7 @@ export function registerLintProject(server: McpServer): void {
           });
         }
       } finally {
-        for (const d of docs) {
-          const idx = allDocs.indexOf(d.doc);
-          if (idx >= 0) allDocs.splice(idx, 1);
-        }
+        host.setOpenDocuments?.([]);
       }
 
       const totalCount = Object.values(result).reduce((acc, list) => acc + list.length, 0);

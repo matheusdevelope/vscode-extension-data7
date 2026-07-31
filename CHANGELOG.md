@@ -7,6 +7,9 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Adicionado
+- **`AnalysisHost` (Fase 2 do motor de análise):** fronteira headless em `analysis/analysis-host.ts`. Documentos abertos, pastas do workspace, filesystem e log deixam de ser lidos ad hoc de `vscode.workspace` / `node:fs` no indexador, `LanguageProcessor`, `AnalysisCache` e `DependencyScanner`. A extensão instala `createVscodeAnalysisHost`; MCP/CLI/testes usam `createNodeAnalysisHost` (com `setOpenDocuments` no lugar de mutar `textDocuments`).
+
 ### Alterado
 - **Motor de análise — Fase 1 do plano em `REFACTOR-ANALYSIS-ENGINE.md`:** os modelos de invalidação e agendamento foram reescritos para eliminar diagnósticos obsoletos e o custo por tecla. Principais mudanças:
   - **Change set acumulado por arquivo:** o delta de cada arquivo (`FileChangeSet`) se acumula entre ciclos de lint e só é fechado por `takeChangeSet`, em vez de refletir apenas a última tecla. Editar uma assinatura pública e continuar digitando não cancela mais a propagação no save; falhas de propagação devolvem o delta com `restoreChangeSet`.

@@ -18,6 +18,7 @@ import type {
 import { CheckScheduler } from "./check-scheduler";
 import { buildExpressionTypeMap } from "./expression-type-map";
 import { ReachabilityParseCache } from "./declaration-reachability/parse-cache";
+import { getAnalysisHost, type AnalysisHost } from "./analysis-host";
 import { isBasicSourcePath } from "../infra/constants";
 
 const LARGE_FILE_LOC_THRESHOLD = 2500;
@@ -27,18 +28,23 @@ const LARGE_FILE_CHECK_MS_THRESHOLD = 400;
 export type CheckCompletedListener = (uri: string, result: CheckResult) => void;
 
 /**
- * Single analysis host: parse → symbols → bind/check share one versioned snapshot.
+ * Single analysis program: parse → symbols → bind/check share one versioned snapshot.
+ *
+ * Environment concerns (open documents, folders, filesystem, logging) come from
+ * {@link AnalysisHost} — never from a direct VS Code / Node global.
  */
 export class AnalysisProgram {
   private static instance: AnalysisProgram | undefined;
   private readonly snapshots = new Map<string, FileSnapshot>();
   private readonly indexer: WorkspaceSymbolIndexer;
+  private readonly host: AnalysisHost;
   private readonly processor = LanguageProcessor.getInstance();
   private readonly scheduler = new CheckScheduler((uri, token) => this.runCheck(uri, token));
   private readonly checkListeners = new Set<CheckCompletedListener>();
 
-  private constructor(indexer?: WorkspaceSymbolIndexer) {
+  private constructor(indexer?: WorkspaceSymbolIndexer, host?: AnalysisHost) {
     this.indexer = indexer ?? WorkspaceSymbolIndexer.getInstance();
+    this.host = host ?? getAnalysisHost();
   }
 
   public static getInstance(): AnalysisProgram {
@@ -46,8 +52,16 @@ export class AnalysisProgram {
     return AnalysisProgram.instance;
   }
 
-  public static createDetached(indexer: WorkspaceSymbolIndexer): AnalysisProgram {
-    return new AnalysisProgram(indexer);
+  public static createDetached(
+    indexer: WorkspaceSymbolIndexer,
+    host?: AnalysisHost,
+  ): AnalysisProgram {
+    return new AnalysisProgram(indexer, host);
+  }
+
+  /** The host this program was constructed with (or the process-wide active host). */
+  public getHost(): AnalysisHost {
+    return this.host;
   }
 
   public static resetForTests(): void {

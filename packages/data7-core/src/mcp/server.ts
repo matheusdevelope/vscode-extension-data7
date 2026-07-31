@@ -52,6 +52,11 @@ import { registerFormSkeleton } from "./prompts/form-skeleton";
 import { createEmptyIndexer, loadWorkspaceIntoIndexer } from "./runtime/workspace-loader";
 import { getServerVersion, setDocsRootOverride } from "./utils/paths";
 import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import {
+  createNodeAnalysisHost,
+  installAnalysisHost,
+  workspaceFolderFromPath,
+} from "../analysis/analysis-host";
 
 interface CliOptions {
   readonly standalone: boolean;
@@ -90,6 +95,21 @@ export function buildServer(options: BuildServerOptions = {}): {
   counts: { resources: number; tools: number; prompts: number };
   indexer: WorkspaceSymbolIndexer;
 } {
+  installAnalysisHost(
+    createNodeAnalysisHost({
+      workspaceFolders: options.workspacePath
+        ? [workspaceFolderFromPath(options.workspacePath)]
+        : undefined,
+      log: (level, message, err) => {
+        if (level === "error") {
+          process.stderr.write(
+            `[data7-mcp] ${message}${err !== undefined ? ` ${String(err)}` : ""}\n`,
+          );
+        }
+      },
+    }),
+  );
+
   const server = new McpServer(
     {
       name: "data7-mcp",

@@ -1,8 +1,8 @@
-import * as fs from "fs";
 import * as path from "path";
 import { parseBasic, GenericsParserPlugin } from "../project/parser";
 import { SugarEngine } from "../project/sugars";
 import type { Node, CompilationUnit } from "../project/ast/ast";
+import { getAnalysisHost } from "./analysis-host";
 
 export interface SharedModuleInfo {
   moduleName: string;
@@ -65,13 +65,14 @@ export class DependencyScanner {
   }
   public static getFilesRecursive(dir: string, extensions: string[]): string[] {
     let results: string[] = [];
-    if (!fs.existsSync(dir)) {
+    const hostFs = getAnalysisHost().fs;
+    if (!hostFs.existsSync(dir)) {
       return results;
     }
-    const list = fs.readdirSync(dir);
+    const list = hostFs.readdirSync(dir);
     list.forEach((file) => {
       const filePath = path.join(dir, file);
-      const stat = fs.statSync(filePath);
+      const stat = hostFs.statSync(filePath);
       if (stat.isDirectory()) {
         results = results.concat(this.getFilesRecursive(filePath, extensions));
       } else {
@@ -199,7 +200,7 @@ function collectNamesFromBasFiles(
   const names = new Set<string>();
   for (const filePath of DependencyScanner.getFilesRecursive(srcDir, [".bas", ".d7b"])) {
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = getAnalysisHost().fs.readFileSync(filePath);
       for (const name of collect(content)) {
         if (name.trim().length > 0) names.add(name.toLowerCase());
       }

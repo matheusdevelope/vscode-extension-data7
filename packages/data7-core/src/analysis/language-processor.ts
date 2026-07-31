@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import * as vscode from "../platform/vscode-api";
 import { parseBasic, parseExpr } from "../project/parser";
 import type { CompilationUnit, Expression } from "../project/ast/ast";
@@ -12,6 +11,7 @@ import {
   clearLintTypeResolutionCachesForUnit,
 } from "./lint-type-resolution-cache";
 import { computeParseConfigSignature, createConfiguredParseOptions } from "./parse-config";
+import { getAnalysisHost } from "./analysis-host";
 import { hashContent } from "../utils/content-hash";
 
 export interface CachedDocument {
@@ -34,8 +34,8 @@ export class LanguageProcessor {
   private constructor() {
     try {
       this.parseConfigSignature = computeParseConfigSignature();
-      vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("data7")) {
+      getAnalysisHost().onDidChangeConfiguration((section) => {
+        if (section === "data7") {
           this.handleConfigurationChanged();
         }
       });
@@ -218,19 +218,16 @@ export class LanguageProcessor {
 
   private readDocumentContent(uriStr: string): string | undefined {
     try {
-      const uri = vscode.Uri.parse(uriStr);
-      // Try to find if already opened in vscode workspace
-      const doc = vscode.workspace.textDocuments.find(
-        (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase(),
-      );
-      if (doc) {
-        return doc.getText();
+      const host = getAnalysisHost();
+      const open = host.getOpenDocument(uriStr);
+      if (open) {
+        return open.getText();
       }
-      // If not, read from file system
+      const uri = vscode.Uri.parse(uriStr);
       if (uri.scheme === "file") {
         const fsPath = uri.fsPath;
-        if (fs.existsSync(fsPath)) {
-          return fs.readFileSync(fsPath, "utf-8");
+        if (host.fs.existsSync(fsPath)) {
+          return host.fs.readFileSync(fsPath);
         }
       }
     } catch (err) {

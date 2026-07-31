@@ -10,8 +10,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
 import type { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+import { getAnalysisHost } from "../../analysis/analysis-host";
 import { setInlineDocument } from "../runtime/workspace-loader";
-import * as vscode from "../../platform/vscode-api";
 
 interface SerialDiagnostic {
   readonly code: unknown;
@@ -135,11 +135,9 @@ export function registerLintBas(server: McpServer, deps: LintToolDeps): void {
       const uri = args.uri ?? "file:///__inline__.bas";
       setInlineDocument(indexer, args.code, uri);
       const doc = buildInlineDoc(uri, args.code);
-      // The platform adapter's `workspace.textDocuments` array is required
-      // by some linter paths (isFileValid). Add+remove around the call
-      // so we don't leak state.
-      const docs = vscode.workspace.textDocuments as unknown as InlineDoc[];
-      docs.push(doc);
+      // Mark the buffer as open on the AnalysisHost so isFileValid accepts it.
+      const host = getAnalysisHost();
+      host.setOpenDocuments?.([{ uri, version: 1, getText: () => args.code }]);
       let diagnostics: SerialDiagnostic[] = [];
       try {
         const raw = DiagnosticsLinter.runAdvancedDiagnostics(
@@ -148,8 +146,7 @@ export function registerLintBas(server: McpServer, deps: LintToolDeps): void {
         );
         diagnostics = serialise(raw);
       } finally {
-        const idx = docs.indexOf(doc);
-        if (idx >= 0) docs.splice(idx, 1);
+        host.setOpenDocuments?.([]);
       }
 
       return {

@@ -12,6 +12,8 @@ import {
   isBasicSourcePath,
   isReadOnlyModuleFile,
   installVscodeApi,
+  installAnalysisHost,
+  createVscodeAnalysisHost,
   initLogger,
   logger,
 } from "@data7/core";
@@ -44,6 +46,17 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   initLogger(context);
+  // AnalysisHost is the only path analysis code takes into open documents,
+  // workspace folders, and the filesystem (REFACTOR-ANALYSIS-ENGINE.md § Fase 2).
+  installAnalysisHost(
+    createVscodeAnalysisHost({
+      log: (level, message, err) => {
+        if (level === "error") logger.error(message, err);
+        else if (level === "warn") logger.warn(message);
+        else logger.info(message);
+      },
+    }),
+  );
   ExtensionSettingsService.initialize(context);
   registerExtensionSettingsEditor(context);
   RepositoryService.initialize(context);

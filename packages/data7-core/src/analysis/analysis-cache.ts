@@ -1,7 +1,7 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
 import { logger } from "../infra/logger";
 import { hashContent } from "../utils/content-hash";
+import { getAnalysisHost } from "./analysis-host";
 import type { FileSymbols, SymbolInfo } from "./symbol-indexer";
 
 interface PersistedSymbolEntry {
@@ -33,8 +33,9 @@ export class AnalysisCache {
     const result = new Map<string, PersistedSymbolEntry>();
     const cachePath = this.resolveCachePath(workspaceRoot);
     try {
-      if (!fs.existsSync(cachePath)) return result;
-      const raw = fs.readFileSync(cachePath, "utf-8");
+      const hostFs = getAnalysisHost().fs;
+      if (!hostFs.existsSync(cachePath)) return result;
+      const raw = hostFs.readFileSync(cachePath);
       const parsed = JSON.parse(raw) as AnalysisCacheFile;
       if (parsed.version !== CACHE_VERSION || !Array.isArray(parsed.entries)) {
         return result;
@@ -80,7 +81,8 @@ export class AnalysisCache {
   ): void {
     const cacheDir = path.join(workspaceRoot, CACHE_DIR_NAME);
     try {
-      fs.mkdirSync(cacheDir, { recursive: true });
+      const hostFs = getAnalysisHost().fs;
+      hostFs.mkdirSync(cacheDir, { recursive: true });
       const payload: AnalysisCacheFile = {
         version: CACHE_VERSION,
         entries: files.map((file) => ({
@@ -90,7 +92,7 @@ export class AnalysisCache {
           symbols: file.symbols.symbols,
         })),
       };
-      fs.writeFileSync(this.resolveCachePath(workspaceRoot), JSON.stringify(payload), "utf-8");
+      hostFs.writeFileSync(this.resolveCachePath(workspaceRoot), JSON.stringify(payload));
     } catch (err) {
       logger.warn(`Falha ao gravar analysis-cache: ${String(err)}`);
     }

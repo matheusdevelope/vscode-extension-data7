@@ -1,4 +1,3 @@
-import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "../platform/vscode-api";
 import { logger } from "../infra/logger";
@@ -23,6 +22,7 @@ import { DeclarationLintCache } from "./declaration-lint-cache";
 import { clearLintTypeResolutionCachesForUnit } from "./lint-type-resolution-cache";
 import { LanguageProcessor } from "./language-processor";
 import { AnalysisCache } from "./analysis-cache";
+import { getAnalysisHost } from "./analysis-host";
 import { hashContent } from "../utils/content-hash";
 import { PRIMITIVE_TYPES } from "../utils/primitive-types";
 
@@ -1063,7 +1063,7 @@ export class WorkspaceSymbolIndexer {
   }
 
   /**
-   * Checks if a file is physically present on disk or currently open in VS Code.
+   * Checks if a file is physically present on disk or currently open in the host.
    */
   public isFileValid(fileUri: string): boolean {
     if (fileUri.startsWith("system://")) {
@@ -1073,15 +1073,12 @@ export class WorkspaceSymbolIndexer {
       return true;
     }
     try {
+      const host = getAnalysisHost();
       const filePath = vscode.Uri.parse(fileUri).fsPath;
-      if (fs.existsSync(filePath)) {
+      if (host.fs.existsSync(filePath)) {
         return true;
       }
-      const documents = vscode.workspace.textDocuments;
-      const isOpen = documents.some((doc) => {
-        return this.getCacheKey(doc.uri.toString()) === this.getCacheKey(fileUri);
-      });
-      if (isOpen) {
+      if (host.getOpenDocument(fileUri)) {
         return true;
       }
     } catch {
@@ -1267,11 +1264,12 @@ export class WorkspaceSymbolIndexer {
       }
     >,
   ): Promise<void> {
-    if (!fs.existsSync(dir)) return;
+    const hostFs = getAnalysisHost().fs;
+    if (!hostFs.existsSync(dir)) return;
     if (isExcluded(dir)) return;
-    let entries: fs.Dirent[];
+    let entries: Awaited<ReturnType<typeof hostFs.readdirWithFileTypes>>;
     try {
-      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      entries = await hostFs.readdirWithFileTypes(dir);
     } catch {
       return;
     }
@@ -1321,8 +1319,9 @@ export class WorkspaceSymbolIndexer {
         this.recordChange(fileUri, false, namespaceNamesOf(oldParsed));
       }
 
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, "utf-8");
+      const hostFs = getAnalysisHost().fs;
+      if (hostFs.existsSync(filePath)) {
+        const content = hostFs.readFileSync(filePath);
         let parsed =
           diskCache !== undefined
             ? AnalysisCache.tryGetFresh(diskCache, fileUri, content)
@@ -1699,7 +1698,7 @@ export class WorkspaceSymbolIndexer {
   private static preferWorkspaceMatch(matches: readonly SymbolInfo[]): SymbolInfo | undefined {
     if (matches.length === 0) return undefined;
     if (matches.length === 1) return matches[0];
-    const folders = vscode.workspace.workspaceFolders ?? [];
+    const folders = getAnalysisHost().getWorkspaceFolders() ?? [];
     if (folders.length === 0) return matches[0];
     const isInsideWorkspace = (fileUri: string): boolean => {
       if (fileUri.startsWith("system://")) return false;
@@ -1707,7 +1706,7 @@ export class WorkspaceSymbolIndexer {
         const fsPath = vscode.Uri.parse(fileUri).fsPath;
         const normalized = path.normalize(fsPath).toLowerCase();
         return folders.some((folder) => {
-          const folderPath = path.normalize(folder.uri.fsPath).toLowerCase();
+          const folderPath = path.normalize(vscode.Uri.parse(folder.uri).fsPath).toLowerCase();
           if (normalized === folderPath) return true;
           const prefix = folderPath.endsWith(path.sep) ? folderPath : folderPath + path.sep;
           return normalized.startsWith(prefix);
