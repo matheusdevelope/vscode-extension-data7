@@ -59,6 +59,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - **Folding** semântico de `Namespace`, `Class`, `Sub`, `Function`, `If`, `For`, `While`.
 - **Linter** com diagnósticos canônicos (`missing-import`, `unused-import`, `unused-code`, `unreachable-declaration`, `unknown-member`, `module-not-found`, `module-not-declared`, `duplicate-import`, `private-member-access`, `event-signature-mismatch`).
 - **Quick Fixes e Correções em Massa**: Ações rápidas individuais e em lote ("Aplicar a todas as ocorrências no arquivo") para importar/remover dependências, instalar módulos ausentes, resolver erros de escrita ("Você quis dizer X?") e adicionar `()` em instanciações `New Tipo`.
+- **Análise incremental**: o motor mantém um snapshot imutável por arquivo e reanalisa apenas o que mudou. Editar o corpo de um método não invalida a resolução de membros do workspace; alterar uma assinatura pública propaga o lint para os dependentes (diretos e transitivos) no save. As análises pesadas rodam em fatias de tempo ocioso, com prioridade para o editor ativo, e são interrompidas assim que você volta a digitar. Se o índice ficar inconsistente, `Data7 Linter: Reiniciar Análise` recria tudo sem recarregar a janela.
 - O parser/transpiler preserva arrays nativos fixos do PaxCompiler/Data7 Basic, como `Private _containers(10) As Container` e `Dim _matrix(10, 5) As Integer`.
 - Lambdas materializadas em cadeias `TTList.Filter(...).Map_*(...).Reduce_*` preservam a assinatura completa do delegate, incluindo `extra As Variant`, e `Every` emite `Not (<comparacao>)` para manter a precedencia correta.
 - O monomorfizador materializa retornos genericos fluentes de qualquer classe concreta, evitando metodos ausentes em cadeias como `Classe<T>.Metodo<TOut>() As OutraClasse<TOut>` e descartando usos ainda abertos como `Classe<T>` em comentarios ou templates.
@@ -152,6 +153,7 @@ Comandos aparecem na paleta agrupados por categoria (`Data7`, `Data7 Projeto`, `
 | `Data7 Linter: Analisar Projeto`          | `Ctrl+Alt+L`       | Linter em todo o workspace             |
 | `Data7 Linter: Corrigir Arquivo`          | `Ctrl+Alt+Shift+F` | Quick fixes no `.bas` ativo            |
 | `Data7 Linter: Corrigir Projeto`          | `Ctrl+Alt+F`       | Correções em todo o workspace          |
+| `Data7 Linter: Reiniciar Análise`         | —                  | Recria índice e caches do motor        |
 | `Data7 Prévia: Prévia (Lado a Lado)`      | `Ctrl+Alt+P`       | Código transpilado ao lado             |
 | `Data7: Mostrar Saída`                    | `Ctrl+Alt+Shift+O` | Canal de log da extensão               |
 

@@ -245,6 +245,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 
     // Linter/Fixer commands
     [COMMAND_IDS.runLinter, () => DiagnosticService.lintWorkspace(true)],
+    [COMMAND_IDS.restartAnalysis, () => DiagnosticService.restartAnalysis()],
     [COMMAND_IDS.fixActiveFile, () => WorkspaceFixService.fixActiveEditor()],
     [COMMAND_IDS.fixAllWorkspace, () => WorkspaceFixService.fixAllWorkspace()],
 

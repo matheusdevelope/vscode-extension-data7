@@ -63,6 +63,44 @@ describe("WorkspaceSymbolIndexer", () => {
     });
   });
 
+  describe("resetIndex", () => {
+    test("drops every indexed file so a corrupted index can be rebuilt in place", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const file = fakeAbsPath("dummy_reset", "mod_reset.bas");
+      const uri = fileUriFor(file);
+
+      registerOpenDocument(uri, file);
+      indexer.updateFileContent(
+        uri,
+        "Namespace ns_reset\n   Class TReset\n   End Class\nEnd Namespace",
+      );
+      assert.ok(indexer.getFileSymbols(uri), "file must be indexed before the reset");
+
+      indexer.resetIndex();
+
+      assert.equal(indexer.getFileSymbols(uri), undefined, "reset must evict indexed files");
+      assert.equal(
+        indexer.getDependentFileUris(uri).length,
+        0,
+        "reset must drop dependency graph edges",
+      );
+    });
+
+    test("keeps virtual sugar modules reachable after the reset", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const before = indexer.getFileSymbols("system://sugars/data7_collections.bas");
+
+      indexer.resetIndex();
+
+      const after = indexer.getFileSymbols("system://sugars/data7_collections.bas");
+      assert.equal(
+        after === undefined,
+        before === undefined,
+        "sugar utility modules must be re-seeded exactly as on construction",
+      );
+    });
+  });
+
   describe("renameWorkspaceFolder / deleteWorkspaceFolder", () => {
     test("rename moves cached entries to the new folder URIs", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
@@ -213,8 +251,14 @@ End Namespace`,
     });
   });
 
-  describe("dynamic cache validation on lookup", () => {
-    test("purges stale symbols whose file is neither on disk nor open in editor", () => {
+  describe("stale-file pruning", () => {
+    /**
+     * Name resolution runs on every keystroke, so it must stay free of
+     * synchronous disk I/O. Files that vanish are dropped by the watcher
+     * (`AnalysisProgram.deleteFile`) or by `validateCache`, never by an
+     * `fs.existsSync` inside the lookup.
+     */
+    test("purges symbols of a file that is neither on disk nor open, without probing disk on lookup", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const staleAbs = fakeAbsPath("dummy_project", "src", "stale_file_not_existing.bas");
       const staleUri = fileUriFor(staleAbs);
@@ -242,9 +286,46 @@ End Namespace
       mockTextDocuments.length = 0;
       assert.equal(indexer.isFileValid(staleUri), false);
 
-      const symbol = indexer.findSymbolByName("TStaleClass");
-      assert.equal(symbol, undefined, "stale symbol must be filtered out");
+      assert.notEqual(
+        indexer.findSymbolByName("TStaleClass"),
+        undefined,
+        "the hot lookup path must not pay for a disk probe per identifier",
+      );
+
+      indexer.validateCache();
+
+      assert.equal(
+        indexer.findSymbolByName("TStaleClass"),
+        undefined,
+        "stale symbol must be gone once the index is validated",
+      );
       assert.equal(indexer.getFileSymbols(staleUri), undefined, "stale file must be purged");
+    });
+
+    test("removeFile drops the symbols immediately, as the watcher does on delete", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const deletedAbs = fakeAbsPath("dummy_project", "src", "deleted_file.bas");
+      const deletedUri = fileUriFor(deletedAbs);
+      registerOpenDocument(deletedUri, deletedAbs);
+
+      indexer.updateFileContent(
+        deletedUri,
+        `
+Namespace ns_deleted
+  Class TDeletedClass
+  End Class
+End Namespace
+      `,
+      );
+      assert.notEqual(indexer.findSymbolByName("TDeletedClass"), undefined);
+
+      indexer.removeFile(deletedUri);
+
+      assert.equal(
+        indexer.findSymbolByName("TDeletedClass"),
+        undefined,
+        "deleting a file must drop its symbols without waiting for a cache validation pass",
+      );
     });
   });
 
@@ -296,6 +377,78 @@ End Namespace
 
       const newNameHits = indexer.getSymbolsByName("TOtherClass");
       assert.equal(newNameHits.length, 1);
+    });
+  });
+
+  describe("granular member-cache invalidation", () => {
+    const classWithBody = (body: string): string => `
+Namespace ns_granular
+  Class TGranular
+    Public Sub Run()
+${body}
+    End Sub
+  End Class
+End Namespace
+    `;
+
+    test("a body-only edit keeps member entries declared by other files", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+
+      const editedPath = fakeAbsPath("dummy_granular", "edited.bas");
+      const editedUri = fileUriFor(editedPath);
+      registerOpenDocument(editedUri, editedPath);
+      indexer.updateFileContent(editedUri, classWithBody("      Dim a As Integer"));
+
+      const otherPath = fakeAbsPath("dummy_granular", "other.bas");
+      const otherUri = fileUriFor(otherPath);
+
+      indexer.findMemberCache.set("other-key", undefined, otherUri);
+      indexer.findMemberCache.set("edited-key", undefined, editedUri);
+
+      indexer.updateFileContent(editedUri, classWithBody("      Dim a As Integer\n      a = 1"));
+
+      assert.equal(
+        indexer.findMemberCache.has("edited-key"),
+        false,
+        "entries declared by the edited file must be dropped",
+      );
+      assert.equal(
+        indexer.findMemberCache.has("other-key"),
+        true,
+        "a body-only edit must not clear the whole workspace member cache",
+      );
+    });
+
+    test("an API change clears every member entry", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+
+      const editedPath = fakeAbsPath("dummy_granular_api", "edited.bas");
+      const editedUri = fileUriFor(editedPath);
+      registerOpenDocument(editedUri, editedPath);
+      indexer.updateFileContent(editedUri, classWithBody("      Dim a As Integer"));
+
+      const otherUri = fileUriFor(fakeAbsPath("dummy_granular_api", "other.bas"));
+      indexer.findMemberCache.set("other-key", undefined, otherUri);
+
+      indexer.updateFileContent(
+        editedUri,
+        `
+Namespace ns_granular
+  Class TGranular
+    Public Sub Run()
+    End Sub
+    Public Sub Added()
+    End Sub
+  End Class
+End Namespace
+        `,
+      );
+
+      assert.equal(
+        indexer.findMemberCache.has("other-key"),
+        false,
+        "an API change can reach files the dependency graph does not link, so it clears everything",
+      );
     });
   });
 });

@@ -22,3 +22,20 @@ export function createConfiguredParseOptions(): ParseOptions {
     preserveLine: sugarEngine.createDisabledSyntaxLinePreserver(),
   };
 }
+
+/**
+ * Signature of the settings that change parser output. Consumers compare it
+ * across configuration changes to decide whether cached ASTs are still valid:
+ * severity overrides or excludes must not cost a full re-parse of the workspace.
+ */
+export function computeParseConfigSignature(): string {
+  const configuration = readConfiguration();
+  const sugarConfig = configuration.sugars;
+  return [
+    configuration.features.language.sugars ? "1" : "0",
+    configuration.features.language.generics ? "1" : "0",
+    sugarConfig.enabled ? "1" : "0",
+    [...sugarConfig.enabledIds].sort().join(","),
+    [...sugarConfig.disabledIds].sort().join(","),
+  ].join("|");
+}

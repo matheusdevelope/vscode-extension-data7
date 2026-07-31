@@ -54,4 +54,78 @@ describe("WorkspaceDependencyGraph", () => {
     const dependents = graph.getDependentFileUris("file:///a.bas", new Set(["OldNs"]));
     assert.deepEqual(dependents, ["file:///b.bas"]);
   });
+
+  describe("multiple declarers per namespace", () => {
+    test("keeps every file that declares the same namespace", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///part1.bas", "ModShared"));
+      graph.registerFile(fileSymbols("file:///part2.bas", "ModShared"));
+
+      assert.deepEqual(graph.getDeclaringFileUris("ModShared"), [
+        "file:///part1.bas",
+        "file:///part2.bas",
+      ]);
+    });
+
+    test("propagates to co-declarers of a shared namespace", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///part1.bas", "ModShared"));
+      graph.registerFile(fileSymbols("file:///part2.bas", "ModShared"));
+
+      const dependents = graph.getDependentFileUris("file:///part1.bas");
+      assert.deepEqual(dependents, ["file:///part2.bas"]);
+    });
+
+    test("unregistering one declarer leaves the others addressable", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///part1.bas", "ModShared"));
+      graph.registerFile(fileSymbols("file:///part2.bas", "ModShared"));
+
+      graph.unregisterFile("file:///part2.bas");
+
+      assert.deepEqual(graph.getDeclaringFileUris("ModShared"), ["file:///part1.bas"]);
+    });
+  });
+
+  describe("getTransitiveDependents", () => {
+    test("reaches indirect importers through the closure", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///a.bas", "ModA"));
+      graph.registerFile(fileSymbols("file:///b.bas", "ModB", ["ModA"]));
+      graph.registerFile(fileSymbols("file:///c.bas", "ModC", ["ModB"]));
+      graph.registerFile(fileSymbols("file:///d.bas", "ModD", ["ModC"]));
+
+      const dependents = [...graph.getTransitiveDependents("file:///a.bas")].sort();
+      assert.deepEqual(dependents, ["file:///b.bas", "file:///c.bas", "file:///d.bas"]);
+    });
+
+    test("terminates on import cycles without repeating files", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///a.bas", "ModA", ["ModC"]));
+      graph.registerFile(fileSymbols("file:///b.bas", "ModB", ["ModA"]));
+      graph.registerFile(fileSymbols("file:///c.bas", "ModC", ["ModB"]));
+
+      const dependents = [...graph.getTransitiveDependents("file:///a.bas")].sort();
+      assert.deepEqual(dependents, ["file:///b.bas", "file:///c.bas"]);
+    });
+
+    test("never includes the trigger file", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///a.bas", "ModA", ["ModB"]));
+      graph.registerFile(fileSymbols("file:///b.bas", "ModB", ["ModA"]));
+
+      const dependents = graph.getTransitiveDependents("file:///a.bas");
+      assert.deepEqual(dependents, ["file:///b.bas"]);
+    });
+
+    test("honors the depth cap", () => {
+      const graph = new WorkspaceDependencyGraph();
+      graph.registerFile(fileSymbols("file:///a.bas", "ModA"));
+      graph.registerFile(fileSymbols("file:///b.bas", "ModB", ["ModA"]));
+      graph.registerFile(fileSymbols("file:///c.bas", "ModC", ["ModB"]));
+
+      const dependents = graph.getTransitiveDependents("file:///a.bas", { maxDepth: 1 });
+      assert.deepEqual(dependents, ["file:///b.bas"]);
+    });
+  });
 });

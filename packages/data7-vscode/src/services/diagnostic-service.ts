@@ -28,8 +28,12 @@ import {
   runWorkspaceLintWithWorkerPool,
   AnalysisProgram,
   collectUnusedCodeDiagnostics,
+  deserializeLintDiagnostics,
+  ReachabilityParseCache,
   resolveBuildOptimizationOptions,
   DEFAULT_REACHABILITY_REMOVE_OPTIONS,
+  type AnalysisPriority,
+  type FileChangeSet,
   type SerializedLintDiagnostic,
   type LintWorkspaceFileInput,
   type ProjectMetadata,
@@ -69,22 +73,37 @@ export class DiagnosticService {
   private static readonly liveDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly workspaceDiagnosticUris = new Map<string, vscode.Uri>();
   private static readonly pendingDependentUris = new Set<string>();
+  /** Scheduling class of files currently being re-linted by propagation. */
+  private static readonly dependentPriorities = new Map<string, AnalysisPriority>();
   /** Per-file generation counter — stale lint runs are discarded when the user keeps typing. */
   private static readonly lintGenerations = new Map<string, number>();
   /** Blocks debounced lint until the initial workspace index completes. */
   private static workspaceIndexReady = false;
   private static readonly pendingOpenDocuments = new Set<string>();
-  /** Suppresses redundant live refresh after programmatic save/fix. */
-  private static readonly suppressLiveLintUntil = new Map<string, number>();
+  /**
+   * Highest document version whose live lint is suppressed after a programmatic
+   * edit. Keyed by version rather than by a wall-clock window: a timer either
+   * expired early (redundant lint) or swallowed a genuine keystroke.
+   */
+  private static readonly suppressLiveLintThroughVersions = new Map<string, number>();
   private static dependentPropagationScheduled = false;
-  private static pendingDependentTriggerUri: vscode.Uri | undefined;
+  private static readonly pendingDependentTriggers = new Map<string, vscode.Uri>();
   private static pendingDependentForce = false;
   /** Project-wide unused-code diagnostics keyed by uri (lowercase). */
   private static unusedCodeByUri = new Map<string, vscode.Diagnostic[]>();
   private static unusedCodeRefreshScheduled = false;
+  private static unusedCodeRefreshRunning = false;
+  private static unusedCodeRefreshRequeued = false;
 
   /** Cache of expensive workspace-level data, keyed by workspaceDir. */
   private static workspaceCache = new Map<string, WorkspaceDiagnosticCache>();
+  private static workspaceBasFilesCache: vscode.Uri[] | undefined;
+
+  /** Closed files whose disk content changed and still need a background re-lint. */
+  private static readonly backgroundLintQueue = new Map<string, vscode.Uri>();
+  private static backgroundLintScheduled = false;
+  /** Short: `externalRefreshDebounced` already coalesced the disk events. */
+  private static readonly BACKGROUND_LINT_DELAY_MS = 50;
 
   private static refreshDebounced = debounceKeyed(
     (document: vscode.TextDocument) => {
@@ -131,15 +150,21 @@ export class DiagnosticService {
       // Skip debounced linting while a batch fix or batch lint is in progress.
       if (WorkspaceFixService.isBatchFixInProgress) return;
 
-      if (!this.workspaceIndexReady && !reevaluateDependent) {
+      // Linting against a partial index produces phantom missing-import /
+      // unknown-type. Queue every path — including save — until the cold index
+      // completes (REFACTOR-ANALYSIS-ENGINE.md §7).
+      if (!this.workspaceIndexReady) {
         this.pendingOpenDocuments.add(doc.uri.toString().toLowerCase());
         return;
       }
 
       const uriKey = doc.uri.toString().toLowerCase();
       if (!reevaluateDependent) {
-        if (Date.now() < (this.suppressLiveLintUntil.get(uriKey) ?? 0)) {
-          return;
+        const suppressedThrough = this.suppressLiveLintThroughVersions.get(uriKey);
+        if (suppressedThrough !== undefined) {
+          if (doc.version <= suppressedThrough) return;
+          // The user typed past the programmatic edit — stop suppressing.
+          this.suppressLiveLintThroughVersions.delete(uriKey);
         }
         if (WorkspaceFixService.isWillSaveFixingUri(uriKey)) {
           return;
@@ -207,19 +232,87 @@ export class DiagnosticService {
     );
     const jsonWatcher = vscode.workspace.createFileSystemWatcher(`**/${PROJECT_CONFIG_FILENAME}`);
     jsonWatcher.onDidChange((uri) => {
-      this.invalidateWorkspaceCacheFor(uri.fsPath);
+      this.handleProjectConfigChanged(uri);
     });
     jsonWatcher.onDidCreate((uri) => {
-      this.invalidateWorkspaceCacheFor(uri.fsPath);
+      this.handleProjectConfigChanged(uri);
     });
     jsonWatcher.onDidDelete((uri) => {
-      this.invalidateWorkspaceCacheFor(uri.fsPath);
+      this.handleProjectConfigChanged(uri);
     });
-    context.subscriptions.push(cfgWatcher, jsonWatcher);
+    // A check offloaded to the background driver answers with stale diagnostics;
+    // this republishes the file once the fresh result lands.
+    const unsubscribeChecks = AnalysisProgram.getInstance().onCheckCompleted((uri) => {
+      this.republishAfterBackgroundCheck(uri);
+    });
+    context.subscriptions.push(cfgWatcher, jsonWatcher, { dispose: unsubscribeChecks });
+  }
+
+  /**
+   * Republishes a document whose diagnostics were served from the stale
+   * fallback while the scheduler was still working on it. Only open buffers are
+   * refreshed: the batch/from-disk paths own publication for closed files.
+   */
+  private static republishAfterBackgroundCheck(uri: string): void {
+    if (!this.isEnabled()) return;
+    const key = uri.toLowerCase();
+    const doc = vscode.workspace.textDocuments.find(
+      (candidate) => candidate.uri.toString().toLowerCase() === key,
+    );
+    if (!doc || !this.isLiveDiagnosticDocument(doc)) return;
+    // Debounced: `ensureChecked` now hits the fresh cached result, so this pass
+    // is a cheap publish rather than another analysis.
+    this.refreshDebounced(doc);
+  }
+
+  /**
+   * Maps a file to its scheduling class (REFACTOR-ANALYSIS-ENGINE.md §8.4) so
+   * the driver spends its budget on what the user is actually looking at.
+   */
+  private static resolveAnalysisPriority(uri: vscode.Uri): AnalysisPriority {
+    const key = this.uriKey(uri);
+    if (vscode.window.activeTextEditor?.document.uri.toString().toLowerCase() === key) {
+      return "active";
+    }
+    if (
+      vscode.window.visibleTextEditors.some(
+        (editor) => editor.document.uri.toString().toLowerCase() === key,
+      )
+    ) {
+      return "visible";
+    }
+    const propagationPriority = this.dependentPriorities.get(key);
+    if (propagationPriority !== undefined) {
+      return propagationPriority;
+    }
+    if (vscode.workspace.textDocuments.some((doc) => doc.uri.toString().toLowerCase() === key)) {
+      return "open";
+    }
+    return "background";
+  }
+
+  /**
+   * `data7.json` carries `exclude`, severity overrides and prune options, so a
+   * change invalidates published results — not just the cached module scan.
+   */
+  private static handleProjectConfigChanged(uri: vscode.Uri): void {
+    this.invalidateWorkspaceCacheFor(uri.fsPath);
+    // `exclude` changes which files exist for the analysis at all.
+    this.invalidateWorkspaceFileList();
+    // `diagnosticSeverity` and the prune options change published results, so
+    // invalidating only the module scan left the old diagnostics on screen.
+    AnalysisProgram.getInstance().invalidateAllChecks();
+    this.unusedCodeByUri.clear();
+    ReachabilityParseCache.getInstance().clear();
+    this.refreshAllActive();
+    this.scheduleUnusedCodeRefresh();
   }
 
   private static handleExtensionSettingsChanged(): void {
     this.workspaceCache.clear();
+    // `data7.exclude` participates in the file list filter.
+    this.invalidateWorkspaceFileList();
+    LanguageProcessor.getInstance().handleConfigurationChanged();
     this.refreshAllActive();
     WorkspaceSymbolIndexer.getInstance()
       .indexWorkspace(vscode.workspace.workspaceFolders)
@@ -237,6 +330,54 @@ export class DiagnosticService {
     return this._collection;
   }
 
+  /**
+   * Deterministic full reset of the analysis engine: drops every cache, clears
+   * published Problems, re-indexes the workspace and re-lints. Exists so a
+   * corrupted or stuck state never requires reloading the IDE window.
+   */
+  public static async restartAnalysis(): Promise<void> {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "Data7: reiniciando análise…",
+      },
+      async () => {
+        this.workspaceIndexReady = false;
+        this.pendingDependentUris.clear();
+        this.dependentPriorities.clear();
+        this.backgroundLintQueue.clear();
+        this.pendingOpenDocuments.clear();
+        this.lintGenerations.clear();
+        this.suppressLiveLintThroughVersions.clear();
+        this.dependentPropagationScheduled = false;
+        this.pendingDependentTriggers.clear();
+        this.pendingDependentForce = false;
+        this.unusedCodeRefreshScheduled = false;
+        this.workspaceCache.clear();
+        this.clearAllPublishedDiagnostics();
+
+        WorkspaceFixService.resetBatchState();
+        LanguageProcessor.getInstance().clearCache();
+        AnalysisProgram.getInstance().clear();
+
+        const indexer = WorkspaceSymbolIndexer.getInstance();
+        indexer.resetIndex();
+        try {
+          await indexer.indexWorkspace(vscode.workspace.workspaceFolders);
+        } catch (err) {
+          logger.error("Falha ao reindexar workspace durante o reinício da análise.", err);
+        } finally {
+          this.markWorkspaceIndexReady();
+        }
+
+        if (this.isEnabled()) {
+          this.refreshOpenDocuments();
+          this.pruneClosedDiagnostics();
+        }
+      },
+    );
+  }
+
   public static markWorkspaceIndexReady(): void {
     this.workspaceIndexReady = true;
     AnalysisProgram.getInstance().invalidateAllChecks();
@@ -251,9 +392,14 @@ export class DiagnosticService {
     this.pendingOpenDocuments.clear();
   }
 
-  /** Suppresses debounced live lint for a URI until `durationMs` elapses. */
-  public static suppressLiveLintForUri(uri: vscode.Uri, durationMs: number): void {
-    this.suppressLiveLintUntil.set(uri.toString().toLowerCase(), Date.now() + durationMs);
+  /**
+   * Skips the debounced live lint for every revision up to `version`, so the
+   * change events produced by a programmatic fix do not schedule a lint that a
+   * definitive pass is about to redo. Coordination is by document version, not
+   * by clock (REFACTOR-ANALYSIS-ENGINE.md §8.5).
+   */
+  public static suppressLiveLintThroughVersion(uri: vscode.Uri, version: number): void {
+    this.suppressLiveLintThroughVersions.set(uri.toString().toLowerCase(), version);
   }
 
   public static refreshAllActive(): void {
@@ -444,7 +590,9 @@ export class DiagnosticService {
     triggerUri: vscode.Uri,
     options: { readonly force?: boolean } = {},
   ): void {
-    this.pendingDependentTriggerUri = triggerUri;
+    // Every trigger is queued: a single slot meant that saving two files within
+    // the coalescing window silently dropped the first one's propagation.
+    this.pendingDependentTriggers.set(this.uriKey(triggerUri), triggerUri);
     this.pendingDependentForce = options.force === true || this.pendingDependentForce;
     if (this.dependentPropagationScheduled) {
       return;
@@ -452,12 +600,13 @@ export class DiagnosticService {
     this.dependentPropagationScheduled = true;
     setTimeout(() => {
       this.dependentPropagationScheduled = false;
-      const uri = this.pendingDependentTriggerUri;
+      const triggers = Array.from(this.pendingDependentTriggers.values());
       const force = this.pendingDependentForce;
-      this.pendingDependentTriggerUri = undefined;
+      this.pendingDependentTriggers.clear();
       this.pendingDependentForce = false;
-      if (!uri) return;
-      void this.runDependentPropagation(uri, { force });
+      for (const uri of triggers) {
+        void this.runDependentPropagation(uri, { force });
+      }
     }, 80);
   }
 
@@ -476,18 +625,33 @@ export class DiagnosticService {
     options: { readonly force?: boolean } = {},
   ): Promise<void> {
     const indexer = WorkspaceSymbolIndexer.getInstance();
+    // Accumulated since the last propagation, not since the last keystroke:
+    // editing a public signature and then typing anything else used to reset
+    // the gate, so the save never re-linted dependents.
+    const changeSet = indexer.takeChangeSet(triggerUri.toString());
+    try {
+      await this.propagateChangeSet(triggerUri, changeSet, options.force === true);
+    } catch (err) {
+      // Re-open the delta so the next save retries instead of losing it.
+      indexer.restoreChangeSet(changeSet);
+      logger.error(`Falha ao propagar mudanças de ${triggerUri.fsPath}:`, err);
+    }
+  }
+
+  private static async propagateChangeSet(
+    triggerUri: vscode.Uri,
+    changeSet: FileChangeSet,
+    force: boolean,
+  ): Promise<void> {
+    const indexer = WorkspaceSymbolIndexer.getInstance();
     const triggerUriStr = triggerUri.toString();
-    const force = options.force === true;
-    const apiChanged = indexer.hasLastUpdateChangedAPI(triggerUriStr);
     const isPrincipal = this.isPrincipalBasUri(triggerUri);
 
-    if (!force && !apiChanged) {
+    if (!force && !changeSet.apiChanged) {
       return;
     }
 
-    const extraNamespaces = new Set<string>(indexer.changedNamespacesInLastUpdate);
-    indexer.changedNamespacesInLastUpdate.clear();
-
+    const extraNamespaces = changeSet.changedNamespaces;
     const dependentKeySet = new Set<string>();
 
     if (isPrincipal) {
@@ -497,10 +661,13 @@ export class DiagnosticService {
         dependentKeySet.add(uri.toString());
       }
     } else {
+      // Transitive: when A's API changes, a file importing a namespace that in
+      // turn imports A must be re-linted too, or it keeps showing diagnostics
+      // that no longer apply.
       const graphDependents = LintPipelineProfiler.measure(
         "dependent-propagation",
         triggerUriStr,
-        () => indexer.getDependentFileUris(triggerUriStr, extraNamespaces),
+        () => indexer.getTransitiveDependentFileUris(triggerUriStr, extraNamespaces),
       );
       for (const uriStr of graphDependents) {
         dependentKeySet.add(uriStr);
@@ -535,30 +702,49 @@ export class DiagnosticService {
 
     if (dependentUris.length === 0) return;
 
-    const program = AnalysisProgram.getInstance();
-    for (const uri of dependentUris) {
-      this.pendingDependentUris.add(uri.toString().toLowerCase());
-      LanguageProcessor.getInstance().invalidate(uri.toString());
-      program.invalidateCheck(uri.toString());
-      indexer.invalidateFileLintCaches(uri.toString());
-    }
+    // Direct importers are what the user is most likely to look at next; the
+    // rest of the closure is speculative and yields to them in the scheduler.
+    const directKeys = new Set(
+      indexer
+        .getDependentFileUris(triggerUriStr, extraNamespaces)
+        .map((uriStr) => uriStr.toLowerCase()),
+    );
 
-    const BATCH_SIZE = resolveLintBatchConcurrency();
-    for (let i = 0; i < dependentUris.length; i += BATCH_SIZE) {
-      const batch = dependentUris.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async (uri) => {
-          const uriStr = uri.toString().toLowerCase();
-          try {
-            this.lintFile(uri, false);
-          } catch (err) {
-            logger.error(`Erro ao reavaliar dependente ${uri.fsPath}:`, err);
-          } finally {
-            this.pendingDependentUris.delete(uriStr);
-          }
-        }),
-      );
-      await new Promise<void>((resolve) => setImmediate(resolve));
+    const program = AnalysisProgram.getInstance();
+    const claimedKeys = dependentUris.map((uri) => uri.toString().toLowerCase());
+    try {
+      for (const uri of dependentUris) {
+        const key = uri.toString().toLowerCase();
+        this.dependentPriorities.set(key, directKeys.has(key) ? "dependent" : "transitive");
+        this.pendingDependentUris.add(uri.toString().toLowerCase());
+        LanguageProcessor.getInstance().invalidate(uri.toString());
+        program.invalidateCheck(uri.toString());
+        indexer.invalidateFileLintCaches(uri.toString());
+      }
+
+      const BATCH_SIZE = resolveLintBatchConcurrency();
+      for (let i = 0; i < dependentUris.length; i += BATCH_SIZE) {
+        const batch = dependentUris.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (uri) => {
+            const uriStr = uri.toString().toLowerCase();
+            try {
+              this.lintFile(uri, false);
+            } catch (err) {
+              logger.error(`Erro ao reavaliar dependente ${uri.fsPath}:`, err);
+            } finally {
+              this.pendingDependentUris.delete(uriStr);
+            }
+          }),
+        );
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+    } finally {
+      // A leaked entry here permanently blocks live lint for that file.
+      for (const key of claimedKeys) {
+        this.pendingDependentUris.delete(key);
+        this.dependentPriorities.delete(key);
+      }
     }
   }
 
@@ -722,20 +908,34 @@ export class DiagnosticService {
     }
   }
 
+  /**
+   * Workspace `.bas`/`.d7b` files. The glob result is cached because the
+   * project-wide `unused-code` pass asks for it on a typing debounce; the cache
+   * is dropped by {@link invalidateWorkspaceFileList} whenever a file is
+   * created or deleted, or when `data7.exclude` changes.
+   */
   public static async findWorkspaceBasFiles(workspaceDir?: string): Promise<vscode.Uri[]> {
     if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
       return [];
     }
-    const uris = await vscode.workspace.findFiles("**/*.{bas,d7b}");
-    return uris.filter((uri) => {
-      const fsPath = uri.fsPath;
-      return (
-        uri.scheme === "file" &&
-        !isExcluded(fsPath) &&
-        !isReadOnlyModuleFile(fsPath) &&
-        (!workspaceDir || this.isPathInsideWorkspace(fsPath, workspaceDir))
-      );
-    });
+
+    let uris = this.workspaceBasFilesCache;
+    if (!uris) {
+      const found = await vscode.workspace.findFiles("**/*.{bas,d7b}");
+      uris = found.filter((uri) => {
+        const fsPath = uri.fsPath;
+        return uri.scheme === "file" && !isExcluded(fsPath) && !isReadOnlyModuleFile(fsPath);
+      });
+      this.workspaceBasFilesCache = uris;
+    }
+
+    if (!workspaceDir) return [...uris];
+    return uris.filter((uri) => this.isPathInsideWorkspace(uri.fsPath, workspaceDir));
+  }
+
+  /** Drops the cached workspace file list after a create/delete/settings change. */
+  public static invalidateWorkspaceFileList(): void {
+    this.workspaceBasFilesCache = undefined;
   }
 
   public static lintFile(uri: vscode.Uri, reevaluateDependent = true): vscode.Diagnostic[] {
@@ -1183,7 +1383,7 @@ export class DiagnosticService {
           document.getText(),
           document.version,
           cancelToken,
-          "active",
+          this.resolveAnalysisPriority(document.uri),
         );
         return [...check.diagnostics];
       });
@@ -1201,12 +1401,15 @@ export class DiagnosticService {
     this.liveDiagnosticUris.clear();
     this.workspaceDiagnosticUris.clear();
     this.pendingDependentUris.clear();
+    this.dependentPriorities.clear();
+    this.backgroundLintQueue.clear();
+    this.backgroundLintScheduled = false;
     this.lintGenerations.clear();
     this.workspaceIndexReady = false;
     this.pendingOpenDocuments.clear();
-    this.suppressLiveLintUntil.clear();
+    this.suppressLiveLintThroughVersions.clear();
     this.dependentPropagationScheduled = false;
-    this.pendingDependentTriggerUri = undefined;
+    this.pendingDependentTriggers.clear();
     this.pendingDependentForce = false;
     this.refreshDebounced.cancelAll();
     this.externalRefreshDebounced.cancelAll();
@@ -1254,33 +1457,66 @@ export class DiagnosticService {
       return;
     }
 
-    // Closed files: only re-lint when we already published diagnostics for them,
-    // so bulk disk churn (git checkout of untouched trees) stays cheap.
-    const key = this.uriKey(uri);
-    if (!this.liveDiagnosticUris.has(key) && !this.workspaceDiagnosticUris.has(key)) {
-      return;
-    }
-
-    this.lintFile(uri, false);
+    // Closed files used to be re-linted only when they already had published
+    // Problems, so a file that *became* invalid on disk stayed silent until it
+    // was opened. Every change is now analyzed, but in the background lane so
+    // bulk disk churn (a git checkout) never blocks the editor.
+    this.enqueueBackgroundLint(uri);
   }
 
+  /**
+   * Background lane for disk-driven re-lints of closed files. Deliberately
+   * separate from the AST check scheduler: those files have no snapshot yet, so
+   * the work starts at a disk read rather than at a cached parse.
+   */
+  private static enqueueBackgroundLint(uri: vscode.Uri): void {
+    this.backgroundLintQueue.set(this.uriKey(uri), uri);
+    if (this.backgroundLintScheduled) return;
+    this.backgroundLintScheduled = true;
+    setTimeout(() => {
+      this.backgroundLintScheduled = false;
+      void this.drainBackgroundLintQueue();
+    }, this.BACKGROUND_LINT_DELAY_MS);
+  }
+
+  private static async drainBackgroundLintQueue(): Promise<void> {
+    const batchSize = resolveLintBatchConcurrency();
+    while (this.backgroundLintQueue.size > 0) {
+      if (WorkspaceFixService.isBatchFixInProgress) {
+        this.backgroundLintQueue.clear();
+        return;
+      }
+      const batch = Array.from(this.backgroundLintQueue.entries()).slice(0, batchSize);
+      for (const [key, uri] of batch) {
+        this.backgroundLintQueue.delete(key);
+        try {
+          const diagnostics = await this.lintFileFromDiskAsync(uri);
+          this.publishMergedDiagnostics(uri, diagnostics, "workspace");
+        } catch (err) {
+          logger.warn(
+            `Falha ao reanalisar ${uri.fsPath} após mudança em disco: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+      // Yield so a burst of file events cannot monopolize the extension host.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  }
+
+  /**
+   * Delegates to the shared transfer helper so worker-produced diagnostics keep
+   * their `data` payload, tags and related information — without those, quick
+   * fixes silently disappear on files linted by the worker pool.
+   */
   private static deserializeWorkerDiagnostics(
     diagnostics: readonly SerializedLintDiagnostic[],
   ): vscode.Diagnostic[] {
-    return diagnostics.map((diag) => {
-      const result = new vscode.Diagnostic(
-        new vscode.Range(diag.startLine, diag.startChar, diag.endLine, diag.endChar),
-        diag.message,
-        diag.severity,
-      );
-      if (diag.code !== undefined) {
-        result.code = diag.code as string | number | { value: string | number; target: vscode.Uri };
-      }
-      if (diag.source !== undefined) {
-        result.source = diag.source;
-      }
-      return result;
-    });
+    return deserializeLintDiagnostics(
+      diagnostics,
+      vscode as unknown as Parameters<typeof deserializeLintDiagnostics>[1],
+    ) as unknown as vscode.Diagnostic[];
   }
 
   private static isEnabled(): boolean {
@@ -1332,13 +1568,39 @@ export class DiagnosticService {
     }
   }
 
+  /**
+   * Coalesces the project-wide `unused-code` pass. The scheduled flag alone
+   * only guarded queueing, so a pass starting while another was still awaiting
+   * disk I/O produced overlapping full-project analyses; `unusedCodeRefreshRunning`
+   * guards the execution and re-queues instead of running concurrently.
+   */
   private static scheduleUnusedCodeRefresh(): void {
     if (this.unusedCodeRefreshScheduled) return;
     this.unusedCodeRefreshScheduled = true;
     setTimeout(() => {
       this.unusedCodeRefreshScheduled = false;
-      void this.refreshUnusedCodeDiagnostics();
+      if (this.unusedCodeRefreshRunning) {
+        this.unusedCodeRefreshRequeued = true;
+        return;
+      }
+      void this.runUnusedCodeRefresh();
     }, 600);
+  }
+
+  private static async runUnusedCodeRefresh(): Promise<void> {
+    this.unusedCodeRefreshRunning = true;
+    try {
+      await this.refreshUnusedCodeDiagnostics();
+    } catch (err) {
+      logger.error("Falha ao atualizar diagnósticos unused-code.", err);
+    } finally {
+      this.unusedCodeRefreshRunning = false;
+    }
+
+    if (this.unusedCodeRefreshRequeued) {
+      this.unusedCodeRefreshRequeued = false;
+      this.scheduleUnusedCodeRefresh();
+    }
   }
 
   /**
@@ -1385,9 +1647,10 @@ export class DiagnosticService {
       const options = this.resolveReachabilityOptions(workspaceDir);
       const hits = collectUnusedCodeDiagnostics(modules, options);
 
+      const moduleByUri = new Map(modules.map((m) => [m.fileUri.toLowerCase(), m]));
       for (const hit of hits) {
         const key = hit.fileUri.toLowerCase();
-        const module = modules.find((m) => m.fileUri.toLowerCase() === key);
+        const module = moduleByUri.get(key);
         const filtered = module
           ? this.filterSuppressedDiagnostics(module.code, [hit.diagnostic])
           : [hit.diagnostic];
@@ -1397,6 +1660,9 @@ export class DiagnosticService {
         nextMap.set(key, list);
       }
     }
+
+    // Bounds the memoized parses to the files still in the project.
+    ReachabilityParseCache.getInstance().retainOnly(basUris.map((uri) => uri.toString()));
 
     this.republishUnusedCodeMap(nextMap);
   }
@@ -1462,23 +1728,33 @@ export class DiagnosticService {
     uris: readonly vscode.Uri[],
   ): Promise<ReachabilityModuleInput[]> {
     const modules: ReachabilityModuleInput[] = [];
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    const openDocsByKey = new Map(
+      vscode.workspace.textDocuments.map((d) => [d.uri.toString().toLowerCase(), d]),
+    );
+
     for (const uri of uris) {
-      const openDoc = vscode.workspace.textDocuments.find(
-        (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
-      );
+      const openDoc = openDocsByKey.get(uri.toString().toLowerCase());
       let code: string;
       if (openDoc) {
         code = openDoc.getText();
       } else {
-        try {
-          code = await fs.promises.readFile(uri.fsPath, "utf-8");
-        } catch (err) {
-          logger.warn(
-            `Falha ao ler ${uri.fsPath} para reachability: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-          continue;
+        // The index already holds the file's content; re-reading every module
+        // from disk on each debounced pass was pure overhead.
+        const indexed = indexer.getFileSymbols(uri.toString());
+        if (indexed) {
+          code = indexed.content;
+        } else {
+          try {
+            code = await fs.promises.readFile(uri.fsPath, "utf-8");
+          } catch (err) {
+            logger.warn(
+              `Falha ao ler ${uri.fsPath} para reachability: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+            continue;
+          }
         }
       }
       const base = path.basename(uri.fsPath);

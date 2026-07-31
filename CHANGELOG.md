@@ -7,7 +7,25 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Unreleased]
 
+### Alterado
+- **Motor de análise — Fase 1 do plano em `REFACTOR-ANALYSIS-ENGINE.md`:** os modelos de invalidação e agendamento foram reescritos para eliminar diagnósticos obsoletos e o custo por tecla. Principais mudanças:
+  - **Change set acumulado por arquivo:** o delta de cada arquivo (`FileChangeSet`) se acumula entre ciclos de lint e só é fechado por `takeChangeSet`, em vez de refletir apenas a última tecla. Editar uma assinatura pública e continuar digitando não cancela mais a propagação no save; falhas de propagação devolvem o delta com `restoreChangeSet`.
+  - **Invalidação granular de membros:** `findMemberCache`, `allMembersForTypeCache`, `ownMembersForClassCache` e `inheritedMembersForClassCache` viraram `MemberCache`, que rastreia o arquivo declarante de cada entrada. Edição de corpo invalida só o arquivo editado; a limpeza total ficou reservada a mudanças de API/namespace.
+  - **Grafo de dependências correto e fingerprint O(1):** `WorkspaceDependencyGraph` passa a suportar múltiplos declarantes por namespace (`declarersByNamespace`) e expõe `getTransitiveDependents`. A revisão de `Principal.bas` usada no fingerprint de lint é memoizada, tirando o custo O(arquivos) do caminho de check.
+  - **Agendador funcional:** `CheckScheduler` ganhou driver de idle com fatias de ~15 ms, fila de prioridade em 6 níveis (`active`, `visible`, `open`, `dependent`, `transitive`, `background`), limite de capacidade com despejo do nível mais baixo, cancelamento e reenfileiramento do trabalho abortado.
+  - **Cancelamento cooperativo real:** o token chega até o linter — `warmLintTypeResolutionIndexes`, `buildExpressionTypeMap` (a cada 64 nós) e as passagens de validação verificam cancelamento e abortam cedo. A supressão de lint live durante o save passou de janela de tempo para versão de documento.
+  - **Snapshot imutável:** `FileSnapshot` é somente leitura; resultados de bind/check são publicados atomicamente em snapshots derivados, com guarda de versão e hash, em vez de mutar o snapshot em uso.
+  - **Caminho da tecla sem trabalho pesado:** `AnalysisProgram.update` é debounceado por documento (50 ms) e `LanguageProcessor.getOrParse` decide cache hit por `version` (quando disponível) ou hash de conteúdo, sem comparar strings inteiras.
+  - **`unused-code` incremental:** os parses da análise de alcançabilidade são memoizados em `ReachabilityParseCache`, a lista de `.bas`/`.d7b` do workspace é cacheada, os módulos vêm do índice em vez do disco e o refresh é serializado com recoalescência.
+  - **Ciclo de vida de arquivos:** `closeDocument` (libera memória, mantém indexado) e `deleteFile` (remove do índice) são operações distintas; `renameFile` é atômico; o watcher cobre `.bas` e `.d7b`; salvar um arquivo sem alteração real não força reparse.
+  - **Resiliência:** falha na indexação inicial não deixa mais o linter morto (`markWorkspaceIndexReady` roda em `finally`); mudanças em `data7.json` limpam os caches certos; `LanguageProcessor` só descarta a AST quando a configuração que afeta parsing muda.
+
+### Adicionado
+- **Comando `data7.linter.restartAnalysis`:** reinicia o motor de análise em ordem — limpa estado e Problems, zera caches, recria índice e republica diagnósticos — sem exigir recarregar a janela.
+
 ### Corrigido
+- **Genéricos — template indexado depois do uso:** um arquivo que usa `TList<Integer>` e é indexado antes do arquivo que declara `Class TList<T>` ficava permanentemente sem as instanciações planas (`TList_Integer`), quebrando hover, completions e assinatura. O índice agora registra a revisão de templates com que cada arquivo foi expandido e reexpande os defasados na próxima leitura.
+- **Diagnósticos vindos do worker sem Quick Fix:** `SerializedLintDiagnostic` passa a transportar `data`, `tags` e `relatedInformation`, então diagnósticos produzidos em worker mantêm o payload tipado que as Code Actions consomem.
 - **Quick Fix `missing-mybase-new`:** `Sub New()` passa a ser inserido no **topo** da classe (logo após a linha `Class`), e não antes do `End Class` — assim convive com `Sub Free()` no fix-all sem colidir na mesma posição.
 - **Fix-all / merge de edições:** inserts na mesma linha mas em colunas distintas (ex.: `Sub New` no col 0 e remoção de `Public` no campo seguinte) deixam de ser tratados como conflito — o merge usava comparação só por linha e descartava o construtor.
 - **Linter / Problems stale após análise ou correção em massa:** limpa a coleção Problems e invalida caches de check/lint antes de republicar; o índice é atualizado durante o lint (sem reparse síncrono prévio de todo o projeto) e `.data7/analysis-cache.json` é regravado ao final. O batch atualiza o índice a cada escrita e reanalisa o conjunto ao terminar.

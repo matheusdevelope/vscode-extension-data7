@@ -52,6 +52,16 @@ export class WorkspaceFixService {
     return this.willSaveFixingUris.has(uriKey.toLowerCase());
   }
 
+  /**
+   * Releases the batch guards unconditionally. Backs the "restart analysis"
+   * command: a flag left set by an interrupted batch silently disables live
+   * linting for the rest of the session.
+   */
+  public static resetBatchState(): void {
+    this.isBatchFixInProgress = false;
+    this.willSaveFixingUris.clear();
+  }
+
   public static async fixAllWorkspace(): Promise<void> {
     const candidateUris = await this.findCandidateUris();
     if (candidateUris.length === 0) {
@@ -129,7 +139,9 @@ export class WorkspaceFixService {
     }
 
     const { DiagnosticService } = await import("./diagnostic-service");
-    DiagnosticService.suppressLiveLintForUri(document.uri, 600);
+    // The edit is already applied, so this revision is the one to skip: the
+    // save below triggers the definitive pass.
+    DiagnosticService.suppressLiveLintThroughVersion(document.uri, document.version);
 
     await document.save();
 
@@ -272,7 +284,7 @@ export class WorkspaceFixService {
             fs.writeFileSync(uri.fsPath, correctedContent, "utf-8");
             // Drop parse/check snapshots so live providers and a later refresh
             // cannot reuse pre-fix AST / diagnostic caches.
-            AnalysisProgram.getInstance().close(uri.toString());
+            AnalysisProgram.getInstance().closeDocument(uri.toString());
             LanguageProcessor.getInstance().invalidate(uri.toString());
             // Keep the symbol index in sync — batch writes bypass document events.
             WorkspaceSymbolIndexer.getInstance().updateFileContent(

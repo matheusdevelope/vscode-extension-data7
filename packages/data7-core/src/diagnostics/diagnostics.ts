@@ -577,7 +577,7 @@ export class DiagnosticsLinter {
 
       const cached = LanguageProcessor.getInstance().getOrParse(document.uri.toString(), text);
       const unit = cached.unit;
-      warmLintTypeResolutionIndexes(unit, document, indexer);
+      warmLintTypeResolutionIndexes(unit, document, indexer, isCancelled);
       cached.errors.forEach((err) => {
         const line = Math.max(0, err.loc.line - 1);
         const col = Math.max(0, err.loc.column);
@@ -620,10 +620,20 @@ export class DiagnosticsLinter {
       validateDuplicateDeclarations(unit, document, indexer, diagnostics);
       tDup.stopAndLog();
 
+      if (isCancelled?.()) {
+        return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+      }
+
       // Validate that no type declaration shares its name with the enclosing namespace
       const tNs = new TimeTracker(" -> Conflitos de Namespace");
       validateNamespaceNameConflicts(document, indexer, diagnostics);
       tNs.stopAndLog();
+
+      // Yield point before the generics pre-pass: it re-analyzes the whole file
+      // plus every external template, and is the costliest rule after the walker.
+      if (isCancelled?.()) {
+        return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
+      }
 
       if (readConfiguration().features.language.generics) {
         // The generic pre-pass is an optional language extension. Keeping this
@@ -634,6 +644,10 @@ export class DiagnosticsLinter {
         });
         diagnostics.push(...collectGenericDiagnostics(genericWarnings, lines));
         tGen.stopAndLog();
+      }
+
+      if (isCancelled?.()) {
+        return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
       }
 
       // Directives list is comments-based so it must remain textual scan

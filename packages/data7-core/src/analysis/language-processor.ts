@@ -11,7 +11,8 @@ import {
   clearLocalScopeIndexCache,
   clearLintTypeResolutionCachesForUnit,
 } from "./lint-type-resolution-cache";
-import { createConfiguredParseOptions } from "./parse-config";
+import { computeParseConfigSignature, createConfiguredParseOptions } from "./parse-config";
+import { hashContent } from "../utils/content-hash";
 
 export interface CachedDocument {
   readonly uri: string;
@@ -20,18 +21,22 @@ export interface CachedDocument {
   readonly errors: readonly ParseError[];
   readonly version: number;
   readonly content?: string;
+  /** Identity of `content`, so a cache hit never compares two full documents. */
+  readonly contentHash?: string;
 }
 
 export class LanguageProcessor {
   private static instance: LanguageProcessor | undefined;
   private readonly cache = new Map<string, CachedDocument>();
   private readonly debouncers = new Map<string, NodeJS.Timeout>();
+  private parseConfigSignature = "";
 
   private constructor() {
     try {
+      this.parseConfigSignature = computeParseConfigSignature();
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("data7")) {
-          this.clearCache();
+          this.handleConfigurationChanged();
         }
       });
     } catch {
@@ -39,15 +44,42 @@ export class LanguageProcessor {
     }
   }
 
+  /**
+   * Only settings that change parser output invalidate cached ASTs. Everything
+   * else (severity overrides, excludes) invalidates lint results alone, so a
+   * severity tweak no longer re-parses the whole workspace.
+   */
+  public handleConfigurationChanged(): void {
+    let nextSignature = this.parseConfigSignature;
+    try {
+      nextSignature = computeParseConfigSignature();
+    } catch {
+      // Unreadable configuration: fall back to the conservative full reset.
+      this.clearCache();
+      return;
+    }
+
+    if (nextSignature !== this.parseConfigSignature) {
+      this.parseConfigSignature = nextSignature;
+      this.clearCache();
+      return;
+    }
+    this.clearLintCaches();
+  }
+
   public clearCache(): void {
     this.cache.clear();
-    SemanticLintCache.getInstance().clear();
-    DeclarationLintCache.getInstance().clear();
-    clearLocalScopeIndexCache();
+    this.clearLintCaches();
     for (const debouncer of this.debouncers.values()) {
       clearTimeout(debouncer);
     }
     this.debouncers.clear();
+  }
+
+  private clearLintCaches(): void {
+    SemanticLintCache.getInstance().clear();
+    DeclarationLintCache.getInstance().clear();
+    clearLocalScopeIndexCache();
   }
 
   public static getInstance(): LanguageProcessor {
@@ -70,7 +102,17 @@ export class LanguageProcessor {
     const cached = this.cache.get(key);
 
     if (cached) {
-      if (content === undefined || cached.content === content) {
+      if (content === undefined) {
+        return cached;
+      }
+      // A buffer version identifies its text exactly, so an editor-driven hit
+      // costs a number comparison. Disk-driven callers (version 0) fall back to
+      // the content hash — never to comparing two full documents, which made
+      // the cache probe itself expensive on large files.
+      if (version > 0 && cached.version === version) {
+        return cached;
+      }
+      if (cached.contentHash !== undefined && cached.contentHash === hashContent(content)) {
         return cached;
       }
     }
@@ -139,6 +181,7 @@ export class LanguageProcessor {
 
   public parseAndCache(uri: string, content: string, version: number): CachedDocument {
     const key = this.normalizeUri(uri);
+    const contentHash = hashContent(content);
     try {
       const { unit, errors, tokens } = parseBasic(content, createConfiguredParseOptions());
       const cachedDoc: CachedDocument = {
@@ -148,6 +191,7 @@ export class LanguageProcessor {
         errors,
         version,
         content,
+        contentHash,
       };
       this.cache.set(key, cachedDoc);
       return cachedDoc;
@@ -161,6 +205,7 @@ export class LanguageProcessor {
         errors: [],
         version,
         content,
+        contentHash,
       };
       this.cache.set(key, cachedDoc);
       return cachedDoc;

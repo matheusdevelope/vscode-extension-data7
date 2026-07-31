@@ -1,5 +1,10 @@
 import "../_setup/global-hooks";
-import { DiagnosticCodes, DiagnosticsLinter, WorkspaceSymbolIndexer } from "@data7/core";
+import {
+  collectUnusedCodeDiagnostics,
+  DiagnosticCodes,
+  DiagnosticsLinter,
+  WorkspaceSymbolIndexer,
+} from "@data7/core";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import * as fs from "fs";
@@ -52,6 +57,23 @@ function readBasFiles(dir: string): string[] {
   return out;
 }
 
+/**
+ * Some codes are project-scoped: they are produced by a whole-workspace pass
+ * (reachability) instead of by the per-file linter, so `runAdvancedDiagnostics`
+ * alone can never emit them. The examples for those codes are self-contained
+ * projects, so running the same analyzer over the single module reproduces what
+ * the extension publishes.
+ */
+function collectProjectScopedDiagnostics(
+  uri: string,
+  content: string,
+): readonly { code?: string | number | { value: string | number } }[] {
+  const moduleName = path.basename(uri, ".bas");
+  return collectUnusedCodeDiagnostics([{ moduleName, fileUri: uri, code: content }]).map(
+    (hit) => hit.diagnostic,
+  );
+}
+
 describe("examples-coverage", () => {
   describe("diagnostic codes", () => {
     test("every DiagnosticCode has at least one example folder", () => {
@@ -98,10 +120,10 @@ describe("examples-coverage", () => {
         const indexer = WorkspaceSymbolIndexer.getInstance();
         const uri = `file:///example-${code}.bas`;
         indexer.updateFileContent(uri, content);
-        const diags = DiagnosticsLinter.runAdvancedDiagnostics(
-          createMockDoc(uri, content),
-          indexer,
-        );
+        const diags = [
+          ...DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, content), indexer),
+          ...collectProjectScopedDiagnostics(uri, content),
+        ];
         const emittedCodes = new Set<string>(
           diags
             .map((d) =>

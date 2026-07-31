@@ -77,6 +77,83 @@ End Namespace
     assert.equal(result.cancelled, true);
   });
 
+  /**
+   * Large files used to block the keystroke path on a full check even though the
+   * scheduler had already been asked to do the work in the background.
+   */
+  test("large files answer with the previous result while a check is queued", async () => {
+    const program = AnalysisProgram.getInstance();
+    const uri = "file:///proj/Huge.bas";
+    const filler = Array.from({ length: 2600 }, (_, i) => `  ' linha ${i}`).join("\n");
+    const source = `Namespace Demo\n${filler}\nEnd Namespace`;
+
+    const completed: string[] = [];
+    const unsubscribe = program.onCheckCompleted((completedUri) => {
+      completed.push(completedUri);
+    });
+
+    try {
+      const first = program.ensureChecked(uri, source, 1);
+      assert.equal(first.stale, undefined, "the first check has nothing to fall back to");
+      assert.equal(program.isCheckScheduled(uri), true, "a large file must be offloaded");
+
+      const edited = `${source}\n' nova linha`;
+      const second = program.ensureChecked(uri, edited, 2);
+      assert.equal(second.stale, true, "the keystroke path must not block on a full re-check");
+      assert.deepEqual(
+        second.diagnostics,
+        first.diagnostics,
+        "the stale answer is the previous result",
+      );
+
+      await program.flushScheduled();
+      assert.ok(completed.includes(uri), "the driver must announce the fresh result");
+
+      const third = program.ensureChecked(uri, edited, 2);
+      assert.equal(third.stale, undefined, "once checked, the fresh result is served directly");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  /**
+   * Check results used to be written back into the snapshot object a consumer
+   * might already be holding, so a reader could observe a bind index that no
+   * longer matched the check result next to it.
+   */
+  test("attaching a check result derives a new snapshot instead of mutating it", () => {
+    const program = AnalysisProgram.getInstance();
+    const uri = "file:///proj/Immutable.bas";
+    const source = ["Namespace Demo", "  Class A", "  End Class", "End Namespace"].join("\n");
+
+    const beforeCheck = program.ensureParsed(uri, source, 1);
+    assert.equal(beforeCheck.checkResult, undefined);
+
+    program.ensureChecked(uri, source, 1);
+
+    assert.equal(
+      beforeCheck.checkResult,
+      undefined,
+      "the snapshot handed out earlier must stay untouched",
+    );
+    assert.ok(program.getSnapshot(uri)?.checkResult, "the published snapshot carries the result");
+  });
+
+  test("invalidating a check does not mutate a snapshot already handed out", () => {
+    const program = AnalysisProgram.getInstance();
+    const uri = "file:///proj/Invalidate.bas";
+    const source = ["Namespace Demo", "  Class B", "  End Class", "End Namespace"].join("\n");
+
+    program.ensureChecked(uri, source, 1);
+    const checked = program.getSnapshot(uri);
+    assert.ok(checked?.checkResult);
+
+    program.invalidateCheck(uri);
+
+    assert.ok(checked.checkResult, "the previously returned snapshot is still self-consistent");
+    assert.equal(program.getSnapshot(uri)?.checkResult, undefined);
+  });
+
   test("module refs reuse unit without second parse", () => {
     const program = AnalysisProgram.getInstance();
     const uri = "file:///proj/Imports.bas";

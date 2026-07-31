@@ -768,7 +768,7 @@ describe("DiagnosticService live lifecycle", () => {
     assert.equal(entries.has(key), false, "clean disk must clear stale Problems entries");
   });
 
-  test("scheduleExternalFileRefresh re-lints closed files that already have Problems", async () => {
+  test("scheduleExternalFileRefresh re-lints a closed file changed on disk", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
     const srcDir = path.join(tmpDir, "src");
     fs.mkdirSync(srcDir, { recursive: true });
@@ -816,13 +816,74 @@ describe("DiagnosticService live lifecycle", () => {
     mockTextDocuments.length = 0;
     fs.writeFileSync(basPath, clean, "utf8");
     DiagnosticService.scheduleExternalFileRefresh(uri);
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    // External debounce + background lane.
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const after = entries.get(key) ?? [];
     assert.equal(
       after.some((diag) => diag.code === DiagnosticCodes.UnknownType),
       false,
       "external disk fix must refresh closed-file Problems",
+    );
+  });
+
+  /**
+   * A closed file that *became* invalid on disk used to stay silent because the
+   * refresh only ran for URIs that already had published Problems.
+   */
+  test("scheduleExternalFileRefresh lints a closed file with no prior Problems", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_fresh.bas");
+    fs.writeFileSync(
+      basPath,
+      [
+        "Namespace mod_fresh",
+        "Class C",
+        "  Public Sub Run()",
+        "    Dim value As MissingType",
+        "  End Sub",
+        "End Class",
+        "End Namespace",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    DiagnosticService.markWorkspaceIndexReady();
+
+    mockTextDocuments.length = 0;
+    const key = uri.toString().toLowerCase();
+    assert.equal(entries.get(key), undefined, "nothing published for this file yet");
+
+    DiagnosticService.scheduleExternalFileRefresh(uri);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    assert.ok(
+      (entries.get(key) ?? []).some((diag) => diag.code === DiagnosticCodes.UnknownType),
+      "a closed file that became invalid must be reported",
     );
   });
 

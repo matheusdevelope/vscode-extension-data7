@@ -8,6 +8,8 @@ import {
   COMMAND_IDS,
   LANGUAGE_IDS,
   readConfiguration,
+  debounceKeyed,
+  isBasicSourcePath,
   isReadOnlyModuleFile,
   installVscodeApi,
   initLogger,
@@ -152,22 +154,29 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
     async () => {
       try {
         await indexer.indexWorkspace(vscode.workspace.workspaceFolders);
-        DiagnosticService.markWorkspaceIndexReady();
-        const diagnosticsFeatures = readConfiguration().features.diagnostics;
-        if (!diagnosticsFeatures.enabled) return;
-        if (diagnosticsFeatures.lintWorkspaceOnStartup) {
-          void DiagnosticService.lintWorkspace(false);
-          return;
-        }
-        DiagnosticService.refreshOpenDocuments();
-        DiagnosticService.pruneClosedDiagnostics();
       } catch (err) {
-        logger.error("Erro ao indexar workspace.", err);
+        // A partial index still serves the editor better than a dead linter:
+        // `markWorkspaceIndexReady` below runs regardless so queued documents
+        // are never stranded (see REFACTOR-ANALYSIS-ENGINE.md §2.3).
+        logger.error("Erro ao indexar workspace. A análise seguirá com índice parcial.", err);
+      } finally {
+        DiagnosticService.markWorkspaceIndexReady();
       }
+
+      const diagnosticsFeatures = readConfiguration().features.diagnostics;
+      if (!diagnosticsFeatures.enabled) return;
+      if (diagnosticsFeatures.lintWorkspaceOnStartup) {
+        void DiagnosticService.lintWorkspace(false);
+        return;
+      }
+      DiagnosticService.refreshOpenDocuments();
+      DiagnosticService.pruneClosedDiagnostics();
     },
   );
 
-  const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.bas");
+  // `.d7b` is a first-class alias of `.bas`; watching only `.bas` left those
+  // files stale in the index until a full re-index.
+  const basWatcher = vscode.workspace.createFileSystemWatcher("**/*.{bas,d7b}");
   const isReadOnlyOrModule = (fsPath: string): boolean => {
     const lower = fsPath.toLowerCase();
     return lower.includes("data7_modules") || isReadOnlyModuleFile(fsPath);
@@ -179,45 +188,67 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
       (doc) => doc.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
     );
     if (openDoc?.isDirty) return;
-    AnalysisProgram.getInstance().close(uri.toString());
+    // The user saving their own buffer fires this watcher too. Re-reading and
+    // re-parsing a file we already hold verbatim was pure latency on every save.
+    if (
+      openDoc &&
+      AnalysisProgram.getInstance().matchesContent(uri.toString(), openDoc.getText())
+    ) {
+      scheduleDependencyRefreshForFile(uri.fsPath);
+      return;
+    }
+    AnalysisProgram.getInstance().closeDocument(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     DiagnosticService.scheduleExternalFileRefresh(uri);
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidCreate((uri) => {
+    DiagnosticService.invalidateWorkspaceFileList();
     if (isReadOnlyOrModule(uri.fsPath)) return;
-    AnalysisProgram.getInstance().close(uri.toString());
+    AnalysisProgram.getInstance().closeDocument(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
     indexer.indexFile(uri.toString());
     DiagnosticService.scheduleExternalFileRefresh(uri);
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   basWatcher.onDidDelete((uri) => {
+    DiagnosticService.invalidateWorkspaceFileList();
     if (isReadOnlyOrModule(uri.fsPath)) return;
-    AnalysisProgram.getInstance().close(uri.toString());
+    AnalysisProgram.getInstance().deleteFile(uri.toString());
     LanguageProcessor.getInstance().invalidate(uri.toString());
-    indexer.removeFile(uri.toString());
     DiagnosticService.clearDiagnostics(uri);
     scheduleDependencyRefreshForFile(uri.fsPath);
   });
   context.subscriptions.push(basWatcher);
 
-  // Update Program/index immediately so providers see fresh symbols;
-  // heavy check remains debounced by DiagnosticService.
+  /**
+   * Parse + symbol walk + index update used to run synchronously on every
+   * keystroke. It is now coalesced over a short window: providers stay correct
+   * because `ensureParsed` re-parses on demand whenever the buffer version does
+   * not match the snapshot (REFACTOR-ANALYSIS-ENGINE.md §4.2).
+   */
+  const scheduleProgramUpdate = debounceKeyed(
+    (doc: vscode.TextDocument) => {
+      AnalysisProgram.getInstance().update(doc.uri.toString(), doc.getText(), doc.version);
+    },
+    50,
+    (doc: vscode.TextDocument) => doc.uri.toString().toLowerCase(),
+  );
+
   const docChangeListener = vscode.workspace.onDidChangeTextDocument((e) => {
-    if (e.document.languageId === LANGUAGE_IDS.d7basic || e.document.fileName.endsWith(".bas")) {
-      AnalysisProgram.getInstance().update(
-        e.document.uri.toString(),
-        e.document.getText(),
-        e.document.version,
-      );
+    if (e.document.languageId === LANGUAGE_IDS.d7basic || isBasicSourcePath(e.document.fileName)) {
+      scheduleProgramUpdate(e.document);
     }
   });
 
   const docCloseListener = vscode.workspace.onDidCloseTextDocument((doc) => {
-    if (doc.languageId === LANGUAGE_IDS.d7basic || doc.fileName.endsWith(".bas")) {
-      AnalysisProgram.getInstance().close(doc.uri.toString());
+    if (doc.languageId === LANGUAGE_IDS.d7basic || isBasicSourcePath(doc.fileName)) {
+      // A pending update would resurrect the snapshot we are about to drop.
+      scheduleProgramUpdate.cancel(doc.uri.toString().toLowerCase());
+      // Closing a tab frees the snapshot but never unindexes: the file is still
+      // part of the workspace and other files must keep resolving against it.
+      AnalysisProgram.getInstance().closeDocument(doc.uri.toString());
       LanguageProcessor.getInstance().invalidate(doc.uri.toString());
       // Workspace-file diagnostics are preserved by DiagnosticService.onDidCloseTextDocument.
       if (!vscode.workspace.getWorkspaceFolder(doc.uri)) {
@@ -235,17 +266,13 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   context.subscriptions.push(docSaveListener);
 
   const renameListener = vscode.workspace.onDidRenameFiles((e) => {
+    DiagnosticService.invalidateWorkspaceFileList();
     for (const file of e.files) {
-      const oldPath = path.normalize(file.oldUri.fsPath).toLowerCase();
-      const newPath = path.normalize(file.newUri.fsPath).toLowerCase();
-      indexer.renameWorkspaceFolder(oldPath, newPath);
-      AnalysisProgram.getInstance().close(file.oldUri.toString());
-      LanguageProcessor.getInstance().invalidate(file.oldUri.toString());
+      // Single transition: the old identity is dropped and the new one indexed
+      // before anything else observes the program.
+      AnalysisProgram.getInstance().renameFile(file.oldUri.toString(), file.newUri.toString());
       DiagnosticService.clearDiagnostics(file.oldUri);
-      if (file.newUri.fsPath.toLowerCase().endsWith(".bas")) {
-        AnalysisProgram.getInstance().close(file.newUri.toString());
-        LanguageProcessor.getInstance().invalidate(file.newUri.toString());
-        indexer.indexFile(file.newUri.toString());
+      if (isBasicSourcePath(file.newUri.fsPath)) {
         DiagnosticService.scheduleExternalFileRefresh(file.newUri);
       }
       scheduleDependencyRefreshForFile(file.oldUri.fsPath);
@@ -254,9 +281,13 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
   });
 
   const deleteListener = vscode.workspace.onDidDeleteFiles((e) => {
+    DiagnosticService.invalidateWorkspaceFileList();
     for (const uri of e.files) {
       const deletedPath = path.normalize(uri.fsPath).toLowerCase();
+      // Folder deletions arrive as a single event; drop every file underneath.
       indexer.deleteWorkspaceFolder(deletedPath);
+      AnalysisProgram.getInstance().deleteFile(uri.toString());
+      LanguageProcessor.getInstance().invalidate(uri.toString());
       DiagnosticService.clearDiagnostics(uri);
       scheduleDependencyRefreshForFile(uri.fsPath);
     }
@@ -298,7 +329,11 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
         if (saveFeatures.autoFixOnSave) {
           const fixEdits = WorkspaceFixService.buildWillSaveTextEdits(e.document);
           if (fixEdits && fixEdits.length > 0) {
-            DiagnosticService.suppressLiveLintForUri(e.document.uri, 500);
+            // The willSave edits land as the next revision of the buffer.
+            DiagnosticService.suppressLiveLintThroughVersion(
+              e.document.uri,
+              e.document.version + 1,
+            );
             return fixEdits;
           }
         }

@@ -32,6 +32,15 @@ export const LANGUAGE_IDS = {
 
 export type LanguageId = (typeof LANGUAGE_IDS)[keyof typeof LANGUAGE_IDS];
 
+/** File extensions recognized as Data7 Basic source; `.d7b` is an alias of `.bas`. */
+export const BASIC_FILE_EXTENSIONS = [".bas", ".d7b"] as const;
+
+/** True when `filePath` (or URI) points at a Data7 Basic source file. */
+export function isBasicSourcePath(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return BASIC_FILE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 /**
  * Command IDs contributed by `package.json#contributes.commands`. Every entry
  * here must have a matching `contributes.commands[*].command` entry and every
@@ -64,6 +73,7 @@ export const COMMAND_IDS = {
 
   // Linter/Fixer commands
   runLinter: "data7.linter.run",
+  restartAnalysis: "data7.linter.restartAnalysis",
   fixActiveFile: "data7.linter.fixActiveFile",
   fixAllWorkspace: "data7.linter.fixAllWorkspace",
 

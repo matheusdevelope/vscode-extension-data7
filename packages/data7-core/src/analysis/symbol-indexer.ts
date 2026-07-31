@@ -17,6 +17,7 @@ import {
   type ParameterDeclaration,
 } from "../project/ast/ast";
 import { WorkspaceDependencyGraph } from "./workspace-dependency-graph";
+import { MemberCache } from "./member-cache";
 import { SemanticLintCache } from "./semantic-lint-cache";
 import { DeclarationLintCache } from "./declaration-lint-cache";
 import { clearLintTypeResolutionCachesForUnit } from "./lint-type-resolution-cache";
@@ -485,11 +486,65 @@ export class SymbolParser {
   }
 }
 
+/**
+ * Delta accumulated for one file between lint cycles. `apiChanged` drives
+ * whether dependents must be re-linted; `changedNamespaces` carries namespace
+ * additions/removals so renames still reach the files that imported the old
+ * name.
+ */
+export interface FileChangeSet {
+  readonly fileUri: string;
+  readonly apiChanged: boolean;
+  readonly changedNamespaces: ReadonlySet<string>;
+  /** Indexer revision of the file at the moment the set was read. */
+  readonly revision: number;
+}
+
+interface MutableFileChangeSet {
+  apiChanged: boolean;
+  readonly changedNamespaces: Set<string>;
+}
+
+/** Lowercase namespace names declared by a parsed file. */
+function namespaceNamesOf(parsed: FileSymbols | undefined): readonly string[] {
+  if (!parsed) return [];
+  const names: string[] = [];
+  for (const sym of parsed.symbols) {
+    if (sym.kind === "namespace") {
+      names.push(sym.name.toLowerCase());
+    }
+  }
+  return names;
+}
+
+/**
+ * Identifies the generic templates a file declares. Two files with the same
+ * signature expand identically, so the workspace-wide expansion revision only
+ * moves when a template is added, removed, or has its type parameters changed.
+ */
+function localGenericTemplateSignature(symbols: readonly SymbolInfo[]): string {
+  const parts: string[] = [];
+  for (const sym of symbols) {
+    if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") continue;
+    if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
+    parts.push(`${sym.kind}:${sym.name}<${sym.genericTypeParameters.join(",")}>`);
+  }
+  return parts.sort().join("|");
+}
+
+function namespaceSetsDiffer(previous: Iterable<string>, next: ReadonlySet<string>): boolean {
+  let previousSize = 0;
+  for (const name of previous) {
+    previousSize += 1;
+    if (!next.has(name)) return true;
+  }
+  return previousSize !== next.size;
+}
+
 export class WorkspaceSymbolIndexer {
   private static hostInstance: WorkspaceSymbolIndexer | undefined;
   private static detachedScopeCounter = 0;
   private cache = new Map<string, FileSymbols>(); // fileUri -> FileSymbols
-  public readonly changedNamespacesInLastUpdate = new Set<string>();
   public readonly lintCacheScope: string;
 
   private allSymbolsCache: SymbolInfo[] | null = null;
@@ -497,17 +552,187 @@ export class WorkspaceSymbolIndexer {
   private symbolsByNameMap: Map<string, SymbolInfo[]> | null = null;
   private symbolsByContainerMap: Map<string, SymbolInfo[]> | null = null;
 
-  public readonly findMemberCache = new Map<string, SymbolInfo | undefined>();
-  public readonly allMembersForTypeCache = new Map<string, SymbolInfo[]>();
-  public readonly ownMembersForClassCache = new Map<string, SymbolInfo[]>();
-  public readonly inheritedMembersForClassCache = new Map<string, SymbolInfo[]>();
+  public readonly findMemberCache = new MemberCache<SymbolInfo | undefined>();
+  public readonly allMembersForTypeCache = new MemberCache<SymbolInfo[]>();
+  public readonly ownMembersForClassCache = new MemberCache<SymbolInfo[]>();
+  public readonly inheritedMembersForClassCache = new MemberCache<SymbolInfo[]>();
   private readonly dependencyGraph = new WorkspaceDependencyGraph();
   private readonly fileRevisions = new Map<string, number>();
   private readonly lastUpdateApiChanged = new Map<string, boolean>();
+  private principalFileKeysCache: readonly string[] | undefined;
+  /** Deltas accumulated per file since the last time propagation consumed them. */
+  private readonly pendingChanges = new Map<string, MutableFileChangeSet>();
 
+  /**
+   * Generic expansion state (§8.2 — ordering).
+   *
+   * Flat instantiations (`TList_Product`) are synthesized when a file is
+   * indexed, from the templates known at that moment. A cold index visits
+   * files in directory order, so a usage indexed before its template used to
+   * keep an empty expansion forever. Instead of re-expanding the workspace on
+   * every update, each file records the template revision it was expanded
+   * against, and stale files are re-expanded lazily on the next read.
+   */
+  private genericTemplateRevision = 0;
+  private readonly genericTemplateSignatures = new Map<string, string>();
+  private readonly genericExpansionBases = new Map<string, readonly SymbolInfo[]>();
+  private readonly staleGenericExpansions = new Set<string>();
+  private refreshingGenericExpansions = false;
+
+  /**
+   * Whether the *most recent* update to this file changed its exported shape.
+   * Volatile by design — it feeds per-declaration cache decisions. Lint
+   * propagation must use {@link takeChangeSet} instead, which accumulates.
+   */
   public hasLastUpdateChangedAPI(fileUri: string): boolean {
     const key = this.getCacheKey(fileUri);
     return this.lastUpdateApiChanged.get(key) ?? true;
+  }
+
+  /**
+   * Accumulates a file's delta between lint cycles.
+   *
+   * Propagation used to read the delta of the *last keystroke*, so editing a
+   * public signature and then typing anything else meant the save no longer
+   * re-linted dependents. Deltas now merge into an open change set that only
+   * {@link takeChangeSet} closes.
+   */
+  private recordChange(fileUri: string, apiChanged: boolean, namespaces?: Iterable<string>): void {
+    const key = this.getCacheKey(fileUri);
+    let pending = this.pendingChanges.get(key);
+    if (!pending) {
+      pending = { apiChanged: false, changedNamespaces: new Set<string>() };
+      this.pendingChanges.set(key, pending);
+    }
+    pending.apiChanged ||= apiChanged;
+    for (const ns of namespaces ?? []) {
+      pending.changedNamespaces.add(ns.toLowerCase());
+    }
+  }
+
+  /** Non-destructive read of the open change set for a file. */
+  public peekChangeSet(fileUri: string): FileChangeSet {
+    const key = this.getCacheKey(fileUri);
+    const pending = this.pendingChanges.get(key);
+    return {
+      fileUri,
+      apiChanged: pending?.apiChanged ?? false,
+      changedNamespaces: new Set(pending?.changedNamespaces ?? []),
+      revision: this.fileRevisions.get(key) ?? 0,
+    };
+  }
+
+  /**
+   * Reads and closes the open change set. The only sanctioned way to consume a
+   * delta — a public mutable set previously let any consumer clear deltas that
+   * belonged to another file's propagation.
+   */
+  public takeChangeSet(fileUri: string): FileChangeSet {
+    const result = this.peekChangeSet(fileUri);
+    this.pendingChanges.delete(this.getCacheKey(fileUri));
+    return result;
+  }
+
+  /**
+   * Re-opens a change set after a propagation failed, so the delta is retried
+   * instead of being silently dropped.
+   */
+  public restoreChangeSet(changeSet: FileChangeSet): void {
+    this.recordChange(changeSet.fileUri, changeSet.apiChanged, changeSet.changedNamespaces);
+  }
+
+  /**
+   * Records the generic templates `parsed` declares and, when they differ from
+   * the previous revision of the file, marks every other expanded file stale so
+   * it re-synthesizes its flat instantiations on the next read.
+   */
+  private trackGenericTemplates(key: string, parsed: FileSymbols | undefined): void {
+    const signature = parsed ? localGenericTemplateSignature(parsed.symbols) : "";
+    const previous = this.genericTemplateSignatures.get(key) ?? "";
+    if (signature === previous) return;
+
+    if (signature === "") {
+      this.genericTemplateSignatures.delete(key);
+    } else {
+      this.genericTemplateSignatures.set(key, signature);
+    }
+
+    this.genericTemplateRevision += 1;
+    for (const expandedKey of this.genericExpansionBases.keys()) {
+      if (expandedKey !== key) this.staleGenericExpansions.add(expandedKey);
+    }
+  }
+
+  /** The symbols a file was parsed with, before any synthetic generic instance. */
+  private preExpansionSymbols(key: string, parsed: FileSymbols): readonly SymbolInfo[] {
+    return this.genericExpansionBases.get(key) ?? parsed.symbols;
+  }
+
+  /**
+   * Expands generics for a file that was just written into the index.
+   *
+   * Must run *after* `cache.set`: the expansion reads the global symbol table,
+   * and a stale table here is exactly what left a usage indexed before its
+   * template with an empty expansion.
+   */
+  private expandGenericsForIndexedFile(key: string, fileUri: string, parsed: FileSymbols): void {
+    this.invalidateAggregateSymbolCaches();
+    this.genericExpansionBases.delete(key);
+    this.trackGenericTemplates(key, parsed);
+    this.applyGenericExpansion(key, fileUri, parsed);
+    this.invalidateAggregateSymbolCaches();
+  }
+
+  /**
+   * Synthesizes the flat generic instantiations for `parsed` and remembers the
+   * pre-expansion symbols, so a later re-expansion replaces the synthetic
+   * entries instead of stacking a second copy on top of them.
+   */
+  private applyGenericExpansion(key: string, fileUri: string, parsed: FileSymbols): void {
+    this.staleGenericExpansions.delete(key);
+    if (!readConfiguration().features.language.generics || !hasGenericMarkers(parsed.content)) {
+      this.genericExpansionBases.delete(key);
+      return;
+    }
+
+    const base = this.genericExpansionBases.get(key) ?? parsed.symbols.slice();
+    parsed.symbols = base.slice();
+    appendGenericInstantiations(parsed, fileUri, parsed.content, this);
+    // Kept even when the expansion is empty: the templates this file uses may
+    // only be indexed later, and the entry is what makes it re-expandable.
+    this.genericExpansionBases.set(key, base);
+  }
+
+  /**
+   * Re-expands files whose templates changed since they were indexed. Costs a
+   * single set lookup when nothing is stale, which is the common case.
+   */
+  private ensureGenericExpansionsFresh(): void {
+    if (this.staleGenericExpansions.size === 0 || this.refreshingGenericExpansions) return;
+    this.refreshingGenericExpansions = true;
+    try {
+      const stale = Array.from(this.staleGenericExpansions);
+      this.staleGenericExpansions.clear();
+      let changed = false;
+      for (const key of stale) {
+        const parsed = this.cache.get(key);
+        if (!parsed) {
+          this.genericExpansionBases.delete(key);
+          continue;
+        }
+        this.applyGenericExpansion(key, parsed.fileUri, parsed);
+        changed = true;
+      }
+      if (changed) this.invalidateAggregateSymbolCaches();
+    } finally {
+      this.refreshingGenericExpansions = false;
+    }
+  }
+
+  private clearGenericExpansionState(): void {
+    this.genericTemplateSignatures.clear();
+    this.genericExpansionBases.clear();
+    this.staleGenericExpansions.clear();
   }
 
   private invalidateAggregateSymbolCaches(): void {
@@ -523,6 +748,46 @@ export class WorkspaceSymbolIndexer {
     this.allMembersForTypeCache.clear();
     this.ownMembersForClassCache.clear();
     this.inheritedMembersForClassCache.clear();
+    this.principalFileKeysCache = undefined;
+  }
+
+  /**
+   * Two-layer invalidation for a single-file update (§8.2).
+   *
+   * A body-only edit cannot change what any type exports, so every member
+   * resolution outside the edited file stays valid. Only an API change still
+   * clears the caches wholesale: inheritance and qualified access can carry the
+   * old shape into files the dependency graph does not link.
+   */
+  private invalidateCachesForFileUpdate(fileUri: string, apiChanged: boolean): void {
+    if (apiChanged) {
+      this.invalidateLocalCaches();
+      return;
+    }
+    this.invalidateAggregateSymbolCaches();
+    const affected = [fileUri];
+    this.findMemberCache.invalidateFiles(affected);
+    this.allMembersForTypeCache.invalidateFiles(affected);
+    this.ownMembersForClassCache.invalidateFiles(affected);
+    this.inheritedMembersForClassCache.invalidateFiles(affected);
+  }
+
+  /**
+   * Cache keys of the project's `Principal.bas` files. Memoized because the
+   * lint fingerprint needs the Principal revision on every check, and deriving
+   * it by scanning the whole index made fingerprinting O(files in workspace).
+   * Membership changes clear it through {@link invalidateLocalCaches}.
+   */
+  private getPrincipalFileKeys(): readonly string[] {
+    if (this.principalFileKeysCache) return this.principalFileKeysCache;
+    const keys: string[] = [];
+    for (const file of this.cache.values()) {
+      if (file.filePath.toLowerCase().endsWith(`${path.sep}principal.bas`)) {
+        keys.push(this.getCacheKey(file.fileUri));
+      }
+    }
+    this.principalFileKeysCache = keys;
+    return keys;
   }
 
   private bumpFileRevision(fileUri: string): void {
@@ -579,8 +844,9 @@ export class WorkspaceSymbolIndexer {
     if (fileSyms) {
       const importParts: string[] = [];
       for (const imp of fileSyms.imports) {
-        const owner = this.dependencyGraph.getDeclaringFileUri(imp);
-        if (owner) {
+        // A namespace may be split across files; keying on a single declarer
+        // let edits to the other declarers reuse a stale fingerprint.
+        for (const owner of this.dependencyGraph.getDeclaringFileUris(imp)) {
           importParts.push(
             `${owner}:${String(this.fileRevisions.get(this.getCacheKey(owner)) ?? 0)}`,
           );
@@ -593,13 +859,8 @@ export class WorkspaceSymbolIndexer {
     }
 
     let principalRevision = 0;
-    for (const file of this.cache.values()) {
-      if (file.filePath.toLowerCase().endsWith(`${path.sep}principal.bas`)) {
-        principalRevision = Math.max(
-          principalRevision,
-          this.fileRevisions.get(this.getCacheKey(file.fileUri)) ?? 0,
-        );
-      }
+    for (const principalKey of this.getPrincipalFileKeys()) {
+      principalRevision = Math.max(principalRevision, this.fileRevisions.get(principalKey) ?? 0);
     }
     parts.push(`p:${String(principalRevision)}`);
     return parts.join("|");
@@ -658,6 +919,22 @@ export class WorkspaceSymbolIndexer {
     return this.dependencyGraph.getDependentFileUris(triggerUri, extraNamespaces);
   }
 
+  /** Every file that declares `namespace`. A namespace may be split across files. */
+  public getDeclaringFileUris(namespace: string): readonly string[] {
+    return this.dependencyGraph.getDeclaringFileUris(namespace);
+  }
+
+  /**
+   * Transitive closure of {@link getDependentFileUris}, used by lint
+   * propagation so an API change reaches indirect consumers.
+   */
+  public getTransitiveDependentFileUris(
+    triggerUri: string,
+    extraNamespaces: ReadonlySet<string> = new Set<string>(),
+  ): readonly string[] {
+    return this.dependencyGraph.getTransitiveDependents(triggerUri, { extraNamespaces });
+  }
+
   /**
    * Drops semantic / declaration lint caches for a single file so a forced
    * re-lint cannot reuse stale diagnostics after a cross-file fix.
@@ -669,6 +946,26 @@ export class WorkspaceSymbolIndexer {
     const cached = LanguageProcessor.getInstance().getCached(fileUri);
     if (cached?.unit) {
       clearLintTypeResolutionCachesForUnit(cached.unit);
+    }
+  }
+
+  /**
+   * Drops every indexed symbol, revision and dependency edge, restoring the
+   * indexer to the state right after construction. Backs the "restart analysis"
+   * command so a corrupted index can be recovered without reloading the window.
+   */
+  public resetIndex(): void {
+    this.cache.clear();
+    this.fileRevisions.clear();
+    this.lastUpdateApiChanged.clear();
+    this.pendingChanges.clear();
+    this.dependencyGraph.clear();
+    this.clearGenericExpansionState();
+    this.invalidateLocalCaches();
+    SemanticLintCache.getInstance().clear();
+    DeclarationLintCache.getInstance().clear();
+    if (readConfiguration().features.language.sugars) {
+      this.indexVirtualSugarModules();
     }
   }
 
@@ -797,11 +1094,17 @@ export class WorkspaceSymbolIndexer {
    * Remove any cached files that no longer exist on disk and are not open in the editor
    */
   public validateCache(): void {
+    let pruned = false;
     for (const cacheKey of Array.from(this.cache.keys())) {
       const fileSyms = this.cache.get(cacheKey);
       if (fileSyms && !this.isFileValid(fileSyms.fileUri)) {
         this.cache.delete(cacheKey);
+        this.dependencyGraph.unregisterFile(fileSyms.fileUri);
+        pruned = true;
       }
+    }
+    if (pruned) {
+      this.invalidateLocalCaches();
     }
   }
 
@@ -838,8 +1141,7 @@ export class WorkspaceSymbolIndexer {
       AnalysisCache.save(folderPath, files);
     }
     this.rebuildDependencyGraph();
-    this.findMemberCache.clear();
-    this.allMembersForTypeCache.clear();
+    this.invalidateLocalCaches();
   }
 
   /**
@@ -891,42 +1193,61 @@ export class WorkspaceSymbolIndexer {
       : deletedPath + path.sep;
     for (const cacheKey of Array.from(this.cache.keys())) {
       if (cacheKey === deletedPath || cacheKey.startsWith(deletedPathNormalized)) {
+        const fileSyms = this.cache.get(cacheKey);
         this.cache.delete(cacheKey);
+        if (fileSyms) {
+          this.dependencyGraph.unregisterFile(fileSyms.fileUri);
+        }
       }
     }
+    this.invalidateLocalCaches();
   }
 
   public renameWorkspaceFolder(oldPath: string, newPath: string): void {
     const oldPathNormalized = oldPath.endsWith(path.sep) ? oldPath : oldPath + path.sep;
     const newPathNormalized = newPath.endsWith(path.sep) ? newPath : newPath + path.sep;
 
+    // Moving cache entries without re-keying the dependency graph left the old
+    // URIs registered as namespace declarers, so propagation targeted files
+    // that no longer existed and skipped the renamed ones.
+    const moveEntry = (fileSyms: FileSymbols, newFileKey: string, newFilePath: string): void => {
+      this.dependencyGraph.unregisterFile(fileSyms.fileUri);
+      const previousKey = this.getCacheKey(fileSyms.fileUri);
+      const revision = this.fileRevisions.get(previousKey) ?? 0;
+      this.fileRevisions.delete(previousKey);
+      this.lastUpdateApiChanged.delete(previousKey);
+
+      fileSyms.filePath = newFilePath;
+      fileSyms.fileUri = vscode.Uri.file(newFilePath).toString();
+      fileSyms.symbols.forEach((s) => {
+        s.fileUri = fileSyms.fileUri;
+      });
+
+      this.cache.set(newFileKey, fileSyms);
+      this.fileRevisions.set(newFileKey, revision + 1);
+      this.lastUpdateApiChanged.set(newFileKey, true);
+      this.dependencyGraph.registerFile(fileSyms);
+    };
+
     for (const cacheKey of Array.from(this.cache.keys())) {
       if (cacheKey === oldPath) {
         const fileSyms = this.cache.get(cacheKey);
         this.cache.delete(cacheKey);
         if (fileSyms) {
-          fileSyms.filePath = newPath;
-          fileSyms.fileUri = vscode.Uri.file(newPath).toString();
-          fileSyms.symbols.forEach((s) => {
-            s.fileUri = fileSyms.fileUri;
-          });
-          this.cache.set(newPath, fileSyms);
+          moveEntry(fileSyms, newPath, newPath);
         }
       } else if (cacheKey.startsWith(oldPathNormalized)) {
         const fileSyms = this.cache.get(cacheKey);
         this.cache.delete(cacheKey);
         if (fileSyms) {
           const relative = cacheKey.substring(oldPathNormalized.length);
-          const newFileKey = path.join(newPathNormalized, relative).toLowerCase();
-          fileSyms.filePath = path.join(newPathNormalized, relative);
-          fileSyms.fileUri = vscode.Uri.file(fileSyms.filePath).toString();
-          fileSyms.symbols.forEach((s) => {
-            s.fileUri = fileSyms.fileUri;
-          });
-          this.cache.set(newFileKey, fileSyms);
+          const newFilePath = path.join(newPathNormalized, relative);
+          moveEntry(fileSyms, newFilePath.toLowerCase(), newFilePath);
         }
       }
     }
+
+    this.invalidateLocalCaches();
 
     // Also re-scan the new path to ensure any files are fresh
     this.scanDir(newPath).catch((err) => {
@@ -997,11 +1318,7 @@ export class WorkspaceSymbolIndexer {
 
       const oldParsed = this.cache.get(key);
       if (oldParsed) {
-        for (const sym of oldParsed.symbols) {
-          if (sym.kind === "namespace") {
-            this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
-          }
-        }
+        this.recordChange(fileUri, false, namespaceNamesOf(oldParsed));
       }
 
       if (fs.existsSync(filePath)) {
@@ -1022,18 +1339,15 @@ export class WorkspaceSymbolIndexer {
         }
         this.cache.set(key, parsed);
 
-        for (const sym of parsed.symbols) {
-          if (sym.kind === "namespace") {
-            this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
-          }
-        }
         this.bumpFileRevision(fileUri);
         this.lastUpdateApiChanged.set(key, true);
+        this.recordChange(fileUri, true, namespaceNamesOf(parsed));
         this.notifyLintCacheInvalidation(fileUri, new Set<string>(), true);
       } else {
         this.cache.delete(key);
         this.bumpFileRevision(fileUri);
         this.lastUpdateApiChanged.set(key, true);
+        this.recordChange(fileUri, true);
         this.notifyLintCacheInvalidation(fileUri, new Set<string>(), true);
       }
       this.invalidateLocalCaches();
@@ -1068,37 +1382,26 @@ export class WorkspaceSymbolIndexer {
         return;
       }
 
-      if (oldParsed) {
-        for (const sym of oldParsed.symbols) {
-          if (sym.kind === "namespace") {
-            this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
-          }
-        }
-      }
-
       const parsed = SymbolParser.parseBasFile(fileUri, content);
-      if (readConfiguration().features.language.generics) {
-        appendGenericInstantiations(parsed, fileUri, content, this);
-      }
+
+      const oldNamespaces = namespaceNamesOf(oldParsed);
+      const newNamespaces = new Set(namespaceNamesOf(parsed));
+      const namespacesChanged = namespaceSetsDiffer(oldNamespaces, newNamespaces);
 
       let apiChanged = true;
       if (oldParsed) {
         apiChanged =
           !areImportsEqual(oldParsed.imports, parsed.imports) ||
-          !areSymbolsAPIsEqual(oldParsed.symbols, parsed.symbols);
+          !areSymbolsAPIsEqual(this.preExpansionSymbols(key, oldParsed), parsed.symbols);
       }
 
       this.cache.set(key, parsed);
+      this.expandGenericsForIndexedFile(key, fileUri, parsed);
       this.bumpFileRevision(fileUri);
       this.lastUpdateApiChanged.set(key, apiChanged);
+      this.recordChange(fileUri, apiChanged, [...oldNamespaces, ...newNamespaces]);
       this.notifyLintCacheInvalidation(fileUri, new Set<string>(), apiChanged);
-
-      for (const sym of parsed.symbols) {
-        if (sym.kind === "namespace") {
-          this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
-        }
-      }
-      this.invalidateLocalCaches();
+      this.invalidateCachesForFileUpdate(fileUri, apiChanged || namespacesChanged);
       this.syncDependencyGraphEntry(fileUri);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação para: ${fileUri}`, err);
@@ -1121,63 +1424,35 @@ export class WorkspaceSymbolIndexer {
         return;
       }
 
-      const oldNamespaces = new Set<string>();
-      if (oldParsed) {
-        for (const sym of oldParsed.symbols) {
-          if (sym.kind === "namespace") {
-            oldNamespaces.add(sym.name.toLowerCase());
-          }
-        }
-      }
+      const oldNamespaces = new Set(namespaceNamesOf(oldParsed));
+      const newNamespaces = new Set(namespaceNamesOf(parsed));
+      const namespacesChanged = namespaceSetsDiffer(oldNamespaces, newNamespaces);
 
-      const newNamespaces = new Set<string>();
-      for (const sym of parsed.symbols) {
-        if (sym.kind === "namespace") {
-          newNamespaces.add(sym.name.toLowerCase());
-        }
-      }
-
-      let namespacesChanged = oldNamespaces.size !== newNamespaces.size;
-      if (!namespacesChanged) {
-        for (const ns of oldNamespaces) {
-          if (!newNamespaces.has(ns)) {
-            namespacesChanged = true;
-            break;
-          }
-        }
-      }
-
-      if (namespacesChanged) {
-        for (const ns of oldNamespaces) {
-          this.changedNamespacesInLastUpdate.add(ns);
-        }
-        for (const ns of newNamespaces) {
-          this.changedNamespacesInLastUpdate.add(ns);
-        }
-      }
-
-      if (readConfiguration().features.language.generics) {
-        appendGenericInstantiations(parsed, fileUri, content, this);
-      }
       parsed.content = content;
 
       let apiChanged = true;
       if (oldParsed) {
         apiChanged =
           !areImportsEqual(oldParsed.imports, parsed.imports) ||
-          !areSymbolsAPIsEqual(oldParsed.symbols, parsed.symbols);
+          !areSymbolsAPIsEqual(this.preExpansionSymbols(key, oldParsed), parsed.symbols);
       }
 
       this.cache.set(key, parsed);
+      this.expandGenericsForIndexedFile(key, fileUri, parsed);
       this.bumpFileRevision(fileUri);
       this.lastUpdateApiChanged.set(key, apiChanged);
+      this.recordChange(
+        fileUri,
+        apiChanged,
+        namespacesChanged ? [...oldNamespaces, ...newNamespaces] : [],
+      );
       this.notifyLintCacheInvalidation(
         fileUri,
         namespacesChanged ? newNamespaces : new Set<string>(),
         apiChanged,
       );
 
-      this.invalidateLocalCaches();
+      this.invalidateCachesForFileUpdate(fileUri, apiChanged || namespacesChanged);
       this.syncDependencyGraphEntry(fileUri);
     } catch (err: unknown) {
       logger.error(`Erro ao atualizar indexação a partir de símbolos parsed para: ${fileUri}`, err);
@@ -1190,16 +1465,12 @@ export class WorkspaceSymbolIndexer {
   public removeFile(fileUri: string): void {
     const key = this.getCacheKey(fileUri);
     const oldParsed = this.cache.get(key);
-    if (oldParsed) {
-      for (const sym of oldParsed.symbols) {
-        if (sym.kind === "namespace") {
-          this.changedNamespacesInLastUpdate.add(sym.name.toLowerCase());
-        }
-      }
-    }
     this.cache.delete(key);
+    this.genericExpansionBases.delete(key);
+    this.trackGenericTemplates(key, undefined);
     this.bumpFileRevision(fileUri);
     this.lastUpdateApiChanged.set(key, true);
+    this.recordChange(fileUri, true, namespaceNamesOf(oldParsed));
     this.notifyLintCacheInvalidation(fileUri, new Set<string>(), true);
     this.invalidateLocalCaches();
     this.syncDependencyGraphEntry(fileUri);
@@ -1210,10 +1481,11 @@ export class WorkspaceSymbolIndexer {
    */
   public __resetForTests(): void {
     this.cache.clear();
-    this.changedNamespacesInLastUpdate.clear();
+    this.pendingChanges.clear();
     this.dependencyGraph.clear();
     this.fileRevisions.clear();
     this.lastUpdateApiChanged.clear();
+    this.clearGenericExpansionState();
     if (this.lintCacheScope === "host") {
       SemanticLintCache.resetForTests();
       DeclarationLintCache.resetForTests();
@@ -1225,6 +1497,7 @@ export class WorkspaceSymbolIndexer {
    * Get symbols for a specific file
    */
   public getFileSymbols(fileUri: string): FileSymbols | undefined {
+    this.ensureGenericExpansionsFresh();
     const key = this.getCacheKey(fileUri);
     const fileSyms = this.cache.get(key);
     if (!fileSyms) return undefined;
@@ -1240,6 +1513,7 @@ export class WorkspaceSymbolIndexer {
    * Get all symbols in the workspace
    */
   public getAllSymbols(): SymbolInfo[] {
+    this.ensureGenericExpansionsFresh();
     if (this.allSymbolsCache) {
       return this.allSymbolsCache;
     }
@@ -1256,6 +1530,7 @@ export class WorkspaceSymbolIndexer {
    * providers that need to scan the file bodies for whole-word matches.
    */
   public getAllFileSymbols(): FileSymbols[] {
+    this.ensureGenericExpansionsFresh();
     if (this.allFileSymbolsCache) {
       return this.allFileSymbolsCache;
     }

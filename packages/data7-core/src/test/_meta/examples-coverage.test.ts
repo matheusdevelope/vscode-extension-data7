@@ -6,6 +6,7 @@ import * as path from "path";
 import { DiagnosticCodes } from "../../diagnostics/diagnostic-codes";
 import { DiagnosticsLinter } from "../../diagnostics/diagnostics";
 import { WorkspaceSymbolIndexer } from "../../analysis/symbol-indexer";
+import { collectUnusedCodeDiagnostics } from "../../diagnostics/unused-code-analyzer";
 import { parseExampleHeader } from "../_helpers/fixtures";
 import { createMockDoc } from "../_helpers/mock-doc";
 
@@ -51,6 +52,23 @@ function readBasFiles(dir: string): string[] {
     if (entry.toLowerCase().endsWith(".bas")) out.push(full);
   }
   return out;
+}
+
+/**
+ * Some codes are project-scoped: they are produced by a whole-workspace pass
+ * (reachability) instead of by the per-file linter, so `runAdvancedDiagnostics`
+ * alone can never emit them. The examples for those codes are self-contained
+ * projects, so running the same analyzer over the single module reproduces what
+ * the extension publishes.
+ */
+function collectProjectScopedDiagnostics(
+  uri: string,
+  content: string,
+): readonly { code?: string | number | { value: string | number } }[] {
+  const moduleName = path.basename(uri, ".bas");
+  return collectUnusedCodeDiagnostics([{ moduleName, fileUri: uri, code: content }]).map(
+    (hit) => hit.diagnostic,
+  );
 }
 
 describe("examples-coverage", () => {
@@ -99,10 +117,10 @@ describe("examples-coverage", () => {
         const indexer = WorkspaceSymbolIndexer.getInstance();
         const uri = `file:///example-${code}.bas`;
         indexer.updateFileContent(uri, content);
-        const diags = DiagnosticsLinter.runAdvancedDiagnostics(
-          createMockDoc(uri, content),
-          indexer,
-        );
+        const diags = [
+          ...DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, content), indexer),
+          ...collectProjectScopedDiagnostics(uri, content),
+        ];
         const emittedCodes = new Set<string>(
           diags
             .map((d) =>

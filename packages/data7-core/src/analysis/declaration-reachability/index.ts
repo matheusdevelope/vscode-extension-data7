@@ -21,8 +21,9 @@ export {
   type ReachabilityIndex,
 } from "./index-builder";
 export { computeLiveSet, type LiveSet } from "./reachability";
+export { ReachabilityParseCache } from "./parse-cache";
 
-import { parseBasic } from "../../project/parser";
+import { ReachabilityParseCache } from "./parse-cache";
 import { buildReachabilityIndex, type ParsedReachabilityModule } from "./index-builder";
 import { computeLiveSet, type LiveSet } from "./reachability";
 import type { ReachabilityModuleInput, ReachabilityOptions } from "./types";
@@ -46,9 +47,13 @@ export function analyzeDeclarationReachability(
   modules: readonly ReachabilityModuleInput[],
   options: ReachabilityOptions,
 ): DeclarationReachabilityResult {
+  // Parses are memoized per file: this runs over the whole project on a
+  // debounce while the user types, and re-parsing every module each pass was
+  // the dominant cost in the extension host.
+  const parseCache = ReachabilityParseCache.getInstance();
   const parsed: ParsedReachabilityModule[] = modules.map((input) => ({
     input,
-    parse: parseBasic(input.code),
+    parse: parseCache.getOrParse(input.fileUri, input.code),
   }));
 
   const failed = parsed.filter((module) => module.parse.errors.length > 0);

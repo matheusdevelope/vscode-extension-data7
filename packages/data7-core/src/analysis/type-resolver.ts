@@ -64,13 +64,19 @@ export function warmLintTypeResolutionIndexes(
   unit: CompilationUnit,
   document: vscode.TextDocument,
   indexer: WorkspaceSymbolIndexer,
+  isCancelled?: () => boolean,
 ): void {
   const fileSyms = indexer.getFileSymbols(document.uri.toString());
   if (!fileSyms) {
     return;
   }
+  // Yield points between index builds: each one walks the whole unit, so a
+  // cancelled run used to pay for all three before anyone noticed.
+  if (isCancelled?.()) return;
   getOrBuildLocalScopeIndex(unit, document, indexer);
+  if (isCancelled?.()) return;
   getOrBuildFileLineContext(unit, fileSyms.symbols);
+  if (isCancelled?.()) return;
   getOrBuildWithScopeIndex(unit);
 }
 
@@ -1331,7 +1337,7 @@ export class TypeResolver {
       : undefined;
     if (parentClass) collect(parentClass);
     const resolved = Array.from(membersMap.values());
-    indexer.inheritedMembersForClassCache.set(cacheKey, resolved);
+    indexer.inheritedMembersForClassCache.set(cacheKey, resolved, classSymbol.fileUri);
     return resolved;
   }
 
@@ -1481,7 +1487,7 @@ export class TypeResolver {
         : undefined;
     const hit = nativeArrayHit ?? arityHit ?? hits[0];
 
-    indexer.findMemberCache.set(cacheKey, hit);
+    indexer.findMemberCache.set(cacheKey, hit, classSymbol.fileUri);
     return hit;
   }
 
@@ -1514,7 +1520,7 @@ export class TypeResolver {
     }
 
     const resolved = Array.from(membersMap.values());
-    indexer.allMembersForTypeCache.set(cacheKey, resolved);
+    indexer.allMembersForTypeCache.set(cacheKey, resolved, classSymbol.fileUri);
     if (LintPipelineProfiler.isEnabled()) {
       recordPerf("TypeResolver.getAllMembersForClassSymbol", performance.now() - t0);
     }
@@ -1663,7 +1669,7 @@ export class TypeResolver {
 
     if (classSymbol.fileUri.startsWith("system://")) {
       const resolved = SYSTEM_SYMBOLS.filter((s) => containerMatch(s.containerName));
-      indexer.ownMembersForClassCache.set(cacheKey, resolved);
+      indexer.ownMembersForClassCache.set(cacheKey, resolved, classSymbol.fileUri);
       return resolved;
     }
 
@@ -1676,7 +1682,7 @@ export class TypeResolver {
       sameFileUri(s.fileUri, classSymbol.fileUri),
     );
     const resolved = sameFileCandidates.length > 0 ? sameFileCandidates : candidates;
-    indexer.ownMembersForClassCache.set(cacheKey, resolved);
+    indexer.ownMembersForClassCache.set(cacheKey, resolved, classSymbol.fileUri);
     return resolved;
   }
 
@@ -1876,6 +1882,7 @@ export class TypeResolver {
 
     collect(typeName);
     const resolved = Array.from(membersMap.values());
+    // Resolved by walking a whole inheritance chain, so no single file owns it.
     indexer.allMembersForTypeCache.set(cacheKey, resolved);
     return resolved;
   }

@@ -23,7 +23,7 @@ export function addReturnAssignmentInCatchFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
-  action.isPreferred = true;
+  action.isPreferred = false;
 
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, resolved.range, resolved.replacement);
@@ -80,7 +80,7 @@ function resolveReturnAssignmentInCatchReplacement(
   const expressionFromLine = expressionFromAssignment(lineText, startChar);
   const expressionText =
     expressionFromLine &&
-    (!payload.expressionText || expressionFromLine.startsWith(payload.expressionText))
+      (!payload.expressionText || expressionFromLine.startsWith(payload.expressionText))
       ? expressionFromLine
       : payload.expressionText;
   const commentSuffix = inlineCommentSuffix(lineText, startChar);

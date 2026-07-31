@@ -288,6 +288,13 @@
         "detail": "Executa o linter em todo o workspace"
       },
       {
+        "command": "data7.linter.restartAnalysis",
+        "title": "Reiniciar Análise",
+        "category": "Data7 Linter",
+        "icon": "$(debug-restart)",
+        "detail": "Descarta todos os caches, reindexa o workspace e reavalia os diagnósticos"
+      },
+      {
         "command": "data7.linter.fixActiveFile",
         "title": "Corrigir Arquivo",
         "category": "Data7 Linter",
