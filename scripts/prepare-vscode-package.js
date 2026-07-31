@@ -15,6 +15,10 @@ const copies = [
     path.join(coreRoot, "dist", "mcp", "server.bundled.js"),
     path.join(extensionRoot, "out", "mcp", "server.bundled.js"),
   ],
+  [
+    path.join(repoRoot, "packages", "data7-lsp", "dist", "server.bundled.js"),
+    path.join(extensionRoot, "out", "lsp", "server.bundled.js"),
+  ],
 ];
 
 const optionalCopies = [

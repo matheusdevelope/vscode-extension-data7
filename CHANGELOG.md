@@ -8,6 +8,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ## [Unreleased]
 
 ### Adicionado
+- **Language Server `@data7/lsp` (Fase 3 / LSP-001):** novo pacote com servidor stdio (`vscode-languageserver`), `AnalysisHost` sobre a API do LSP, sync incremental de documentos e `publishDiagnostics`. A extensão ganha `LanguageServerService` (`vscode-languageclient`) atrás da flag `features.diagnostics.useLanguageServer` (default `false` — caminho legado inalterado). RFC em `docs/rfcs/LSP-001-language-server.md`.
 - **`AnalysisHost` (Fase 2 do motor de análise):** fronteira headless em `analysis/analysis-host.ts`. Documentos abertos, pastas do workspace, filesystem e log deixam de ser lidos ad hoc de `vscode.workspace` / `node:fs` no indexador, `LanguageProcessor`, `AnalysisCache` e `DependencyScanner`. A extensão instala `createVscodeAnalysisHost`; MCP/CLI/testes usam `createNodeAnalysisHost` (com `setOpenDocuments` no lugar de mutar `textDocuments`).
 
 ### Alterado

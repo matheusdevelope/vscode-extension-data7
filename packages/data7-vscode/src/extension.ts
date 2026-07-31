@@ -63,6 +63,14 @@ export function activate(context: vscode.ExtensionContext): void {
   logger.info("Extensão Data7 Dev Studio ativada.");
 
   DiagnosticService.initialize(context);
+  // Dynamic import keeps vscode-languageclient out of the in-process test mock.
+  if (readConfiguration().features.diagnostics.useLanguageServer) {
+    void import("./services/language-server-service")
+      .then(({ LanguageServerService }) => LanguageServerService.start(context))
+      .catch((err: unknown) => {
+        logger.error("Falha ao iniciar o Language Server Data7.", err);
+      });
+  }
   registerWorkspaceListeners(context);
   registerCommands(context);
   registerLanguageProviders(context);

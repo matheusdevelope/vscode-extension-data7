@@ -19,7 +19,7 @@ export const DEFAULT_EXTENSION_SETTINGS: Data7Configuration = {
   diagnosticSeverity: {},
   features: {
     language: { generics: true, sugars: true },
-    diagnostics: { enabled: true, lintWorkspaceOnStartup: false },
+    diagnostics: { enabled: true, lintWorkspaceOnStartup: false, useLanguageServer: false },
     workspace: { detectProjectFiles: true, installMcpServerOnStartup: true },
     save: { autoFixOnSave: true, autoFormatOnSave: false },
     build: { autoFixBeforeBuild: false },
@@ -83,6 +83,10 @@ export function normalizeExtensionSettings(
         lintWorkspaceOnStartup: asBoolean(
           features?.diagnostics?.lintWorkspaceOnStartup,
           base.features.diagnostics.lintWorkspaceOnStartup,
+        ),
+        useLanguageServer: asBoolean(
+          features?.diagnostics?.useLanguageServer,
+          base.features.diagnostics.useLanguageServer,
         ),
       },
       workspace: {

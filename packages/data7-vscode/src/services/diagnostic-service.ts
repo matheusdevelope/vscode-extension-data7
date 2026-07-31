@@ -146,6 +146,21 @@ export class DiagnosticService {
       }),
     );
 
+    // LSP path (LSP-001): when the flag is on, the LanguageServerService (started
+    // from extension.ts) owns publishDiagnostics. Skip local live listeners so
+    // Problems is not duplicated. Do not import vscode-languageclient here — it
+    // pulls real vscode types that break the in-process test mock.
+    if (readConfiguration().features.diagnostics.useLanguageServer) {
+      logger.info(
+        "Linter local em espera: features.diagnostics.useLanguageServer=true (diagnósticos via LSP).",
+      );
+      return;
+    }
+
+    this.registerLocalListeners(context);
+  }
+
+  private static registerLocalListeners(context: vscode.ExtensionContext): void {
     const handleDocument = (doc: vscode.TextDocument, reevaluateDependent = false): void => {
       // Skip debounced linting while a batch fix or batch lint is in progress.
       if (WorkspaceFixService.isBatchFixInProgress) return;

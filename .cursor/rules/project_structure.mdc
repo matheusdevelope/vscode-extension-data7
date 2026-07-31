@@ -14,7 +14,8 @@ alwaysApply: true
 
 - `packages/data7-core/` — The core language kernel, compiler, transpiler, syntax parser, AST, semantics, analyzer, builder, and language services. It is environment-agnostic and reusable.
 - `packages/data7-cli/` — The Command Line Interface wrapper around the core. Handles standard I/O for standalone compilations.
-- `packages/data7-vscode/` — The VS Code extension. Contains VS Code UI adapters, providers, tree views, commands, and workspace integration. It imports `@data7/core`.
+- `packages/data7-lsp/` — Language Server Protocol process (`@data7/lsp`). Runs outside the extension host; installs an `AnalysisHost` over the LSP API and reuses `@data7/core`. Justified in `docs/rfcs/LSP-001-language-server.md`.
+- `packages/data7-vscode/` — The VS Code extension. Contains VS Code UI adapters, providers, tree views, commands, and workspace integration. It imports `@data7/core` and, when `features.diagnostics.useLanguageServer` is on, launches the LSP client.
 
 ## Core Package (`packages/data7-core/src/`)
 
