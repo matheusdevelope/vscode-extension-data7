@@ -18,10 +18,18 @@ export const symbols: SystemSymbolInfo[] = [
     type: "String",
     isShared: false,
     isPrivate: false,
-    parameters: [],
+    parameters: [
+      {
+        name: "pFormat",
+        type: "String",
+        isByRef: false,
+        isOptional: true,
+      },
+    ],
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     containerName: "TPrimitive",
-    description: "Retorna a representação em texto do valor primitivo.",
+    description:
+      'Retorna a representação em texto do valor primitivo. Aceita máscara opcional (ex.: ",0.00").',
   },
 ];

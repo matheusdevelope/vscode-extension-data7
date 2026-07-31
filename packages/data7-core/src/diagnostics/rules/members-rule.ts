@@ -442,44 +442,62 @@ export class MembersRule implements Rule {
       const argumentTypes = node.arguments.map((arg) =>
         TypeResolver.resolveExpressionType(arg, context.document, lineIdx, context.indexer),
       );
-      resolvedMethod = TypeResolver.findUnqualifiedCallable(
+      // Prefer default-indexer interpretation for `list(i)` before treating the
+      // name as a free function — class fields and locals share the same syntax.
+      const variableType = TypeResolver.getVariableType(
         node.methodName,
         context.document,
-        lineIdx,
+        new vscode.Position(lineIdx, startChar),
         context.indexer,
-        argumentTypes,
-        undefined,
-        node.loc?.startChar,
       );
-      if (!resolvedMethod && context.activeClass) {
-        resolvedMethod = TypeResolver.findMember(
-          context.activeClass.name,
-          node.methodName,
+      if (variableType && this.resolveDelegateSignature(variableType, context)) {
+        resolvedDelegateVariable = {
+          name: node.methodName,
+          kind: "variable",
+          type: variableType,
+          isShared: false,
+          isPrivate: false,
+          range: {
+            startLine: lineIdx,
+            startChar,
+            endLine: lineIdx,
+            endChar: startChar + node.methodName.length,
+          },
+          fileUri: context.document.uri.toString(),
+        };
+      } else if (variableType) {
+        // Parentheses default-indexer: `_arquivos(i)` ≡ `_arquivos.Item(i)` / Strings(i).
+        const defaultIndexer = TypeResolver.findMember(
+          variableType,
+          "Item",
           context.indexer,
+          arity,
         );
+        if (defaultIndexer?.kind === "indexed-property") {
+          this.checkMethodArgumentTypes(node, defaultIndexer, lineIdx, context);
+          return;
+        }
       }
-      if (!resolvedMethod) {
-        const variableType = TypeResolver.getVariableType(
+
+      if (!resolvedDelegateVariable) {
+        resolvedMethod = TypeResolver.findUnqualifiedCallable(
           node.methodName,
           context.document,
-          new vscode.Position(lineIdx, startChar),
+          lineIdx,
           context.indexer,
+          argumentTypes,
+          undefined,
+          node.loc?.startChar,
         );
-        if (variableType && this.resolveDelegateSignature(variableType, context)) {
-          resolvedDelegateVariable = {
-            name: node.methodName,
-            kind: "variable",
-            type: variableType,
-            isShared: false,
-            isPrivate: false,
-            range: {
-              startLine: lineIdx,
-              startChar,
-              endLine: lineIdx,
-              endChar: startChar + node.methodName.length,
-            },
-            fileUri: context.document.uri.toString(),
-          };
+        if (!resolvedMethod && context.activeClass) {
+          const classMember = TypeResolver.findMember(
+            context.activeClass.name,
+            node.methodName,
+            context.indexer,
+          );
+          if (classMember && this.isCallableSymbol(classMember)) {
+            resolvedMethod = classMember;
+          }
         }
       }
     }
@@ -1228,6 +1246,14 @@ export class MembersRule implements Rule {
       ) {
         shouldSkip = true;
       }
+      // Qualified `Namespace.Member` — namespaces are visible without Imports.
+      if (
+        parent.kind === "MemberAccess" &&
+        parent.target === node &&
+        this.isNamespaceSymbol(name, context)
+      ) {
+        shouldSkip = true;
+      }
     }
 
     if (shouldSkip) return;
@@ -1239,6 +1265,7 @@ export class MembersRule implements Rule {
       context.isLocalDeclared(name) ||
       context.isGenericTypeParameter(name) ||
       this.isProjectGlobalVariable(name, context) ||
+      this.isNamespaceSymbol(name, context) ||
       TypeResolver.hasVariableInScope(
         name,
         context.document,
@@ -1252,8 +1279,7 @@ export class MembersRule implements Rule {
       ) ||
       (this.getMissingImportNamespaceForSymbol(name, lineIdx, context) === undefined &&
         (this.isWorkspaceSymbolAccessibleFromLine(name, lineIdx, context) ||
-          SYSTEM_SYMBOL_NAMES.has(nameLower) ||
-          this.isNamespaceSymbol(name, context)));
+          SYSTEM_SYMBOL_NAMES.has(nameLower)));
 
     if (isDeclared) return;
 
@@ -1340,6 +1366,18 @@ export class MembersRule implements Rule {
     },
   ): boolean {
     if (!staticAccess.isStaticAccess || receiver.kind !== "Identifier") return false;
+    // Instance bindings (Dim / param / field) win over a homonymous type name
+    // (e.g. field `grid As Forms.Grid` vs system class `Grid`).
+    if (
+      TypeResolver.hasVariableInScope(
+        receiver.name,
+        context.document,
+        new vscode.Position(lineIdx, 0),
+        context.indexer,
+      )
+    ) {
+      return false;
+    }
     return !TypeResolver.hasLocalDimDeclaration(
       receiver.name,
       context.document,
@@ -1353,16 +1391,25 @@ export class MembersRule implements Rule {
     lineIdx: number,
     context: RuleContext,
   ): string | undefined {
-    const wsSymbols = context.indexer
-      .getSymbolsByName(name)
-      .filter(
-        (s) =>
-          s.kind === "class" ||
-          s.kind === "structure" ||
-          s.kind === "delegate" ||
-          s.kind === "enum" ||
-          s.kind === "variable",
-      );
+    // A workspace namespace of this exact name is always addressable as
+    // `Name.Member` without Imports — do not confuse it with a homonymous
+    // private field whose container happens to look like a module.
+    if (this.isNamespaceSymbol(name, context)) {
+      return undefined;
+    }
+
+    const wsSymbols = context.indexer.getSymbolsByName(name).filter((s) => {
+      if (
+        s.kind === "class" ||
+        s.kind === "structure" ||
+        s.kind === "delegate" ||
+        s.kind === "enum"
+      ) {
+        return true;
+      }
+      // Namespace-scoped Dim/Const only — class fields must not trigger missing-import.
+      return s.kind === "variable" && s.isShared && !s.isPrivate;
+    });
 
     const sysSymbols = lookupSystemByName(name).filter(
       (s) =>
@@ -1370,7 +1417,7 @@ export class MembersRule implements Rule {
         s.kind === "structure" ||
         s.kind === "delegate" ||
         s.kind === "enum" ||
-        s.kind === "variable",
+        (s.kind === "variable" && s.isShared && !s.isPrivate),
     );
 
     const allMatches = [...wsSymbols, ...sysSymbols];

@@ -178,7 +178,7 @@ export const symbols: SystemSymbolInfo[] = [
     parameters: [
       {
         name: "pList",
-        type: "StringList",
+        type: "TStrings",
         isByRef: true,
         isOptional: false,
       },
@@ -199,7 +199,7 @@ export const symbols: SystemSymbolInfo[] = [
     fileUri: SYSTEM_URI,
     containerName: "File",
     description:
-      "Preenche um objeto do tipo StringList com as pastas/arquivos do caminho especificado.\nEm pMask, informar um filtro para arquivos específicos, exemplo: '*.xls'.\nObs.: Para buscar todos os arquivos/pastas, informar o valor '*'.",
+      "Preenche um objeto do tipo StringList/TStringList com as pastas/arquivos do caminho especificado.\nEm pMask, informar um filtro para arquivos específicos, exemplo: '*.xls'.\nObs.: Para buscar todos os arquivos/pastas, informar o valor '*'.",
   },
   {
     name: "ZipFile",

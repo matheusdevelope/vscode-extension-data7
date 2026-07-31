@@ -86,11 +86,15 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
     },
     {
       name: "List",
-      returns: "String",
-      params: [],
+      returns: "Void",
+      params: [
+        { name: "list", type: "TStrings", isOptional: true },
+        { name: "mask", type: "String", isOptional: true },
+        { name: "includeDirectories", type: "Boolean", isOptional: true },
+      ],
       description:
         "Lista arquivos e diretórios do diretório atual no servidor FTP. " +
-        "Use `ChangeDir` antes para especificar um caminho.",
+        "Pode preencher um StringList/TStringList e filtrar por máscara. Use `ChangeDir` antes para especificar um caminho.",
     },
     {
       name: "Get",
@@ -98,6 +102,8 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
       params: [
         { name: "remoteFile", type: "String" },
         { name: "localFile", type: "String" },
+        { name: "overwrite", type: "Boolean", isOptional: true },
+        { name: "resume", type: "Boolean", isOptional: true },
       ],
       description: "Copia um arquivo do servidor FTP para o computador local.",
     },
@@ -107,6 +113,7 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
       params: [
         { name: "localFile", type: "String" },
         { name: "remoteFile", type: "String" },
+        { name: "overwrite", type: "Boolean", isOptional: true },
       ],
       description: "Envia um arquivo do computador local para o servidor FTP.",
     },

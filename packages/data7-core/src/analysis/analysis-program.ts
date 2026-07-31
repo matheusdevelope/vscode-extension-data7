@@ -160,6 +160,14 @@ export class AnalysisProgram {
     }
   }
 
+  /** Drops cached check/bind for a single file without discarding the parse snapshot. */
+  public invalidateCheck(uri: string): void {
+    const snapshot = this.snapshots.get(this.normalizeUri(uri));
+    if (!snapshot) return;
+    snapshot.checkResult = undefined;
+    snapshot.bindIndex = undefined;
+  }
+
   public scheduleCheck(uri: string, priority: AnalysisPriority = "background"): void {
     this.scheduler.enqueue(uri, priority);
   }

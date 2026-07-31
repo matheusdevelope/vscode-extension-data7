@@ -4,6 +4,7 @@ import {
   DiagnosticCodes,
   LanguageProcessor,
   deepClone,
+  extractSourceSpan,
   serializeUnit,
 } from "@data7/core";
 import type {
@@ -12,6 +13,7 @@ import type {
   MethodDeclaration,
   Node,
   PropertyDeclaration,
+  ReturnStatement,
   ReturnUnrecommendedPayload,
   Statement,
 } from "@data7/core";
@@ -98,13 +100,22 @@ class ReturnPayloadResolver extends ASTWalker {
   private activeProperty: PropertyDeclaration | undefined;
   private conditionalDepth = 0;
   private foundPayload: ReturnUnrecommendedPayload | undefined;
+  private foundReturn: ReturnStatement | undefined;
 
-  constructor(private readonly targetLine: number) {
+  constructor(
+    private readonly targetLine: number,
+    private readonly lines: readonly string[],
+    private readonly eol: string,
+  ) {
     super();
   }
 
   public getPayload(): ReturnUnrecommendedPayload | undefined {
     return this.foundPayload;
+  }
+
+  public getReturn(): ReturnStatement | undefined {
+    return this.foundReturn;
   }
 
   public override walk(node: Node): void {
@@ -142,12 +153,27 @@ class ReturnPayloadResolver extends ASTWalker {
           ? "Function"
           : "Sub";
 
+      this.foundReturn = node;
+      const endLine = Math.max(this.targetLine, (node.loc?.endLine ?? this.targetLine + 1) - 1);
+      let expressionText: string | undefined;
+      if (node.expression?.loc) {
+        expressionText = extractSourceSpan(
+          this.lines,
+          node.expression.loc.startLine - 1,
+          node.expression.loc.startChar,
+          node.expression.loc.endLine - 1,
+          node.expression.loc.endChar,
+          this.eol,
+        );
+      }
+
       this.foundPayload = {
         code: DiagnosticCodes.ReturnUnrecommended,
         line: this.targetLine,
         startChar: node.loc?.startChar ?? 0,
         endChar: node.loc?.endChar ?? 0,
-        expressionText: undefined,
+        endLine,
+        expressionText,
         exitType,
         targetName,
         isConditional: this.conditionalDepth > 0,
@@ -182,7 +208,9 @@ function resolveReturnPayloadFromDocument(
     document.uri.toString(),
     document.getText(),
   );
-  const resolver = new ReturnPayloadResolver(line);
+  const eol = getDocumentEol(document);
+  const lines = document.getText().split(/\r?\n/);
+  const resolver = new ReturnPayloadResolver(line, lines, eol);
   resolver.walk(cachedDoc.unit);
   return resolver.getPayload();
 }
@@ -217,21 +245,37 @@ function resolveReturnUnrecommendedReplacement(
   payload: ReturnUnrecommendedPayload,
 ): { range: vscode.Range; replacement: string } | undefined {
   const line = Math.max(0, Math.min(payload.line, document.lineCount - 1));
+  const eol = getDocumentEol(document);
+  const fromAst = resolveReturnSpanFromAst(document, line, eol);
+  const endLine = Math.max(
+    line,
+    Math.min(
+      fromAst?.endLine ?? payload.endLine ?? diagnostic.range.end.line,
+      document.lineCount - 1,
+    ),
+  );
   const lineText = document.lineAt(line).text;
   const indent = lineText.substring(0, lineText.length - lineText.trimStart().length);
   const returnStart = findReturnKeywordColumn(lineText, payload.startChar, diagnostic, line);
-  const commentStart = findInlineCommentColumn(lineText, returnStart);
+  const isMultiLine = endLine > line;
+
+  // Multi-line Return (`… +_`) must use the full AST/source span — the first line
+  // alone is only `"" +_` and leftover continuation lines would remain as orphans.
+  const fromSourceSpan = fromAst?.expressionText ?? payload.expressionText;
+  const commentStart = isMultiLine ? -1 : findInlineCommentColumn(lineText, returnStart);
   const codeEnd = commentStart === -1 ? lineText.length : commentStart;
   const commentSuffix = commentStart === -1 ? "" : lineText.slice(commentStart);
   const fromLine = lineText.slice(Math.min(codeEnd, returnStart + "Return".length), codeEnd).trim();
   const fromPayload =
-    payload.expressionText !== undefined && payload.expressionText.trim().length > 0
-      ? payload.expressionText.trim()
+    fromSourceSpan !== undefined && fromSourceSpan.trim().length > 0
+      ? isMultiLine
+        ? fromSourceSpan
+        : fromSourceSpan.trim()
       : undefined;
-  // Prefer the full text after Return when the payload only captured a prefix
-  // (e.g. comparison `me._rdbms = pOption` truncated at the first `=`).
-  const expressionText =
-    fromPayload && fromLine.startsWith(fromPayload) && fromLine.length > fromPayload.length
+
+  const expressionText = isMultiLine
+    ? (fromPayload ?? fromLine)
+    : fromPayload && fromLine.startsWith(fromPayload) && fromLine.length > fromPayload.length
       ? fromLine
       : (fromPayload ?? fromLine);
 
@@ -286,7 +330,6 @@ function resolveReturnUnrecommendedReplacement(
         ifNode.elseBranch = replaceReturnInList(ifNode.elseBranch);
       }
 
-      const eol = getDocumentEol(document);
       const syntheticUnit: CompilationUnit = {
         kind: "CompilationUnit",
         members: [
@@ -325,21 +368,46 @@ function resolveReturnUnrecommendedReplacement(
     }
   }
 
+  const replaceEndChar = isMultiLine
+    ? (fromAst?.endChar ?? payload.endChar ?? document.lineAt(endLine).text.length)
+    : lineText.length;
+
   if (!payload.targetName || expressionText.length === 0) {
     return {
-      range: new vscode.Range(line, returnStart, line, lineText.length),
+      range: new vscode.Range(line, returnStart, endLine, replaceEndChar),
       replacement: `Exit ${payload.exitType}${commentSuffix ? ` ${commentSuffix}` : ""}`,
     };
   }
 
   const assignment = `${payload.targetName} = ${expressionText}${commentSuffix ? ` ${commentSuffix}` : ""}`;
   const replacement = payload.isConditional
-    ? `${assignment}${getDocumentEol(document)}${indent}Exit ${payload.exitType}`
+    ? `${assignment}${eol}${indent}Exit ${payload.exitType}`
     : assignment;
 
   return {
-    range: new vscode.Range(line, returnStart, line, lineText.length),
+    range: new vscode.Range(line, returnStart, endLine, replaceEndChar),
     replacement,
+  };
+}
+
+function resolveReturnSpanFromAst(
+  document: vscode.TextDocument,
+  line: number,
+  eol: string,
+): { expressionText?: string; endLine: number; endChar: number } | undefined {
+  const cachedDoc = LanguageProcessor.getInstance().getOrParse(
+    document.uri.toString(),
+    document.getText(),
+  );
+  const lines = document.getText().split(/\r?\n/);
+  const resolver = new ReturnPayloadResolver(line, lines, eol);
+  resolver.walk(cachedDoc.unit);
+  const resolved = resolver.getPayload();
+  if (!resolved) return undefined;
+  return {
+    expressionText: resolved.expressionText,
+    endLine: resolved.endLine ?? resolved.line,
+    endChar: resolved.endChar,
   };
 }
 

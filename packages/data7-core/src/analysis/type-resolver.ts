@@ -224,9 +224,20 @@ export class TypeResolver {
 
     const importedNamespaces = new Set(fileSyms?.imports.map((imp) => imp.toLowerCase()) ?? []);
     if (importedNamespaces.size > 0) {
+      // Only namespace-scoped variables are visible via Imports.
+      // Class fields use the owning class as containerName; matching that against an
+      // imported namespace (or a homonymous class/namespace like ServicosCampos) would
+      // incorrectly expose private instance fields such as `migracoes As MigracoesCampos`
+      // as free identifiers in unrelated files.
+      // Namespace Dim/Const are indexed with isShared: true; class fields only when Shared.
       const importedSymbol = allSymbols.find(
         (s) =>
-          isMatchingVariable(s) && importedNamespaces.has(s.containerName?.toLowerCase() ?? ""),
+          isMatchingVariable(s) &&
+          !s.isPrivate &&
+          s.isShared &&
+          !!s.containerName &&
+          importedNamespaces.has(s.containerName.toLowerCase()) &&
+          isNamespaceContainer(s.containerName, indexer),
       );
       if (importedSymbol) return importedSymbol;
     }
@@ -769,9 +780,25 @@ export class TypeResolver {
           setMemberAccessType(cachedUnit, cacheKey, nativeArrayLengthType);
           return nativeArrayLengthType;
         }
-        const memberType = TypeResolver.findMember(targetType, expr.member, indexer, 0)?.type;
-        setMemberAccessType(cachedUnit, cacheKey, memberType);
-        return memberType;
+        const memberType = TypeResolver.findMember(targetType, expr.member, indexer, 0);
+        if (memberType) {
+          // Nested type accessed as Namespace.Type must keep the qualifying container,
+          // otherwise homonymous classes (pesquisaPadrao.Pesquisa vs modeloPesquisa.Pesquisa)
+          // collapse to the short name and Shared members resolve against the wrong type.
+          const resolvedType =
+            memberType.kind === "class" ||
+            memberType.kind === "structure" ||
+            memberType.kind === "enum" ||
+            memberType.kind === "delegate"
+              ? memberType.containerName
+                ? `${memberType.containerName}.${memberType.name}`
+                : memberType.name
+              : memberType.type;
+          setMemberAccessType(cachedUnit, cacheKey, resolvedType);
+          return resolvedType;
+        }
+        setMemberAccessType(cachedUnit, cacheKey, undefined);
+        return undefined;
       }
       case "ArrayAccessExpression":
         return TypeResolver.resolveIndexedElementType(expr, document, lineIdx, indexer);
@@ -1154,17 +1181,18 @@ export class TypeResolver {
       return TypeResolver.resolveGenericParametersInType(rawLocal, genericParams);
     }
 
-    const symbol =
-      indexer.findSymbolByName(name, document.uri.toString()) ??
+    // Prefer namespace/class/enum over unrelated variables that share the same name
+    // (e.g. namespace `migracoes` vs private field `migracoes As MigracoesCampos` elsewhere).
+    const named = indexer.getSymbolsByName(name);
+    const typeLike =
+      named.find((symbol) => symbol.kind === "namespace") ??
+      named.find(
+        (symbol) =>
+          symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "enum",
+      ) ??
       lookupSystemNamespaceOrClassByName(name)[0];
-    if (
-      symbol &&
-      (symbol.kind === "class" ||
-        symbol.kind === "structure" ||
-        symbol.kind === "namespace" ||
-        symbol.kind === "enum")
-    ) {
-      return symbol.name;
+    if (typeLike) {
+      return typeLike.name;
     }
 
     return undefined;
@@ -2587,6 +2615,17 @@ function findGenericBaseSymbol(
 function isVariableLikeSymbol(symbol: SymbolInfo): boolean {
   return (
     symbol.kind === "variable" || symbol.kind === "property" || symbol.kind === "indexed-property"
+  );
+}
+
+/** True when `containerName` names a namespace (not a class/structure that happens to share the name). */
+function isNamespaceContainer(containerName: string, indexer: WorkspaceSymbolIndexer): boolean {
+  const lower = containerName.toLowerCase();
+  if (indexer.getSymbolsByName(containerName).some((symbol) => symbol.kind === "namespace")) {
+    return true;
+  }
+  return lookupSystemByName(containerName).some(
+    (symbol) => symbol.kind === "namespace" && symbol.name.toLowerCase() === lower,
   );
 }
 

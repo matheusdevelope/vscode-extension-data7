@@ -658,6 +658,20 @@ export class WorkspaceSymbolIndexer {
     return this.dependencyGraph.getDependentFileUris(triggerUri, extraNamespaces);
   }
 
+  /**
+   * Drops semantic / declaration lint caches for a single file so a forced
+   * re-lint cannot reuse stale diagnostics after a cross-file fix.
+   */
+  public invalidateFileLintCaches(fileUri: string): void {
+    const cache = SemanticLintCache.getInstance();
+    cache.invalidate(this.lintCacheScope, fileUri);
+    DeclarationLintCache.getInstance().invalidateFile(this.lintCacheScope, fileUri);
+    const cached = LanguageProcessor.getInstance().getCached(fileUri);
+    if (cached?.unit) {
+      clearLintTypeResolutionCachesForUnit(cached.unit);
+    }
+  }
+
   // Singleton — the private constructor prevents instantiation outside `getInstance`.
   private constructor(lintCacheScope: string) {
     this.lintCacheScope = lintCacheScope;
@@ -826,6 +840,36 @@ export class WorkspaceSymbolIndexer {
     this.rebuildDependencyGraph();
     this.findMemberCache.clear();
     this.allMembersForTypeCache.clear();
+  }
+
+  /**
+   * Rewrites `.data7/analysis-cache.json` from the in-memory index for each
+   * workspace folder. Used after batch fix / full workspace lint so the on-disk
+   * cache matches the symbols that were just re-indexed.
+   */
+  public persistAnalysisCache(
+    workspaceFolders: readonly { readonly uri: { readonly fsPath: string } }[],
+  ): void {
+    for (const folder of workspaceFolders) {
+      const folderPath = folder.uri.fsPath;
+      const files: {
+        fileUri: string;
+        content: string;
+        symbols: FileSymbols;
+      }[] = [];
+      for (const fileSym of this.cache.values()) {
+        const fsPath = fileSym.filePath.toLowerCase();
+        const root = folderPath.toLowerCase();
+        if (fsPath === root || fsPath.startsWith(root + path.sep.toLowerCase())) {
+          files.push({
+            fileUri: fileSym.fileUri,
+            content: fileSym.content,
+            symbols: fileSym,
+          });
+        }
+      }
+      AnalysisCache.save(folderPath, files);
+    }
   }
 
   /**

@@ -31,7 +31,7 @@ import type {
 } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { getCommentStartIndex } from "../../utils/suppression-comments";
-import { exprToString, typeRefToString } from "../diagnostic-helpers";
+import { exprToString, extractSourceSpan, typeRefToString } from "../diagnostic-helpers";
 import { TypeResolver } from "../../analysis/type-resolver";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
 import { detectEnumerable } from "../../analysis/enumerable-detector";
@@ -584,7 +584,8 @@ export class ControlFlowRule implements Rule {
       msg = `O uso de 'Return' não é recomendado. Prefira atribuir o valor a "${targetName}" e usar 'Exit ${exitType}'.`;
     }
 
-    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+    const endLineIdx = Math.max(lineIdx, node.loc.endLine - 1);
+    const range = new vscode.Range(lineIdx, node.loc.startChar, endLineIdx, node.loc.endChar);
     const diag = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
     diag.code = DiagnosticCodes.ReturnUnrecommended;
 
@@ -594,12 +595,12 @@ export class ControlFlowRule implements Rule {
       const startC = node.expression.loc.startChar;
       const endL = node.expression.loc.endLine - 1;
       const endC = node.expression.loc.endChar;
-      if (startL === endL && endC > startC) {
-        expressionText = (context.lines[startL] ?? "").substring(startC, endC);
-      }
-      if (!expressionText?.trim()) {
+      // Always prefer the original source span so multi-line `Return … +_` keeps
+      // call parentheses/arguments and continuation markers (exprToString drops them).
+      expressionText = extractSourceSpan(context.lines, startL, startC, endL, endC);
+      if (!expressionText.trim()) {
         expressionText = exprToString(node.expression);
-      } else {
+      } else if (startL === endL) {
         // Prefer AST text only when the source span is a proper truncated prefix
         // of a larger expression (e.g. comparison left-only), not when AST merely
         // re-quotes or reformats an already-complete span.
@@ -621,6 +622,7 @@ export class ControlFlowRule implements Rule {
       line: lineIdx,
       startChar: node.loc.startChar,
       endChar: node.loc.endChar,
+      endLine: endLineIdx,
       expressionText,
       exitType,
       targetName,

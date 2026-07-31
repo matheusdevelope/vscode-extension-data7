@@ -430,9 +430,30 @@ function primitiveMember(signature: ParsedSignature): SystemSymbolInfo {
   };
 }
 
-export const symbols: SystemSymbolInfo[] = [
-  ...SUPPORTED_TYPES.map(primitiveClass),
-  ...SIGNATURES.trim()
-    .split(/\r?\n/)
-    .map((line) => primitiveMember(parseSignature(line))),
-];
+export const symbols: SystemSymbolInfo[] = (() => {
+  const all: SystemSymbolInfo[] = [
+    ...SUPPORTED_TYPES.map(primitiveClass),
+    ...SIGNATURES.trim()
+      .split(/\r?\n/)
+      .map((line) => primitiveMember(parseSignature(line))),
+  ];
+
+  // ERP accepts `value.ToString(format)` in addition to the documented
+  // `ToStringFormat(format)`. Attach the format signature as a ToString overload
+  // so arity checks do not depend solely on TPrimitive inheritance order.
+  for (const formatMember of all) {
+    if (formatMember.kind !== "method" || formatMember.name.toLowerCase() !== "tostringformat") {
+      continue;
+    }
+    const toStringMember = all.find(
+      (symbol) =>
+        symbol.kind === "method" &&
+        symbol.name.toLowerCase() === "tostring" &&
+        symbol.containerName === formatMember.containerName,
+    );
+    if (!toStringMember || !formatMember.parameters) continue;
+    toStringMember.overloads = [...(toStringMember.overloads ?? []), formatMember.parameters];
+  }
+
+  return all;
+})();

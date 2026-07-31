@@ -567,6 +567,8 @@ export interface ReturnUnrecommendedPayload {
   line: number;
   startChar: number;
   endChar: number;
+  /** Inclusive end line of the Return statement (0-based). Defaults to `line` when omitted. */
+  endLine?: number;
   expressionText?: string;
   exitType: "Sub" | "Function" | "Property";
   targetName?: string;

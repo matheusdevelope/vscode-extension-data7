@@ -825,4 +825,149 @@ describe("DiagnosticService live lifecycle", () => {
       "external disk fix must refresh closed-file Problems",
     );
   });
+
+  test("prepareFreshWorkspaceAnalysis clears all Problems before re-lint", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_fresh.bas");
+    fs.writeFileSync(basPath, "Namespace mod_fresh\nEnd Namespace\n", "utf8");
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+
+    const stale = new vscode.Diagnostic(
+      new vscode.Range(0, 0, 0, 5),
+      "stale",
+      vscode.DiagnosticSeverity.Error,
+    );
+    stale.code = DiagnosticCodes.UnknownType;
+    DiagnosticService.replaceDiagnosticsFromBatch([{ uri, diagnostics: [stale] }]);
+    assert.equal((entries.get(uri.toString().toLowerCase()) ?? []).length, 1);
+
+    DiagnosticService.prepareFreshWorkspaceAnalysis([uri]);
+    assert.equal(entries.size, 0, "fresh analysis must clear the entire Problems collection");
+  });
+
+  test("forceDependentReevaluation refreshes files that still have published Problems", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+
+    // Consumer uses qualified access without Imports — no dependency-graph edge.
+    const consumerPath = path.join(srcDir, "consumer.bas");
+    const consumerCode = [
+      "Namespace consumer",
+      "Class C",
+      "  Public Sub Run()",
+      "    Dim t As provider.Titulo",
+      "  End Sub",
+      "End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    const providerPath = path.join(srcDir, "provider.bas");
+    const providerEmpty = ["Namespace provider", "End Namespace", ""].join("\n");
+    const providerFixed = [
+      "Namespace provider",
+      "  Class Titulo",
+      "    Public Sub New()",
+      "      MyBase.New()",
+      "    End Sub",
+      "  End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+
+    fs.writeFileSync(consumerPath, consumerCode, "utf8");
+    fs.writeFileSync(providerPath, providerEmpty, "utf8");
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    const originalGetWorkspaceFolder = vscode.workspace.getWorkspaceFolder;
+    (vscode.workspace as any).getWorkspaceFolder = (uri: vscode.Uri) => {
+      if (uri.fsPath.toLowerCase().startsWith(tmpDir.toLowerCase())) {
+        return { uri: vscode.Uri.file(tmpDir), name: "TmpWorkspace", index: 0 };
+      }
+      return undefined;
+    };
+
+    try {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const consumerUri = vscode.Uri.file(consumerPath);
+      const providerUri = vscode.Uri.file(providerPath);
+      indexer.updateFileContent(consumerUri.toString(), consumerCode);
+      indexer.updateFileContent(providerUri.toString(), providerEmpty);
+
+      DiagnosticService.initialize({ subscriptions: [] } as any);
+      DiagnosticService.markWorkspaceIndexReady();
+
+      DiagnosticService.lintFile(consumerUri, false);
+      const consumerKey = consumerUri.toString().toLowerCase();
+      assert.ok(
+        (entries.get(consumerKey) ?? []).some(
+          (diag) =>
+            diag.code === DiagnosticCodes.UnknownType ||
+            diag.code === DiagnosticCodes.MissingImport,
+        ),
+        "consumer should start with a type error",
+      );
+
+      fs.writeFileSync(providerPath, providerFixed, "utf8");
+      indexer.updateFileContent(providerUri.toString(), providerFixed);
+
+      DiagnosticService.forceDependentReevaluation(providerUri);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const after = entries.get(consumerKey) ?? [];
+      assert.equal(
+        after.some(
+          (diag) =>
+            diag.code === DiagnosticCodes.UnknownType ||
+            diag.code === DiagnosticCodes.MissingImport,
+        ),
+        false,
+        "forceDependentReevaluation must clear stale Problems on dependent files",
+      );
+    } finally {
+      (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
+    }
+  });
 });

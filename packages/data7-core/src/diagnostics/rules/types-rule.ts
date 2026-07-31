@@ -294,6 +294,17 @@ export class TypesRule implements Rule {
   private checkVariableDeclaration(node: VariableDeclaration, context: RuleContext): void {
     if (!node.loc || !node.type || !node.initializer) return;
     const lineIdx = node.loc.startLine - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () =>
+      this.checkVariableDeclarationScoped(node, context, lineIdx),
+    );
+  }
+
+  private checkVariableDeclarationScoped(
+    node: VariableDeclaration,
+    context: RuleContext,
+    lineIdx: number,
+  ): void {
+    if (!node.type || !node.initializer) return;
 
     const lhsType = typeRefToString(node.type);
     const rhsType = TypeResolver.resolveExpressionType(
@@ -327,7 +338,16 @@ export class TypesRule implements Rule {
   private checkAssignmentTypes(node: Assignment, context: RuleContext): void {
     if (!node.loc) return;
     const lineIdx = node.loc.startLine - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () =>
+      this.checkAssignmentTypesScoped(node, context, lineIdx),
+    );
+  }
 
+  private checkAssignmentTypesScoped(
+    node: Assignment,
+    context: RuleContext,
+    lineIdx: number,
+  ): void {
     this.checkEventSignatureMismatch(node, lineIdx, context);
     this.checkLambdaAssignment(node, lineIdx, context);
 

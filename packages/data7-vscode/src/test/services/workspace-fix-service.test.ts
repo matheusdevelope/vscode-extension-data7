@@ -101,9 +101,10 @@ describe("WorkspaceFixService pre-build cache", () => {
 
         const result = await internals.applyFixesToUris([sourceUri], { save: true });
         assert.equal(result.filesFixed, 0);
+        const remaining = entries.get(sourceUri.toString().toLowerCase()) ?? [];
         assert.equal(
-          entries.has(sourceUri.toString().toLowerCase()),
-          false,
+          remaining.length,
+          0,
           "workspace fix must clear Problems when disk is already clean",
         );
       } finally {

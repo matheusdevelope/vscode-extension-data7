@@ -110,6 +110,13 @@ export class DiagnosticsLinter {
       return true;
     }
 
+    // Prefer class/structure/enum lookup — findSymbolByName alone can return a
+    // method/field that shares the type name and falsely report the type as unknown
+    // (breaking TypeName(expr) casts such as Cliente(list[i])).
+    if (TypeResolver.findClassSymbol(className, indexer)) {
+      return true;
+    }
+
     let nameToCheck = className;
     let containerToCheck: string | undefined;
     const lastDotIdx = className.lastIndexOf(".");
@@ -119,7 +126,7 @@ export class DiagnosticsLinter {
     }
 
     const inSystem = lookupSystemByName(nameToCheck).some((s) => {
-      if (s.kind !== "class" && s.kind !== "structure") return false;
+      if (s.kind !== "class" && s.kind !== "structure" && s.kind !== "enum") return false;
       if (containerToCheck) {
         return s.containerName?.toLowerCase() === containerToCheck.toLowerCase();
       }
@@ -127,31 +134,18 @@ export class DiagnosticsLinter {
     });
     if (inSystem) return true;
 
-    const symbol = indexer.findSymbolByName(nameToCheck);
-    if (
-      symbol &&
-      (symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "enum")
-    ) {
-      if (containerToCheck) {
-        if (symbol.containerName?.toLowerCase() === containerToCheck.toLowerCase()) {
-          return true;
-        }
-      } else {
-        return true;
-      }
+    const typeMatches = indexer
+      .getSymbolsByName(nameToCheck)
+      .filter(
+        (symbol) =>
+          symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "enum",
+      );
+    if (containerToCheck) {
+      return typeMatches.some(
+        (symbol) => symbol.containerName?.toLowerCase() === containerToCheck.toLowerCase(),
+      );
     }
-
-    const symbolDirect = indexer.findSymbolByName(className);
-    if (
-      symbolDirect &&
-      (symbolDirect.kind === "class" ||
-        symbolDirect.kind === "structure" ||
-        symbolDirect.kind === "enum")
-    ) {
-      return true;
-    }
-
-    return false;
+    return typeMatches.length > 0;
   }
 
   public static isKnownMemberContainer(
@@ -377,6 +371,10 @@ export class DiagnosticsLinter {
     if (isLikelyGenericTypeParameter(lhsType) || isLikelyGenericTypeParameter(rhsType)) return true;
     if (areSameGenericTemplateCompatible(rhsType, lhsType, indexer)) return true;
 
+    // Data7 treats StringList / TStringList as interchangeable list-of-string types
+    // (StringList inherits TStringList in the catalog, but APIs accept either freely).
+    if (isStringListFamily(lhsLower) && isStringListFamily(rhsLower)) return true;
+
     if (isNumeric(lhsLower) && isNumeric(rhsLower)) return true;
     if (lhsLower === "variant" || rhsLower === "variant") return true;
 
@@ -478,7 +476,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.SealedInheritance]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.MustOverrideNotImplemented]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InvalidClassModifierCombination]: vscode.DiagnosticSeverity.Error,
-    [DiagnosticCodes.MissingMyBaseNew]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.MissingMyBaseNew]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.MissingReturnType]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.IncompletePropertyBody]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InstanceMemberAccessOnType]: vscode.DiagnosticSeverity.Error,
@@ -1128,4 +1126,12 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     this.typeParamStack.push(set);
     return true;
   }
+}
+
+/** StringList / TStringList / TStrings are interchangeable list-of-string APIs in Data7. */
+function isStringListFamily(typeLower: string): boolean {
+  const simple = typeLower.includes(".")
+    ? typeLower.slice(typeLower.lastIndexOf(".") + 1)
+    : typeLower;
+  return simple === "stringlist" || simple === "tstringlist" || simple === "tstrings";
 }

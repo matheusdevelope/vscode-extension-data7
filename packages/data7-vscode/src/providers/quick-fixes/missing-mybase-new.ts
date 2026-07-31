@@ -17,7 +17,7 @@ export function addMissingMyBaseNewFix(
     vscode.CodeActionKind.QuickFix,
   );
   action.diagnostics = [diagnostic];
-  action.isPreferred = false;
+  action.isPreferred = true;
 
   const edit = new vscode.WorkspaceEdit();
   if (mode === "create-constructor") {
@@ -95,27 +95,12 @@ function resolveConstructorInsertion(
   const classLine = diagnostic.range.start.line;
   const classLineText = document.lineAt(classLine).text;
   const classIndent = /^(\s*)/.exec(classLineText)?.[1] ?? "";
-  const endClassLine = findMatchingEndClassLine(document, classLine);
   const memberIndent = `${classIndent}   `;
   const bodyIndent = `${memberIndent}   `;
+  // Insert at the top of the class body (right after the Class line), not
+  // before End Class — Free and other trailing members stay at the bottom.
   return {
-    position: new vscode.Position(endClassLine, 0),
+    position: new vscode.Position(classLine + 1, 0),
     text: `${memberIndent}Sub New()\n${bodyIndent}MyBase.New()\n${memberIndent}End Sub\n\n`,
   };
-}
-
-function findMatchingEndClassLine(document: vscode.TextDocument, classLine: number): number {
-  let depth = 0;
-  for (let line = classLine + 1; line < document.lineCount; line++) {
-    const text = document.lineAt(line).text.trim().toLowerCase();
-    if (/^end\s+class\b/.test(text)) {
-      if (depth === 0) return line;
-      depth--;
-      continue;
-    }
-    if (/\bclass\b/.test(text) && !/^end\s+class\b/.test(text)) {
-      depth++;
-    }
-  }
-  return document.lineCount;
 }

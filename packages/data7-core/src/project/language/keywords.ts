@@ -208,7 +208,7 @@ export const KEYWORD_CONFIGS: KeywordConfig[] = [
   kcontrol("Function"),
   kcontrol("Get", true),
   kcontrol("GetType"),
-  kcontrol("Global"),
+  kcontrol("Global", true),
   kcontrol("GoTo"),
   kcontrol("Handles"),
   kcontrol("If"),

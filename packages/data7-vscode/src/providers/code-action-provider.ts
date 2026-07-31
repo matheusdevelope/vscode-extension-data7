@@ -419,20 +419,21 @@ export function mergeActionEdits(
 ): { edit: vscode.WorkspaceEdit; count: number } | undefined {
   const merged = new vscode.WorkspaceEdit();
   let count = 0;
-  const acceptedRanges = new Map<string, vscode.Range[]>();
+  const acceptedByUri = new Map<string, AcceptedEdit[]>();
 
-  const checkAndAdd = (uriStr: string, range: vscode.Range): boolean => {
-    let ranges = acceptedRanges.get(uriStr);
-    if (!ranges) {
-      ranges = [];
-      acceptedRanges.set(uriStr, ranges);
+  const checkAndAdd = (uriStr: string, range: vscode.Range, newText: string): boolean => {
+    let accepted = acceptedByUri.get(uriStr);
+    if (!accepted) {
+      accepted = [];
+      acceptedByUri.set(uriStr, accepted);
     }
-    for (const accepted of ranges) {
-      if (rangesConflict(accepted, range)) {
+    const candidate: AcceptedEdit = { range, newText };
+    for (const prior of accepted) {
+      if (editsConflict(prior, candidate)) {
         return false;
       }
     }
-    ranges.push(range);
+    accepted.push(candidate);
     return true;
   };
 
@@ -442,7 +443,7 @@ export function mergeActionEdits(
       for (const [uri, edits] of action.edit.entries()) {
         const uriStr = uri.toString();
         for (const edit of edits) {
-          if (!checkAndAdd(uriStr, edit.range)) {
+          if (!checkAndAdd(uriStr, edit.range, edit.newText)) {
             continue;
           }
           if (edit.newText === "") {
@@ -469,8 +470,9 @@ export function mergeActionEdits(
       const uriStr = entry.uri.toString();
       const range =
         entry.type === "insert" ? new vscode.Range(entry.position, entry.position) : entry.range;
+      const newText = entry.type === "delete" ? "" : entry.text;
 
-      if (!checkAndAdd(uriStr, range)) {
+      if (!checkAndAdd(uriStr, range, newText)) {
         continue;
       }
 
@@ -490,21 +492,65 @@ export function mergeActionEdits(
   return count > 0 ? { edit: merged, count } : undefined;
 }
 
-function rangesConflict(r1: vscode.Range, r2: vscode.Range): boolean {
-  if (r1.isEmpty && r2.isEmpty) {
-    return r1.start.isEqual(r2.start);
+interface AcceptedEdit {
+  readonly range: vscode.Range;
+  readonly newText: string;
+}
+
+function editsConflict(a: AcceptedEdit, b: AcceptedEdit): boolean {
+  const r1 = a.range;
+  const r2 = b.range;
+  const empty1 = isEmptyRange(r1);
+  const empty2 = isEmptyRange(r2);
+
+  if (empty1 && empty2) {
+    if (positionsEqual(r1.start, r2.start)) return true;
+    // Parser `expected-token` and linter `missing-then` may insert the same
+    // " Then" at slightly different columns on one line — keep only the first.
+    return r1.start.line === r2.start.line && a.newText.length > 0 && a.newText === b.newText;
   }
-  if (r1.isEmpty) {
-    return r1.start.line >= r2.start.line && r1.start.line <= r2.end.line;
+
+  // Insert at P conflicts with span [start, end) only when P lies inside that
+  // span. Same-line edits at different columns (e.g. Sub New at col 0 and
+  // delete `Public` at col 6) must both be kept.
+  if (empty1) {
+    return positionInHalfOpenRange(r1.start, r2);
   }
-  if (r2.isEmpty) {
-    return r2.start.line >= r1.start.line && r2.start.line <= r1.end.line;
+  if (empty2) {
+    return positionInHalfOpenRange(r2.start, r1);
   }
-  const start1 = r1.start.line;
-  const end1 = r1.end.line;
-  const start2 = r2.start.line;
-  const end2 = r2.end.line;
-  return Math.max(start1, start2) <= Math.min(end1, end2);
+
+  // Half-open interval overlap: [a,b) ∩ [c,d) ≠ ∅ ⇔ a < d && c < b.
+  return isPositionBefore(r1.start, r2.end) && isPositionBefore(r2.start, r1.end);
+}
+
+function isEmptyRange(range: vscode.Range): boolean {
+  if (typeof range.isEmpty === "boolean") {
+    return range.isEmpty;
+  }
+  return positionsEqual(range.start, range.end);
+}
+
+function positionsEqual(
+  a: { line: number; character: number },
+  b: { line: number; character: number },
+): boolean {
+  return a.line === b.line && a.character === b.character;
+}
+
+/** True when `position` is in `[range.start, range.end)`. */
+function positionInHalfOpenRange(
+  position: { line: number; character: number },
+  range: vscode.Range,
+): boolean {
+  return !isPositionBefore(position, range.start) && isPositionBefore(position, range.end);
+}
+
+function isPositionBefore(
+  a: { line: number; character: number },
+  b: { line: number; character: number },
+): boolean {
+  return a.line < b.line || (a.line === b.line && a.character < b.character);
 }
 
 function addFixAllAction(

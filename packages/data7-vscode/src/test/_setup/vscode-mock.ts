@@ -33,6 +33,10 @@ class Range {
       this.end = { line: e.line, character: e.character };
     }
   }
+
+  get isEmpty(): boolean {
+    return this.start.line === this.end.line && this.start.character === this.end.character;
+  }
 }
 
 class Position {
@@ -40,6 +44,10 @@ class Position {
     public line: number,
     public character: number,
   ) {}
+
+  isEqual(other: { line: number; character: number }): boolean {
+    return this.line === other.line && this.character === other.character;
+  }
 }
 
 class Location {

@@ -173,6 +173,32 @@ export function typeRefToString(typeRef: TypeReference | undefined): string | un
   return `${typeRef.name}<${typeRef.typeArguments.map((argument) => typeRefToString(argument) ?? "").join(", ")}>`;
 }
 
+/**
+ * Slices `lines` (no trailing newlines) for a 0-based inclusive source span.
+ * Used by diagnostics/quick-fixes that must preserve original call parentheses,
+ * arguments, and line-continuation markers instead of reconstructing via AST.
+ */
+export function extractSourceSpan(
+  lines: readonly string[],
+  startLine: number,
+  startChar: number,
+  endLine: number,
+  endChar: number,
+  eol = "\n",
+): string {
+  if (startLine < 0 || endLine < startLine || startLine >= lines.length) return "";
+  const clampedEndLine = Math.min(endLine, lines.length - 1);
+  if (startLine === clampedEndLine) {
+    return (lines[startLine] ?? "").substring(startChar, endChar);
+  }
+  const parts: string[] = [(lines[startLine] ?? "").substring(startChar)];
+  for (let line = startLine + 1; line < clampedEndLine; line++) {
+    parts.push(lines[line] ?? "");
+  }
+  parts.push((lines[clampedEndLine] ?? "").substring(0, endChar));
+  return parts.join(eol);
+}
+
 export function exprToString(expr: Expression | undefined): string | undefined {
   if (!expr) return undefined;
   if (expr.kind === "Identifier") return expr.name;
@@ -189,7 +215,12 @@ export function exprToString(expr: Expression | undefined): string | undefined {
   }
   if (expr.kind === "MethodInvocation") {
     const callee = exprToString(expr.callee);
-    return callee ? `${callee}.${expr.methodName}` : expr.methodName;
+    const args = expr.arguments.map((argument) => exprToString(argument) ?? "").join(", ");
+    const call =
+      expr.noParentheses && expr.arguments.length === 0
+        ? expr.methodName
+        : `${expr.methodName}(${args})`;
+    return callee ? `${callee}.${call}` : call;
   }
   if (expr.kind === "BinaryExpression") {
     const left = exprToString(expr.left);

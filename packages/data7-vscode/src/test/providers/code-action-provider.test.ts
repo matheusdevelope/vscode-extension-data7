@@ -7,6 +7,7 @@ import {
   LegacyDiagnosticCodes,
   COMMAND_IDS,
   setDiagnosticPayload,
+  applyTextEditsToContent,
 } from "@data7/core";
 import type {
   CallParenthesesMismatchPayload,
@@ -799,6 +800,131 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(fix);
       expectEdit(fix.edit, { type: "insert", textIncludes: "Sub New()" });
       expectEdit(fix.edit, { type: "insert", textIncludes: "MyBase.New()" });
+      const insert = (
+        fix.edit as unknown as { edits: { type: string; position: vscode.Position }[] }
+      ).edits.find((e) => e.type === "insert");
+      assert.ok(insert);
+      assert.equal(
+        insert.position.line,
+        1,
+        "Sub New must be inserted at the top of the class (after the Class line)",
+      );
+    });
+
+    test("fix-all keeps Sub New when Public is removed on the next class member line", () => {
+      // Real shape from Conciliacao/ModeloColuna.bas: New inserts at the start of
+      // the first `public` field line; redundant-public deletes on that same line.
+      const source = [
+        "NameSpace ModeloColuna",
+        "   class coluna",
+        "      public tabela As String",
+        "      public coluna As String",
+        "      Function Teste As String",
+        "         If 1 = 3",
+        '            Return "teste"',
+        "         End If",
+        '         Return "teste 3"',
+        "      End Function",
+        "   end class",
+        "end NameSpace",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const classRange = new vscode.Range(1, 3, 1, 12);
+
+      // Worst-case order: accept Public-delete before New-insert.
+      const publicDiag = diagWith(
+        DiagnosticCodes.RedundantPublicModifier,
+        {
+          code: DiagnosticCodes.RedundantPublicModifier,
+          line: 2,
+          startChar: 6,
+          endChar: 12,
+        },
+        new vscode.Range(2, 6, 2, 12),
+      );
+      const newDiag = diagWith(
+        DiagnosticCodes.MissingMyBaseNew,
+        {
+          code: DiagnosticCodes.MissingMyBaseNew,
+          className: "coluna",
+          action: "create-constructor",
+        },
+        classRange,
+      );
+      const freeDiag = diagWith(
+        DiagnosticCodes.MissingMyBaseFree,
+        { code: DiagnosticCodes.MissingMyBaseFree, className: "coluna" },
+        classRange,
+      );
+
+      const provider = new D7BasicCodeActionProvider();
+      const result = provider.buildFixAllWorkspaceEdit(doc, [publicDiag, newDiag, freeDiag]);
+      assert.ok(result);
+      assert.ok(result.count >= 3, `expected New+Free+Public edits, got ${result.count}`);
+
+      const textEdits = (result.edit as unknown as { edits: unknown[] }).edits.map((raw) => {
+        const entry = raw as
+          | { type: "insert"; position: vscode.Position; text: string }
+          | { type: "replace"; range: vscode.Range; text: string }
+          | { type: "delete"; range: vscode.Range };
+        if (entry.type === "insert") {
+          return {
+            range: new vscode.Range(entry.position, entry.position),
+            newText: entry.text,
+          } as vscode.TextEdit;
+        }
+        if (entry.type === "delete") {
+          return { range: entry.range, newText: "" } as vscode.TextEdit;
+        }
+        return { range: entry.range, newText: entry.text } as vscode.TextEdit;
+      });
+      const fixed = applyTextEditsToContent(doc.getText(), textEdits);
+      assert.match(fixed, /class coluna\r?\n\s+Sub New\(\)/i);
+      assert.match(fixed, /Sub Free\(\)/i);
+      assert.match(fixed, /^\s+tabela As String/m);
+      assert.doesNotMatch(fixed, /^\s+public tabela/im);
+    });
+
+    test("fix-all applies Sub New at top and Sub Free at bottom in one pass", () => {
+      const doc = mockDoc("Class Foo\n   Dim x As Integer\nEnd Class\n");
+      const classRange = new vscode.Range(0, 0, 0, 9);
+      const newDiag = diagWith(
+        DiagnosticCodes.MissingMyBaseNew,
+        {
+          code: DiagnosticCodes.MissingMyBaseNew,
+          className: "Foo",
+          action: "create-constructor",
+        },
+        classRange,
+      );
+      const freeDiag = diagWith(
+        DiagnosticCodes.MissingMyBaseFree,
+        { code: DiagnosticCodes.MissingMyBaseFree, className: "Foo" },
+        classRange,
+      );
+
+      const provider = new D7BasicCodeActionProvider();
+      const result = provider.buildFixAllWorkspaceEdit(doc, [newDiag, freeDiag]);
+      assert.ok(result);
+      assert.ok(result.count >= 2, "both New and Free edits must be kept (no insert conflict)");
+
+      const textEdits = (result.edit as unknown as { edits: unknown[] }).edits.map((raw) => {
+        const entry = raw as
+          | { type: "insert"; position: vscode.Position; text: string }
+          | { type: "replace"; range: vscode.Range; text: string };
+        if (entry.type === "insert") {
+          const range = new vscode.Range(entry.position, entry.position);
+          return { range, newText: entry.text } as vscode.TextEdit;
+        }
+        return { range: entry.range, newText: entry.text } as vscode.TextEdit;
+      });
+      const fixed = applyTextEditsToContent(doc.getText(), textEdits);
+      assert.match(fixed, /Class Foo\r?\n\s+Sub New\(\)/);
+      assert.match(fixed, /Sub Free\(\)[\s\S]*End Class/);
+      const newIdx = fixed.search(/Sub New\(\)/);
+      const freeIdx = fixed.search(/Sub Free\(\)/);
+      assert.ok(newIdx >= 0 && freeIdx > newIdx, "Sub New must appear before Sub Free");
     });
 
     test("emits insert of MyBase.New() inside Sub New constructor", async () => {
@@ -1106,6 +1232,57 @@ describe("D7BasicCodeActionProvider", () => {
       assert.ok(fix);
       const applied = applyInsertEdit(source, fix.edit.edits[0]);
       assert.equal(applied, "If ready Then    ' Edit\n");
+    });
+
+    test("return-unrecommended preserves multiline line-continued expression and call parentheses", async () => {
+      const source = [
+        "Namespace N",
+        "   Class C",
+        "      Function toString() As String",
+        '         Return "" +_',
+        '           "CellNames: " + toStringCellName() +_',
+        '           "PropName: " + PropName.toString() + CHAR(13) +_',
+        '           ""',
+        "      End Function",
+        "      Function toStringCellName() As String",
+        '         toStringCellName = ""',
+        "      End Function",
+        "   End Class",
+        "End Namespace",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      // Stale/truncated payload on purpose — fix must re-read the AST span.
+      const payload: ReturnUnrecommendedPayload = {
+        code: DiagnosticCodes.ReturnUnrecommended,
+        line: 3,
+        startChar: 9,
+        endChar: 20,
+        endLine: 3,
+        expressionText: '"" +_',
+        exitType: "Function",
+        targetName: "toString",
+        isConditional: false,
+      };
+      const range = new vscode.Range(3, 9, 3, 20);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          { diagnostics: [diagWith(DiagnosticCodes.ReturnUnrecommended, payload, range)] } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("toString"));
+      assert.ok(fix);
+      const applied = applyReplaceEdit(source, fix.edit.edits[0]);
+      assert.match(applied, /toString = "" \+_/);
+      assert.match(applied, /toStringCellName\(\)/);
+      assert.match(applied, /PropName\.toString\(\)/);
+      assert.match(applied, /CHAR\(13\)/);
+      assert.equal((applied.match(/CellNames:/g) ?? []).length, 1);
+      assert.doesNotMatch(applied, /""\s+""/);
     });
 
     test("return-unrecommended rewrites Return to assignment plus Exit inside conditionals", async () => {

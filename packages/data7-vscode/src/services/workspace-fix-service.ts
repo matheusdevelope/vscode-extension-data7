@@ -133,6 +133,11 @@ export class WorkspaceFixService {
 
     await document.save();
 
+    // Save already re-lints the active file; force dependents so closed files
+    // that still show Problems (or import this module) are refreshed even when
+    // the API fingerprint gate would skip them.
+    DiagnosticService.forceDependentReevaluation(document.uri);
+
     vscode.window.showInformationMessage(
       `Correcao do arquivo ativo concluida: ${fixEdit.count} edicao(oes).`,
     );
@@ -269,6 +274,11 @@ export class WorkspaceFixService {
             // cannot reuse pre-fix AST / diagnostic caches.
             AnalysisProgram.getInstance().close(uri.toString());
             LanguageProcessor.getInstance().invalidate(uri.toString());
+            // Keep the symbol index in sync — batch writes bypass document events.
+            WorkspaceSymbolIndexer.getInstance().updateFileContent(
+              uri.toString(),
+              correctedContent,
+            );
             const correctedMockDoc = buildMockDocument(uri, correctedContent);
             diagnosticsAfterFix.push({
               uri,
@@ -291,22 +301,22 @@ export class WorkspaceFixService {
       WorkspaceFixService.isBatchFixInProgress = false;
     }
 
-    if (diagnosticsAfterFix.length > 0) {
-      try {
-        const { DiagnosticService } = await import("./diagnostic-service");
-        DiagnosticService.replaceDiagnosticsFromBatch(diagnosticsAfterFix);
-        // If revert failed or a delayed document event fires, keep batch Results
-        // from being overwritten by a stale open buffer for a short window.
-        for (const entry of diagnosticsAfterFix) {
-          const openDoc = vscode.workspace.textDocuments.find(
-            (doc) => doc.uri.toString().toLowerCase() === entry.uri.toString().toLowerCase(),
-          );
-          if (openDoc) {
-            DiagnosticService.suppressLiveLintForUri(openDoc.uri, openDoc.isDirty ? 2000 : 800);
-          }
+    // Always clear Problems + invalidate caches + re-lint the scanned set so
+    // stale entries and dependents cannot linger after a mass fix (or a no-op
+    // pass that still needs to republish a clean disk state).
+    try {
+      const { DiagnosticService } = await import("./diagnostic-service");
+      await DiagnosticService.relintAfterBatchFix(uris);
+    } catch (error) {
+      logger.error("Falha ao reanalisar o workspace após correção em massa.", error);
+      // Fallback: at least publish the per-file snapshots collected above.
+      if (diagnosticsAfterFix.length > 0) {
+        try {
+          const { DiagnosticService } = await import("./diagnostic-service");
+          DiagnosticService.replaceDiagnosticsFromBatch(diagnosticsAfterFix);
+        } catch {
+          // Avoid circular-dependency crash if import fails.
         }
-      } catch {
-        // Avoid circular-dependency crash if import fails.
       }
     }
 

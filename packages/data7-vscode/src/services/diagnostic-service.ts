@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import {
+  COMMAND_IDS,
   DIAGNOSTIC_SOURCE,
   DependencyScanner,
   DiagnosticCodes,
@@ -77,6 +78,7 @@ export class DiagnosticService {
   private static readonly suppressLiveLintUntil = new Map<string, number>();
   private static dependentPropagationScheduled = false;
   private static pendingDependentTriggerUri: vscode.Uri | undefined;
+  private static pendingDependentForce = false;
   /** Project-wide unused-code diagnostics keyed by uri (lowercase). */
   private static unusedCodeByUri = new Map<string, vscode.Diagnostic[]>();
   private static unusedCodeRefreshScheduled = false;
@@ -276,6 +278,52 @@ export class DiagnosticService {
   }
 
   /**
+   * Clears every published diagnostic (live + workspace) so a fresh workspace
+   * lint / batch fix cannot leave orphan Problems entries behind.
+   */
+  public static clearAllPublishedDiagnostics(): void {
+    this._collection?.clear();
+    this.liveDiagnosticUris.clear();
+    this.workspaceDiagnosticUris.clear();
+    this.unusedCodeByUri.clear();
+  }
+
+  /**
+   * Clears published Problems and drops cached check results before a full
+   * workspace re-analysis. Does **not** re-parse every file here — that would
+   * double the work of the lint pass itself; `ensureParsed` refreshes the
+   * index as each file is analyzed.
+   */
+  public static prepareFreshWorkspaceAnalysis(uris: readonly vscode.Uri[]): void {
+    this.clearAllPublishedDiagnostics();
+    AnalysisProgram.getInstance().invalidateAllChecks();
+
+    const processor = LanguageProcessor.getInstance();
+    const indexer = WorkspaceSymbolIndexer.getInstance();
+    for (const uri of uris) {
+      const uriStr = uri.toString();
+      processor.invalidate(uriStr);
+      indexer.invalidateFileLintCaches(uriStr);
+    }
+  }
+
+  /** Persists `.data7/analysis-cache.json` from the in-memory index after a workspace pass. */
+  private static persistAnalysisCacheAfterWorkspaceLint(): void {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) return;
+    WorkspaceSymbolIndexer.getInstance().persistAnalysisCache(folders);
+  }
+
+  /**
+   * After a batch fix: clear Problems, invalidate caches, re-index, and re-lint
+   * the scanned URIs so dependents and stale entries cannot linger.
+   */
+  public static async relintAfterBatchFix(uris: readonly vscode.Uri[]): Promise<void> {
+    if (!this.isEnabled() || uris.length === 0) return;
+    await this.lintWorkspaceUris(uris, false);
+  }
+
+  /**
    * Schedules a single-file diagnostic refresh after an on-disk change
    * (FileSystemWatcher, batch fix write). Skips while a batch fix/lint runs
    * and when the open buffer is dirty (editor owns that content).
@@ -392,8 +440,12 @@ export class DiagnosticService {
    * dependency graph (import propagation). Coalesced so rapid saves do not fan
    * out one lint per dependent per save event.
    */
-  private static reevaluateDependentFiles(triggerUri: vscode.Uri): void {
+  private static reevaluateDependentFiles(
+    triggerUri: vscode.Uri,
+    options: { readonly force?: boolean } = {},
+  ): void {
     this.pendingDependentTriggerUri = triggerUri;
+    this.pendingDependentForce = options.force === true || this.pendingDependentForce;
     if (this.dependentPropagationScheduled) {
       return;
     }
@@ -401,36 +453,76 @@ export class DiagnosticService {
     setTimeout(() => {
       this.dependentPropagationScheduled = false;
       const uri = this.pendingDependentTriggerUri;
+      const force = this.pendingDependentForce;
       this.pendingDependentTriggerUri = undefined;
+      this.pendingDependentForce = false;
       if (!uri) return;
-      void this.runDependentPropagation(uri);
+      void this.runDependentPropagation(uri, { force });
     }, 80);
   }
 
-  private static async runDependentPropagation(triggerUri: vscode.Uri): Promise<void> {
+  /**
+   * Forces dependent re-lint after a programmatic fix/save. Bypasses the
+   * API-fingerprint gate and also refreshes files that still have published
+   * Problems (covers qualified access without `Imports` edges). Ordinary
+   * saves never take this path — it would re-lint too broadly.
+   */
+  public static forceDependentReevaluation(triggerUri: vscode.Uri): void {
+    this.reevaluateDependentFiles(triggerUri, { force: true });
+  }
+
+  private static async runDependentPropagation(
+    triggerUri: vscode.Uri,
+    options: { readonly force?: boolean } = {},
+  ): Promise<void> {
     const indexer = WorkspaceSymbolIndexer.getInstance();
     const triggerUriStr = triggerUri.toString();
+    const force = options.force === true;
+    const apiChanged = indexer.hasLastUpdateChangedAPI(triggerUriStr);
+    const isPrincipal = this.isPrincipalBasUri(triggerUri);
 
-    if (!indexer.hasLastUpdateChangedAPI(triggerUriStr)) {
+    if (!force && !apiChanged) {
       return;
     }
 
     const extraNamespaces = new Set<string>(indexer.changedNamespacesInLastUpdate);
     indexer.changedNamespacesInLastUpdate.clear();
 
-    const dependentUriStrs = LintPipelineProfiler.measure(
-      "dependent-propagation",
-      triggerUriStr,
-      () => indexer.getDependentFileUris(triggerUriStr, extraNamespaces),
-    );
+    const dependentKeySet = new Set<string>();
 
-    if (dependentUriStrs.length === 0) return;
+    if (isPrincipal) {
+      // Principal symbols are ambient — there is no Imports edge to follow.
+      for (const uri of await this.findWorkspaceBasFiles()) {
+        if (this.uriKey(uri) === this.uriKey(triggerUri)) continue;
+        dependentKeySet.add(uri.toString());
+      }
+    } else {
+      const graphDependents = LintPipelineProfiler.measure(
+        "dependent-propagation",
+        triggerUriStr,
+        () => indexer.getDependentFileUris(triggerUriStr, extraNamespaces),
+      );
+      for (const uriStr of graphDependents) {
+        dependentKeySet.add(uriStr);
+      }
+    }
 
-    LintPipelineProfiler.recordDependentPropagation(dependentUriStrs.length);
-    LintPipelineProfiler.finalizeFile(triggerUriStr, dependentUriStrs.length);
+    // Only on explicit force (e.g. fix-active-file): also refresh files that
+    // still show Problems. Never do this on ordinary saves — after a workspace
+    // lint every scanned URI is tracked, which would re-lint the whole project.
+    if (force) {
+      for (const uriStr of this.collectPublishedProblemUriStrings(triggerUri)) {
+        dependentKeySet.add(uriStr);
+      }
+    }
+
+    if (dependentKeySet.size === 0) return;
+
+    LintPipelineProfiler.recordDependentPropagation(dependentKeySet.size);
+    LintPipelineProfiler.finalizeFile(triggerUriStr, dependentKeySet.size);
 
     const dependentUris: vscode.Uri[] = [];
-    for (const uriStr of dependentUriStrs) {
+    for (const uriStr of dependentKeySet) {
       try {
         const xUri = vscode.Uri.parse(uriStr);
         if (isExcluded(xUri.fsPath) || isReadOnlyModuleFile(xUri.fsPath)) continue;
@@ -443,9 +535,12 @@ export class DiagnosticService {
 
     if (dependentUris.length === 0) return;
 
+    const program = AnalysisProgram.getInstance();
     for (const uri of dependentUris) {
       this.pendingDependentUris.add(uri.toString().toLowerCase());
       LanguageProcessor.getInstance().invalidate(uri.toString());
+      program.invalidateCheck(uri.toString());
+      indexer.invalidateFileLintCaches(uri.toString());
     }
 
     const BATCH_SIZE = resolveLintBatchConcurrency();
@@ -465,6 +560,39 @@ export class DiagnosticService {
       );
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
+  }
+
+  /**
+   * URIs that currently have at least one published diagnostic (excludes the
+   * trigger). Tracking maps alone are not enough — workspace lint registers
+   * every scanned file even when the diagnostic list is empty.
+   */
+  private static collectPublishedProblemUriStrings(except: vscode.Uri): string[] {
+    const exceptKey = this.uriKey(except);
+    const result: string[] = [];
+    const seen = new Set<string>();
+
+    const consider = (uri: vscode.Uri): void => {
+      const key = this.uriKey(uri);
+      if (key === exceptKey || seen.has(key)) return;
+      const tracked = this.resolveCollectionUri(uri);
+      const diags = this._collection?.get(tracked) ?? [];
+      if (diags.length === 0) return;
+      seen.add(key);
+      result.push(uri.toString());
+    };
+
+    for (const uri of this.liveDiagnosticUris.values()) {
+      consider(uri);
+    }
+    for (const uri of this.workspaceDiagnosticUris.values()) {
+      consider(uri);
+    }
+    return result;
+  }
+
+  private static isPrincipalBasUri(uri: vscode.Uri): boolean {
+    return /(?:^|[\\/])principal\.bas$/i.test(uri.fsPath);
   }
 
   private static validateModuleReference(
@@ -666,9 +794,9 @@ export class DiagnosticService {
           : ["Reiniciar Linter"];
       vscode.window.showInformationMessage(msg, ...actions).then(async (selection) => {
         if (selection === "Corrigir Tudo (Ajuste em Massa)") {
-          await vscode.commands.executeCommand("data7.fixAllWorkspace");
+          await vscode.commands.executeCommand(COMMAND_IDS.fixAllWorkspace);
         } else if (selection === "Reiniciar Linter") {
-          await vscode.commands.executeCommand("data7.runLinter");
+          await vscode.commands.executeCommand(COMMAND_IDS.runLinter);
         }
       });
     }
@@ -695,7 +823,7 @@ export class DiagnosticService {
     let warningCount = 0;
     let infoCount = 0;
 
-    this.clearWorkspaceDiagnostics();
+    this.prepareFreshWorkspaceAnalysis(uris);
 
     const openUris: vscode.Uri[] = [];
     const diskUris: vscode.Uri[] = [];
@@ -804,6 +932,7 @@ export class DiagnosticService {
     }
 
     await this.refreshUnusedCodeDiagnostics(uris);
+    this.persistAnalysisCacheAfterWorkspaceLint();
 
     return { errorCount, warningCount, infoCount, fileCount: uris.length };
   }
@@ -1078,6 +1207,7 @@ export class DiagnosticService {
     this.suppressLiveLintUntil.clear();
     this.dependentPropagationScheduled = false;
     this.pendingDependentTriggerUri = undefined;
+    this.pendingDependentForce = false;
     this.refreshDebounced.cancelAll();
     this.externalRefreshDebounced.cancelAll();
     SemanticLintCache.resetForTests();
@@ -1172,14 +1302,6 @@ export class DiagnosticService {
       resolvedPath === resolvedWorkspace ||
       resolvedPath.startsWith(resolvedWorkspace + path.sep.toLowerCase())
     );
-  }
-
-  private static clearWorkspaceDiagnostics(): void {
-    for (const uri of this.workspaceDiagnosticUris.values()) {
-      this.deleteFromCollection(uri);
-      this.unusedCodeByUri.delete(this.uriKey(uri));
-    }
-    this.workspaceDiagnosticUris.clear();
   }
 
   /**
