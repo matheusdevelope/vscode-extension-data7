@@ -186,6 +186,8 @@ function registerWorkspaceListeners(context: vscode.ExtensionContext): void {
 
       const diagnosticsFeatures = readConfiguration().features.diagnostics;
       if (!diagnosticsFeatures.enabled) return;
+      // LSP owns Problems for open documents; local workspace/live publish would duplicate.
+      if (diagnosticsFeatures.useLanguageServer) return;
       if (diagnosticsFeatures.lintWorkspaceOnStartup) {
         void DiagnosticService.lintWorkspace(false);
         return;

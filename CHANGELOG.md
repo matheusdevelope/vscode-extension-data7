@@ -28,7 +28,8 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Comando `data7.linter.restartAnalysis`:** reinicia o motor de análise em ordem — limpa estado e Problems, zera caches, recria índice e republica diagnósticos — sem exigir recarregar a janela.
 
 ### Corrigido
-- **Genéricos — template indexado depois do uso:** um arquivo que usa `TList<Integer>` e é indexado antes do arquivo que declara `Class TList<T>` ficava permanentemente sem as instanciações planas (`TList_Integer`), quebrando hover, completions e assinatura. O índice agora registra a revisão de templates com que cada arquivo foi expandido e reexpande os defasados na próxima leitura.
+- **Problems duplicados com Language Server:** com `features.diagnostics.useLanguageServer=true`, o comando/varredura de workspace do `DiagnosticService` ainda publicava na collection local (`owner: data7`) enquanto o Language Client republicava ao abrir o arquivo (`owner: _generated_diagnostic_collection_name_#0` / agora `data7-lsp`). O caminho local deixa de publicar (e limpa a collection) em modo LSP; o lint de workspace avisa e não preenche Problems até a Fase 5 do LSP-001.
+
 - **Diagnósticos vindos do worker sem Quick Fix:** `SerializedLintDiagnostic` passa a transportar `data`, `tags` e `relatedInformation`, então diagnósticos produzidos em worker mantêm o payload tipado que as Code Actions consomem.
 - **Quick Fix `missing-mybase-new`:** `Sub New()` passa a ser inserido no **topo** da classe (logo após a linha `Class`), e não antes do `End Class` — assim convive com `Sub Free()` no fix-all sem colidir na mesma posição.
 - **Fix-all / merge de edições:** inserts na mesma linha mas em colunas distintas (ex.: `Sub New` no col 0 e remoção de `Public` no campo seguinte) deixam de ser tratados como conflito — o merge usava comparação só por linha e descartava o construtor.

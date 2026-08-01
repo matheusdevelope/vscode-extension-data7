@@ -5,7 +5,13 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { DiagnosticCodes, WorkspaceSymbolIndexer } from "@data7/core";
+import {
+  clearExtensionSettingsProviderForTests,
+  DEFAULT_EXTENSION_SETTINGS,
+  DiagnosticCodes,
+  installExtensionSettingsProvider,
+  WorkspaceSymbolIndexer,
+} from "@data7/core";
 
 import { DiagnosticService } from "../../services/diagnostic-service";
 
@@ -1029,6 +1035,75 @@ describe("DiagnosticService live lifecycle", () => {
       );
     } finally {
       (vscode.workspace as any).getWorkspaceFolder = originalGetWorkspaceFolder;
+    }
+  });
+
+  test("does not publish to the local Problems collection when useLanguageServer is on", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-diagnostics-lsp-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_bad.bas");
+    fs.writeFileSync(
+      basPath,
+      [
+        "Namespace mod_bad",
+        "Class C",
+        "  Public Sub Run()",
+        "    Dim value As MissingType",
+        "  End Sub",
+        "End Class",
+        "End Namespace",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    let setCount = 0;
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        setCount++;
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    installExtensionSettingsProvider(() => ({
+      ...DEFAULT_EXTENSION_SETTINGS,
+      features: {
+        ...DEFAULT_EXTENSION_SETTINGS.features,
+        diagnostics: {
+          ...DEFAULT_EXTENSION_SETTINGS.features.diagnostics,
+          useLanguageServer: true,
+        },
+      },
+    }));
+
+    try {
+      DiagnosticService.initialize({ subscriptions: [] } as any);
+      DiagnosticService.lintFile(uri);
+
+      assert.equal(
+        setCount,
+        0,
+        "LSP mode must not write to DiagnosticCollection(data7); Language Client owns Problems",
+      );
+      assert.equal(entries.size, 0);
+    } finally {
+      clearExtensionSettingsProviderForTests();
     }
   });
 });

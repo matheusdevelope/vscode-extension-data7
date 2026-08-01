@@ -137,6 +137,8 @@ export class DiagnosticService {
 
     context.subscriptions.push(
       vscode.commands.registerCommand("data7.refreshDiagnostics", (uriStr: string) => {
+        // In LSP mode the Language Client owns Problems; local refresh would duplicate.
+        if (this.languageServerOwnsProblems()) return;
         const doc = vscode.workspace.textDocuments.find(
           (d) => d.uri.toString().toLowerCase() === uriStr.toLowerCase(),
         );
@@ -147,10 +149,13 @@ export class DiagnosticService {
     );
 
     // LSP path (LSP-001): when the flag is on, the LanguageServerService (started
-    // from extension.ts) owns publishDiagnostics. Skip local live listeners so
-    // Problems is not duplicated. Do not import vscode-languageclient here — it
-    // pulls real vscode types that break the in-process test mock.
-    if (readConfiguration().features.diagnostics.useLanguageServer) {
+    // from extension.ts) owns publishDiagnostics. Skip local live listeners and
+    // keep the local DiagnosticCollection empty so Problems is not duplicated
+    // (owner "data7" vs the Language Client's collection). Do not import
+    // vscode-languageclient here — it pulls real vscode types that break the
+    // in-process test mock.
+    if (this.languageServerOwnsProblems()) {
+      this.clearAllPublishedDiagnostics();
       logger.info(
         "Linter local em espera: features.diagnostics.useLanguageServer=true (diagnósticos via LSP).",
       );
@@ -385,7 +390,7 @@ export class DiagnosticService {
           this.markWorkspaceIndexReady();
         }
 
-        if (this.isEnabled()) {
+        if (this.isEnabled() && !this.languageServerOwnsProblems()) {
           this.refreshOpenDocuments();
           this.pruneClosedDiagnostics();
         }
@@ -982,6 +987,19 @@ export class DiagnosticService {
       return;
     }
 
+    // Workspace publish must not compete with the Language Client collection.
+    // Fase 5 of LSP-001 will own workspace lint via the protocol; until then,
+    // open-document diagnostics come only from `@data7/lsp`.
+    if (this.languageServerOwnsProblems()) {
+      this.clearAllPublishedDiagnostics();
+      if (showNotification) {
+        vscode.window.showInformationMessage(
+          "Com features.diagnostics.useLanguageServer ativo, os diagnósticos vêm do Language Server (arquivos abertos). O painel Problems local não é preenchido pelo linter de workspace.",
+        );
+      }
+      return;
+    }
+
     const uris = await this.findWorkspaceBasFiles();
     if (uris.length === 0) {
       if (showNotification) {
@@ -1538,6 +1556,16 @@ export class DiagnosticService {
     return readConfiguration().features.diagnostics.enabled;
   }
 
+  /**
+   * When `features.diagnostics.useLanguageServer` is on, `@data7/lsp` (via the
+   * Language Client) is the sole publisher for the Problems panel. The local
+   * `DiagnosticCollection("data7")` must stay empty — otherwise every open
+   * document appears twice (owners `data7` and `_generated_diagnostic_collection_name_#0`).
+   */
+  private static languageServerOwnsProblems(): boolean {
+    return readConfiguration().features.diagnostics.useLanguageServer === true;
+  }
+
   private static isLiveDiagnosticDocument(document: vscode.TextDocument): boolean {
     return (
       document.uri.scheme === "file" &&
@@ -1563,6 +1591,13 @@ export class DiagnosticService {
     baseDiags: readonly vscode.Diagnostic[],
     origin: "live" | "workspace",
   ): void {
+    // Gate every publish path (live, workspace batch, worker, F5 pre-run) so LSP
+    // mode cannot leave a second owner in Problems.
+    if (this.languageServerOwnsProblems()) {
+      this.clearDiagnostics(uri);
+      return;
+    }
+
     const key = this.uriKey(uri);
     const previous = this.liveDiagnosticUris.get(key) ?? this.workspaceDiagnosticUris.get(key);
     // Keep a stable Uri identity for DiagnosticCollection across live/workspace publishes.

@@ -52,6 +52,9 @@ export class LanguageServerService {
       initializationOptions: {
         settings: readConfiguration() as Data7Configuration,
       },
+      // Named collection so Problems shows owner "data7-lsp" instead of
+      // "_generated_diagnostic_collection_name_#0" when debugging duplicates.
+      diagnosticCollectionName: "data7-lsp",
       outputChannelName: "Data7 Language Server",
     };
 
