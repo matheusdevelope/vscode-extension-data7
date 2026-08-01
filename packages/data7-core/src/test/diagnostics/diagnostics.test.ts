@@ -1168,6 +1168,178 @@ End Namespace`;
       const payload = (diag as { data?: { typeName?: string } }).data;
       assert.equal(payload?.typeName, "Variant");
     });
+
+    test("does NOT emit not-enumerable for TTList<T> (Length + GetItem)", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const tlist = `Namespace mod_tlist
+   Class TTList<T>
+      Inherits TObject
+      Overridable Property Length As Integer
+         Get
+            Length = 0
+         End Get
+      End Property
+      Function GetItem(pIndex As Integer) As T
+      End Function
+      Function Take(pIndex As Integer) As T
+      End Function
+   End Class
+End Namespace`;
+      const code = `Imports mod_tlist
+Namespace mod_iter_ttlist
+   Class C
+      Sub New()
+         MyBase.New()
+      End Sub
+      Public Sub Run()
+         Dim items As TTList<String> = New TTList<String>()
+         For Each item As String In items
+         Next
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///mod_tlist.bas", tlist);
+      indexer.updateFileContent("file:///iter_ttlist.bas", code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///iter_ttlist.bas", code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.NotEnumerable);
+    });
+  });
+
+  describe("array-literal contextual typing", () => {
+    test("assigns and passes mixed subclass array literals as TTList<Base>", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const tlist = `Namespace mod_tlist
+   Class TTList<T>
+      Inherits TObject
+      Property Length As Integer
+         Get
+            Length = 0
+         End Get
+      End Property
+      Function GetItem(pIndex As Integer) As T
+      End Function
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace`;
+      const code = `Imports mod_tlist
+Namespace mod_ui
+   Class TUIComponent
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TUIEditorA
+      Inherits TUIComponent
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TUIEditorB
+      Inherits TUIComponent
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TLayout
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub AddChildren(pChildren As TTList<TUIComponent>)
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class Demo
+      Private _editores[] As TUIComponent = []
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Build()
+         Dim layout As New TLayout()
+         Dim a As New TUIEditorA()
+         Dim b As New TUIEditorB()
+         layout.AddChildren([a, b])
+         me._editores = [a, b]
+         For Each edt As TUIComponent In me._editores
+         Next
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///mod_tlist.bas", tlist);
+      indexer.updateFileContent("file:///array_ctx.bas", code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///array_ctx.bas", code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.NotEnumerable);
+    });
+
+    test("resolves Count as an alias of Length on TTList<T>", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const tlist = `Namespace mod_tlist
+   Class TTList<T>
+      Inherits TObject
+      Property Length As Integer
+         Get
+            Length = 0
+         End Get
+      End Property
+      Function GetItem(pIndex As Integer) As T
+      End Function
+   End Class
+End Namespace`;
+      const code = `Imports mod_tlist
+Namespace mod_grid
+   Class Col
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class Grid
+      Private _columns[] As Col = []
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Add()
+         Dim n As Integer = me._columns.Count
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent("file:///mod_tlist.bas", tlist);
+      indexer.updateFileContent("file:///count_alias.bas", code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc("file:///count_alias.bas", code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -5211,6 +5383,51 @@ End Class`;
       assert.ok(
         diags.some((diag) => diag.code === DiagnosticCodes.InvalidDeclaration),
         `expected invalid-declaration, got: ${diags
+          .map((diag) => `${String(diag.code)}: ${diag.message}`)
+          .join("\n")}`,
+      );
+    });
+
+    test("allows Overrides when inherited Overridable member comes from a generic base", () => {
+      const code = `Class BaseEditor<T>
+   Sub New()
+      MyBase.New()
+   End Sub
+   Overridable Function Validate() As Boolean
+      Validate = True
+   End Function
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class
+
+Class ButtonedEditor
+   Inherits BaseEditor<String>
+   Sub New()
+      MyBase.New()
+   End Sub
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class
+
+Class CepEditor
+   Inherits ButtonedEditor
+   Overrides Function Validate() As Boolean
+      Validate = MyBase.Validate()
+   End Function
+   Sub Free()
+      MyBase.Free()
+   End Sub
+End Class`;
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///teste-overrides-generic-base.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      assert.ok(
+        !diags.some((diag) => diag.code === DiagnosticCodes.InvalidDeclaration),
+        `expected no invalid-declaration, got: ${diags
           .map((diag) => `${String(diag.code)}: ${diag.message}`)
           .join("\n")}`,
       );

@@ -45,10 +45,35 @@ describe("detectEnumerable", () => {
     assert.equal(info.elementType, "String");
   });
 
-  test("returns undefined when the type has no Count property", () => {
+  test("returns undefined when the type has no Count or Length property", () => {
     const members: SymbolInfo[] = [mkIndexerMethod("Strings", "String")];
     const info = detectEnumerable("TFixture", () => members);
     assert.equal(info, undefined);
+  });
+
+  test("accepts Length as the count surface for TTList-shaped types", () => {
+    const members: SymbolInfo[] = [
+      mkProperty("Length", "Integer"),
+      mkIndexerMethod("GetItem", "TWidget"),
+      mkIndexerMethod("Take", "TWidget"),
+    ];
+    const info = detectEnumerable("TTList<TWidget>", () => members);
+    assert.ok(info);
+    assert.equal(info.countMember, "Length");
+    assert.equal(info.indexerMember, "GetItem");
+    assert.equal(info.elementType, "TWidget");
+  });
+
+  test("prefers Count over Length when both are present", () => {
+    const members: SymbolInfo[] = [
+      mkProperty("Count", "Integer"),
+      mkProperty("Length", "Integer"),
+      mkIndexerMethod("Items", "TWidget"),
+    ];
+    const info = detectEnumerable("TFixture", () => members);
+    assert.ok(info);
+    assert.equal(info.countMember, "Count");
+    assert.equal(info.indexerMember, "Items");
   });
 
   test("returns undefined when the type has no integer-indexed accessor", () => {

@@ -28,6 +28,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - **Comando `data7.linter.restartAnalysis`:** reinicia o motor de análise em ordem — limpa estado e Problems, zera caches, recria índice e republica diagnósticos — sem exigir recarregar a janela.
 
 ### Corrigido
+- **Linter — literais de array / `TTList<T>` / `For Each`:** literais `[...]` passam a usar tipagem contextual do LHS/parâmetro (`TTList<T>` / `Dim x[] As T`), em vez de colapsar misturas de subclasses em `TTList<Variant>`. `For Each` aceita `Length` + `GetItem`/`Take` (além de `Count`), e `Count` é alias de `Length` em `TTList<T>`. Herança `Inherits Foo<T>` prefere o template genérico ao monomorfo sintético ao validar `Overrides`.
 - **Problems duplicados com Language Server:** com `features.diagnostics.useLanguageServer=true`, o comando/varredura de workspace do `DiagnosticService` ainda publicava na collection local (`owner: data7`) enquanto o Language Client republicava ao abrir o arquivo (`owner: _generated_diagnostic_collection_name_#0` / agora `data7-lsp`). O caminho local deixa de publicar (e limpa a collection) em modo LSP; o lint de workspace avisa e não preenche Problems até a Fase 5 do LSP-001.
 
 - **Diagnósticos vindos do worker sem Quick Fix:** `SerializedLintDiagnostic` passa a transportar `data`, `tags` e `relatedInformation`, então diagnósticos produzidos em worker mantêm o payload tipado que as Code Actions consomem.

@@ -116,7 +116,7 @@ export class ControlFlowRule implements Rule {
     const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
     const diag = new vscode.Diagnostic(
       range,
-      `O tipo "${typeName}" não expõe a propriedade "Count" e um indexador inteiro, ` +
+      `O tipo "${typeName}" não expõe a propriedade "Count"/"Length" e um indexador inteiro, ` +
         `requisitos do "For Each". O compilador não conseguirá transpilar esta linha.`,
       vscode.DiagnosticSeverity.Warning,
     );

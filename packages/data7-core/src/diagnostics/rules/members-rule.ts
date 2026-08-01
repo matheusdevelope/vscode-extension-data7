@@ -705,6 +705,7 @@ export class MembersRule implements Rule {
         context.document,
         Math.max(0, (argument.loc?.startLine ?? lineIdx + 1) - 1),
         context.indexer,
+        parameter.type,
       );
       if (!argumentType) continue;
       if (DiagnosticsLinter.isTypeCompatible(argumentType, parameter.type, context.indexer)) {
@@ -767,15 +768,24 @@ export class MembersRule implements Rule {
     lineIdx: number,
     context: RuleContext,
   ): void {
-    const argumentTypes = node.arguments.map((arg) =>
-      TypeResolver.resolveExpressionType(arg, context.document, lineIdx, context.indexer),
-    );
     const signatures = [method.parameters, ...(method.overloads ?? [])].filter(
       (parameters): parameters is NonNullable<SymbolInfo["parameters"]> =>
-        !!parameters && this.isArityMatch(parameters, argumentTypes.length),
+        !!parameters && this.isArityMatch(parameters, node.arguments.length),
     );
     if (signatures.length === 0) return;
     const genericSubstitutions = this.buildMethodGenericSubstitutions(method, node);
+
+    const resolveArgumentType = (
+      argument: Expression,
+      expectedType: string | undefined,
+    ): string | undefined =>
+      TypeResolver.resolveExpressionType(
+        argument,
+        context.document,
+        lineIdx,
+        context.indexer,
+        expectedType,
+      );
 
     const acceptsAnySignature = signatures.some((parameters) =>
       parameters.every((parameter, index) => {
@@ -788,7 +798,8 @@ export class MembersRule implements Rule {
           ? this.getDelegateHandlerReferenceCompatibility(argument, expectedType, lineIdx, context)
           : undefined;
         if (delegateHandlerMatch !== undefined) return delegateHandlerMatch;
-        const argumentType = argumentTypes[index];
+        if (!argument) return true;
+        const argumentType = resolveArgumentType(argument, expectedType);
         if (!argumentType) return true;
         return DiagnosticsLinter.isTypeCompatible(argumentType, expectedType, context.indexer);
       }),
@@ -799,9 +810,8 @@ export class MembersRule implements Rule {
     if (!signature) return;
     for (let i = 0; i < node.arguments.length; i++) {
       const argument = node.arguments[i];
-      const argumentType = argumentTypes[i];
       const parameter = signature[i];
-      if (!argument || !argumentType || !parameter) continue;
+      if (!argument || !parameter) continue;
       const expectedType = this.substituteMethodGenericType(parameter.type, genericSubstitutions);
       if (
         argument.kind === "ArrowFunctionExpression" &&
@@ -815,6 +825,8 @@ export class MembersRule implements Rule {
       ) {
         continue;
       }
+      const argumentType = resolveArgumentType(argument, expectedType);
+      if (!argumentType) continue;
       if (DiagnosticsLinter.isTypeCompatible(argumentType, expectedType, context.indexer)) {
         continue;
       }

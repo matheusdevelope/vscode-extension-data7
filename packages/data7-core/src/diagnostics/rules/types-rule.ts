@@ -312,6 +312,7 @@ export class TypesRule implements Rule {
       context.document,
       lineIdx,
       context.indexer,
+      lhsType,
     );
 
     if (lhsType && this.isLambdaAssignedToDelegate(lhsType, node.initializer, context)) return;
@@ -362,6 +363,7 @@ export class TypesRule implements Rule {
       context.document,
       lineIdx,
       context.indexer,
+      lhsType,
     );
 
     const isLocalAssignmentTarget =

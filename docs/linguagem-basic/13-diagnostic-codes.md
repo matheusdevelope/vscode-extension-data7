@@ -264,7 +264,7 @@ rep.Caption = "X"   ' <-- unsupported-member (Caption herdado de TForm não é t
 
 ### `not-enumerable`
 
-`For Each ... In <expr>` mas o tipo de `<expr>` não expõe `Count` + indexer inteiro (`Items`/`Item`/`Strings`/`Objects`).
+`For Each ... In <expr>` mas o tipo de `<expr>` não expõe `Count`/`Length` + indexer inteiro (`Items`/`Item`/`GetItem`/`Take`/`Strings`/`Objects`).
 
 ```basic
 Class NotIterable

@@ -4,11 +4,11 @@ import type { SymbolInfo } from "./symbol-indexer";
  * Shape returned by {@link detectEnumerable} when a type qualifies as
  * enumerable for the `For Each` sugar.
  *
- * - `countMember` is the exact case-sensitive member name (e.g. `Count`)
- *   that exposes the element count as an `Integer`.
+ * - `countMember` is the exact case-sensitive member name (e.g. `Count` or
+ *   `Length`) that exposes the element count as an `Integer`.
  * - `indexerMember` is the exact case-sensitive member name (e.g. `Strings`,
- *   `Items`, `Objects`) that accepts a single `Integer` and returns the
- *   element type. May be a `method` or an `indexed-property`.
+ *   `Items`, `Objects`, `GetItem`, `Take`) that accepts a single `Integer` and
+ *   returns the element type. May be a `method` or an `indexed-property`.
  * - `elementType` is the declared return type of the indexer (e.g. `String`,
  *   `TObject`, `Variant`). Used both as the default `Dim` type when the user
  *   omits `As <Type>` and as a tiebreaker when multiple indexers exist.
@@ -23,13 +23,13 @@ export interface EnumerableInfo {
  * Preferred indexer names, in priority order, when the user does not
  * disambiguate via `As <Type>`. Matches the conventional Delphi/VCL accessor
  * names so a `Collections.StringList` resolves to `Strings` (not `Objects`)
- * by default.
+ * by default. `GetItem` / `Take` cover `TTList<T>` from `mod_tlist`.
  */
-const PREFERRED_INDEXER_NAMES = ["items", "item", "strings", "objects"] as const;
+const PREFERRED_INDEXER_NAMES = ["items", "item", "getitem", "take", "strings", "objects"] as const;
 
 /**
- * Decides whether `typeName` exposes the `Count` + single-`Integer`-indexer
- * pair required by the `For Each` sugar transpiler.
+ * Decides whether `typeName` exposes a count surface (`Count` or `Length`) plus
+ * a single-`Integer`-indexer pair required by the `For Each` sugar transpiler.
  *
  * The function is pure: callers inject the member lookup so it can be unit
  * tested without a `WorkspaceSymbolIndexer` and reused by both the linter
@@ -41,7 +41,7 @@ const PREFERRED_INDEXER_NAMES = ["items", "item", "strings", "objects"] as const
  * if no such indexer exists, the function falls back to the conventional
  * name priority and finally to the first matching indexer.
  *
- * Returns `undefined` when no `Count` property or no eligible indexer is found.
+ * Returns `undefined` when no count surface or no eligible indexer is found.
  */
 export function detectEnumerable(
   typeName: string,
@@ -53,12 +53,7 @@ export function detectEnumerable(
   const members = lookupMembers(typeName);
   if (members.length === 0) return undefined;
 
-  const count = members.find(
-    (m) =>
-      m.name.toLowerCase() === "count" &&
-      m.kind === "property" &&
-      m.type.toLowerCase() === "integer",
-  );
+  const count = findCountMember(members);
   if (!count) return undefined;
 
   const indexerCandidates = members.filter(
@@ -105,4 +100,23 @@ export function detectEnumerable(
     indexerMember: fallback.name,
     elementType: fallback.type,
   };
+}
+
+/**
+ * `Collections.StringList` exposes `Count`; `TTList<T>` exposes `Length`.
+ * Prefer the conventional `Count` name when both exist.
+ */
+function findCountMember(members: readonly SymbolInfo[]): SymbolInfo | undefined {
+  const isIntegerCountSurface = (m: SymbolInfo, name: string): boolean => {
+    if (m.name.toLowerCase() !== name) return false;
+    if (m.type.toLowerCase() !== "integer") return false;
+    if (m.kind === "property") return true;
+    // Parameterless `Function Length() As Integer` (legacy TTObjectList shape).
+    return m.kind === "method" && (m.parameters?.length ?? 0) === 0;
+  };
+
+  return (
+    members.find((m) => isIntegerCountSurface(m, "count")) ??
+    members.find((m) => isIntegerCountSurface(m, "length"))
+  );
 }

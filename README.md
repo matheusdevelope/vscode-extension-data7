@@ -65,6 +65,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - Lambdas materializadas em cadeias `TTList.Filter(...).Map_*(...).Reduce_*` preservam a assinatura completa do delegate, incluindo `extra As Variant`, e `Every` emite `Not (<comparacao>)` para manter a precedencia correta.
 - O monomorfizador materializa retornos genericos fluentes de qualquer classe concreta, evitando metodos ausentes em cadeias como `Classe<T>.Metodo<TOut>() As OutraClasse<TOut>` e descartando usos ainda abertos como `Classe<T>` em comentarios ou templates.
 - O parser/linter aceita propriedades indexadas com multiplos argumentos em colchetes, como `Grid.Cells[0, 1]`, alem da forma com parenteses; metodos/funcoes seguem restritos a parenteses, e `[]` tambem permanece valido para arrays e matrizes nativas.
+- Literais `[a, b]` e `Dim x[] As T = []` usam tipagem contextual do destino (`TTList<T>` / parâmetro); `For Each` itera `TTList<T>` via `Length`+`GetItem`/`Take` (e `Count` é alias de `Length`).
 
 ### Sistema de projeto
 

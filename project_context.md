@@ -150,8 +150,9 @@ Açúcares atualmente suportados:
 
 #### `For Each <var>[ As <Tipo>] In <expr> ... Next` (enumerable)
 
-- Para qualificar como iterável, o tipo de `<expr>` deve expor `Count As Integer` + um acessor inteiro (precedência `Items` > `Item` > `Strings` > `Objects`).
-- A expansão emite `For __idxN = 0 To <src>.Count - 1` + um `Dim` sintético do elemento, materializando `__srcN` se `<expr>` for complexa.
+- Para qualificar como iterável, o tipo de `<expr>` deve expor `Count` **ou** `Length` como `Integer` + um acessor inteiro (precedência `Items` > `Item` > `GetItem` > `Take` > `Strings` > `Objects`). `TTList<T>` qualifica via `Length` + `GetItem`/`Take`; `Collections.StringList` via `Count` + `Strings`.
+- A expansão emite `For __idxN = 0 To <src>.<Count|Length> - 1` + um `Dim` sintético do elemento, materializando `__srcN` se `<expr>` for complexa.
+- Literais de array `[...]` usam tipagem contextual do LHS/parâmetro quando o destino é `TTList<T>` (ou `Dim x[] As T`): elementos compatíveis com `T` (incluindo subclasses) tipam o literal como a lista esperada, em vez de `TTList<Variant>`.
 - Detector pure em `src/analysis/enumerable-detector.ts`, consumido pelo transpilador E pelo linter.
 
 #### `For Each <var>[ As Integer] In <start>..<end>` (range)
@@ -359,7 +360,7 @@ Reservados em `kebab-case` e usados como valor de `Diagnostic.code`. Adições n
 - `private-member-access` — um acesso `obj.X` referencia um membro `Private` declarado fora da classe atual.
 - `event-signature-mismatch` — um handler atribuído a `obj.OnXxx` tem aridade incompatível com a do delegate declarado pela propriedade (ex.: `TNotifyEvent` espera 1 parâmetro).
 - `unsupported-member` — o membro acessado em `obj.X` ou `Me.X` está declarado na System Library, mas marcado com `isUnsupported=true` porque o compilador Data7 não traduz aquele membro do autocomplete original (TMS/DevExpress). Emite _Warning_ (não _Error_) para que o usuário possa avaliar a substituição sem bloquear o build local.
-- `not-enumerable` — o operando à direita de `In` em `For Each <var>[ As <Tipo>] In <expr>` resolve para um tipo que não expõe a propriedade `Count` mais um acessor inteiro. O `Builder` deixaria a linha intacta no `.7proj` (gerando erro em runtime do executor), por isso emitimos _Warning_ no editor com o payload `NotEnumerablePayload` (`{ code, typeName }`).
+- `not-enumerable` — o operando à direita de `In` em `For Each <var>[ As <Tipo>] In <expr>` resolve para um tipo que não expõe `Count`/`Length` mais um acessor inteiro. O `Builder` deixaria a linha intacta no `.7proj` (gerando erro em runtime do executor), por isso emitimos _Warning_ no editor com o payload `NotEnumerablePayload` (`{ code, typeName }`).
 - `unknown-suppression-code` — uma diretiva `' data7:disable-line <code>` ou `disable-next-line <code>` referencia um código que não existe em `DiagnosticCodes` (typo ou código removido). Emite _Warning_ com payload `UnknownSuppressionCodePayload` (`{ code, suppressedCode }`) — a diretiva permanece no arquivo, mas o usuário descobre que está silenciando nada.
 - `invalid-interpolation` — uma string interpolada `$"..."` está malformada (`unterminated-string` / `unterminated-brace` / `empty-expression`). O parser para na primeira falha, preserva o resto da linha, e emite _Warning_ com payload `InvalidInterpolationPayload` (`{ code, reason }`). O Builder seguirá a mesma análise via `src/utils/interpolation.ts` — diagnóstico no editor e falha no build são sempre coerentes.
 - `ternary-context-unsupported` — um ternário `cond ? a : b` foi usado fora do RHS de um assignment (em `Print`, `Return`, argumento de chamada, etc.). O transpilador só consegue expandir o ternário para o bloco multi-linha `If/Then/Else/End If` quando o target da atribuição é claro; outros contextos exigiriam restruturação do código circundante. Emite _Warning_ com payload `TernaryContextUnsupportedPayload` (`{ code, context }`).

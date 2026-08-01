@@ -510,38 +510,71 @@ export class TypeResolver {
       symbol.kind === "delegate" ||
       symbol.kind === "enum";
 
-    if (name.includes(".")) {
-      const lastDot = name.lastIndexOf(".");
-      const namePart = name.substring(lastDot + 1);
-      const nsPart = name.substring(0, lastDot).toLowerCase();
-      return indexer
-        .getSymbolsByName(namePart)
-        .find(
+    const genericBase = genericBaseNameOf(name);
+    const flatName = name.includes("<") ? normalizeGenericTypeName(name) : name;
+    // Prefer the open generic template over a synthetic flat monomorph when
+    // walking `Inherits Foo<T>` — template members carry Overridable flags.
+    const lookupNames = [...new Set([name, genericBase, flatName].filter((n): n is string => !!n))];
+
+    if (name.includes(".") || flatName.includes(".")) {
+      for (const lookup of lookupNames) {
+        if (!lookup.includes(".")) continue;
+        const lastDot = lookup.lastIndexOf(".");
+        const namePart = lookup.substring(lastDot + 1);
+        const nsPart = lookup.substring(0, lastDot).toLowerCase();
+        const hit = indexer
+          .getSymbolsByName(namePart)
+          .find(
+            (symbol) =>
+              isClassLike(symbol) &&
+              (symbol.containerName?.toLowerCase() === nsPart ||
+                nsPart.endsWith("." + (symbol.containerName?.toLowerCase() ?? ""))),
+          );
+        if (hit) return hit;
+      }
+    }
+
+    for (const lookup of lookupNames) {
+      const simpleName = lookup.includes(".") ? (lookup.split(".").pop() ?? lookup) : lookup;
+      const allClasses = indexer.getSymbolsByName(simpleName).filter(isClassLike);
+      const declaringNs = childClass.containerName?.toLowerCase();
+      if (declaringNs) {
+        const sameNs = allClasses.find(
           (symbol) =>
-            isClassLike(symbol) &&
-            (symbol.containerName?.toLowerCase() === nsPart ||
-              nsPart.endsWith("." + (symbol.containerName?.toLowerCase() ?? ""))),
+            symbol.containerName?.toLowerCase() === declaringNs &&
+            !symbol.isSyntheticGenericInstantiation,
         );
-    }
+        if (sameNs) return sameNs;
+      }
 
-    const allClasses = indexer.getSymbolsByName(name).filter(isClassLike);
-    const declaringNs = childClass.containerName?.toLowerCase();
-    if (declaringNs) {
-      const sameNs = allClasses.find(
-        (symbol) => symbol.containerName?.toLowerCase() === declaringNs,
+      const fileSym = indexer.getFileSymbols(childClass.fileUri);
+      if (fileSym) {
+        for (const imp of fileSym.imports) {
+          const impLower = imp.toLowerCase();
+          const imported = allClasses.find(
+            (symbol) =>
+              symbol.containerName?.toLowerCase() === impLower &&
+              !symbol.isSyntheticGenericInstantiation,
+          );
+          if (imported) return imported;
+        }
+      }
+
+      const template = allClasses.find(
+        (symbol) =>
+          (symbol.genericTypeParameters?.length ?? 0) > 0 &&
+          !symbol.isSyntheticGenericInstantiation,
       );
-      if (sameNs) return sameNs;
-    }
+      if (template) return template;
 
-    const fileSym = indexer.getFileSymbols(childClass.fileUri);
-    if (!fileSym) return undefined;
+      const nonSynthetic = allClasses.find((symbol) => !symbol.isSyntheticGenericInstantiation);
+      if (nonSynthetic) return nonSynthetic;
 
-    for (const imp of fileSym.imports) {
-      const impLower = imp.toLowerCase();
-      const imported = allClasses.find(
-        (symbol) => symbol.containerName?.toLowerCase() === impLower,
-      );
-      if (imported) return imported;
+      // Keep scanning lookupNames before accepting a synthetic-only hit so the
+      // open template (genericBase) can win over TTList_Foo / Foo_String flats.
+      if (allClasses.length > 0 && lookup === lookupNames[lookupNames.length - 1]) {
+        return allClasses[0];
+      }
     }
 
     return undefined;
@@ -581,23 +614,41 @@ export class TypeResolver {
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
+    expectedType?: string,
   ): string | undefined {
-    const cached = getExpressionTypeCache().get(expr);
-    if (cached !== undefined) return cached;
+    // Contextual typing (e.g. array literals against a declared TTList<T>) must
+    // not read/write the uncontexted expression cache — the same AST node can
+    // be resolved both with and without an expected type in one lint pass.
+    if (!expectedType) {
+      const cached = getExpressionTypeCache().get(expr);
+      if (cached !== undefined) return cached;
+    }
 
-    const rawType = TypeResolver.resolveExpressionTypeRaw(expr, document, lineIdx, indexer);
+    const rawType = TypeResolver.resolveExpressionTypeRaw(
+      expr,
+      document,
+      lineIdx,
+      indexer,
+      expectedType,
+    );
     if (!rawType) {
-      getExpressionTypeCache().set(expr, undefined);
+      if (!expectedType) {
+        getExpressionTypeCache().set(expr, undefined);
+      }
       return undefined;
     }
     if (!rawType.includes("<")) {
-      getExpressionTypeCache().set(expr, rawType);
+      if (!expectedType) {
+        getExpressionTypeCache().set(expr, rawType);
+      }
       return rawType;
     }
     const position = { line: lineIdx, character: 0 } as vscode.Position;
     const genericParams = TypeResolver.getGenericParametersInScope(document, position, indexer);
     const resolved = TypeResolver.resolveGenericParametersInType(rawType, genericParams);
-    getExpressionTypeCache().set(expr, resolved);
+    if (!expectedType) {
+      getExpressionTypeCache().set(expr, resolved);
+    }
     return resolved;
   }
 
@@ -704,11 +755,22 @@ export class TypeResolver {
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
+    expectedType?: string,
   ): string | undefined {
-    const cached = getRawExpressionTypeCache().get(expr);
-    if (cached !== undefined) return cached;
-    const result = TypeResolver.resolveExpressionTypeRawInternal(expr, document, lineIdx, indexer);
-    getRawExpressionTypeCache().set(expr, result);
+    if (!expectedType) {
+      const cached = getRawExpressionTypeCache().get(expr);
+      if (cached !== undefined) return cached;
+    }
+    const result = TypeResolver.resolveExpressionTypeRawInternal(
+      expr,
+      document,
+      lineIdx,
+      indexer,
+      expectedType,
+    );
+    if (!expectedType) {
+      getRawExpressionTypeCache().set(expr, result);
+    }
     return result;
   }
 
@@ -717,9 +779,16 @@ export class TypeResolver {
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
+    expectedType?: string,
   ): string | undefined {
     return TypeResolver.runWithClassResolutionContext(document, lineIdx, indexer, () =>
-      TypeResolver.resolveExpressionTypeRawInternalScoped(expr, document, lineIdx, indexer),
+      TypeResolver.resolveExpressionTypeRawInternalScoped(
+        expr,
+        document,
+        lineIdx,
+        indexer,
+        expectedType,
+      ),
     );
   }
 
@@ -728,6 +797,7 @@ export class TypeResolver {
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
+    expectedType?: string,
   ): string | undefined {
     switch (expr.kind) {
       case "TypeReferenceExpression":
@@ -1023,7 +1093,13 @@ export class TypeResolver {
       case "PipeExpression":
         return TypeResolver.resolveExpressionType(expr.right, document, lineIdx, indexer);
       case "ArrayLiteralExpression":
-        return TypeResolver.resolveArrayLiteralType(expr.elements, document, lineIdx, indexer);
+        return TypeResolver.resolveArrayLiteralType(
+          expr.elements,
+          document,
+          lineIdx,
+          indexer,
+          expectedType,
+        );
       case "SpreadExpression":
         return TypeResolver.resolveSpreadElementType(expr.expression, document, lineIdx, indexer);
       case "ArrowFunctionExpression":
@@ -1077,14 +1153,41 @@ export class TypeResolver {
     document: vscode.TextDocument,
     lineIdx: number,
     indexer: WorkspaceSymbolIndexer,
+    expectedType?: string,
   ): string {
-    let elementType: string | undefined;
+    const expectedElementType = expectedType
+      ? TypeResolver.resolveListElementType(expectedType, indexer)
+      : undefined;
+
+    if (elements.length === 0) {
+      // `Dim items As TTList<T> = []` / `Dim items[] As T = []` — empty literals
+      // inherit the declared list type instead of collapsing to TTList<Variant>.
+      return expectedElementType !== undefined && expectedType ? expectedType : "TTList<Variant>";
+    }
+
+    const elementTypes: string[] = [];
     for (const element of elements) {
       const current =
         element.kind === "SpreadExpression"
           ? TypeResolver.resolveSpreadElementType(element.expression, document, lineIdx, indexer)
           : TypeResolver.resolveExpressionType(element, document, lineIdx, indexer);
       if (!current) continue;
+      elementTypes.push(current);
+    }
+
+    if (
+      expectedType &&
+      expectedElementType &&
+      elementTypes.length > 0 &&
+      elementTypes.every((elementType) =>
+        isArgumentAssignableToParameter(elementType, expectedElementType, indexer),
+      )
+    ) {
+      return expectedType;
+    }
+
+    let elementType: string | undefined;
+    for (const current of elementTypes) {
       if (!elementType) {
         elementType = current;
         continue;
@@ -1447,10 +1550,30 @@ export class TypeResolver {
     // Do not cache by bare type name here — homonymous workspace classes (e.g. mod_enum.TEnum
     // vs core_modules/mod_tenum.TEnum) resolve differently depending on ClassResolutionContext.
     const resolved = TypeResolver.findMemberInternal(typeName, memberName, indexer, arity);
+    if (resolved) {
+      if (LintPipelineProfiler.isEnabled()) {
+        recordPerf("TypeResolver.findMember", performance.now() - t0);
+      }
+      return resolved;
+    }
+
+    // Delphi-style `Count` is the conventional name; `TTList<T>` exposes `Length`.
+    // Treat Count as an alias so member access and For Each stay consistent.
+    if (memberName.toLowerCase() === "count") {
+      const length = TypeResolver.findMemberInternal(typeName, "Length", indexer, arity);
+      if (length && length.type.toLowerCase() === "integer") {
+        const alias: SymbolInfo = { ...length, name: "Count" };
+        if (LintPipelineProfiler.isEnabled()) {
+          recordPerf("TypeResolver.findMember", performance.now() - t0);
+        }
+        return alias;
+      }
+    }
+
     if (LintPipelineProfiler.isEnabled()) {
       recordPerf("TypeResolver.findMember", performance.now() - t0);
     }
-    return resolved;
+    return undefined;
   }
 
   public static findMemberOnClassSymbol(
