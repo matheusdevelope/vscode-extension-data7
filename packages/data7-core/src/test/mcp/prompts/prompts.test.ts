@@ -1,9 +1,7 @@
 /**
- * Tests for the 3 MCP prompts (module_skeleton, TEnum_pattern,
- * typed_recordlist). We exercise the generated code by feeding it
- * through the linter to confirm the output is at least syntactically
- * coherent and produces no `missing-import` (when no external types
- * are referenced) or `unknown-member` warnings.
+ * Tests for MCP prompts (module_skeleton, TEnum_pattern / Enun).
+ * We exercise generated shapes through the linter and assert the
+ * prompt helpers emit Enun by default (not the expanded class).
  */
 import "../../_setup/global-hooks";
 
@@ -13,52 +11,107 @@ import { describe, test } from "node:test";
 import { DiagnosticsLinter } from "../../../diagnostics/diagnostics";
 import { WorkspaceSymbolIndexer } from "../../../analysis/symbol-indexer";
 import { createMockDoc } from "../../_helpers/mock-doc";
+import {
+  buildEnunDeclaration,
+  buildExpandedTEnumClass,
+  parseEnumValues,
+} from "../../../mcp/prompts/tenum-pattern";
 
-// Re-import the buildPattern helpers via the registration modules — we
-// can't reach them directly (not exported), so we re-derive the code
-// against the documented contract: the prompts must produce parseable
-// Data7 Basic that passes the canonical linter.
+describe("data7_TEnum_pattern — Enun is the default form", () => {
+  test("buildEnunDeclaration emits sugar, not Class Inherits TEnum", () => {
+    const values = parseEnumValues("Stone,Cielo");
+    const code = buildEnunDeclaration("CardAdm", values);
+    assert.match(code, /^Enun CardAdm$/m);
+    assert.match(code, /^\s{3}Stone = "Stone"$/m);
+    assert.match(code, /^\s{3}Cielo = "Cielo"$/m);
+    assert.match(code, /^End Enun$/m);
+    assert.doesNotMatch(code, /Inherits TEnum|Private Shared|_AddEnumItem/);
+  });
 
-describe("data7_TEnum_pattern — output passes basic parsing", () => {
-  test("the canonical TEnum from the convention chapter has no missing-import", () => {
+  test("buildExpandedTEnumClass remains available for customization", () => {
+    const values = parseEnumValues('[{"id":0,"label":"Stone"}]');
+    const code = buildExpandedTEnumClass("CardAdm", values);
+    assert.match(code, /Class CardAdm/);
+    assert.match(code, /Inherits TEnum/);
+    assert.match(code, /Shared Function Load\(pValue As String\)/);
+    assert.doesNotMatch(code, /^Enun /m);
+  });
+
+  test("sugar Enun declaration passes the linter without unknown-member on factories", () => {
+    const coreTenum = `Namespace mod_tenum
+   Class TEnum
+      Property AsString As String
+         Get
+            AsString = ""
+         End Get
+      End Property
+      Function IsValue(pValue As Variant) As Boolean
+         IsValue = False
+      End Function
+   End Class
+End Namespace`;
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+    indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+
+    const enun = buildEnunDeclaration("CardAdm", parseEnumValues("Stone,Cielo"));
+    const code = [
+      "Imports mod_tenum",
+      "Namespace mod_card_adm",
+      enun
+        .split("\n")
+        .map((line) => "  " + line)
+        .join("\n"),
+      "  Sub Run(p As CardAdm)",
+      "    Dim s As String = p.AsString",
+      "    If p.IsValue(CardAdm.Stone) Then",
+      "    End If",
+      "  End Sub",
+      "End Namespace",
+    ].join("\n");
+    const uri = "file:///tmp/mod_card_adm_enun.bas";
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    const blockers = diags.filter(
+      (d) =>
+        d.code !== "unused-import" &&
+        d.code !== "missing-import" &&
+        d.code !== "unknown-type" &&
+        d.code !== "unknown-symbol",
+    );
+    assert.equal(
+      blockers.filter((d) => d.code === "unknown-member").length,
+      0,
+      JSON.stringify(blockers, null, 2),
+    );
+  });
+
+  test("does not require Sub New on expanded TEnum subclasses", () => {
     const code = [
       "Namespace mod_card_adm",
       "  Class CardAdm",
       "    Inherits TEnum",
-      "",
       "    Private Shared _Initialized As Boolean",
-      "",
-      "    Private Sub New(pValue As Integer, pDescription As String)",
-      "      MyBase.New(pValue, pDescription)",
-      "    End Sub",
-      "",
       "    Private Shared Sub Initialize()",
-      "      If _Initialized Then",
-      "        Exit Sub",
-      "      End If",
+      "      If _Initialized Then Exit Sub",
       "      _Initialized = True",
       "    End Sub",
-      "",
       "  End Class",
       "End Namespace",
     ].join("\n");
-    const doc = createMockDoc("file:///tmp/mod_card_adm.bas", code);
+    const doc = createMockDoc("file:///tmp/mod_card_adm_no_ctor.bas", code);
     const indexer = WorkspaceSymbolIndexer.createDetached();
-    indexer.updateFileContent("file:///tmp/mod_card_adm.bas", code);
+    indexer.updateFileContent("file:///tmp/mod_card_adm_no_ctor.bas", code);
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(doc, indexer);
-    // TEnum is an external type the linter only knows about when
-    // a producer module is in the workspace. We allow that specific
-    // missing-import in this test — it would disappear once a real
-    // mod_base_enum is loaded.
-    const otherErrors = diags.filter(
-      (d) =>
-        d.code !== "missing-import" &&
-        d.code !== "unused-import" &&
-        d.code !== "unknown-member" &&
-        d.code !== "unknown-type" &&
-        d.code !== "missing-mybase-free",
+    assert.equal(
+      diags.filter((d) => d.code === "missing-mybase-new").length,
+      0,
+      JSON.stringify(
+        diags.filter((d) => d.code === "missing-mybase-new"),
+        null,
+        2,
+      ),
     );
-    assert.equal(otherErrors.length, 0, JSON.stringify(otherErrors, null, 2));
   });
 });
 

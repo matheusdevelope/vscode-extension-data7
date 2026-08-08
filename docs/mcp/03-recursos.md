@@ -52,7 +52,7 @@ Para cada `DiagnosticCode`, informa se existe trigger.bas e/ou after-quickfix.ba
 
 ### `data7://idioms`
 
-Documento consolidado com **preamble de preferências para agentes** (hierarquia de coleções: array-list > TTList > StringList), seguido de `12-convencoes-idiomaticas.md` e `11-limitacoes-conhecidas.md`. Leitura essencial antes de gerar código novo.
+Documento consolidado com **preamble de preferências para agentes** (hierarquia de coleções: array-list > TTList > StringList; regras de Namespace sem pontos; proibição de self-import e imports circulares, com fallback `ns.Member` qualificado), seguido de `12-convencoes-idiomaticas.md` e `11-limitacoes-conhecidas.md`. Leitura essencial antes de gerar código novo.
 
 > O projeto `mod_card_grouper` em `data7://real-project/` usa padrões legados de coleção — consulte-o para telas e domínio ERP, não como modelo para coleções novas.
 

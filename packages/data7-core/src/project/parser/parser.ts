@@ -957,10 +957,14 @@ export class Parser {
       }
       const nameToken = this.consume("identifier");
       if (nameToken === null) break;
+      // Array-list sugar: `pList[] As T` → type `TTList<T>` (same as Dim/field).
+      const isArraySugar = this.consumeArraySugarMarker();
       let type: TypeReference = emptyTypeReference();
       if (this.consume("keyword", "as") || this.consume("identifier", "as")) {
         const t = this.parseTypeReference();
-        if (t !== null) type = t;
+        if (t !== null) {
+          type = isArraySugar ? wrapArraySugarType(t, nameToken.loc) : t;
+        }
       }
       let defaultValue: Expression | undefined;
       if (this.consume("punct", "=")) {
@@ -973,6 +977,7 @@ export class Parser {
       };
       if (isByRef) decl.isByRef = true;
       if (isByVal) decl.isByVal = true;
+      if (isArraySugar) decl.isArraySugar = true;
       if (defaultValue) decl.defaultValue = defaultValue;
       params.push(decl);
       if (!this.consume("punct", ",")) break;

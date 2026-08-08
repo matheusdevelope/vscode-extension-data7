@@ -8,8 +8,10 @@ import {
   type GenericUsageOccurrence,
 } from "./generics-analyzer";
 import { SugarRegistry } from "../project/sugar-registry";
+import { expandEnumDeclaration } from "../project/sugars/plugins/enum/transformer";
 import {
   ASTWalker,
+  type ClassDeclaration,
   type CompilationUnit,
   type TypeReference,
   type Node,
@@ -370,6 +372,30 @@ class SymbolIndexerWalker extends ASTWalker {
     }
 
     if (node.kind === "EnumDeclaration") {
+      // Sugar Enun materializes as Class Inherits TEnum — index the expanded
+      // surface so Load/GetOptions/factories and inherited TEnum members
+      // (AsString, IsValue, …) resolve during analysis without expanding the
+      // lint AST (which must stay lossless for disabled-sugar / source maps).
+      if (node.isSugar) {
+        // expandEnumDeclaration returns Statement for the transformer API, but
+        // the runtime node is always a ClassDeclaration.
+        const expanded = expandEnumDeclaration(node) as unknown as ClassDeclaration;
+        // Qualify the base as mod_tenum.TEnum so a homonymous workspace
+        // `mod_enum.TEnum` (legacy, different API) cannot win when the Enun
+        // file omitted `Imports mod_tenum`. Transpile still emits simple
+        // `Inherits TEnum` + injects the import.
+        this.walk({
+          ...expanded,
+          baseType: {
+            kind: "TypeReference",
+            name: "mod_tenum.TEnum",
+            typeArguments: [],
+            loc: expanded.baseType?.loc ?? node.loc,
+          },
+        });
+        return;
+      }
+
       const isPrivate = node.modifiers?.includes("private") ?? false;
       const isProtected = node.modifiers?.includes("protected") ?? false;
       const isShared = node.modifiers?.includes("shared") ?? false;

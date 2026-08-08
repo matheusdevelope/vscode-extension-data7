@@ -413,8 +413,8 @@ export class DiagnosticsLinter {
       rhsClass &&
       lhsClass &&
       TypeResolver.areEnumTypesStrictlyCompatible(rhsType, lhsType, indexer) === false &&
-      rhsClass.inheritsFrom?.toLowerCase() === "tenum" &&
-      lhsClass.inheritsFrom?.toLowerCase() === "tenum"
+      inheritsFromTEnum(rhsClass.inheritsFrom) &&
+      inheritsFromTEnum(lhsClass.inheritsFrom)
     ) {
       return false;
     }
@@ -1140,6 +1140,13 @@ export class DiagnosticsASTWalker extends ASTWalker implements RuleContext {
     this.typeParamStack.push(set);
     return true;
   }
+}
+
+/** True when inheritsFrom is TEnum or a qualified alias (mod_tenum.TEnum). */
+function inheritsFromTEnum(inheritsFrom: string | undefined): boolean {
+  if (!inheritsFrom) return false;
+  const lower = inheritsFrom.toLowerCase();
+  return lower === "tenum" || lower.endsWith(".tenum");
 }
 
 /** StringList / TStringList / TStrings are interchangeable list-of-string APIs in Data7. */

@@ -451,4 +451,44 @@ End Namespace
       );
     });
   });
+
+  describe("Enun sugar indexing", () => {
+    test("indexes sugar Enun as a TEnum class with Load/GetOptions and entry factories", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///enun_index.bas";
+      const code = `Namespace mod_demo
+   Enun CardAdm
+      Stone = "Stone"
+      Cielo = "Cielo"
+   End Enun
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+
+      const cardAdm = indexer.getSymbolsByName("CardAdm").find((s) => s.kind === "class");
+      assert.ok(cardAdm, "Enun should be indexed as a class");
+      assert.equal(cardAdm.inheritsFrom?.toLowerCase(), "mod_tenum.tenum");
+
+      const members = indexer.getSymbolsByContainer("CardAdm");
+      assert.ok(members.some((m) => m.name === "Load" && m.kind === "method"));
+      assert.ok(members.some((m) => m.name === "GetOptions" && m.kind === "method"));
+      assert.ok(members.some((m) => m.name === "Stone" && m.isShared));
+      assert.ok(members.some((m) => m.name === "Cielo" && m.isShared));
+    });
+
+    test("keeps native Enum as kind enum without TEnum inheritance", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///native_enum_index.bas";
+      const code = `Namespace mod_demo
+   Public Enum Options
+      SqlServer = 0
+   End Enum
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+
+      const options = indexer.getSymbolsByName("Options").find((s) => s.kind === "enum");
+      assert.ok(options);
+      assert.equal(options.inheritsFrom, undefined);
+      assert.ok(!indexer.getSymbolsByName("Options").some((s) => s.kind === "class"));
+    });
+  });
 });

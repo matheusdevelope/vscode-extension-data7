@@ -463,6 +463,10 @@ export class DiagnosticService {
   public static prepareFreshWorkspaceAnalysis(uris: readonly vscode.Uri[]): void {
     this.clearAllPublishedDiagnostics();
     AnalysisProgram.getInstance().invalidateAllChecks();
+    // Drop every semantic/declaration lint cache entry so a workspace pass cannot
+    // republish stale results computed before a rules change (F5 without reload
+    // still benefits once the host rebundles and this pass runs).
+    SemanticLintCache.getInstance().clear();
 
     const processor = LanguageProcessor.getInstance();
     const indexer = WorkspaceSymbolIndexer.getInstance();
@@ -590,7 +594,11 @@ export class DiagnosticService {
       this.publishMergedDiagnostics(document.uri, unsuppressed, "live");
     });
 
-    this.scheduleUnusedCodeRefresh();
+    // Workspace batch already runs a dedicated unused-code pass at the end;
+    // scheduling another mid-batch races with prepareFresh clears.
+    if (!WorkspaceFixService.isBatchFixInProgress) {
+      this.scheduleUnusedCodeRefresh();
+    }
 
     if (
       reevaluateDependent &&
@@ -968,13 +976,17 @@ export class DiagnosticService {
       (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
     );
     if (existingDoc) {
-      this.refreshDiagnosticsNow(existingDoc, reevaluateDependent);
-      return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+      const diags = this.collectDiagnosticsFromMockDocument(existingDoc);
+      this.publishMergedDiagnostics(existingDoc.uri, diags, "live");
+      if (reevaluateDependent && !WorkspaceFixService.isBatchFixInProgress) {
+        DiagnosticService.reevaluateDependentFiles(existingDoc.uri);
+      }
+      return diags;
     }
     // Otherwise lint from disk without opening an editor tab.
     const diags = this.lintFileFromDisk(uri);
     this.publishMergedDiagnostics(uri, diags, "workspace");
-    return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+    return diags;
   }
 
   public static async lintWorkspace(showNotification = false): Promise<void> {
@@ -1019,6 +1031,7 @@ export class DiagnosticService {
         msg = "Linter concluído: Nenhum problema encontrado no projeto.";
       } else {
         msg = `Linter concluído: ${summary.errorCount} erro(s), ${summary.warningCount} aviso(s) e ${summary.infoCount} informação(ões) no projeto.`;
+        void vscode.commands.executeCommand("workbench.actions.view.problems");
       }
 
       const actions =
@@ -1146,20 +1159,22 @@ export class DiagnosticService {
 
     WorkspaceFixService.isBatchFixInProgress = true;
     try {
-      if (showProgress) {
-        await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Analisando projeto com o linter...",
-            cancellable: true,
-          },
-          async (progress, token) => {
-            await run(progress, token);
-          },
-        );
-      } else {
-        await run();
-      }
+      await AnalysisProgram.getInstance().runWithForcedSyncChecksAsync(async () => {
+        if (showProgress) {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: "Analisando projeto com o linter...",
+              cancellable: true,
+            },
+            async (progress, token) => {
+              await run(progress, token);
+            },
+          );
+        } else {
+          await run();
+        }
+      });
     } finally {
       WorkspaceFixService.isBatchFixInProgress = false;
     }
@@ -1174,14 +1189,18 @@ export class DiagnosticService {
     const openDoc = vscode.workspace.textDocuments.find(
       (d) => d.uri.toString().toLowerCase() === uri.toString().toLowerCase(),
     );
+    // Always publish the diagnostics we just computed. Re-reading the collection
+    // by a differently-cased Uri previously counted errors that never stayed in
+    // Problems (`get(uri)` returned undefined while `?? merged` still counted).
     if (openDoc) {
-      this.refreshDiagnosticsNow(openDoc, false);
-      return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+      const diags = this.collectDiagnosticsFromMockDocument(openDoc);
+      this.publishMergedDiagnostics(openDoc.uri, diags, "workspace");
+      return diags;
     }
 
     const diags = await this.lintFileFromDiskAsync(uri);
     this.publishMergedDiagnostics(uri, diags, "workspace");
-    return this._collection?.get(uri) ? [...this._collection.get(uri)!] : [];
+    return diags;
   }
 
   private static async lintDiskUrisWithWorkerPool(
@@ -1236,12 +1255,17 @@ export class DiagnosticService {
     for (const uri of diskUris) {
       const uriStr = uri.toString();
       const preamble = preambleByUri.get(uriStr) ?? [];
-      const advanced = this.deserializeWorkerDiagnostics(
-        workerResult.diagnosticsByUri.get(uriStr) ?? [],
-      );
+      // Workers may echo a differently-cased URI; match case-insensitively.
+      const advancedSerialized =
+        workerResult.diagnosticsByUri.get(uriStr) ??
+        [...workerResult.diagnosticsByUri.entries()].find(
+          ([key]) => key.toLowerCase() === uriStr.toLowerCase(),
+        )?.[1] ??
+        [];
+      const advanced = this.deserializeWorkerDiagnostics(advancedSerialized);
       const merged = [...preamble, ...advanced];
       this.publishMergedDiagnostics(uri, merged, "workspace");
-      for (const diag of this._collection?.get(uri) ?? merged) {
+      for (const diag of merged) {
         if (diag.severity === vscode.DiagnosticSeverity.Error) {
           errorCount++;
         } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
@@ -1732,16 +1756,17 @@ export class DiagnosticService {
           continue;
         }
       }
-      const existing = this._collection?.get(uri) ?? [];
+      const collectionUri = tracked ?? uri;
+      const existing = this._collection?.get(collectionUri) ?? [];
       const base = existing.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
       const unusedCode = nextMap.get(key) ?? [];
       if (base.length === 0 && unusedCode.length === 0) {
-        this.deleteFromCollection(uri);
+        this.deleteFromCollection(collectionUri);
         continue;
       }
-      this._collection?.set(uri, [...base, ...unusedCode]);
+      this._collection?.set(collectionUri, [...base, ...unusedCode]);
       if (!tracked) {
-        this.workspaceDiagnosticUris.set(key, uri);
+        this.workspaceDiagnosticUris.set(key, collectionUri);
       }
     }
   }

@@ -3,7 +3,7 @@
  * conventions and its known limitations. Helps AI agents understand
  * what NOT to write (no closures with capture, no operator overloading,
  * etc.) and what the canonical workarounds look like (`extra As Variant`,
- * `TEnum`, `array-list`, `TTList<T>`).
+ * `Enun` / TEnum, `array-list`, `TTList<T>`).
  *
  * Built by concatenating the two source markdowns; both chapters live in
  * `docs/linguagem-basic/` so they remain editable as standalone references
@@ -29,8 +29,38 @@ const PREAMBLE = `# Guia rápido para agentes — preferências de linguagem
 | Objetos de domínio | \`TTList<T>\` via \`mod_tlist\` + array-list | Subclasse \`Inherits TTList<T>\` quando Filter retorna tipo concreto |
 | Iteração simples | \`For Each\` sobre \`TTList\` / \`[]\` | \`For Each\` sobre \`StringList\` |
 | Strings / interop ERP | \`StringList\` + \`Imports Collections\` | — |
-| Enum rico | \`Enun\` sugar → \`TEnum\` | Prompt \`data7_TEnum_pattern\` |
+| Enum rico | \`Enun X / End Enun\` (sugar → TEnum) | \`data7_TEnum_pattern\` com \`form: "expanded"\` só se precisar customizar a classe |
 | Boilerplate CType/delegates | **Evitar** em código novo | Prompt \`data7_typed_recordlist\` |
+
+## Namespaces e Imports (obrigatório)
+
+### Nome de \`Namespace\`
+
+- Um namespace **nunca** é declarado com pontos (\`.\`).
+- Caracteres aceitos: letras, números e underscore (\`_\`).
+- Deve **começar** com letra ou underscore.
+- Forma canônica: \`[A-Za-z_][A-Za-z0-9_]*\` (ex.: \`mod_card_record\`, \`_helpers\`).
+- **Errado:** \`Namespace mod.card.record\` / \`Namespace 2grid\`.
+- **Certo:** \`Namespace mod_card_record\`.
+- Pontos existem só em **acesso qualificado** (\`mod_foo.Bar\`) ou em alguns \`Imports\` da System Library (\`System.Classes\`), **não** na declaração \`Namespace\`.
+
+### Nunca importe o próprio namespace
+
+- **Nunca** escreva \`Imports <X>\` no mesmo arquivo que declara \`Namespace <X>\`.
+- Isso é auto-import e o linter emite [\`circular-import\`](data7://diagnostics/codes).
+
+### Imports circulares
+
+- **Imports circulares não são aceitos** (A importa B e B importa A, direta ou transitivamente). Diagnóstico: \`circular-import\`.
+- Se parecer necessário um ciclo: **reavalie a estrutura** (extraia tipos compartilhados para um terceiro módulo) **ou** use o nome **qualificado sem \`Imports\`**:
+
+\`\`\`basic
+' Em vez de Imports mod_outro no arquivo que cria o ciclo:
+Dim parser As mod_outro.XMLParser
+Call mod_outro.Processar(dados)
+\`\`\`
+
+Forma: \`nome_do_namespace.NomeDoMetodoOuTipoOuVariavel\`.
 
 ## Exemplos canônicos (carregue via \`data7://examples/...\`)
 
@@ -38,12 +68,13 @@ const PREAMBLE = `# Guia rápido para agentes — preferências de linguagem
 - \`data7://examples/sugar/array-list/02-object-windowing-chains\`
 - \`data7://examples/sugar/array-list/03-four-stage-chain\`
 - \`data7://examples/sugar/array-list/04-subclass-filter\`
+- \`data7://examples/diagnostics/circular-import/trigger\` — auto-import / ciclo (não reproduzir)
 
 ## Prompts MCP para geração
 
 - Coleção moderna: \`data7_array_list_collection\`
 - Coleção legada (CType/delegates): \`data7_typed_recordlist\` — somente integração legado
-- Enum rico: \`data7_TEnum_pattern\`
+- Enum rico: \`data7_TEnum_pattern\` — **default \`Enun\`**; \`form: "expanded"\` só para customização
 
 ## \`mod_card_grouper\` é referência legada para coleções
 
@@ -98,7 +129,7 @@ export function registerIdioms(server: McpServer): void {
     {
       title: "Idiomas e limitações de Data7 Basic",
       description:
-        "Guia consolidado para agentes: hierarquia de coleções (array-list, generics), convenções idiomáticas e limitações intrínsecas.",
+        "Guia consolidado para agentes: hierarquia de coleções, regras de Namespace/Imports (nome sem pontos, sem self-import, sem ciclos), convenções idiomáticas e limitações.",
     },
     (uri) => ({
       contents: [{ uri: uri.href, mimeType: "text/markdown", text: buildMarkdown() }],

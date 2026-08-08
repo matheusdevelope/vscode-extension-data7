@@ -26,6 +26,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     enabledByDefault: true,
     syntaxKinds: [
       "VariableDeclaration(array)",
+      "ParameterDeclaration(array)",
       "ArrayLiteralExpression",
       "SpreadExpression",
       "ArrayAccessExpression",

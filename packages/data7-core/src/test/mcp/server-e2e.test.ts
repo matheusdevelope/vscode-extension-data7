@@ -76,6 +76,10 @@ describe("MCP server e2e — resource reads", () => {
     const limitationsIdx = text.indexOf("# 11 — Limitações conhecidas");
     assert.match(text, /Hierarquia de coleções/);
     assert.match(text, /array-list/);
+    assert.match(text, /Namespaces e Imports/);
+    assert.match(text, /nunca.*pontos/i);
+    assert.match(text, /circular-import/);
+    assert.match(text, /nome_do_namespace\.NomeDoMetodoOuTipoOuVariavel/);
     assert.ok(conventionsIdx >= 0, "expected conventions chapter");
     assert.ok(limitationsIdx >= 0, "expected limitations chapter");
     assert.ok(

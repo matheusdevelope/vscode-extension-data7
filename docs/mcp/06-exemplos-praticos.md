@@ -8,17 +8,17 @@
 
 **Sequência de tools**:
 
-1. `data7://idioms` — IA carrega o preamble (preferir `array-list`) e convenções (TEnum para `Status`).
+1. `data7://idioms` — IA carrega o preamble (preferir `array-list` e `Enun` para enums).
 2. `data7_module_skeleton` com `{ moduleName: "mod_payments", namespaceName: "mod_payments", className: "TPayment", baseClass: "TRecord" }` — gera o esqueleto com `Imports mod_tlist`.
-3. `data7_TEnum_pattern` com `{ enumName: "PaymentStatus", values: "Pendente,Pago,Cancelado" }` — gera a classe enum.
+3. `data7_TEnum_pattern` com `{ enumName: "PaymentStatus", values: "Pendente,Pago,Cancelado" }` — gera `Enun PaymentStatus` (não a classe expandida).
 4. `data7_array_list_collection` com `{ elementTypeName: "TPayment", withFunctionalChain: true }` — gera `Dim payments[] As TPayment` com Filter/Map/Reduce.
 5. `data7_lint_project` com os arquivos montados — verifica que tudo está limpo antes de devolver para o humano.
 
 **Resultado**: o humano recebe arquivos `.bas` prontos com coleção moderna (`Dim payments[] As TPayment`), sem boilerplate CType/delegates. Para integração com código legado que exige `TPaymentList Inherits TTList`, o agente pode usar `data7_typed_recordlist` como fallback.
 
-## Cenário B — IA refatora classe legada para usar TEnum
+## Cenário B — IA refatora constantes Integer para `Enun`
 
-**Prompt humano**: "Esse `CardAdm` está usando `Integer` cru. Refatore para o padrão TEnum."
+**Prompt humano**: "Esse `CardAdm` está usando `Integer` cru. Refatore para enum rico."
 
 ```basic
 ' arquivo enviado pelo usuário
@@ -31,36 +31,25 @@ End Class
 
 **Sequência de tools**:
 
-1. `data7_lint_bas` com o código original — IA confirma que o código atual compila mas não segue o padrão (não emite diagnóstico específico, só usa para entender o contexto).
-2. `data7://language/convencoes-idiomaticas` — IA carrega a convenção TEnum para fundamentar a refatoração.
-3. `data7_TEnum_pattern` com `{ enumName: "CardAdm", values: "Stone,Cielo,Rede" }` — gera o substituto.
-4. `data7_lint_bas` no resultado — confirma que a versão nova passa (sem `missing-import` exceto pelo próprio TEnum vir de um módulo do workspace).
-5. `data7_suggest_import` com `{ typeName: "TEnum" }` — confirma qual módulo importar.
+1. `data7_lint_bas` com o código original — IA confirma o contexto.
+2. `data7://language/convencoes-idiomaticas` — IA carrega a convenção (`Enun` padrão).
+3. `data7_TEnum_pattern` com `{ enumName: "CardAdm", values: "Stone,Cielo,Rede" }` — gera o sugar.
+4. `data7_lint_bas` no resultado — confirma que a versão nova passa.
+5. `data7_suggest_import` com `{ typeName: "TEnum" }` — confirma `mod_tenum` se necessário.
 
 **Resultado**:
 
 ```basic
-Imports mod_base_enum
+Imports mod_tenum
 
-Class CardAdm
-   Inherits TEnum
-
-   Private Shared _Initialized As Boolean
-
-   Private Shared Sub Initialize()
-      If _Initialized Then Exit Sub
-      TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-      TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
-      TEnum._AddEnumItem("CardAdm", New CardAdm(2, "Rede"))
-      _Initialized = True
-   End Sub
-
-   ' Shared Function Stone, Cielo, Rede ...
-   ' Load(Integer), Load(String), Load(CardAdm), GetOptions()
-End Class
+Enun CardAdm
+   Stone = "Stone"
+   Cielo = "Cielo"
+   Rede = "Rede"
+End Enun
 ```
 
-A IA também alerta o humano: "Isso muda a forma de comparar — antes `If x = CardAdm.Stone` (`Integer`), agora `If x = CardAdm.Stone()` ou `Select x.AsInteger`. Quer que eu busque os call sites?"
+A IA alerta: "Isso muda a forma de comparar — antes `If x = 0`, agora `If x.IsValue(CardAdm.Stone)` / `Select` / `.AsInteger`. Quer que eu busque os call sites?"
 
 ## Cenário C — IA corrige `missing-import` em arquivo grande (multi-file)
 

@@ -209,7 +209,7 @@ Roadmap executado em 2026-05 e consolidado no pipeline atual do `SugarTranspiler
 | C1-C4, C7 | `Class TList<T>` + monomorfização (com nested generics, constraints, primitivos via boxing) | [`generic-tlist/`](../example/sugar/generic-tlist) |
 | C5 | default indexer (convenção: `Property Item`) | [`default-indexer/`](../example/sugar/default-indexer) |
 | C6 | `For Each (k, v) In dict` (convenção: For + Names + ValueFromIndex) | [`for-each-kv/`](../example/sugar/for-each-kv) |
-| C8 | **`array-list`** — `Dim x[] As T`, literais `[...]`, `...spread`, `x[i]`, cadeias `.Filter/.Map/.Reduce` | [`array-list/`](../example/sugar/array-list) |
+| C8 | **`array-list`** — `Dim x[] As T`, `Function F(p[] As T)`, literais `[...]`, `...spread`, `x[i]`, cadeias `.Filter/.Map/.Reduce` | [`array-list/`](../example/sugar/array-list) |
 
 #### `array-list` — coleções tipadas modernas
 
@@ -221,6 +221,10 @@ Imports mod_tlist
 Dim numeros[] As Integer = [1, 2, 3, 4, 5]
 Dim mais[] As Integer = [0, ...numeros, 6]
 Dim valor As Integer = numeros[0]
+
+Function TemItens(pItems[] As Integer) As Boolean
+   TemItens = pItems.Count > 0
+End Function
 
 Dim pares[] As Integer = numeros.Filter(
    Function(pItem As Integer) As Boolean pItem Mod 2 = 0
@@ -245,7 +249,7 @@ produtos. _
 
 Lambdas usam sintaxe VB-like (`Function(...) As T expr` ou bloco `End Function`) — **não** use `=>`.
 
-Materializa `Dim x[] As T` em `TTList_T` (monomorfizado). Operações funcionais (`map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce`, `forEach`) expandem para loops nativos inline.
+Materializa `Dim x[] As T` e parâmetros `p[] As T` em `TTList_T` (monomorfizado). Operações funcionais (`map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce`, `forEach`) expandem para loops nativos inline.
 
 ### Fase D — Enum declarativo
 
@@ -254,6 +258,8 @@ Materializa `Dim x[] As T` em `TTList_T` (monomorfizado). Operações funcionais
 | D1 | `Enun X / V = "..." / End Enun` (multi-line) | [`enum-declarative/`](../example/sugar/enum-declarative) |
 
 `Enun` é a palavra-chave do açúcar declarativo de enums ricos. `Enum X / V = 0 / End Enum` é enum nativa do compilador e não é expandida pelo `SugarTranspiler`.
+
+A expansão gera `Class X Inherits TEnum` com Initialize lazy, Shared Function por valor, três overloads de `Load` (`X` / `Integer` / `String`) e `GetOptions` — **sem** construtor local (reutiliza `TEnum.New(Integer, String)`). Descrições são sempre `String`; entradas numéricas (`RedeCard = 23`) viram `"23"`. Cast via `X(TEnum._GetCache(...))`, não `CType`/`CStr`.
 
 ### Fase E — Destructuring
 

@@ -296,7 +296,35 @@ export class AnalysisProgram {
     await this.scheduler.flush(token);
   }
 
+  private forceSyncChecks = false;
+
+  /**
+   * Runs `fn` with {@link ensureChecked} always computing synchronously (no
+   * scheduler offload / stale fallback). Used by full workspace lint so the
+   * Problems panel receives the same diagnostics that the summary counts.
+   */
+  public runWithForcedSyncChecks<T>(fn: () => T): T {
+    const previous = this.forceSyncChecks;
+    this.forceSyncChecks = true;
+    try {
+      return fn();
+    } finally {
+      this.forceSyncChecks = previous;
+    }
+  }
+
+  public async runWithForcedSyncChecksAsync<T>(fn: () => Promise<T>): Promise<T> {
+    const previous = this.forceSyncChecks;
+    this.forceSyncChecks = true;
+    try {
+      return await fn();
+    } finally {
+      this.forceSyncChecks = previous;
+    }
+  }
+
   private shouldOffload(snapshot: FileSnapshot): boolean {
+    if (this.forceSyncChecks) return false;
     const loc = snapshot.content.split(/\r?\n/).length;
     if (loc >= LARGE_FILE_LOC_THRESHOLD) return true;
     // `checkResult` is cleared before this call, so the previous cost has to be

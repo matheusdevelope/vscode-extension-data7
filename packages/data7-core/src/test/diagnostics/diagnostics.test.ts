@@ -1620,6 +1620,141 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
+
+    test("resolves TEnum members on sugar Enun even when legacy mod_enum.TEnum is also indexed", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const legacy = `Namespace mod_enum
+   Class TEnum
+      Public Value As Integer
+   End Class
+End Namespace`;
+      const coreTenum = `Namespace mod_tenum
+   Class TEnum
+      Property AsString As String
+         Get
+            AsString = ""
+         End Get
+      End Property
+      Function IsValue(pValue As Variant) As Boolean
+         IsValue = False
+      End Function
+   End Class
+End Namespace`;
+      // Index legacy first so naive "first match" would pick the wrong TEnum.
+      createMockDoc("file:///data7_modules/mod_enum/mod_enum.bas", legacy);
+      indexer.updateFileContent("file:///data7_modules/mod_enum/mod_enum.bas", legacy);
+      createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+      indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+
+      // No Imports mod_tenum on the Enun file — reproduces the real-project failure.
+      const kindUri = "file:///mod_grid_column_kind.bas";
+      const kindCode = `Namespace mod_grid_column_kind
+   Enun TGridColumnKind
+      Text = "Text"
+   End Enun
+End Namespace`;
+      indexer.updateFileContent(kindUri, kindCode);
+
+      const uri = "file:///mod_grid_editor.bas";
+      const code = `Imports mod_grid_column_kind
+Namespace mod_grid_editor
+   Class C
+      Public Sub Run(pKind As TGridColumnKind)
+         If pKind.IsValue(TGridColumnKind.Text) Then
+         End If
+         Dim label As String = pKind.AsString
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+
+      const kindSym = indexer.getSymbolsByName("TGridColumnKind").find((s) => s.kind === "class");
+      assert.equal(kindSym?.inheritsFrom?.toLowerCase(), "mod_tenum.tenum");
+    });
+
+    test("resolves TEnum members on sugar Enun types (AsString, IsValue, Load, GetOptions)", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const coreTenum = `Namespace mod_tenum
+   Class TEnum
+      Protected _value As Integer
+      Protected _description As String
+      Property AsInteger As Integer
+         Get
+            AsInteger = me._value
+         End Get
+      End Property
+      Property AsString As String
+         Get
+            AsString = me._description
+         End Get
+      End Property
+      Function IsValue(pValue As Variant) As Boolean
+         IsValue = False
+      End Function
+   End Class
+End Namespace`;
+      createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+      indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+
+      const uri = "file:///enun_tenum_members.bas";
+      const code = `Imports mod_tenum
+
+Namespace mod_grid_column_kind
+   Enun TGridColumnKind
+      Text = "Text"
+      Number = "Number"
+   End Enun
+
+   Class C
+      Public Sub Run(pKind As TGridColumnKind)
+         If pKind.IsValue(TGridColumnKind.Text) Then
+            Dim label As String = pKind.AsString
+            Dim loaded As TGridColumnKind = TGridColumnKind.Load("Text")
+            Dim opts As String = TGridColumnKind.GetOptions()
+         End If
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnusedImport);
+    });
+
+    test("does NOT expose TEnum members on native Enum declarations", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const coreTenum = `Namespace mod_tenum
+   Class TEnum
+      Property AsString As String
+         Get
+            AsString = ""
+         End Get
+      End Property
+   End Class
+End Namespace`;
+      createMockDoc("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+      indexer.updateFileContent("file:///data7_modules/core_modules/mod_tenum.bas", coreTenum);
+
+      const uri = "file:///native_enum_no_tenum.bas";
+      const code = `Imports mod_tenum
+Namespace mod_native
+   Public Enum Options
+      SqlServer = 0
+   End Enum
+
+   Class C
+      Public Sub Run(pOpt As Options)
+         Dim s As String = pOpt.AsString
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(diags, DiagnosticCodes.UnknownMember, "AsString");
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -1758,7 +1893,7 @@ End Namespace`;
       );
     });
 
-    test("allows duplicate class methods with the same signature but emits a warning", () => {
+    test("emits error for duplicate class methods with the same signature", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
    Class C
@@ -1778,7 +1913,7 @@ End Namespace`;
         DiagnosticCodes.DuplicateDeclaration,
         "Membro duplicado: a classe 'C' já declara um método 'Normalize' com a mesma assinatura",
       );
-      assert.equal(diag.severity, vscode.DiagnosticSeverity.Warning);
+      assert.equal(diag.severity, vscode.DiagnosticSeverity.Error);
     });
 
     test("allows a class whose name equals its namespace ignoring case", () => {
@@ -1866,7 +2001,7 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
-    test("does NOT emit error for method with same name/params but different isShared state", () => {
+    test("emits error for method with same name/params but different isShared state", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
    Class C
@@ -1877,6 +2012,54 @@ End Namespace`;
    End Class
 End Namespace`;
       const uri = "file:///dup_shared_method.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Membro duplicado: a classe 'C' já declara um método 'Process' com a mesma assinatura",
+      );
+    });
+
+    test("emits error when a Shared factory collides with an instance field of the same name", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = loadExample("diagnostics/duplicate-declaration/02-shared-factory-field.bas");
+      const uri = "file:///dup_shared_factory_field.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "Membro duplicado: o nome 'Mask' já é utilizado por outro membro na classe 'TGridColumnDef'",
+      );
+    });
+
+    test("emits error for method overloads with different return types", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = loadExample("diagnostics/duplicate-declaration/03-overload-return-mismatch.bas");
+      const uri = "file:///dup_return_mismatch.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "overload de 'Get' na classe 'C' exige o mesmo tipo de retorno",
+      );
+    });
+
+    test("does NOT emit error for Shared and instance overloads with same return and different params", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_dup
+   Class C
+      Public Function Process(x As Integer) As Integer
+         Process = x
+      End Function
+      Public Shared Function Process(x As String) As Integer
+         Process = 0
+      End Function
+   End Class
+End Namespace`;
+      const uri = "file:///dup_shared_valid_overload.bas";
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
@@ -2214,6 +2397,23 @@ End Namespace`);
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
     });
+
+    test("does NOT emit for TEnum subclasses without a local constructor", () => {
+      const diags = runLinter(`Namespace mod_ctor_tenum
+   Class CardAdm
+      Inherits TEnum
+      Private Shared _Initialized As Boolean
+      Private Shared Sub Initialize()
+         If _Initialized Then Exit Sub
+         _Initialized = True
+      End Sub
+      Shared Function Stone As CardAdm
+         Stone = Nothing
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseNew);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -2275,10 +2475,14 @@ End Namespace`);
 
     test("does not emit warning for TEnum classes", () => {
       const diags = runLinter(`Namespace mod_free
-   Enum MyEnum
-      Value1
-      Value2
-   End Enum
+   Class CardAdm
+      Inherits TEnum
+      Private Shared _Initialized As Boolean
+      Private Shared Sub Initialize()
+         If _Initialized Then Exit Sub
+         _Initialized = True
+      End Sub
+   End Class
 End Namespace`);
       expectNoDiagnostic(diags, DiagnosticCodes.MissingMyBaseFree);
     });
@@ -5241,6 +5445,33 @@ End Namespace`;
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("accepts array-list sugar on method parameters and resolves them in scope", () => {
+      const code = `Imports mod_tlist
+
+Namespace mod_grid_builder
+   Class Builder
+      Function Columns(pColumns[] As String) As Boolean
+         Dim count As Integer = pColumns.Count
+         Columns = count > 0
+      End Function
+
+      Sub Configure(pColumns[] As String)
+         Dim first As String = pColumns.GetItem(0)
+      End Sub
+   End Class
+End Namespace`;
+      const { indexer, uri } = indexExampleWithTtListStub(
+        "sugar/array-list/01-primitive-filter-map-reduce.bas",
+      );
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, "expected-token");
+      expectNoDiagnostic(diags, DiagnosticCodes.MissingReturnType);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.InvalidAssignmentTarget);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
   });
 

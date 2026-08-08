@@ -8,11 +8,11 @@ Para **código novo**, prefira os recursos modernos da extensão antes de padrõ
 
 | Cenário | Preferir | Fallback legado |
 |---|---|---|
-| Coleção tipada nova | `Dim items[] As T` + literais `[...]` + `.Filter/.Map/.Reduce` | — |
+| Coleção tipada nova | `Dim items[] As T` / `Function F(p[] As T)` + literais `[...]` + `.Filter/.Map/.Reduce` | — |
 | Objetos de domínio | `TTList<T>` via `mod_tlist` + array-list | Subclasse `Inherits TTList<T>` quando `Filter` retorna tipo concreto ([`04-subclass-filter.bas`](../example/sugar/array-list/04-subclass-filter.bas)) |
 | Iteração simples | `For Each` sobre `TTList` / `[]` | `For Each` sobre `StringList` |
 | Strings / interop ERP | `StringList` + `Imports Collections` | — |
-| Enum rico | `Enun` sugar → `TEnum` | Prompt MCP `data7_TEnum_pattern` |
+| Enum rico | `Enun X / End Enun` (sugar → `TEnum`) | `data7_TEnum_pattern` com `form: "expanded"` só se precisar customizar a classe |
 | Boilerplate CType/delegates | **Evitar** em código novo | Prompt MCP `data7_typed_recordlist` |
 
 Exemplos canônicos de array-list:
@@ -26,19 +26,68 @@ Requisitos: `language.sugars` e `language.generics` habilitados nas configuraç�
 
 > **Nota sobre `mod_card_grouper`**: o projeto de referência usa padrões de produção anteriores (subclasses `TTList` manuais). Trate-o como exemplo de telas e domínio ERP, não como modelo para coleções novas.
 
-## 1. Padrão `TEnum`
+## 1. Enum rico — sugar `Enun` (padrão)
 
-Para enums ricos além do `Enum` nativo simples, o padrão idiomático é uma classe que herda de `TEnum`:
+Para enums ricos além do `Enum` nativo simples, **declare com o sugar** `Enun` / `End Enun`. O tooling materializa `Class X Inherits TEnum` no build; **não** escreva a classe expandida à mão no fluxo normal.
+
+```basic
+Imports mod_tenum
+
+Namespace mod_card_adm
+
+   Enun CardAdm
+      Stone = "Stone"
+      Cielo = "Cielo"
+      ' Valor numérico vira String na materialização:
+      ' RedeCard = 23
+   End Enun
+
+End Namespace
+```
+
+Uso da superfície materializada (factories, Load, membros de `TEnum`):
+
+```basic
+Dim adm As CardAdm = CardAdm.Stone
+
+If adm.IsValue(CardAdm.Cielo) Then
+   ' ...
+End If
+
+Select adm
+   Case CardAdm.Stone
+      ' ...
+   Case CardAdm.Cielo
+      ' ...
+End Select
+
+Dim label As String = adm.AsString
+Dim loaded As CardAdm = CardAdm.Load("Stone")
+
+For Each opt As String In CardAdm.GetOptions().Split(";")
+   ' ...
+Next
+```
+
+**API que o sugar disponibiliza** (após materialização):
+
+- Factories Shared por valor (`CardAdm.Stone`, …) — sem parênteses na declaração.
+- `Load(String)` / `Load(Integer)` / `Load(CardAdm)` e `GetOptions()`.
+- Instância: `.AsString`, `.AsInteger`, `.AsOption`, `.IsValue(...)` (herdados de `TEnum`).
+- Sem construtor local: a base fornece `New(Integer, String)`.
+- Descrições são sempre `String` — entradas numéricas no sugar (`RedeCard = 23`) viram `"23"`.
+
+Prompt MCP: `data7_TEnum_pattern` (default `form: "enun"`). Vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo). `Enum X / End Enum` é reservado para o enum nativo do compilador.
+
+### 1.1 Forma expandida (só customização)
+
+Use a classe `Inherits TEnum` completa **apenas** quando precisar alterar a materialização (lógica extra em `Load`, campos adicionais, etc.). Prompt: `data7_TEnum_pattern` com `form: "expanded"`.
 
 ```basic
 Class CardAdm
    Inherits TEnum
 
    Private Shared _Initialized As Boolean
-
-   Private Sub New(pValue As Integer, pDescription As String)
-      MyBase.New(pValue, pDescription)
-   End Sub
 
    Private Shared Sub Initialize()
       If _Initialized Then Exit Sub
@@ -76,32 +125,6 @@ Class CardAdm
 
 End Class
 ```
-
-Uso:
-
-```basic
-Dim adm As CardAdm = CardAdm.Stone
-
-Select adm
-   Case CardAdm.Stone
-      ' ...
-   Case CardAdm.Cielo
-      ' ...
-End Select
-
-For Each opt As String In CardAdm.GetOptions().Split(";")
-   ' ...
-Next
-```
-
-**Características**:
-
-- `_Initialized` flag para inicialização lazy (chamada só na primeira chamada a `Load`/`GetOptions`).
-- Três overloads de `Load`: por `Integer`, por `String`, por instância (reflexivo).
-- `GetOptions` retorna lista delimitada para popular ComboBoxes do ERP.
-- Cada valor declarado tem **um Shared Function** com o nome do valor (`Stone`, `Cielo`), retornando a instância.
-
-**Açúcar disponível**: `Enun X / End Enun` gera essa classe automaticamente (vide [10-acucares-atuais.md § D1](./10-acucares-atuais.md#fase-d--enum-declarativo)). `Enum X / End Enum` é reservado para o enum nativo do compilador.
 
 ## 2. Padrão `TTList` tipado
 
@@ -323,7 +346,26 @@ End Function
 
 Misturar ambos no mesmo método é tolerado mas confunde leitores — evite.
 
-## 10. Imports no topo, em blocos lógicos
+## 10. Nomes de Namespace
+
+Um `Namespace` declarado pelo usuário segue o mesmo charset dos identificadores:
+
+- Caracteres: letras, números e underscore (`_`).
+- Deve começar com letra ou underscore.
+- **Nunca use pontos (`.`)** na declaração — pontos são só para acesso qualificado (`mod_foo.Bar`) ou alguns `Imports` da System Library (`System.Classes`).
+
+```basic
+' Certo
+Namespace mod_card_record
+End Namespace
+
+' Errado — pontos na declaração
+' Namespace mod.card.record
+```
+
+Convenção: nome do arquivo ≈ nome do namespace (`mod_card_record.bas` → `Namespace mod_card_record`).
+
+## 11. Imports no topo, sem self-import e sem ciclos
 
 ```basic
 '@Module
@@ -346,7 +388,21 @@ End Namespace
 
 Separação visual em blocos (System Library / módulos compartilhados / módulos locais) facilita revisão.
 
-## 11. Nomenclatura de campos privados
+**Regras obrigatórias:**
+
+1. **Nunca** importe o namespace declarado no mesmo arquivo (`Imports mod_card_extractor` dentro de `Namespace mod_card_extractor` → [`circular-import`](./13-diagnostic-codes.md#circular-import)).
+2. **Imports circulares não são aceitos** (A↔B ou ciclos transitivos). O linter emite `circular-import`.
+3. Se um ciclo parecer necessário: **reestruture** (extraia o tipo/método compartilhado para um terceiro módulo) **ou** use o **nome qualificado sem `Imports`**:
+
+```basic
+' Evita Imports mod_outro quando o import fecharia um ciclo
+Dim parser As mod_outro.XMLParser
+Call mod_outro.Processar(dados)
+```
+
+Forma: `nome_do_namespace.NomeDoMetodoOuTipoOuVariavel`. Detalhes em [08-modulos-e-imports.md](./08-modulos-e-imports.md).
+
+## 12. Nomenclatura de campos privados
 
 `_camelCase`:
 
@@ -360,7 +416,7 @@ Campos públicos: `PascalCase` (`Nome`, `Idade`, `Estabelecimento`).
 
 Parâmetros: `p<Nome>` (`pIndex`, `pValue`, `pName`).
 
-## 12. Sobrecargas de delegate com e sem `extra`
+## 13. Sobrecargas de delegate com e sem `extra`
 
 Para conveniência do caller, todos os métodos que aceitam delegates oferecem **dois overloads**:
 

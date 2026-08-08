@@ -125,11 +125,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (155 arquivos)
+## Índice de exemplos (160 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (63)
+### sugar (66)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -137,6 +137,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/array-list/02-object-windowing-chains.bas`](./sugar/array-list/02-object-windowing-chains.bas) | array sugar em objetos — Map homomórfico, First/Last/Slice, Includes, cadeia Filter.Map (mod_testes_array_objetos) | `none` | — |
 | [`sugar/array-list/03-four-stage-chain.bas`](./sugar/array-list/03-four-stage-chain.bas) | cadeia Filter → Map → Map → Reduce com mutação de tipo (mod_exemplo_encadeamento) | `none` | — |
 | [`sugar/array-list/04-subclass-filter.bas`](./sugar/array-list/04-subclass-filter.bas) | Filter em subclasse de TTList retorna o tipo concreto (Principal.bas / Pessoas) | `none` | — |
+| [`sugar/array-list/05-parameter-array-sugar.bas`](./sugar/array-list/05-parameter-array-sugar.bas) | array sugar em parâmetros de Function/Sub — pList[] As T materializa TTList_T e resolve no escopo | `none` | — |
 | [`sugar/auto-new/_expected/01-simple.bas`](./sugar/auto-new/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/auto-new/01-simple | `none` | — |
 | [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) normalizado para `As New T()` | `none` | — |
 | [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/coalesce-assign/01-simple | `none` | — |
@@ -148,7 +149,9 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/destructure-object/01-basic.bas`](./sugar/destructure-object/01-basic.bas) | Dim { Nome, Idade } = pessoa expandido em Dims individuais | `none` | — |
 | [`sugar/destructure-object/02-rename-default.bas`](./sugar/destructure-object/02-rename-default.bas) | destructuring com rename (As n) e default (= "x") | `none` | — |
 | [`sugar/enum-declarative/_expected/01-basic.bas`](./sugar/enum-declarative/_expected/01-basic.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/enum-declarative/01-basic | `none` | — |
+| [`sugar/enum-declarative/_expected/02-numeric-description.bas`](./sugar/enum-declarative/_expected/02-numeric-description.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/enum-declarative/02-numeric-description | `none` | — |
 | [`sugar/enum-declarative/01-basic.bas`](./sugar/enum-declarative/01-basic.bas) | Enun X / End Enun expandido para Class X Inherits TEnum | `none` | — |
+| [`sugar/enum-declarative/02-numeric-description.bas`](./sugar/enum-declarative/02-numeric-description.bas) | Enun com valor numérico — descrição encapsulada em String ("23") | `none` | — |
 | [`sugar/for-each-range/_expected/01-simple.bas`](./sugar/for-each-range/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/for-each-range/01-simple | `none` | — |
 | [`sugar/for-each-range/_expected/02-variable-end.bas`](./sugar/for-each-range/_expected/02-variable-end.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/for-each-range/02-variable-end | `none` | — |
 | [`sugar/for-each-range/01-simple.bas`](./sugar/for-each-range/01-simple.bas) | For Each i In 0..10 — açúcar para o For clássico com limites numéricos | `none` | — |
@@ -197,7 +200,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (81)
+### diagnostics (83)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -215,6 +218,8 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/destructure-non-array/trigger.bas`](./diagnostics/destructure-non-array/trigger.bas) | destructure array [a, b] aplicado a tipo não indexável | `destructure-non-array@6` | `classe TPessoa sem Item(Integer) no workspace` |
 | [`diagnostics/destructure-too-deep/trigger.bas`](./diagnostics/destructure-too-deep/trigger.bas) | destructure aninhado profundamente — não suportado pelo parser line-based | `destructure-too-deep@6` | `emissão futura do linter quando o parser de destructure detectar aninhamento profundo` |
 | [`diagnostics/destructure-unknown-member/trigger.bas`](./diagnostics/destructure-unknown-member/trigger.bas) | destructure faz referência a membro inexistente | `destructure-unknown-member@6` | `classe TPessoa que NÃO tem campo Endereco no workspace` |
+| [`diagnostics/duplicate-declaration/02-shared-factory-field.bas`](./diagnostics/duplicate-declaration/02-shared-factory-field.bas) | Shared Function colide com campo de instância de mesmo nome (Mask) | `duplicate-declaration@10` | — |
+| [`diagnostics/duplicate-declaration/03-overload-return-mismatch.bas`](./diagnostics/duplicate-declaration/03-overload-return-mismatch.bas) | overload com parâmetros diferentes mas tipos de retorno distintos | `duplicate-declaration@12` | — |
 | [`diagnostics/duplicate-declaration/trigger.bas`](./diagnostics/duplicate-declaration/trigger.bas) | declaração de duas variáveis locais com o mesmo nome no mesmo método | `duplicate-declaration@7` | — |
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |

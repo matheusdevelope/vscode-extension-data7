@@ -1,5 +1,5 @@
-' @example: sugar/enum-declarative/_expected/01-basic
-' @demonstrates: Forma nativa gerada pelo SugarTranspiler para sugar/enum-declarative/01-basic
+' @example: sugar/enum-declarative/_expected/02-numeric-description
+' @demonstrates: Forma nativa gerada pelo SugarTranspiler para sugar/enum-declarative/02-numeric-description
 ' @diagnostics: none
 '
 Imports mod_enum
@@ -10,15 +10,11 @@ Namespace mod_demo
       Private Shared _Initialized As Boolean
       Private Shared Sub Initialize()
          If _Initialized Then Exit Sub
-         TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-         TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
+         TEnum._AddEnumItem("CardAdm", New CardAdm(0, "23"))
          _Initialized = True
       End Sub
-      Shared Function Stone As CardAdm
-         Stone = Load("Stone")
-      End Function
-      Shared Function Cielo As CardAdm
-         Cielo = Load("Cielo")
+      Shared Function RedeCard As CardAdm
+         RedeCard = Load("23")
       End Function
       Shared Function Load(pValue As CardAdm) As CardAdm
          Load = Load(pValue.AsString)

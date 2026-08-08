@@ -25,7 +25,7 @@ Em vez de injetar 60+ k tokens de documentação no contexto do agente toda vez 
 | [03-recursos.md](./03-recursos.md)              | Referência das 10 famílias de Resources (data7://language/_, data7://system-library/_, data7://official/\*, etc.).  |
 | [04-ferramentas.md](./04-ferramentas.md)        | Referência das 11 Tools com schema de entrada/saída.                                                                |
 | [05-prompts.md](./05-prompts.md)                | Referência dos 5 prompt templates (module_skeleton, TEnum_pattern, array_list_collection, typed_recordlist, form_skeleton). |
-| [06-exemplos-praticos.md](./06-exemplos-praticos.md) | 3 cenários end-to-end realistas (criar módulo, refatorar para TEnum, corrigir missing-import).             |
+| [06-exemplos-praticos.md](./06-exemplos-praticos.md) | 3 cenários end-to-end realistas (criar módulo, refatorar para Enun, corrigir missing-import).             |
 | [07-troubleshooting.md](./07-troubleshooting.md) | Problemas comuns: MCP não aparece, lint vazio, drift de snapshot, atualização de binário.                          |
 
 ## Por que essa pasta existe (e por que está fora do `.vsix`)

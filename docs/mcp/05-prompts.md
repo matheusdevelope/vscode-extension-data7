@@ -7,7 +7,7 @@
 | Prompt                       | Para gerar                                                                                  |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `data7_module_skeleton`      | Esqueleto canônico de um módulo (`'@Module` header + Imports + Namespace + Class).          |
-| `data7_TEnum_pattern`     | Classe TEnum completa (Initialize lazy + 3 overloads de Load + Shared Function por valor). |
+| `data7_TEnum_pattern`     | **Default:** sugar `Enun X / End Enun` + guia da API materializada. `form: "expanded"` → classe `Inherits TEnum` (só customização). |
 | `data7_array_list_collection` | Coleção tipada moderna (`Dim items[] As T`, literais, Filter/Map/Reduce). **Preferido para código novo.** |
 | `data7_typed_recordlist`     | Subclasse legada de TTList (Find/Filter/Map/ForEach + delegates + CType). **Somente integração legado.** |
 | `data7_form_skeleton`        | Esqueleto de uma tela (Form privado + `_build` com layout `Align` + eventos + `Show`/`Free`). |
@@ -26,6 +26,8 @@
   "baseClass": "TRecord"     // opcional
 }
 ```
+
+`namespaceName` deve ser um identificador `[A-Za-z_][A-Za-z0-9_]*` (sem pontos). O arquivo gerado **não** importa o próprio namespace; se precisar referenciar outro módulo sem criar ciclo, use `nome_do_namespace.Membro` qualificado (vide `data7://idioms`).
 
 **O que gera**:
 
@@ -71,36 +73,32 @@ Quando `baseClass` é omitido, o `Inherits` é suprimido e o `Sub Free()` apenas
 ```json
 {
   "enumName": "CardAdm",
-  "values": "[{\"id\":0,\"label\":\"Stone\"},{\"id\":1,\"label\":\"Cielo\"}]"
+  "values": "[{\"id\":0,\"label\":\"Stone\"},{\"id\":1,\"label\":\"Cielo\"}]",
+  "form": "enun"
 }
 ```
 
-Aceita também forma CSV simplificada: `"values": "Stone,Cielo"` (ids 0, 1 atribuídos automaticamente).
+Aceita CSV: `"values": "Stone,Cielo"`. `form` é opcional — default `"enun"`. Passe `"expanded"` só para customização fora do padrão.
 
-**O que gera**: a classe TEnum completa documentada em [`docs/linguagem-basic/12-convencoes-idiomaticas.md § 1`](../linguagem-basic/12-convencoes-idiomaticas.md), com Initialize lazy, três overloads de Load (por `enum`, `Integer`, `String`), uma Shared Function por valor, e GetOptions().
+**O que gera (default)**: declaração `Enun` + instruções da API materializada (`factories`, `Load`, `GetOptions`, `.AsString` / `.IsValue`), para a IA **não** reescrever a classe `Inherits TEnum`.
 
 ```basic
-Class CardAdm
-   Inherits TEnum
-
-   Private Shared _Initialized As Boolean
-
-   Private Shared Sub Initialize()
-      If _Initialized Then Exit Sub
-      TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-      TEnum._AddEnumItem("CardAdm", New CardAdm(1, "Cielo"))
-      _Initialized = True
-   End Sub
-
-   Shared Function Stone As CardAdm
-      Stone = Load("Stone")
-   End Function
-
-   ' ... overloads de Load + GetOptions ...
-End Class
+Enun CardAdm
+   Stone = "Stone"
+   Cielo = "Cielo"
+End Enun
 ```
 
-Idiomático para enums ricos baseados em `TEnum`. Use quando a enum nativa `Enum X / End Enum` simples não for suficiente. Para coleções tipadas, prefira `Enun` + `array-list`.
+Uso após materialização (o prompt documenta isto):
+
+```basic
+Dim adm As CardAdm = CardAdm.Stone
+If adm.IsValue(CardAdm.Cielo) Then ...
+Dim s As String = adm.AsString
+Dim loaded As CardAdm = CardAdm.Load("Stone")
+```
+
+**`form: "expanded"`**: devolve a classe completa `Inherits TEnum` (Initialize / Load×3 / GetOptions) — apenas quando o sugar não basta. Não confundir com `Enum` nativo.
 
 ### `data7_array_list_collection`
 
@@ -265,7 +263,8 @@ Todos validam os argumentos via Zod antes de chamar — argumentos inválidos vi
 | Cenário                                                              | Use isto                       |
 | -------------------------------------------------------------------- | ------------------------------ |
 | "Crie um arquivo novo `mod_xxx` para fazer Y."                       | `data7_module_skeleton`        |
-| "Eu preciso de um enum com esses 3 valores."                         | `data7_TEnum_pattern`       |
+| "Eu preciso de um enum com esses 3 valores."                         | `data7_TEnum_pattern` (default Enun) |
+| "Preciso customizar a classe TEnum expandida."                       | `data7_TEnum_pattern` com `form: "expanded"` |
 | "Preciso de uma coleção tipada de `TFoo` com Filter/Map."            | `data7_array_list_collection` |
 | "Preciso integrar com subclasse TTList legada de `TFoo`."            | `data7_typed_recordlist`       |
 | "Crie uma tela/formulário para X."                                   | `data7_form_skeleton`          |

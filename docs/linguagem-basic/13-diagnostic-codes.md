@@ -199,6 +199,30 @@ Imports Collections   ' <-- duplicate-import
 
 ---
 
+### `circular-import`
+
+O arquivo importa o **próprio** namespace, ou há um **ciclo** de `Imports` (direto A↔B ou transitivo).
+
+```basic
+Imports mod_self          ' <-- circular-import (auto-import)
+
+Namespace mod_self
+   ' ...
+End Namespace
+```
+
+**Severidade**: `error`.
+
+**O que fazer**:
+
+1. Remova o `Imports` do próprio namespace.
+2. Quebre ciclos reestruturando (extraia tipos compartilhados para um terceiro módulo).
+3. Ou use acesso qualificado sem `Imports`: `nome_do_namespace.NomeDoMetodoOuTipoOuVariavel`.
+
+**Exemplos**: [`docs/example/diagnostics/circular-import/`](../example/diagnostics/circular-import).
+
+---
+
 ### `private-member-access`
 
 Acesso a membro `Private` de uma classe a partir de outra classe.

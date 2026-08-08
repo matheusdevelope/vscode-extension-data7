@@ -132,6 +132,46 @@ describe("parser/parser", () => {
     }
   });
 
+  test("parses array-list sugar on Function/Sub/Delegate parameters", () => {
+    const src = [
+      "Function Columns(pColumns[] As String) As Boolean",
+      "   Columns = pColumns.Count > 0",
+      "End Function",
+      "Sub Apply(ByRef pItems[] As Integer)",
+      "End Sub",
+      "Delegate Function MapFn(pValues[] As Product) As Boolean",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+
+    const fn = r.unit.members[0] as MethodDeclaration;
+    assert.equal(fn.kind, "MethodDeclaration");
+    assert.equal(fn.parameters.length, 1);
+    const fnParam = fn.parameters[0];
+    assert.ok(fnParam);
+    assert.equal(fnParam.isArraySugar, true);
+    assert.equal(fnParam.type.name, "TTList");
+    assert.equal(fnParam.type.typeArguments[0]?.name, "String");
+    assert.equal(fn.returnType?.name, "Boolean");
+
+    const sub = r.unit.members[1] as MethodDeclaration;
+    assert.equal(sub.kind, "MethodDeclaration");
+    const subParam = sub.parameters[0];
+    assert.ok(subParam);
+    assert.equal(subParam.isByRef, true);
+    assert.equal(subParam.isArraySugar, true);
+    assert.equal(subParam.type.name, "TTList");
+    assert.equal(subParam.type.typeArguments[0]?.name, "Integer");
+
+    const del = r.unit.members[2] as DelegateDeclaration;
+    assert.equal(del.kind, "DelegateDeclaration");
+    const delParam = del.parameters[0];
+    assert.ok(delParam);
+    assert.equal(delParam.isArraySugar, true);
+    assert.equal(delParam.type.name, "TTList");
+    assert.equal(delParam.type.typeArguments[0]?.name, "Product");
+  });
+
   test("parses indexed member access with a parenthesized expression argument", () => {
     const src = [
       "Sub Run()",

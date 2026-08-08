@@ -180,6 +180,8 @@ export interface ParameterDeclaration extends BaseNode {
   type: TypeReference;
   isByRef?: boolean;
   isByVal?: boolean;
+  /** True when declared with array-list sugar (`pList[] As T` → `TTList<T>`). */
+  isArraySugar?: boolean;
   defaultValue?: Expression;
 }
 

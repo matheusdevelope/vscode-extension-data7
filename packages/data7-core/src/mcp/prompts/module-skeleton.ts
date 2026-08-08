@@ -58,7 +58,7 @@ export function registerModuleSkeleton(server: McpServer): void {
     {
       title: "Esqueleto canônico de módulo Data7 Basic",
       description:
-        "Gera um arquivo `.bas` com '@Module header, Imports blocks, Namespace e uma classe inicial. Imports mod_tlist por padrão para coleções modernas; use Collections apenas para interop StringList.",
+        "Gera um arquivo `.bas` com '@Module header, Imports blocks, Namespace e uma classe inicial. namespaceName deve ser [A-Za-z_][A-Za-z0-9_]* (sem pontos); nunca importe o próprio namespace no mesmo arquivo.",
       argsSchema: {
         moduleName: z
           .string()
@@ -67,7 +67,9 @@ export function registerModuleSkeleton(server: McpServer): void {
         namespaceName: z
           .string()
           .min(1)
-          .describe("Nome do namespace (geralmente igual ao moduleName)."),
+          .describe(
+            "Nome do namespace (geralmente igual ao moduleName). Só letras/números/_; começa com letra ou _. Sem pontos. Ex.: mod_payments.",
+          ),
         className: z.string().min(1).describe('Nome da classe inicial. Exemplo: "TPayment".'),
         baseClass: z
           .string()

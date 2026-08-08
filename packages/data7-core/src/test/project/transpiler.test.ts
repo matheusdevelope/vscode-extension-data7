@@ -1172,11 +1172,27 @@ describe("SugarTranspiler — D1 Enun declarative (multi-line)", () => {
     assert.doesNotMatch(out, /core_sugars_enum|CoreSugarEnum/);
     assert.match(out, /Class CardAdm/);
     assert.match(out, /Inherits TEnum/);
-    assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(0, CStr\("Stone"\)\)\)/);
-    assert.match(out, /TEnum\._GetCache\("CardAdm", pValue\)/);
+    assert.doesNotMatch(out, /Private Sub New\(/);
+    assert.doesNotMatch(out, /CStr\(/);
+    assert.doesNotMatch(out, /CType\(/);
+    assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(0, "Stone"\)\)/);
+    assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(1, "Cielo"\)\)/);
+    assert.match(out, /Stone = Load\("Stone"\)/);
+    assert.match(out, /Shared Function Load\(pValue As CardAdm\) As CardAdm/);
+    assert.match(out, /Shared Function Load\(pValue As Integer\) As CardAdm/);
+    assert.match(out, /Shared Function Load\(pValue As String\) As CardAdm/);
+    assert.match(out, /Load = CardAdm\(TEnum\._GetCache\("CardAdm", pValue\)\)/);
     assert.match(out, /Shared Function Stone As CardAdm/);
     assert.match(out, /Shared Function Cielo As CardAdm/);
     assert.match(out, /Shared Function GetOptions\(\) As String/);
+  });
+
+  test("quotes numeric Enun entry values as String descriptions", () => {
+    const code = ["Enun CardAdm", "   RedeCard = 23", "End Enun"].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(0, "23"\)\)/);
+    assert.match(out, /RedeCard = Load\("23"\)/);
   });
 
   test("preserves native Public Enum declarations", () => {
@@ -1426,6 +1442,19 @@ describe("SugarTranspiler — array-list", () => {
       `x.Push("a")`,
       `x.Push("b")`,
     ]);
+  });
+
+  test("materializes Function parameter x[] As T into TTList_T", () => {
+    const code = [
+      "Function Columns(pColumns[] As String) As Boolean",
+      "   Columns = pColumns.Count > 0",
+      "End Function",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Function Columns\(pColumns As TTList_String\) As Boolean/);
+    assert.match(out, /Columns = pColumns\.Count > 0/);
+    assert.doesNotMatch(out, /pColumns\[\]/);
   });
 
   test("injects mod_tlist when array-list materializes TTList_<Enum>", () => {

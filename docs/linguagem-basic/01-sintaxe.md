@@ -85,6 +85,7 @@ End Namespace
 - O bloco de comentários no topo é o **header** do módulo (vide [Tags semânticas](#tags-semânticas) abaixo).
 - `Imports` lista os namespaces externos que esse arquivo usa. Diretivas duplicadas disparam o diagnóstico [`duplicate-import`](./13-diagnostic-codes.md#duplicate-import).
 - `Namespace nome_do_modulo` agrupa todas as declarações. Convenção: nome igual ao do arquivo (`mod_card_record.bas` → `Namespace mod_card_record`).
+- O nome do namespace segue o charset de identificadores (`[A-Za-z_][A-Za-z0-9_]*`) — **sem pontos**. Pontos só em acesso qualificado (`mod_foo.Bar`) ou em alguns `Imports` da System Library.
 - O fechamento `End Namespace` é obrigatório.
 
 `Principal.bas` é a exceção: símbolos declarados nele são injetados no escopo global e visíveis em todos os arquivos sem necessidade de `Imports`. Vide [08-modulos-e-imports.md](./08-modulos-e-imports.md).
@@ -128,8 +129,10 @@ Tags em comentário do header têm significado para a extensão e para o Builder
 - **Case-insensitive**. `me`, `Me`, `ME` são equivalentes. `myList`, `MyList`, `mylist` referenciam a mesma variável.
 - Caracteres aceitos: `[A-Za-z_][A-Za-z0-9_]*`.
 - Acentos não são aceitos em identificadores (mas são aceitos em literais string).
+- Declarações `Namespace` usam exatamente esse charset — **nunca** pontos no nome do namespace.
 - Convenções habituais (não são regras da linguagem):
-  - **PascalCase** para classes, structures, namespaces (`CardRecord`, `TPipelineForm`).
+  - **PascalCase** / `mod_snake` para namespaces (`mod_card_record`, não `mod.card.record`).
+  - **PascalCase** para classes, structures (`CardRecord`, `TPipelineForm`).
   - **PascalCase** para métodos e propriedades públicas (`AddParam`, `Count`, `OnGesture`).
   - **`_camelCase`** para campos privados (`_form`, `_inputAdm`).
   - **`p<Algo>`** para parâmetros (`pIndex`, `pValue`, `pName`).

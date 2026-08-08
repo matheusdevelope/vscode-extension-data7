@@ -1106,4 +1106,76 @@ describe("DiagnosticService live lifecycle", () => {
       clearExtensionSettingsProviderForTests();
     }
   });
+
+  test("workspace lint publishes duplicate-declaration into Problems for closed files", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-dup-problems-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_column.bas");
+    const code = [
+      "Namespace mod_column",
+      "   Class TGridColumnDef",
+      '      Mask As String = ""',
+      "      Shared Function Mask(pCaption As String, pKey As String) As TGridColumnDef",
+      "         Mask = New TGridColumnDef()",
+      "      End Function",
+      "   End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+    fs.writeFileSync(basPath, code, "utf8");
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      dispose: () => undefined,
+    });
+
+    const originalFindFiles = vscode.workspace.findFiles;
+    const originalFolders = vscode.workspace.workspaceFolders;
+    (vscode.workspace as any).workspaceFolders = [
+      { uri: vscode.Uri.file(tmpDir), name: "TmpProject", index: 0 },
+    ];
+    (vscode.workspace as any).findFiles = async () => [uri];
+    (vscode.workspace as any).getWorkspaceFolder = () => ({
+      uri: vscode.Uri.file(tmpDir),
+      name: "TmpProject",
+      index: 0,
+    });
+
+    mockTextDocuments.length = 0;
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    DiagnosticService.markWorkspaceIndexReady();
+    DiagnosticService.invalidateWorkspaceFileList();
+
+    try {
+      await DiagnosticService.lintWorkspace(false);
+      const key = uri.toString().toLowerCase();
+      const diags = entries.get(key) ?? [];
+      assert.ok(
+        diags.some((diag) => diag.code === DiagnosticCodes.DuplicateDeclaration),
+        `expected duplicate-declaration in Problems; got: ${diags
+          .map((d) => String(d.code))
+          .join(", ")}`,
+      );
+    } finally {
+      (vscode.workspace as any).findFiles = originalFindFiles;
+      (vscode.workspace as any).workspaceFolders = originalFolders;
+    }
+  });
 });

@@ -181,7 +181,7 @@ export const DiagnosticCodes = {
    * parser errors).
    */
   InstantiationLimitExceeded: "instantiation-limit-exceeded",
-  /** An identifier's name conflicts with another declaration in the same or an outer/imported/global scope. */
+  /** An identifier's name conflicts with another declaration in the same or an outer/imported/global scope. Class Shared/instance members share one name table; method overloads require identical return types and distinct parameter type sequences. */
   DuplicateDeclaration: "duplicate-declaration",
   /** A type reference targets a type that cannot be resolved in the workspace or system library. */
   UnknownType: "unknown-type",

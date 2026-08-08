@@ -30,39 +30,20 @@
 
 O `officialExample` vem da Base de Conhecimento do ERP (Se7e Sistemas). É a forma canônica de chamar o método.
 
-## 2. "Crie um TEnum para status com Active e Inactive."
+## 2. "Crie um enum rico para status com Active e Inactive."
 
-**Prompt template acionado**: `data7_TEnum_pattern` com `{ enumName: "Status", values: "Active,Inactive" }`.
+**Prompt template acionado**: `data7_TEnum_pattern` com `{ enumName: "Status", values: "Active,Inactive" }` (default `form: "enun"`).
 
-**O que esperar**: o agente recebe a classe `Status` completa com:
+**O que esperar**: o agente recebe o sugar `Enun` e a API materializada — **não** a classe `Inherits TEnum` completa:
 
 ```basic
-Class Status
-   Inherits TEnum
-
-   Private Shared _Initialized As Boolean
-
-   Private Shared Sub Initialize()
-      If _Initialized Then Exit Sub
-      TEnum._AddEnumItem("Status", New Status(0, "Active"))
-      TEnum._AddEnumItem("Status", New Status(1, "Inactive"))
-      _Initialized = True
-   End Sub
-
-   Shared Function Active As Status
-      Active = Load("Active")
-   End Function
-
-   Shared Function Inactive As Status
-      Inactive = Load("Inactive")
-   End Function
-
-   ' três overloads de Load ...
-   ' GetOptions() ...
-End Class
+Enun Status
+   Active = "Active"
+   Inactive = "Inactive"
+End Enun
 ```
 
-O agente apenas copia/edita os identificadores conforme o seu domínio.
+Com guia de uso: `Status.Active`, `.AsString`, `.IsValue(...)`, `Status.Load(...)`, `GetOptions()`. Só use `form: "expanded"` se precisar customizar a classe gerada.
 
 ## 3. "Por que esse arquivo dá `missing-import`?"
 
@@ -92,7 +73,7 @@ O `data` carrega o payload tipado: o agente sabe exatamente que namespace adicio
 
 **Tools acionados**: `data7://idioms` → `data7_list_sugar` → `data7_get_canonical_example`.
 
-**O que esperar**: o preamble de `data7://idioms` orienta a usar `Dim items[] As T` com sugar `array-list` em vez de `StringList` ou subclasse manual `TTList`. Em seguida, `data7_list_sugar` lista o sugar `array-list` com exemplos:
+**O que esperar**: o preamble de `data7://idioms` orienta a usar `Dim items[] As T` com sugar `array-list` em vez de `StringList` ou subclasse manual `TTList`, e já lista as regras de Namespace/Imports (nome sem pontos, sem self-import, sem ciclos). Em seguida, `data7_list_sugar` lista o sugar `array-list` com exemplos:
 
 ```json
 {

@@ -9,6 +9,7 @@ Cada `.bas` é uma **unidade de compilação**. Por convenção:
 - Nome do arquivo = nome do namespace = nome do módulo. `mod_card_record.bas` declara `Namespace mod_card_record`.
 - Prefixo `mod_` é convenção idiomática para módulos compartilháveis (não é obrigatório, mas universal).
 - Um `.bas` declara **exatamente um** `Namespace` no topo.
+- O nome do `Namespace` **não aceita pontos**: só letras, números e `_`, começando por letra ou `_` (`[A-Za-z_][A-Za-z0-9_]*`). Use `mod_card_record`, nunca `mod.card.record`.
 
 ```basic
 '@Module
@@ -39,6 +40,8 @@ Regras:
 - Diretiva duplicada dispara [`duplicate-import`](./13-diagnostic-codes.md#duplicate-import).
 - Diretiva inútil (nenhum símbolo do namespace é usado) dispara [`unused-import`](./13-diagnostic-codes.md#unused-import).
 - Referência a símbolo de namespace não importado dispara [`missing-import`](./13-diagnostic-codes.md#missing-import) — e o Code Action "Importar `<Namespace>`" adiciona automaticamente.
+- **Nunca** importe o namespace declarado no mesmo arquivo (`Imports mod_card_record` + `Namespace mod_card_record` → [`circular-import`](./13-diagnostic-codes.md#circular-import)).
+- **Imports circulares não são aceitos** (ciclo direto ou transitivo). Diagnóstico: [`circular-import`](./13-diagnostic-codes.md#circular-import). Se o ciclo parecer necessário, reestruture os módulos ou use qualificação explícita (abaixo) sem `Imports`.
 
 ### Qualificação explícita
 
@@ -46,9 +49,12 @@ Pode-se referenciar um símbolo sem `Imports` usando o nome qualificado:
 
 ```basic
 Dim parser As mod_xml.XMLParser = ...    ' sem Imports mod_xml
+Call mod_xml.Processar(dados)
 ```
 
-Mas isso é raro — `Imports` é o caminho idiomático.
+Forma: `nome_do_namespace.NomeDoMetodoOuTipoOuVariavel`.
+
+Use qualificação quando um `Imports` criaria ciclo (`circular-import`) ou quando a dependência é pontual demais para merecer import. Fora desses casos, `Imports` permanece o caminho idiomático.
 
 ### `Principal.bas`
 
@@ -165,6 +171,7 @@ flowchart LR
 | [`missing-import`](./13-diagnostic-codes.md#missing-import) | Tipo de outro namespace usado sem `Imports`. Code Action: adicionar `Imports`. |
 | [`unused-import`](./13-diagnostic-codes.md#unused-import) | `Imports` declarado mas nenhum símbolo usado. Code Action: remover linha. |
 | [`duplicate-import`](./13-diagnostic-codes.md#duplicate-import) | Mesmo `Imports` declarado duas vezes. Code Action: remover duplicata. |
+| [`circular-import`](./13-diagnostic-codes.md#circular-import) | Auto-import do próprio namespace ou ciclo A↔B (direto/transitivo). Reestruture ou use `ns.Member` qualificado. |
 | [`module-not-found`](./13-diagnostic-codes.md#module-not-found) | `Imports mod_x` mas `mod_x` não existe nem no workspace, nem no repositório, nem na System Library. Code Action: instalar módulo (se possível). |
 | [`module-not-declared`](./13-diagnostic-codes.md#module-not-declared) | Módulo existe no repositório mas não consta em `data7.json#dependencies`. Code Action: adicionar à `dependencies`. |
 
@@ -173,6 +180,8 @@ flowchart LR
 - [`docs/example/diagnostics/missing-import/`](../example/diagnostics/missing-import) — exemplos canônicos.
 - [`docs/example/diagnostics/module-not-found/`](../example/diagnostics/module-not-found).
 - [`docs/example/diagnostics/module-not-declared/`](../example/diagnostics/module-not-declared).
+- [`docs/example/diagnostics/circular-import/`](../example/diagnostics/circular-import) — self-import / ciclo.
 - [`src/services/repository-service.ts`](../../src/services/repository-service.ts) — gerenciamento do repositório.
 - [`src/services/dependency-service.ts`](../../src/services/dependency-service.ts) — sincronização de dependências.
 - [01-sintaxe.md § Tags semânticas](./01-sintaxe.md#tags-semânticas) — detalhes das tags `@Module`/`@Module-Imported`.
+- [12-convencoes-idiomaticas.md §10–11](./12-convencoes-idiomaticas.md) — naming de namespace e regras de import para agentes.

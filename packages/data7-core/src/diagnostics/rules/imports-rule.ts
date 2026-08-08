@@ -1,5 +1,6 @@
 import * as vscode from "../../platform/vscode-api";
 import type { Node, CompilationUnit, SourceLocation } from "../../project/ast/ast";
+import { TypeResolver } from "../../analysis/type-resolver";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import { collectTransitivelyRequiredImports } from "../import-usage";
 import type { Rule, RuleContext } from "./base-rule";
@@ -146,9 +147,27 @@ export class ImportsRule implements Rule {
       ...context.indexer.getSymbolsByContainer(key),
       ...lookupSystemByContainer(name),
     ];
-    return symbolsInNamespace.some((symbol) =>
-      context.unitIndex.usedWords.has(symbol.name.toLowerCase()),
-    );
+    if (
+      symbolsInNamespace.some((symbol) =>
+        context.unitIndex.usedWords.has(symbol.name.toLowerCase()),
+      )
+    ) {
+      return true;
+    }
+
+    // Materialized sugars (e.g. Enun → Class Inherits TEnum) index inheritsFrom
+    // without naming the base in source — treat the base's namespace as used.
+    const fileSyms = context.indexer.getFileSymbols(context.document.uri.toString());
+    if (fileSyms) {
+      for (const symbol of fileSyms.symbols) {
+        if (!symbol.inheritsFrom) continue;
+        const parent = TypeResolver.findClassSymbol(symbol.inheritsFrom, context.indexer);
+        if (parent?.containerName?.toLowerCase() === key) return true;
+        if (parent?.name.toLowerCase() === key) return true;
+      }
+    }
+
+    return false;
   }
 
   private isKnownImportNamespace(name: string, context: RuleContext): boolean {

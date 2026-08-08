@@ -18,6 +18,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - O parser/linter ignora comentarios em listas de argumentos multiline, resolve parametros/variaveis delegate chamados como funcao (`pRegra(...)`) e reporta `missing-import` para chamadas nao qualificadas a funcoes de namespaces nao importados.
 - `loose-value-statement` cobre cadeias de valor standalone como `pItem.Margins.Bottom`, inclusive quando o receiver e `TObject`/`Variant` ou nao foi resolvido.
 - O linter preserva a identidade da classe ativa ao resolver `Me`/`MyBase`, evitando confundir campos homonimos declarados em classes diferentes ou em dependencias com o mesmo nome.
+- `duplicate-declaration` trata `Shared` e instancia na mesma tabela de nomes (campo + factory `Shared Function` com o mesmo nome colidem) e so aceita overload de metodo com o mesmo tipo de retorno e parametros distintos.
 - Toda `Class` deve declarar ao menos um `Sub New`; o diagnostico `missing-mybase-new` cria o construtor sem parametros ou insere `MyBase.New()` quando ele esta ausente.
 - Acessos a membros de variaveis tipadas com tipos inexistentes ou inacessiveis tambem sao diagnosticados, alem do `unknown-type` da declaracao.
 - Tipos nativos/externos sem declaracao podem ser liberados pontualmente com `' data7:external-type <Tipo>`; o Quick Fix de `unknown-type` adiciona a diretiva na declaracao, no escopo ou no arquivo.
@@ -65,7 +66,7 @@ Extensão do VS Code que fornece suporte completo de desenvolvimento (Language S
 - Lambdas materializadas em cadeias `TTList.Filter(...).Map_*(...).Reduce_*` preservam a assinatura completa do delegate, incluindo `extra As Variant`, e `Every` emite `Not (<comparacao>)` para manter a precedencia correta.
 - O monomorfizador materializa retornos genericos fluentes de qualquer classe concreta, evitando metodos ausentes em cadeias como `Classe<T>.Metodo<TOut>() As OutraClasse<TOut>` e descartando usos ainda abertos como `Classe<T>` em comentarios ou templates.
 - O parser/linter aceita propriedades indexadas com multiplos argumentos em colchetes, como `Grid.Cells[0, 1]`, alem da forma com parenteses; metodos/funcoes seguem restritos a parenteses, e `[]` tambem permanece valido para arrays e matrizes nativas.
-- Literais `[a, b]` e `Dim x[] As T = []` usam tipagem contextual do destino (`TTList<T>` / parâmetro); `For Each` itera `TTList<T>` via `Length`+`GetItem`/`Take` (e `Count` é alias de `Length`).
+- Literais `[a, b]` e `Dim x[] As T = []` usam tipagem contextual do destino (`TTList<T>` / parâmetro); parâmetros `pList[] As T` materializam para `TTList_T`; `For Each` itera `TTList<T>` via `Length`+`GetItem`/`Take` (e `Count` é alias de `Length`).
 
 ### Sistema de projeto
 
@@ -91,7 +92,7 @@ Os diagnÃƒÂ³sticos de sintaxe/estilo agora cobrem `finally-block-unsupported
 - Módulos locais do próprio projeto vivem nativamente em `src/`, sem a obrigatoriedade da flag `@Module`.
 - Módulos orientados a objeto usam `TTObject` para permitir armazenamento seguro em `TTList` e descarte determinÃ­stico de recursos.
 - Lambdas usam sintaxe VB-like (`Function(...) expr`, bloco `Function ... End Function` ou `Sub ... End Sub`) e sao validadas contra delegates pelo linter, incluindo o corpo da lambda e os tipos dos argumentos nas chamadas internas. Elas podem ser passadas como argumentos em chamadas multiline, chamadas encadeadas com continuacao explicita `_` apos o ponto, metodos genericos como `Reduce<Double>(...)`, referencias de metodo compativeis com delegates, como `Find(Helper.FindMaiorQue4)`, e campos delegate chamados como metodo, como `OnExecute(...)`. Em `Function` lambda, use `Return` para devolver valores em blocos; retorno por atribuicao ao nome da funcao nao se aplica porque a lambda nao tem nome. O sugar `array-list` aproveita esse suporte para expandir `map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce` e `forEach` sobre `TTList`, inclusive em `Return lista.map(...)` de funcoes que retornam `TTList_*`; `Map<TOut>` infere o tipo de saida pelo retorno da lambda e `Reduce<TAcc>` materializa handlers com a assinatura completa do delegate. Hover, completion e semantic tokens exibem campos delegate com a assinatura callable esperada.
-- O sugar declarativo `Enun X` gera tipos derivados de `TEnum`, uma base `TTObject` com cache de opções e suporte a coleções, sem conflitar com `Enum X` nativo.
+- O sugar declarativo `Enun X` gera tipos derivados de `TEnum` (Initialize lazy, factories Shared, três overloads de `Load`, `GetOptions`) sem construtor local nem `CStr`/`CType`, sem conflitar com `Enum X` nativo.
 - Os módulos core usam `mod_logger` como único fluxo de logging; ele formata `TDateTime`, `TTObject` e objetos nativos de acordo com seu tipo concreto.
 
 Exemplo mÃ­nimo de projeto publicável como módulo:
@@ -120,7 +121,7 @@ O projeto é estruturado como um monorepo via NPM Workspaces, contendo:
 
 O `@data7/core` nao importa o modulo runtime `vscode`; ele usa um adapter puro em `src/platform/vscode-api.ts`. A extensao instala a API real do VS Code no `activate`, enquanto CLI e MCP usam a implementacao standalone do core.
 
-O servidor MCP (`docs/mcp/`) orienta agentes de IA a preferir recursos modernos da linguagem — sugar `array-list`, generics (`TTList<T>`) e `Enun` — em vez de padroes legados como `StringList` manual ou subclasses `TTList` com CType. Consulte `data7://idioms` no cliente MCP.
+O servidor MCP (`docs/mcp/`) orienta agentes de IA a preferir recursos modernos da linguagem — sugar `array-list`, generics (`TTList<T>`) e `Enun` (prompt `data7_TEnum_pattern` defaulta em `Enun`, não na classe expandida) — e a respeitar regras de Namespace/Imports (nome sem pontos, sem self-import, sem ciclos; fallback `ns.Membro` qualificado). Consulte `data7://idioms` no cliente MCP.
 
 ### Documentação da System Library
 
@@ -261,7 +262,7 @@ Também preserva `Throw` inline e usa as declarações de tipo do código para e
 ```bash
 npm install
 npm run compile      # compila os workspaces em ordem: core -> vscode -> cli
-npm run watch        # recompila core, vscode e cli em modo incremental
+npm run watch        # recompila core, vscode e cli; reempacota extension.js / lint-worker.js ao mudar core/vscode
 npm test             # roda toda a suÃ­te de testes (node --test)
 ```
 

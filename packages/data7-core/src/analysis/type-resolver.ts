@@ -567,13 +567,21 @@ export class TypeResolver {
       );
       if (template) return template;
 
-      const nonSynthetic = allClasses.find((symbol) => !symbol.isSyntheticGenericInstantiation);
-      if (nonSynthetic) return nonSynthetic;
+      const nonSynthetics = allClasses.filter((symbol) => !symbol.isSyntheticGenericInstantiation);
+      if (nonSynthetics.length === 1) {
+        return nonSynthetics[0];
+      }
+      if (nonSynthetics.length > 1) {
+        // Ambiguous simple name (classic: mod_enum.TEnum vs mod_tenum.TEnum).
+        // Prefer the canonical core-module base before an arbitrary first hit.
+        const preferred = preferCanonicalHomonymClass(nonSynthetics, simpleName);
+        if (preferred) return preferred;
+      }
 
       // Keep scanning lookupNames before accepting a synthetic-only hit so the
       // open template (genericBase) can win over TTList_Foo / Foo_String flats.
       if (allClasses.length > 0 && lookup === lookupNames[lookupNames.length - 1]) {
-        return allClasses[0];
+        return preferCanonicalHomonymClass(allClasses, simpleName) ?? allClasses[0];
       }
     }
 
@@ -2326,7 +2334,9 @@ function pickWorkspaceClassByContext(
     }
     return undefined;
   }
-  if (!context) return candidates[0];
+  if (!context) {
+    return preferCanonicalHomonymClass(candidates, candidates[0]?.name ?? "") ?? candidates[0];
+  }
 
   const reachable = candidates.filter((symbol) => isSymbolReachableFromContext(symbol, context));
   const pool = reachable.length > 0 ? reachable : candidates;
@@ -2356,10 +2366,34 @@ function pickWorkspaceClassByContext(
 
   if (reachable.length === 0) return undefined;
 
+  const preferredHomonym = preferCanonicalHomonymClass(pool, pool[0]?.name ?? "");
+  if (preferredHomonym) return preferredHomonym;
+
   const workspaceCandidates = pool.filter((symbol) => !isExtensionCoreModuleUri(symbol.fileUri));
   if (workspaceCandidates.length > 0) return workspaceCandidates[0];
 
   return pool[0];
+}
+
+/**
+ * When several workspace classes share a simple name, pick the canonical one
+ * for known core bases. `TEnum` must resolve to `mod_tenum.TEnum` (not the
+ * legacy `mod_enum.TEnum`) so Enun / hand-written rich enums see AsString/IsValue.
+ */
+function preferCanonicalHomonymClass(
+  candidates: readonly SymbolInfo[],
+  simpleName: string,
+): SymbolInfo | undefined {
+  if (candidates.length < 2) return undefined;
+  const nameLower = simpleName.toLowerCase();
+  if (nameLower === "tenum") {
+    const modTenum = candidates.find(
+      (symbol) => symbol.containerName?.toLowerCase() === "mod_tenum",
+    );
+    if (modTenum) return modTenum;
+  }
+  const core = candidates.find((symbol) => isExtensionCoreModuleUri(symbol.fileUri));
+  return core;
 }
 
 function isCallableMethodSymbol(symbol: SymbolInfo | undefined): symbol is SymbolInfo {
@@ -2854,7 +2888,14 @@ function isArgumentAssignableToParameter(
 }
 
 function isEnumClassSymbol(symbol: SymbolInfo): boolean {
-  return symbol.kind === "enum" || symbol.inheritsFrom?.toLowerCase() === "tenum";
+  if (symbol.kind === "enum") return true;
+  return isTEnumBaseName(symbol.inheritsFrom);
+}
+
+function isTEnumBaseName(inheritsFrom: string | undefined): boolean {
+  if (!inheritsFrom) return false;
+  const lower = inheritsFrom.toLowerCase();
+  return lower === "tenum" || lower.endsWith(".tenum");
 }
 
 function areSameNamedTypeSymbols(left: SymbolInfo, right: SymbolInfo): boolean {

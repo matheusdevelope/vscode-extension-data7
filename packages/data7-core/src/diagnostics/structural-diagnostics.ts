@@ -109,9 +109,8 @@ export function validateDuplicateDeclarations(
     message: string,
     payload: DuplicateDeclarationPayload,
     related?: { uri?: string; range: vscode.Range; message: string },
-    severity: vscode.DiagnosticSeverity = vscode.DiagnosticSeverity.Error,
   ): void => {
-    const diag = new vscode.Diagnostic(range, message, severity);
+    const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
     diag.code = DiagnosticCodes.DuplicateDeclaration;
     if (related) {
       diag.relatedInformation = [
@@ -133,7 +132,7 @@ export function validateDuplicateDeclarations(
   const locRange = (loc: SourceLocation): vscode.Range =>
     new vscode.Range(loc.startLine - 1, loc.startChar, loc.endLine - 1, loc.endChar);
 
-  const fileTopLevel = new Map<string, SymbolInfo>();
+  const fileTopLevel = new Map<string, SymbolInfo[]>();
   const fileTypeNames = new Set(
     fileSyms.symbols
       .filter((s) => s.kind === "class" || s.kind === "structure")
@@ -153,30 +152,88 @@ export function validateDuplicateDeclarations(
     if (!isTopLevel) return;
 
     const nameLower = s.name.toLowerCase();
-    const existing = fileTopLevel.get(nameLower);
-    if (existing) {
-      const bothMethods = s.kind === "method" && existing.kind === "method";
-      if (bothMethods) {
+    const existingList = fileTopLevel.get(nameLower);
+    if (existingList) {
+      for (const existing of existingList) {
+        const conflict = classifyMemberNameConflict(existing, s);
+        if (conflict === "ok-overload") {
+          continue;
+        }
+
+        if (conflict === "same-signature") {
+          createConflictDiag(
+            new vscode.Range(
+              s.range.startLine,
+              s.range.startChar,
+              s.range.startLine,
+              s.range.endChar,
+            ),
+            `Declaração duplicada: o método '${s.name}' já foi declarado neste arquivo com a mesma assinatura (tipo e ordem de parâmetros).`,
+            {
+              code: DiagnosticCodes.DuplicateDeclaration,
+              name: s.name,
+              scope: "namespace",
+              conflictingWithName: existing.name,
+            },
+            {
+              uri: existing.fileUri,
+              range: symbolRange(existing),
+              message: `Declaração anterior de '${existing.name}'.`,
+            },
+          );
+          return;
+        }
+
+        if (conflict === "return-mismatch") {
+          createConflictDiag(
+            new vscode.Range(
+              s.range.startLine,
+              s.range.startChar,
+              s.range.startLine,
+              s.range.endChar,
+            ),
+            `Declaração duplicada: overload de '${s.name}' exige o mesmo tipo de retorno ('${normalizeReturnType(existing.type)}'); encontrado '${normalizeReturnType(s.type)}'.`,
+            {
+              code: DiagnosticCodes.DuplicateDeclaration,
+              name: s.name,
+              scope: "namespace",
+              conflictingWithName: existing.name,
+            },
+            {
+              uri: existing.fileUri,
+              range: symbolRange(existing),
+              message: `Declaração anterior de '${existing.name}' retorna '${normalizeReturnType(existing.type)}'.`,
+            },
+          );
+          return;
+        }
+
+        createConflictDiag(
+          new vscode.Range(
+            s.range.startLine,
+            s.range.startChar,
+            s.range.startLine,
+            s.range.endChar,
+          ),
+          `Declaração duplicada: o tipo/símbolo '${s.name}' já foi declarado neste arquivo.`,
+          {
+            code: DiagnosticCodes.DuplicateDeclaration,
+            name: s.name,
+            scope: "namespace",
+            conflictingWithName: existing.name,
+          },
+          {
+            uri: existing.fileUri,
+            range: symbolRange(existing),
+            message: `Declaração anterior de '${existing.name}'.`,
+          },
+        );
         return;
       }
-      createConflictDiag(
-        new vscode.Range(s.range.startLine, s.range.startChar, s.range.startLine, s.range.endChar),
-        `Declaração duplicada: o tipo/símbolo '${s.name}' já foi declarado neste arquivo.`,
-        {
-          code: DiagnosticCodes.DuplicateDeclaration,
-          name: s.name,
-          scope: "namespace",
-          conflictingWithName: existing.name,
-        },
-        {
-          uri: existing.fileUri,
-          range: symbolRange(existing),
-          message: `Declaração anterior de '${existing.name}'.`,
-        },
-      );
-      return;
+      existingList.push(s);
+    } else {
+      fileTopLevel.set(nameLower, [s]);
     }
-    fileTopLevel.set(nameLower, s);
 
     const otherFileSymbol = indexer
       .getSymbolsByName(s.name)
@@ -221,7 +278,9 @@ export function validateDuplicateDeclarations(
     }
   });
 
-  // Class members checks
+  // Class members checks — Shared and instance share one name table.
+  // Overloads are allowed only when both are callables, parameter types differ,
+  // and the return type is identical.
   const classes = fileSyms.symbols.filter((s) => s.kind === "class" || s.kind === "structure");
   classes.forEach((C) => {
     const members = fileSyms.symbols.filter(
@@ -232,77 +291,95 @@ export function validateDuplicateDeclarations(
         s.containerName?.toLowerCase() === C.name.toLowerCase(),
     );
 
-    const sharedMembers = members.filter((m) => m.isShared);
-    const instanceMembers = members.filter((m) => !m.isShared);
+    const declaredInClass = new Map<string, SymbolInfo[]>();
 
-    const validateMemberGroup = (group: SymbolInfo[]): void => {
-      const declaredInGroup = new Map<string, SymbolInfo[]>();
+    members.forEach((m) => {
+      const nameLower = m.name.toLowerCase();
+      const existingList = declaredInClass.get(nameLower);
+      if (!existingList) {
+        declaredInClass.set(nameLower, [m]);
+        return;
+      }
 
-      group.forEach((m) => {
-        const nameLower = m.name.toLowerCase();
-
-        const existingList = declaredInGroup.get(nameLower);
-        if (existingList) {
-          for (const existing of existingList) {
-            const bothMethods = m.kind === "method" && existing.kind === "method";
-            if (bothMethods) {
-              if (isSameSignature(m.parameters, existing.parameters)) {
-                createConflictDiag(
-                  new vscode.Range(
-                    m.range.startLine,
-                    m.range.startChar,
-                    m.range.startLine,
-                    m.range.endChar,
-                  ),
-                  `Membro duplicado: a classe '${C.name}' já declara um método '${m.name}' com a mesma assinatura (tipo e ordem de parâmetros).`,
-                  {
-                    code: DiagnosticCodes.DuplicateDeclaration,
-                    name: m.name,
-                    scope: "class",
-                    conflictingWithName: existing.name,
-                  },
-                  {
-                    uri: existing.fileUri,
-                    range: symbolRange(existing),
-                    message: `Membro anterior '${existing.name}'.`,
-                  },
-                  vscode.DiagnosticSeverity.Warning,
-                );
-                return;
-              }
-            } else {
-              createConflictDiag(
-                new vscode.Range(
-                  m.range.startLine,
-                  m.range.startChar,
-                  m.range.startLine,
-                  m.range.endChar,
-                ),
-                `Membro duplicado: o nome '${m.name}' já é utilizado por outro membro na classe '${C.name}'.`,
-                {
-                  code: DiagnosticCodes.DuplicateDeclaration,
-                  name: m.name,
-                  scope: "class",
-                  conflictingWithName: existing.name,
-                },
-                {
-                  uri: existing.fileUri,
-                  range: symbolRange(existing),
-                  message: `Membro anterior '${existing.name}'.`,
-                },
-              );
-              return;
-            }
-          }
-          existingList.push(m);
-        } else {
-          declaredInGroup.set(nameLower, [m]);
+      for (const existing of existingList) {
+        const conflict = classifyMemberNameConflict(existing, m);
+        if (conflict === "ok-overload") {
+          continue;
         }
-      });
-    };
 
-    validateMemberGroup(sharedMembers);
-    validateMemberGroup(instanceMembers);
+        if (conflict === "same-signature") {
+          createConflictDiag(
+            new vscode.Range(
+              m.range.startLine,
+              m.range.startChar,
+              m.range.startLine,
+              m.range.endChar,
+            ),
+            `Membro duplicado: a classe '${C.name}' já declara um método '${m.name}' com a mesma assinatura (tipo e ordem de parâmetros).`,
+            {
+              code: DiagnosticCodes.DuplicateDeclaration,
+              name: m.name,
+              scope: "class",
+              conflictingWithName: existing.name,
+            },
+            {
+              uri: existing.fileUri,
+              range: symbolRange(existing),
+              message: `Membro anterior '${existing.name}'.`,
+            },
+          );
+          return;
+        }
+
+        if (conflict === "return-mismatch") {
+          createConflictDiag(
+            new vscode.Range(
+              m.range.startLine,
+              m.range.startChar,
+              m.range.startLine,
+              m.range.endChar,
+            ),
+            `Membro duplicado: overload de '${m.name}' na classe '${C.name}' exige o mesmo tipo de retorno ('${normalizeReturnType(existing.type)}'); encontrado '${normalizeReturnType(m.type)}'.`,
+            {
+              code: DiagnosticCodes.DuplicateDeclaration,
+              name: m.name,
+              scope: "class",
+              conflictingWithName: existing.name,
+            },
+            {
+              uri: existing.fileUri,
+              range: symbolRange(existing),
+              message: `Membro anterior '${existing.name}' retorna '${normalizeReturnType(existing.type)}'.`,
+            },
+          );
+          return;
+        }
+
+        createConflictDiag(
+          new vscode.Range(
+            m.range.startLine,
+            m.range.startChar,
+            m.range.startLine,
+            m.range.endChar,
+          ),
+          `Membro duplicado: o nome '${m.name}' já é utilizado por outro membro na classe '${C.name}'.`,
+          {
+            code: DiagnosticCodes.DuplicateDeclaration,
+            name: m.name,
+            scope: "class",
+            conflictingWithName: existing.name,
+          },
+          {
+            uri: existing.fileUri,
+            range: symbolRange(existing),
+            message: `Membro anterior '${existing.name}'.`,
+          },
+        );
+        return;
+      }
+
+      existingList.push(m);
+    });
   });
 
   // Local / Method level variable checks using AST collector
@@ -402,6 +479,43 @@ function visitRoutineBodies(
   visitMembers(unit.members);
 }
 
+function isCallableMemberKind(kind: SymbolInfo["kind"]): boolean {
+  return kind === "method" || kind === "declare_sub" || kind === "declare_function";
+}
+
+function normalizeReturnType(typeName: string | undefined): string {
+  const normalized = (typeName ?? "Void").trim().toLowerCase();
+  return normalized.length > 0 ? normalized : "void";
+}
+
+type MemberNameConflict = "ok-overload" | "same-signature" | "return-mismatch" | "name-collision";
+
+/**
+ * Overloads are accepted only when both declarations are callables, the
+ * parameter type sequences differ, and the return types match. Shared vs
+ * instance does not create a separate name space — a field and a Shared
+ * factory with the same name collide.
+ */
+function classifyMemberNameConflict(
+  existing: SymbolInfo,
+  candidate: SymbolInfo,
+): MemberNameConflict {
+  const bothCallable = isCallableMemberKind(existing.kind) && isCallableMemberKind(candidate.kind);
+  if (!bothCallable) {
+    return "name-collision";
+  }
+
+  if (isSameSignature(existing.parameters, candidate.parameters)) {
+    return "same-signature";
+  }
+
+  if (normalizeReturnType(existing.type) !== normalizeReturnType(candidate.type)) {
+    return "return-mismatch";
+  }
+
+  return "ok-overload";
+}
+
 function isSameSignature(
   params1: ParameterInfo[] | undefined,
   params2: ParameterInfo[] | undefined,
@@ -432,6 +546,13 @@ export function validateMyBaseNewCalls(
         this.currentClassName = node.name;
         this.currentClassIsStructure = isStructureDeclaration(node);
         if (!this.currentClassIsStructure) {
+          const baseName = node.baseType?.name.toLowerCase() ?? "";
+          if (baseName === "tenum" || baseName.endsWith(".tenum")) {
+            super.walk(node);
+            this.currentClassName = prev;
+            this.currentClassIsStructure = prevIsStructure;
+            return;
+          }
           const constructors = node.members.filter(
             (member): member is MethodDeclaration =>
               member.kind === "MethodDeclaration" && !!member.isConstructor,
@@ -443,6 +564,9 @@ export function validateMyBaseNewCalls(
               return member.modifiers?.includes("shared") ?? false;
             }
             if (member.kind === "PropertyDeclaration") {
+              return member.modifiers?.includes("shared") ?? false;
+            }
+            if (member.kind === "FieldDeclaration") {
               return member.modifiers?.includes("shared") ?? false;
             }
             return false;
@@ -536,8 +660,8 @@ export function validateMyBaseFreeCalls(
           return;
         }
 
-        const baseNameLower = node.baseType?.name.toLowerCase();
-        if (baseNameLower === "TEnum") {
+        const baseName = node.baseType?.name.toLowerCase() ?? "";
+        if (baseName === "tenum" || baseName.endsWith(".tenum")) {
           return;
         }
 

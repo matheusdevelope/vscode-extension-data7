@@ -9,15 +9,16 @@ Namespace mod_tenum
       Private Shared _enum_cache_initialized As Boolean
       Protected _value As Integer
       Protected _description As String
-      Private Sub New(pValue As Integer, pDescription As String)
-         MyBase.New()
-         me._value = pValue
-         me._description = pDescription
-      End Sub
 
       Private Sub New(pValue As TEnum)
          MyBase.New()
          me.Assign(pValue)
+      End Sub
+
+      Private Sub New(pValue As Integer, pDescription As String)
+         MyBase.New()
+         me._value = pValue
+         me._description = pDescription
       End Sub
 
       Sub Assign(pValue As TEnum)
