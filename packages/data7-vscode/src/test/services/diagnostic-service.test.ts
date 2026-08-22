@@ -10,6 +10,7 @@ import {
   DEFAULT_EXTENSION_SETTINGS,
   DiagnosticCodes,
   installExtensionSettingsProvider,
+  SemanticLintCache,
   WorkspaceSymbolIndexer,
 } from "@data7/core";
 
@@ -1261,6 +1262,82 @@ describe("DiagnosticService live lifecycle", () => {
         "published diagnostics must use host vscode.Range instances",
       );
     } finally {
+      (vscode.workspace as any).findFiles = originalFindFiles;
+      (vscode.workspace as any).workspaceFolders = originalFolders;
+    }
+  });
+
+  test("lintWorkspaceForRun reuses the semantic cache instead of flushing it", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-run-cache-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_run.bas");
+    fs.writeFileSync(basPath, "Namespace mod_run\nEnd Namespace\n", "utf8");
+    const uri = vscode.Uri.file(basPath);
+
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString().toLowerCase(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString().toLowerCase()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString().toLowerCase());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      forEach: (callback: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => void) => {
+        for (const [key, diags] of entries) {
+          callback(vscode.Uri.parse(key), diags);
+        }
+      },
+      dispose: () => undefined,
+    });
+
+    const originalFindFiles = vscode.workspace.findFiles;
+    const originalFolders = vscode.workspace.workspaceFolders;
+    (vscode.workspace as any).workspaceFolders = [
+      { uri: vscode.Uri.file(tmpDir), name: "TmpProject", index: 0 },
+    ];
+    (vscode.workspace as any).findFiles = async () => [uri];
+    (vscode.workspace as any).getWorkspaceFolder = () => ({
+      uri: vscode.Uri.file(tmpDir),
+      name: "TmpProject",
+      index: 0,
+    });
+
+    mockTextDocuments.length = 0;
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    DiagnosticService.markWorkspaceIndexReady();
+    DiagnosticService.invalidateWorkspaceFileList();
+
+    const cacheProto = SemanticLintCache.prototype;
+    const originalClear = cacheProto.clear;
+    let clearCalls = 0;
+    cacheProto.clear = function (this: SemanticLintCache): void {
+      clearCalls++;
+      originalClear.call(this);
+    };
+
+    try {
+      await DiagnosticService.lintWorkspace(false);
+      const clearsAfterWorkspace = clearCalls;
+      assert.ok(clearsAfterWorkspace > 0, "manual workspace lint still flushes the cache");
+
+      await DiagnosticService.lintWorkspaceForRun(tmpDir);
+      assert.equal(
+        clearCalls,
+        clearsAfterWorkspace,
+        "Executar must not call SemanticLintCache.clear via prepareFreshWorkspaceAnalysis",
+      );
+    } finally {
+      cacheProto.clear = originalClear;
       (vscode.workspace as any).findFiles = originalFindFiles;
       (vscode.workspace as any).workspaceFolders = originalFolders;
     }

@@ -1057,6 +1057,11 @@ export class DiagnosticService {
     }
   }
 
+  /**
+   * Gate for Executar: re-lint the project without flushing AST/semantic caches
+   * the live editor already paid for. Unused-code hints are not required to
+   * decide whether the run should proceed (only parser/linter errors abort).
+   */
   public static async lintWorkspaceForRun(workspaceDir: string): Promise<WorkspaceLintSummary> {
     if (!this.isEnabled()) {
       return { errorCount: 0, warningCount: 0, infoCount: 0, fileCount: 0 };
@@ -1067,18 +1072,21 @@ export class DiagnosticService {
       return { errorCount: 0, warningCount: 0, infoCount: 0, fileCount: 0 };
     }
 
-    return this.lintWorkspaceUris(uris, false);
+    return this.lintWorkspaceUris(uris, false, { reuseCaches: true, includeUnusedCode: false });
   }
 
   private static async lintWorkspaceUris(
     uris: readonly vscode.Uri[],
     showProgress: boolean,
+    options: { readonly reuseCaches?: boolean; readonly includeUnusedCode?: boolean } = {},
   ): Promise<WorkspaceLintSummary> {
     let errorCount = 0;
     let warningCount = 0;
     let infoCount = 0;
 
-    this.prepareFreshWorkspaceAnalysis(uris);
+    if (!options.reuseCaches) {
+      this.prepareFreshWorkspaceAnalysis(uris);
+    }
 
     const openUris: vscode.Uri[] = [];
     const diskUris: vscode.Uri[] = [];
@@ -1093,7 +1101,8 @@ export class DiagnosticService {
       }
     }
 
-    const useWorkerPool = isWorkerPoolLintEnabled() && diskUris.length > 0;
+    const useWorkerPool =
+      options.reuseCaches !== true && isWorkerPoolLintEnabled() && diskUris.length > 0;
 
     const countDiagnostics = (diags: readonly vscode.Diagnostic[]): void => {
       for (const diag of diags) {
@@ -1188,7 +1197,9 @@ export class DiagnosticService {
       WorkspaceFixService.isBatchFixInProgress = false;
     }
 
-    await this.refreshUnusedCodeDiagnostics(uris);
+    if (options.includeUnusedCode !== false) {
+      await this.refreshUnusedCodeDiagnostics(uris);
+    }
     this.persistAnalysisCacheAfterWorkspaceLint();
 
     // Prefer what we retained in Problems after unused-code overlay. Mid-flight
@@ -1772,10 +1783,9 @@ export class DiagnosticService {
   }
 
   /**
-   * Coalesces the project-wide `unused-code` pass. The scheduled flag alone
-   * only guarded queueing, so a pass starting while another was still awaiting
-   * disk I/O produced overlapping full-project analyses; `unusedCodeRefreshRunning`
-   * guards the execution and re-queues instead of running concurrently.
+   * Coalesces the project-wide `unused-code` pass. Debounced at 1500 ms so
+   * typing in a method body does not recompute the whole-project live set on
+   * every keystroke; `unusedCodeRefreshRunning` serializes overlapping passes.
    */
   private static scheduleUnusedCodeRefresh(): void {
     if (this.unusedCodeRefreshScheduled) return;
@@ -1787,7 +1797,7 @@ export class DiagnosticService {
         return;
       }
       void this.runUnusedCodeRefresh();
-    }, 600);
+    }, 1500);
   }
 
   private static async runUnusedCodeRefresh(): Promise<void> {

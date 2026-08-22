@@ -9,7 +9,7 @@ import {
 import { TypeResolver } from "../analysis/type-resolver";
 import { TimeTracker } from "../utils/performance";
 import { parseBasic } from "../project/parser";
-import { analyzeGenericsPass } from "../analysis/generics-analyzer";
+import { collectGenericsContextFromUnit } from "../analysis/generics-analyzer";
 import { collectGenericDiagnostics, collectWorkspaceGenericTemplates } from "./generic-diagnostics";
 import type {
   MissingImportPayload,
@@ -629,8 +629,8 @@ export class DiagnosticsLinter {
       validateNamespaceNameConflicts(document, indexer, diagnostics);
       tNs.stopAndLog();
 
-      // Yield point before the generics pre-pass: it re-analyzes the whole file
-      // plus every external template, and is the costliest rule after the walker.
+      // Yield point before the generics pre-pass: it walks the already-parsed
+      // unit plus every external template, and is the costliest rule after the walker.
       if (isCancelled?.()) {
         return DiagnosticsLinter.postProcessDiagnostics(diagnostics, text);
       }
@@ -639,9 +639,9 @@ export class DiagnosticsLinter {
         // The generic pre-pass is an optional language extension. Keeping this
         // gate here also prevents generic-only diagnostics in native projects.
         const tGen = new TimeTracker(" -> Analise Generics");
-        const genericWarnings = analyzeGenericsPass(text, {
+        const genericWarnings = collectGenericsContextFromUnit(unit, lines, {
           externalTemplates: collectWorkspaceGenericTemplates(indexer, document.uri.toString()),
-        });
+        }).warnings;
         diagnostics.push(...collectGenericDiagnostics(genericWarnings, lines));
         tGen.stopAndLog();
       }

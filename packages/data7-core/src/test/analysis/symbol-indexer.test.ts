@@ -404,6 +404,8 @@ End Namespace
 
       indexer.findMemberCache.set("other-key", undefined, otherUri);
       indexer.findMemberCache.set("edited-key", undefined, editedUri);
+      indexer.findClassSymbolCache.set("other-class-key", undefined, otherUri);
+      indexer.findClassSymbolCache.set("edited-class-key", undefined, editedUri);
 
       indexer.updateFileContent(editedUri, classWithBody("      Dim a As Integer\n      a = 1"));
 
@@ -417,6 +419,8 @@ End Namespace
         true,
         "a body-only edit must not clear the whole workspace member cache",
       );
+      assert.equal(indexer.findClassSymbolCache.has("edited-class-key"), false);
+      assert.equal(indexer.findClassSymbolCache.has("other-class-key"), true);
     });
 
     test("an API change clears every member entry", () => {
@@ -429,6 +433,7 @@ End Namespace
 
       const otherUri = fileUriFor(fakeAbsPath("dummy_granular_api", "other.bas"));
       indexer.findMemberCache.set("other-key", undefined, otherUri);
+      indexer.findClassSymbolCache.set("other-class-key", undefined, otherUri);
 
       indexer.updateFileContent(
         editedUri,
@@ -449,6 +454,7 @@ End Namespace
         false,
         "an API change can reach files the dependency graph does not link, so it clears everything",
       );
+      assert.equal(indexer.findClassSymbolCache.has("other-class-key"), false);
     });
   });
 

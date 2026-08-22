@@ -234,6 +234,15 @@ End Namespace
       assert.equal(c.name, "TStringList");
     });
 
+    test("caches lookups by name so a second call reuses the same symbol", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const first = TypeResolver.findClassSymbol("TStringList", indexer);
+      assert.ok(first);
+      assert.ok(indexer.findClassSymbolCache.size > 0);
+      const second = TypeResolver.findClassSymbol("TStringList", indexer);
+      assert.equal(second, first);
+    });
+
     test("resolves classes by qualified names (Container.Type)", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       for (const qualified of [

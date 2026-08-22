@@ -58,6 +58,7 @@ export * from "./project/project-metadata";
 export * from "./project/default-project-metadata";
 export * from "./project/build-cache";
 export * from "./project/build-snapshot";
+export * from "./project/validate-native-syntax";
 export * from "./project/optimizer";
 export * from "./project/source-map";
 export * from "./project/ast/ast";

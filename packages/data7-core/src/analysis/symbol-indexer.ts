@@ -579,6 +579,7 @@ export class WorkspaceSymbolIndexer {
   private symbolsByContainerMap: Map<string, SymbolInfo[]> | null = null;
 
   public readonly findMemberCache = new MemberCache<SymbolInfo | undefined>();
+  public readonly findClassSymbolCache = new MemberCache<SymbolInfo | undefined>();
   public readonly allMembersForTypeCache = new MemberCache<SymbolInfo[]>();
   public readonly ownMembersForClassCache = new MemberCache<SymbolInfo[]>();
   public readonly inheritedMembersForClassCache = new MemberCache<SymbolInfo[]>();
@@ -771,6 +772,7 @@ export class WorkspaceSymbolIndexer {
   private invalidateLocalCaches(): void {
     this.invalidateAggregateSymbolCaches();
     this.findMemberCache.clear();
+    this.findClassSymbolCache.clear();
     this.allMembersForTypeCache.clear();
     this.ownMembersForClassCache.clear();
     this.inheritedMembersForClassCache.clear();
@@ -793,6 +795,7 @@ export class WorkspaceSymbolIndexer {
     this.invalidateAggregateSymbolCaches();
     const affected = [fileUri];
     this.findMemberCache.invalidateFiles(affected);
+    this.findClassSymbolCache.invalidateFiles(affected);
     this.allMembersForTypeCache.invalidateFiles(affected);
     this.ownMembersForClassCache.invalidateFiles(affected);
     this.inheritedMembersForClassCache.invalidateFiles(affected);

@@ -87,7 +87,18 @@ export function collectGenericsContext(
   const sugarEngine = new SugarEngine();
   const plugins = [...sugarEngine.createParserPlugins(), new GenericsParserPlugin()];
   const { unit } = parseBasic(code, { plugins });
+  return collectGenericsContextFromUnit(unit, lines, options);
+}
 
+/**
+ * Same analysis as {@link collectGenericsContext} over an already-parsed unit.
+ * The linter uses this to avoid a second parseBasic of the file being checked.
+ */
+export function collectGenericsContextFromUnit(
+  unit: CompilationUnit,
+  lines: readonly string[],
+  options: GenericsAnalysisOptions = {},
+): GenericsContext {
   const collector = new ASTGenericsCollector(unit, lines, options.externalTemplates);
   collector.run();
 

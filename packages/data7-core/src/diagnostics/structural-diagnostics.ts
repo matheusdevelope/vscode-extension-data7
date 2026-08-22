@@ -50,7 +50,10 @@ export function validateDuplicateDeclarations(
     }
   });
 
-  // Localiza símbolos globais declarados em principal.bas sem percorrer todos os símbolos
+  // Localiza símbolos globais declarados em principal.bas sem percorrer todos os símbolos.
+  // Compare with isSameFileUri: workspace scan vs editor toString() often differ
+  // in drive-letter casing or percent-encoding on Windows.
+  const documentUri = document.uri.toString();
   let principalUri: string | undefined;
   for (const fileSym of indexer.getAllFileSymbols()) {
     if (/(?:^|[/\\])principal\.bas$/i.test(fileSym.fileUri)) {
@@ -58,10 +61,12 @@ export function validateDuplicateDeclarations(
       break;
     }
   }
-  if (principalUri && principalUri !== document.uri.toString()) {
-    const fileSyms = indexer.getFileSymbols(principalUri);
-    if (fileSyms) {
-      fileSyms.symbols.forEach((s) => {
+  if (principalUri && !indexer.isSameFileUri(principalUri, documentUri)) {
+    const principalSyms = indexer.getFileSymbols(principalUri);
+    if (principalSyms) {
+      principalSyms.symbols.forEach((s) => {
+        if (s.kind === "namespace") return;
+        if (s.fileUri && indexer.isSameFileUri(s.fileUri, documentUri)) return;
         outerSymbols.set(s.name.toLowerCase(), {
           kind: "símbolo global (Principal.bas)",
           container: s.containerName,

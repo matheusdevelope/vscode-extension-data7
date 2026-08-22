@@ -397,6 +397,28 @@ export class TypeResolver {
     const genericBaseName = genericBaseNameOf(qualifiedOrSimpleName);
     const isGenericReference = genericBaseName !== undefined;
     qualifiedOrSimpleName = normalizeGenericTypeName(qualifiedOrSimpleName);
+    const context = classResolutionContextHolder.context;
+    const cacheKey = classLookupCacheKey(qualifiedOrSimpleName, context);
+    if (indexer.findClassSymbolCache.has(cacheKey)) {
+      return indexer.findClassSymbolCache.get(cacheKey);
+    }
+
+    const resolved = TypeResolver.lookupClassSymbolUncached(
+      qualifiedOrSimpleName,
+      indexer,
+      genericBaseName,
+      isGenericReference,
+    );
+    indexer.findClassSymbolCache.set(cacheKey, resolved, resolved?.fileUri ?? context?.fileUri);
+    return resolved;
+  }
+
+  private static lookupClassSymbolUncached(
+    qualifiedOrSimpleName: string,
+    indexer: WorkspaceSymbolIndexer,
+    genericBaseName: string | undefined,
+    isGenericReference: boolean,
+  ): SymbolInfo | undefined {
     const flatGenericBaseName = parseFlatGenericTypeReference(qualifiedOrSimpleName, indexer)?.base;
     if (qualifiedOrSimpleName.includes(".")) {
       const lastDot = qualifiedOrSimpleName.lastIndexOf(".");
@@ -2337,6 +2359,20 @@ function getNodeChildren(node: Node): readonly Node[] {
     default:
       return [];
   }
+}
+
+function classLookupCacheKey(
+  normalizedName: string,
+  context: ClassResolutionContext | undefined,
+): string {
+  if (!context) {
+    return `nocx:${normalizedName.toLowerCase()}`;
+  }
+  const imports = context.imports
+    .map((imported) => imported.toLowerCase())
+    .sort()
+    .join(",");
+  return `cx:${context.fileUri.toLowerCase()}#${(context.namespace ?? "").toLowerCase()}#${imports}#${normalizedName.toLowerCase()}`;
 }
 
 function classSymbolKey(symbol: SymbolInfo): string {

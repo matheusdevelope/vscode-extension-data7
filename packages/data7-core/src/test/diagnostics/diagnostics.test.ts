@@ -1967,6 +1967,46 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
+    test("does not treat Principal.bas globals as conflicting with themselves", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Dim _run As Integer
+Dim _rows As Integer
+Dim _cols As Integer
+`;
+      const workspaceUri = "file:///d:/project/src/Principal.bas";
+      const editorUri = "file:///D:/project/src/Principal.bas";
+      indexer.updateFileContent(workspaceUri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(editorUri, code),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("still emits when another file redeclares a Principal.bas global", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(
+        "file:///d:/project/src/Principal.bas",
+        `Dim _run As Integer
+`,
+      );
+      const otherUri = "file:///d:/project/src/mod_other.bas";
+      const otherCode = `Namespace mod_other
+   Dim _run As String
+End Namespace
+`;
+      indexer.updateFileContent(otherUri, otherCode);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(otherUri, otherCode),
+        indexer,
+      );
+      expectDiagnostic(
+        diags,
+        DiagnosticCodes.DuplicateDeclaration,
+        "símbolo global (Principal.bas)",
+      );
+    });
+
     test("does NOT emit error for method overloads (same name but different parameter count/types)", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = `Namespace mod_dup
