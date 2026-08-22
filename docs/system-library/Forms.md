@@ -16,8 +16,6 @@ Imports Forms
 ## 2. Árvore de herança das classes
 
 ```
-TObject  (externo)
-└─ TMargins
 TPersistent  (externo)
 └─ TComponent
    ├─ TControl
@@ -73,6 +71,7 @@ TPersistent  (externo)
    │     │  │     ├─ ButtonTextBox
    │     │  │     ├─ DateTextBox
    │     │  │     ├─ HComboBox
+   │     │  │     ├─ MaskTextBox
    │     │  │     ├─ MemoTextBox
    │     │  │     ├─ NumberTextBox
    │     │  │     ├─ PasswordTextBox
@@ -100,7 +99,6 @@ TPersistent  (externo)
    │     │  │     │     └─ TMascaraEditor
    │     │  │     ├─ TcxCustomMemo
    │     │  │     │  └─ TcxMemo
-   │     │  │     │     └─ TMemoEditor
    │     │  │     ├─ TcxTextEdit
    │     │  │     │  └─ TEditor
    │     │  │     ├─ TextBox
@@ -170,6 +168,22 @@ Caixa de seleção (verdadeiro/falso/grayed) padrão Data7. Wrapper sobre TcxChe
 |---|---|---|---|
 | `Toggle` | `Void` | `()` | Alterna o estado da caixa entre marcado e desmarcado (e cinza, quando AllowGrayed = True). |
 
+#### `ControlGroup`
+
+**Herda de:** [`TGraphicControl`](#tgraphiccontrol)
+
+**Cadeia completa:** [`TGraphicControl`](#tgraphiccontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
+
+Agrupador visual de controles desenhado via Canvas (sem janela própria). Equivalente ao TControlGroup do Data7.
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `Caption` | `String` | Texto associado ao agrupador visual, exibido em tela. |
+| `Color` | `Integer` | Cor associada ao agrupador visual. |
+| `Text` | `String` | Texto associado ao agrupador visual. |
+
 #### `DateTextBox`
 
 **Herda de:** [`TcxCustomTextEdit`](#tcxcustomtextedit)
@@ -203,8 +217,12 @@ Botão visual chato (flat) baseado em TSpeedButton — renderizado pelo Canvas d
 | `Flat` | `Boolean` | Se o botão é renderizado em estilo flat (sem borda 3D destacada). |
 | `Glyph` | `Variant` | Imagem (bitmap) exibida no botão. Pode conter até 4 estados (normal, disabled, clicked, down). |
 | `GroupIndex` | `Integer` | Identifica o grupo de botões mutualmente exclusivos (radio behavior). 0 = sem grupo. |
+| `Image` | `Variant` | Imagem exibida no botão. |
 | `Layout` | `Integer` | Posição do glyph em relação ao caption (blGlyphLeft, blGlyphRight, blGlyphTop, blGlyphBottom). |
 | `NumGlyphs` | `Integer` | Quantidade de imagens contidas em Glyph (1 a 4). |
+| `Spacing` | `Integer` | Espaçamento entre o glyph e o caption. |
+| `Text` | `String` | Texto exibido no botão. |
+| `Transparent` | `Boolean` | Determina se o botão é transparente. |
 
 **Eventos:**
 
@@ -212,13 +230,27 @@ Botão visual chato (flat) baseado em TSpeedButton — renderizado pelo Canvas d
 |---|---|---|---|
 | `OnClick` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre quando o botão é clicado. |
 
+#### `FormButtons`
+
+**Herda de:** [`TForm`](#tform)
+
+**Cadeia completa:** [`TForm`](#tform) → [`TScrollingWinControl`](#tscrollingwincontrol) → [`TWinControl`](#twincontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
+
+Formulário padrão do Data7 com barra de botões inferior (Ok/Cancela/auxiliares) já configurada.
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `btnOK` | [`ButtonOk`](#buttonok) | Botao OK padrao exposto pelo formulario FormButtons. |
+
 #### `Grid`
 
 **Herda de:** [`TGrade`](#tgrade)
 
 **Cadeia completa:** [`TGrade`](#tgrade) → [`TAdvColumnGrid`](#tadvcolumngrid) → [`TAdvStringGrid`](#tadvstringgrid) → [`TBaseGrid`](#tbasegrid) → [`TObjStringGrid`](#tobjstringgrid) → [`TStringGrid`](#tstringgrid) → [`TDrawGrid`](#tdrawgrid) → [`TCustomDrawGrid`](#tcustomdrawgrid) → [`TCustomGrid`](#tcustomgrid) → [`TCustomControl`](#tcustomcontrol) → [`TWinControl`](#twincontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
 
-Componente de grade (Grid) para exibição e manipulação tabular de dados. Wrapper Data7 sobre TGrade (especialização TMS TAdvColumnGrid). Herda toda a cadeia VCL/TMS — ver `_aliases.ts`.
+Componente de grade (Grid) para exibição e manipulação tabular de dados. Wrapper Data7 sobre TGrade (especialização TMS TAdvColumnGrid). Índices de Cells / Col / Row / ColWidth / HideColumn são 0-based. ColCount conta só colunas não ocultas (AllColCount inclui ocultas). Herda toda a cadeia VCL/TMS — ver `_aliases.ts`.
 
 **Propriedades:**
 
@@ -235,7 +267,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `ActiveRowMirrorColorTo` | `Variant` | Cor final mirror da linha ativa. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ActiveRowShow` | `Boolean` | Destaca visualmente a linha atualmente focada. |
 | `AdvGridDropDown` | `Variant` | TAdvStringGrid em dropdown embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `AllColCount` | `Integer` | Total de colunas, incluindo ocultas. |
+| `AllColCount` | `Integer` | Total de colunas visíveis + ocultas (incluindo a coluna interna de PermiteMarcarExclusao). |
 | `AllRowCount` | `Integer` | Total de linhas, incluindo ocultas. |
 | `AlwaysQuotes` | `Boolean` | Adiciona aspas em todas as células ao exportar. |
 | `AlwaysValidate` | `Boolean` | Executa OnCellValidate em toda mudança de célula. |
@@ -271,8 +303,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `CheckFalse` | `String` | Texto que representa o valor False em células checkbox. |
 | `CheckTrue` | `String` | Texto que representa o valor True em células checkbox. |
 | `ClearTextOnly` | `Boolean` | Ao limpar células, mantém formatação (cor/fonte) e zera apenas o texto. |
-| `Col` | `Integer` | Índice (1-based) da coluna atualmente focada. |
-| `ColCount` | `Integer` | Quantidade total de colunas (incluindo fixas). |
+| `Col` | `Integer` | Índice 0-based da coluna atualmente focada. Mesmo espaço de Cells / ColWidth / HideColumn. |
+| `ColCount` | `Integer` | Quantidade de colunas não ocultas (não é o total). Colunas escondidas entram em AllColCount. |
 | `Color` | `Integer` | Cor de fundo das células normais da grade. |
 | `ColorPickerDropDown` | `Variant` | Color picker dropdown embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ColSelectCount` | `Integer` | Quantidade de colunas selecionadas. |
@@ -297,8 +329,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `CustomHint` | `Variant` | Hint personalizado herdado de TControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `DateAndTimePicker` | `Variant` | DateAndTimePicker embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `DateTimePicker` | `Variant` | DateTimePicker embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `DefaultAlignment` | [`TAlignment`](#talignment) | Alinhamento horizontal padrão das células normais. |
-| `DefaultColAlignment` | [`TAlignment`](#talignment) | Alinhamento horizontal padrão de novas colunas. |
+| `DefaultAlignment` | `TAlignment` | Alinhamento horizontal padrão das células normais. |
+| `DefaultColAlignment` | `TAlignment` | Alinhamento horizontal padrão de novas colunas. |
 | `DefaultColWidth` | `Integer` | Largura padrão atribuída a novas colunas. |
 | `DefaultDrawing` | `Boolean` | Controla se o grid pinta as células com o algoritmo padrão (false delega tudo a OnDrawCell). |
 | `DefaultEditor` | [`TEditorType`](#teditortype) | Tipo de editor inline padrão para células sem editor explícito. |
@@ -365,7 +397,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `FixedRightCols` | `Integer` | Quantidade de colunas fixas à direita. |
 | `FixedRowAlways` | `Boolean` | Mantém as linhas fixas sempre visíveis durante scroll vertical. |
 | `FixedRowHeight` | `Integer` | Altura padrão das linhas fixas. |
-| `FixedRows` | `Integer` | Quantidade de linhas fixas no topo (cabeçalho superior). |
+| `FixedRows` | `Integer` | Quantidade de linhas fixas no topo (cabeçalho superior). Com FixedRows = 1, a linha 0 de Cells é o cabeçalho. |
 | `Flat` | `Boolean` | Renderiza o grid sem borda 3D (visual flat). |
 | `FloatFormat` | `String` | Formato Delphi (FormatFloat) usado para renderização de números reais nas células. |
 | `FloatingDockSiteClass` | `Variant` | Classe do dock site flutuante herdada de TControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
@@ -454,14 +486,14 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `Options` | [`TGridOptions`](#tgridoptions) | Set TMS com flags de comportamento e interação (TAdvStringGridOptions). |
 | `OriginalCellValue` | `String` | Valor original da célula antes da edição corrente (usado em OnCellValidate). |
 | `OwnsObjects` | `Boolean` | Indica se o grid possui (e libera) os objetos associados às células via Objects[]. |
-| `Padding` | [`TMargins`](#tmargins) | Padding interno herdado de TWinControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
+| `Padding` | `TMargins` | Padding interno herdado de TWinControl. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `ParentBiDiMode` | `Boolean` | Faz a propriedade BiDiMode seguir o valor do parent. |
 | `ParentColor` | `Boolean` | Faz a propriedade Color seguir o valor do parent. |
 | `ParentCtl3D` | `Boolean` | Faz a propriedade Ctl3D seguir o valor do parent. |
 | `ParentFont` | `Boolean` | Faz a propriedade Font seguir o valor do parent. |
 | `ParentShowHint` | `Boolean` | Faz a propriedade ShowHint seguir o valor do parent. |
 | `PasswordChar` | `WideChar` | Caractere usado para mascarar valores em células password. |
-| `PermiteMarcarExclusao` | `Boolean` | Habilita o fluxo Data7 de marcar/desmarcar linhas para exclusão. |
+| `PermiteMarcarExclusao` | `Boolean` | Habilita marcar/desmarcar linha para exclusão (Delete). Cria uma coluna oculta extra no fim (AllColCount = ColCount + 1) com S/N — o estado não vive na célula de negócio. Aplicar por último, depois de ColCount e HideColumn; reaplicar após qualquer mudança estrutural de colunas. Atribuir ColCount depois da flag destrói a coluna oculta. Não chamar UnHideColumnsAll com a flag ligada (revela essa coluna). |
 | `PermitirApagarUltimaLinhaEmBranco` | `Boolean` | Permite que o usuário apague a última linha em branco (extensão Data7). |
 | `PictureContainer` | `Variant` | Container externo de imagens. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `PixelsPerInch` | `Integer` | PPI corrente usado nas conversões DPI-aware. |
@@ -483,7 +515,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `RealRow` | `Integer` | Índice real da linha (independente de filtros/ocultação). |
 | `RedrawDisabled` | `Boolean` | Indica que a repintura está desativada via WM_SETREDRAW. |
 | `RichEdit` | `Variant` | Rich-edit embarcado. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `Row` | `Integer` | Índice (1-based) da linha atualmente focada. |
+| `Row` | `Integer` | Índice 0-based da linha atualmente focada. Com FixedRows = 1, Row = 0 é o cabeçalho; a primeira linha de dados é Row = 1. |
 | `RowCount` | `Integer` | Quantidade total de linhas (incluindo fixas). |
 | `RowHeaders` | `TStringList` | Textos exibidos nos cabeçalhos das linhas. |
 | `RowIndicator` | `Variant` | Indicador visual da linha corrente. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
@@ -590,7 +622,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `VersionString` | `String` | Versão (string) do TMS Software subjacente. |
 | `VirtualEdit` | `Boolean` | Permite editar em modo virtual sem armazenar dados no grid. |
 | `VisibleCol` | `Variant` | Array de visibilidade por coluna. Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
-| `VisibleColCount` | `Integer` | Quantidade de colunas visíveis na viewport atual. |
+| `VisibleColCount` | `Integer` | Quantidade de colunas visíveis na viewport atual. Não confundir com ColCount (não ocultas) nem AllColCount (inclui ocultas). |
 | `VisibleRowCount` | `Integer` | Quantidade de linhas visíveis na viewport atual. |
 | `WindowProc` | `Variant` | Procedimento de janela do controle (handler do message pump Windows). Não traduzido pelo compilador Data7 — uso emite diagnóstico unsupported-member. |
 | `WordWrap` | `Boolean` | Quebra automática de palavras dentro das células. |
@@ -642,8 +674,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `GetCanvas` | `TCanvas` | `()` | Retorna o Canvas do grid para desenho direto. |
 | `GetCellColor` | `Integer` | `(ACol As Integer, ARow As Integer)` | Retorna a cor de fundo de uma célula. |
 | `GetCelulas` | `String` | `(ACol As Integer, ARow As Integer)` | Atalho Data7 para ler o valor de uma célula. |
-| `GetColAlignment` | [`TAlignment`](#talignment) | `(ACol As Integer)` | Retorna o alinhamento de uma coluna. |
-| `GetColWidth` | `Integer` | `(ACol As Integer)` | Retorna a largura de uma coluna. |
+| `GetColAlignment` | `TAlignment` | `(ACol As Integer)` | Retorna o alinhamento de uma coluna. |
+| `GetColWidth` | `Integer` | `(ACol As Integer)` | Retorna a largura de uma coluna. ACol é 0-based, no mesmo espaço de Cells. |
 | `GetEditorLink` | [`GridEditorLink`](#grideditorlink) | `()` | Retorna o GridEditorLink atualmente vinculado ao grid. |
 | `GetFontColor` | `Integer` | `(ACol As Integer, ARow As Integer)` | Retorna a cor da fonte de uma célula. |
 | `GetFontSize` | `Integer` | `(ACol As Integer, ARow As Integer)` | Retorna o tamanho da fonte de uma célula. |
@@ -652,8 +684,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `GetRowEx` | `Integer` | `()` | Retorna o índice da linha corrente (extendido). |
 | `GetTopRowEx` | `Integer` | `()` | Retorna o índice da TopRow corrente (extendido). |
 | `GotoCell` | `Void` | `(ACol As Integer, ARow As Integer)` | Posiciona o cursor na célula (ACol, ARow). |
-| `HideColumn` | `Void` | `(Colindex As Integer)` | Oculta uma coluna específica. |
-| `HideColumns` | `Void` | `(FromCol As Integer, ToCol As Integer)` | Oculta o intervalo de colunas [FromCol, ToCol]. |
+| `HideColumn` | `Void` | `(Colindex As Integer)` | Oculta uma coluna específica. Colindex é 0-based, no mesmo espaço de Cells / ColWidth. Não usar RealColIndex neste caminho. |
+| `HideColumns` | `Void` | `(FromCol As Integer, ToCol As Integer)` | Oculta o intervalo de colunas [FromCol, ToCol]. Índices 0-based, no mesmo espaço de Cells / ColWidth. |
 | `HideRow` | `Void` | `(Rowindex As Integer)` | Oculta uma linha específica. |
 | `HideRows` | `Void` | `(FromRow As Integer, ToRow As Integer)` | Oculta o intervalo de linhas [FromRow, ToRow]. |
 | `HideSelectedRows` | `Void` | `()` | Oculta as linhas atualmente selecionadas. |
@@ -669,8 +701,8 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `MoveRow` | `Void` | `(FromIndex As Integer, ToIndex As Integer)` | Move uma linha de FromIndex para ToIndex. |
 | `MoveRows` | `Void` | `(FromIndex As Integer, ToIndex As Integer, RCount As Integer)` | Move RCount linhas a partir de FromIndex para ToIndex. |
 | `NextEdit` | `Void` | `(ACol As Integer, ARow As Integer, AForward As Boolean = True)` | Move o foco de edição para a próxima célula (ou anterior se AForward=False). |
-| `RealColIndex` | `Integer` | `(ACol As Integer)` | Retorna o índice real (raw) de uma coluna exibida. |
-| `RealRowIndex` | `Integer` | `(ARow As Integer)` | Retorna o índice real (raw) de uma linha exibida. |
+| `RealColIndex` | `Integer` | `(ACol As Integer)` | Retorna o índice real (raw) de uma coluna exibida. ACol de entrada não é o índice de Cells / ColWidth / HideColumn (esses usam i 0-based direto). ColWidth(RealColIndex(i)) com i 0-based dispara 'Grid index out of range'. |
+| `RealRowIndex` | `Integer` | `(ARow As Integer)` | Retorna o índice real (raw) de uma linha exibida. ARow de entrada não é o índice de Cells / RowHeight (esses usam i 0-based direto). Não misturar com o espaço de Cells. |
 | `RemoveCols` | `Void` | `(ColIndex As Integer, CCount As Integer)` | Remove CCount colunas a partir de ColIndex. |
 | `RemoveRows` | `Void` | `(RowIndex As Integer, RCount As Integer)` | Remove RCount linhas a partir de RowIndex. |
 | `RemoveSelectedRows` | `Void` | `()` | Remove todas as linhas selecionadas. |
@@ -684,7 +716,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `SetCellColor` | `Void` | `(ACol As Integer, ARow As Integer, Value As Integer)` | Define a cor de fundo de uma célula. |
 | `SetCelulas` | `Void` | `(ACol As Integer, ARow As Integer, Value As String)` | Atalho Data7 para definir o valor de uma célula (equivalente a Cells[ACol, ARow] = Value). |
 | `SetColAlignment` | `Void` | `(ACol As Integer, Value As TAlignment)` | Define o alinhamento de uma coluna. |
-| `SetColWidth` | `Void` | `(ACol As Integer, Value As Integer)` | Define a largura de uma coluna. |
+| `SetColWidth` | `Void` | `(ACol As Integer, Value As Integer)` | Define a largura de uma coluna. ACol é 0-based, no mesmo espaço de Cells. |
 | `SetFontColor` | `Void` | `(ACol As Integer, ARow As Integer, Value As Integer)` | Define a cor da fonte de uma célula. |
 | `SetFontName` | `Void` | `(ACol As Integer, ARow As Integer, Value As String)` | Define o nome da fonte de uma célula. |
 | `SetFontSize` | `Void` | `(ACol As Integer, ARow As Integer, Value As Integer)` | Define o tamanho da fonte de uma célula. |
@@ -702,9 +734,9 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `TrimColumn` | `Void` | `(ACol As Integer)` | Faz Trim() em todas as células de uma coluna. |
 | `TrimRect` | `Void` | `(ACol1 As Integer, ARow1 As Integer, ACol2 As Integer, ARow2 As Integer)` | Faz Trim() (remove espaços) em todas as células do retângulo. |
 | `TrimRow` | `Void` | `(ARow As Integer)` | Faz Trim() em todas as células de uma linha. |
-| `UnHideColumn` | `Void` | `(Colindex As Integer)` | Reexibe uma coluna previamente oculta. |
+| `UnHideColumn` | `Void` | `(Colindex As Integer)` | Reexibe uma coluna previamente oculta. Colindex é 0-based, no mesmo espaço de Cells / ColWidth. |
 | `UnHideColumns` | `Void` | `(FromCol As Integer, ToCol As Integer)` | Reexibe o intervalo de colunas [FromCol, ToCol]. |
-| `UnHideColumnsAll` | `Void` | `()` | Reexibe todas as colunas ocultas. |
+| `UnHideColumnsAll` | `Void` | `()` | Reexibe todas as colunas ocultas, inclusive a coluna interna de PermiteMarcarExclusao. Não usar se a flag estiver ligada, a menos que a intenção seja mostrar essa coluna. |
 | `UnHideRow` | `Void` | `(Rowindex As Integer)` | Reexibe uma linha previamente oculta. |
 | `UnHideRows` | `Void` | `(FromRow As Integer, ToRow As Integer)` | Reexibe o intervalo de linhas [FromRow, ToRow]. |
 | `UnHideSelection` | `Void` | `()` | Reexibe o destaque visual da seleção corrente. |
@@ -742,7 +774,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnCanDeleteRow` | `TCanDeleteRowEvent` | `(Sender As TObject, ARow As Integer, ByRef DoDelete As Boolean)` | Permite vetar a exclusão de uma linha. |
 | `OnCanDeleteRowEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanDeleteRow. |
 | `OnCanDisunctRowSelectDrag` | `TCanDisunctRowSelectDragEvent` | `(Sender As TObject, ARow As Integer, ByRef Allow As Boolean)` | Permite vetar drag em seleção disjunta de linhas. |
-| `OnCanEditCell` | `TCanEditCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef CanEdit As Boolean)` | Permite vetar a edição de uma célula. |
+| `OnCanEditCell` | `TCanEditCellEvent` | `(Sender As TObject, ARow As Integer, ACol As Integer, ByRef CanEdit As Boolean)` | Permite vetar a edição de uma célula. Assinatura TMS: Sender, ARow, ACol (linha, depois coluna), ByRef CanEdit. Índices 0-based. |
 | `OnCanEditCellEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanEditCell. |
 | `OnCanInsertRow` | `TCanInsertRowEvent` | `(Sender As TObject, ARow As Integer, ByRef DoInsert As Boolean)` | Permite vetar a inserção de linha em posição específica. |
 | `OnCanInsertRowEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCanInsertRow. |
@@ -750,9 +782,9 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnCanSort` | `TCanSortEvent` | `(Sender As TObject, ACol As Integer, ByRef DoSort As Boolean)` | Permite vetar a ordenação por uma coluna. |
 | `OnCellsChanged` | `TCellsChangedEvent` | `(Sender As TObject, ARect As TRect)` | Notifica que um intervalo de células mudou de valor. |
 | `OnCellsChangedEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCellsChanged. |
-| `OnCellValidate` | `TCellValidateEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)` | Permite validar o valor digitado em uma célula. |
+| `OnCellValidate` | `TCellValidateEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AValue As String, ByRef AValid As Boolean)` | Permite validar o valor digitado em uma célula. Ordem (ACol, ARow) 0-based; AValue é ByRef e o handler pode devolver o texto corrigido. |
 | `OnCellValidateEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnCellValidate. |
-| `OnCellValidateWide` | `TCellValidateWideEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)` | Versão wide-string de OnCellValidate. |
+| `OnCellValidateWide` | `TCellValidateWideEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AValue As String, ByRef AValid As Boolean)` | Versão wide-string de OnCellValidate. |
 | `OnChangeScale` | `TChangeScaleEvent` | `(Sender As TObject, M As Integer, D As Integer)` | Mudança de escala (DPI) do controle. |
 | `OnCheckBoxCanToggle` | `TCheckBoxCanToggleEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef CanToggle As Boolean)` | Permite vetar o toggle de um checkbox da célula. |
 | `OnCheckBoxChange` | `TCheckBoxClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, State As Boolean)` | Mudança no estado de checkbox embarcado. |
@@ -802,12 +834,12 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnDatePickerDropDown` | `TClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | DatePicker embarcado abriu. |
 | `OnDateSpinClick` | `TDateTimeSpinClickEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Value As TDateTime)` | Clique no spin de data embarcado. |
 | `OnDateTimeChange` | `TDateTimeChangeEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Value As TDateTime)` | Mudança de valor em editor de data/hora. |
-| `OnDblClickCell` | `TDblClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Duplo-clique em célula. |
+| `OnDblClickCell` | `TDblClickCellEvent` | `(pSender As TObject, pRow As Integer, pCol As Integer)` | Duplo-clique em célula. Assinatura: (pSender, pRow, pCol) — linha, depois coluna. Índices 0-based, no mesmo espaço de Cells. |
 | `OnDblClickEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnDblClick. |
 | `OnDragDrop` | `TDragDropEvent` | `(Sender As TObject, Source As TObject, X As Integer, Y As Integer)` | Disparado ao soltar um objeto VCL sobre o grid. |
 | `OnDragOver` | `TMethod` | `(Sender As TObject)` | Drag-over VCL — placeholder para método genérico. |
 | `OnDragScroll` | `TMethod` | `(Sender As TObject)` | Scroll durante drag (placeholder TMethod). |
-| `OnDrawCell` | `TDrawCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Rect As TRect, State As TGridDrawState)` | Pintura customizada por célula. |
+| `OnDrawCell` | `TDrawCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, Rect As TRect, State As TGridDrawState)` | Pintura customizada por célula. ACol/ARow são 0-based, no mesmo espaço de Cells. |
 | `OnDrawCellEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnDrawCell. |
 | `OnDropDownFooterButtonClick` | `TDropDownButtonClickEvent` | `(Sender As TObject, ACol As Integer)` | Clique no botão dropdown do footer. |
 | `OnDropDownHeaderButtonClick` | `TDropDownButtonClickEvent` | `(Sender As TObject, ACol As Integer)` | Clique no botão dropdown do header. |
@@ -849,13 +881,13 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnGetDisplText` | `TGetDisplTextEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Value As String)` | Permite reescrever o texto exibido pela célula. |
 | `OnGetDisplWideText` | `TGetDisplWideTextEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Value As String)` | Versão wide-string de OnGetDisplText. |
 | `OnGetEditMask` | `TGetEditEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Value As String)` | Permite definir uma máscara de edição customizada para a célula corrente. |
-| `OnGetEditorProp` | `TGetEditorPropEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Permite ajustar propriedades do editor por célula. |
+| `OnGetEditorProp` | `TGetEditorPropEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, pEdit As Forms.GridEditorLink)` | Permite ajustar propriedades do editor por célula. |
 | `OnGetEditorPropInt` | `TClickCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Ajuste interno de propriedades do editor (Data7). |
 | `OnGetEditorType` | `TGetEditorTypeEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AEditor As TEditorType)` | Permite escolher dinamicamente o tipo de editor da célula. |
 | `OnGetEditText` | `TGetEditEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Value As String)` | Permite definir o texto inicial mostrado no editor inline. |
 | `OnGetEditTextEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnGetEditText. |
 | `OnGetFloatFormat` | `TFloatFormatEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AFormat As String)` | Permite definir o formato de exibição de células numéricas. |
-| `OnGetInplaceEditor` | `TGridGetInplaceEditorEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AEditor As TWinControl)` | Permite fornecer um inplace editor customizado para a célula. |
+| `OnGetInplaceEditor` | `TGridGetInplaceEditorEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AEditor As TWinControl)` | Permite fornecer um inplace editor customizado para a célula. ACol/ARow são 0-based, no mesmo espaço de Cells. |
 | `OnGetInplaceEditorProperties` | `TGridGetInplaceEditorPropertiesEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer)` | Permite ajustar as propriedades do inplace editor por célula. |
 | `OnGetWordWrap` | `TWordWrapEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef WordWrap As Boolean)` | Permite definir word-wrap por célula. |
 | `OnHasComboBox` | `THasComboEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef HasCombo As Boolean)` | Indica se uma célula deve receber combo. |
@@ -872,7 +904,7 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnIsPasswordCell` | `TIsPasswordCellEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef IsPassword As Boolean)` | Permite tratar uma célula como password dinamicamente. |
 | `OnKeyPressEvent` | `String` | `(...)` | Nome do método (string) chamado no evento OnKeyPress. |
 | `OnLoadCell` | `TCellSaveLoadEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AValue As String)` | Deserialização customizada por célula. |
-| `OnMarcaDesmarcaLinhaParaExclusao` | `TMarcaDesmarcaLinhaParaExclusaoEvent` | `(Sender As TObject, ARow As Integer, Marcado As Boolean)` | Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão. |
+| `OnMarcaDesmarcaLinhaParaExclusao` | `TMarcaDesmarcaLinhaParaExclusaoEvent` | `(Sender As TObject, ARow As Integer)` | Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão (Delete). ARow é 0-based nativo; com cabeçalho, linha de dados = ARow - FixedRows. |
 | `OnMouseActivate` | `TMethod` | `(Sender As TObject)` | Disparado quando o controle é ativado por clique do mouse — placeholder TMethod. |
 | `OnMouseWheelDown` | `TMouseWheelUpDownEvent` | `(Sender As TObject, Shift As TShiftState, MousePos As TPoint, ByRef Handled As Boolean)` | Roda do mouse para baixo sobre o controle. |
 | `OnMouseWheelUp` | `TMouseWheelUpDownEvent` | `(Sender As TObject, Shift As TShiftState, MousePos As TPoint, ByRef Handled As Boolean)` | Roda do mouse para cima sobre o controle. |
@@ -932,6 +964,27 @@ Componente de grade (Grid) para exibição e manipulação tabular de dados. Wra
 | `OnUnitChanged` | `TUnitChangedEvent` | `(Sender As TObject, ACol As Integer, ARow As Integer, AUnit As String)` | Unidade do editor com unidades mudou. |
 | `OnUpdateColumnSize` | `TUpdateColumnSizeEvent` | `(Sender As TObject, ACol As Integer, ByRef AWidth As Integer)` | Permite ajustar a largura final ao terminar resize. |
 
+#### `GridConfigs`
+
+Configurações de Grid do Data7 — agrega opções de layout, scrollbars, ordenação, agrupamento e estilização aplicadas a um componente Grid.
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `ColMoving` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (ColMoving). |
+| `ColSizing` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (ColSizing). |
+| `FixedColClick` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (FixedColClick). |
+| `FixedHorzLine` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (FixedHorzLine). |
+| `FixedHotTrack` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (FixedHotTrack). |
+| `FixedRowClick` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (FixedRowClick). |
+| `FixedVerLine` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (FixedVerLine). |
+| `HorzLine` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (HorzLine). |
+| `RowMoving` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (RowMoving). |
+| `RowSelect` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (RowSelect). |
+| `RowSizing` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (RowSizing). |
+| `VerLine` | `Boolean` | Flag de comportamento visual/interativo de GridConfigs (VerLine). |
+
 #### `HComboBox`
 
 **Herda de:** [`TcxCustomTextEdit`](#tcxcustomtextedit)
@@ -945,10 +998,10 @@ Caixa de seleção dropdown (combobox) padrão Data7. Wrapper sobre TcxComboBox.
 | Nome | Tipo | Descrição |
 |---|---|---|
 | `CanDropDown` | `Boolean` | Identifica se a lista dropdown pode ser aberta no estado atual do editor. |
-| `Items` | `TStringList` | Lista de itens visíveis do combobox (TStrings). Cada string é uma opção exibida. |
+| `Items` | `TStrings` | Lista de itens visíveis do combobox (TStrings). Cada string é uma opção exibida. |
 | `ListaOpcoes` | `String` | Lista de opções no formato 'codigo:descricao;codigo:descricao;...' — atribuição em massa via string. |
 | `PopupWindow` | `Variant` | Acesso à janela popup que exibe a lista de itens do combobox. |
-| `SelectedItem` | `String` | Texto do item atualmente selecionado na lista. |
+| `SelectedItem` | `Integer` | Index do item atualmente selecionado na lista. |
 | `ValueList` | `TStringList` | Lista paralela de valores associados a cada item visível (chaves). |
 | `ValueSelect` | `String` | Valor (chave) correspondente ao item atualmente selecionado. |
 
@@ -972,11 +1025,33 @@ Componente gráfico para exibição de imagens (bitmap, JPEG, PNG, ICO, etc.) e 
 | `Stretch` | `Boolean` | Se a imagem é redimensionada para preencher o controle. |
 | `Transparent` | `Boolean` | Se o fundo da imagem é renderizado de forma transparente. |
 
+**Métodos:**
+
+| Nome | Retorno | Parâmetros | Descrição |
+|---|---|---|---|
+| `LoadFromBase64` | `Void` | `(pBase64 As String)` | Carrega uma imagem a partir de um base64. |
+| `LoadFromFile` | `Void` | `(pFileName As String)` | Carrega uma imagem a partir de um arquivo. |
+
 **Eventos:**
 
 | Nome | Delegate | Assinatura | Descrição |
 |---|---|---|---|
 | `OnProgress` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre periodicamente durante operações lentas que afetam a imagem (carregamento/conversão). |
+
+#### `MaskTextBox`
+
+**Herda de:** [`TcxCustomTextEdit`](#tcxcustomtextedit)
+
+**Cadeia completa:** [`TcxCustomTextEdit`](#tcxcustomtextedit) → [`TcxCustomEdit`](#tcxcustomedit) → [`TCustomControl`](#tcustomcontrol) → [`TWinControl`](#twincontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
+
+Variante de TextBox configurada para entrada de mascaras (caracteres mascarados).
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `AsString` | `String` | Valor selecionado como String (geralmente o código do registro). |
+| `Mascara` | `String` | Máscara aplicada ao editor. |
 
 #### `MemoTextBox`
 
@@ -1006,6 +1081,26 @@ Classe de exibição de mensagens.
 |---|---|---|---|
 | `Confirmation` | `Boolean` | `(pMessage As String)` | Exibe uma caixa de confirmação (Sim/Não). Retorna True se o usuário escolheu Sim. |
 | `Show` | `Integer` | `(pMessage As String)` | Exibe uma caixa de diálogo informativa com a mensagem informada. |
+
+#### `PageControl`
+
+**Herda de:** [`TCustomControl`](#tcustomcontrol)
+
+**Cadeia completa:** [`TCustomControl`](#tcustomcontrol) → [`TWinControl`](#twincontrol) → [`TControl`](#tcontrol) → [`TComponent`](#tcomponent) → `TPersistent` → `TObject` → `System.Classes.TObject`
+
+Container de abas (TabSheets) — wrapper sobre o TRzPageControl da Raize. Permite alternar entre múltiplas páginas filhas.
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `ActivePageIndex` | `Integer` | Obtem e define a tabsheet ativa no PageControl. |
+| `BackgroundColor` | `Integer` | Define ou obtem a cor de fundo do controle |
+| `Color` | `Integer` | Define ou obtém a cor de fundo do controle |
+| `PageCount` | `Integer` | Obtem o número de tabsheets no PageControl. |
+| `ShowCardFrame` | `Boolean` | Exibe ou oculta a moldura do card. |
+| `ShowShadow` | `Boolean` | Determina se exibe sombra no controle de abas. |
+| `TabIndex` | `Integer` | Índice da aba ativa. |
 
 #### `ProgressBar`
 
@@ -1054,7 +1149,8 @@ Caixa de texto com botão lateral para pesquisa padrão Data7 (TPesquisaEditor).
 | `AsInteger` | `Integer` | Valor selecionado como Integer. |
 | `AsString` | `String` | Valor selecionado como String (geralmente o código do registro). |
 | `CodPesquisa` | `Integer` | Código da pesquisa padrão Data7 vinculada a este editor (referência à PesquisaPadrao da Data7 API). |
-| `EditorDescricao` | [`TextBox`](#textbox) | Editor de texto auxiliar que exibe a descrição do registro selecionado pela pesquisa. |
+| `EditorDescricao` | [`MemoTextBox`](#memotextbox) | Editor de texto auxiliar que exibe a descrição do registro selecionado pela pesquisa. |
+| `ExpressaoFiltro` | `String` | Expressão SQL de filtro aplicada na pesquisa. |
 
 #### `StaticText`
 
@@ -1068,9 +1164,11 @@ Componente que exibe um texto estático ou rótulo (Label).
 
 | Nome | Tipo | Descrição |
 |---|---|---|
-| `Alignment` | [`TAlignment`](#talignment) | Alinhamento horizontal do texto. |
+| `Alignment` | `TAlignment` | Alinhamento horizontal do texto. |
 | `AutoSize` | `Boolean` | Determina se o componente redimensiona automaticamente de acordo com o texto. |
 | `Caption` | `String` | Texto exibido no componente. |
+| `Color` | `Integer` | Cor do texto. |
+| `Text` | `String` | Alias textual equivalente ao Caption do componente. |
 | `WordWrap` | `Boolean` | Especifica se o texto deve quebrar linhas caso ultrapasse a largura do controle. |
 
 #### `TabSheet`
@@ -1092,6 +1190,7 @@ Página/aba individual dentro de um PageControl. Wrapper sobre TRzTabSheet/TTabS
 | `PageIndex` | `Integer` | Índice da aba na lista de todas as abas mantida pelo PageControl. |
 | `TabIndex` | `Integer` | Posição da aba no conjunto de abas visíveis do PageControl (TPageControl). |
 | `TabVisible` | `Boolean` | Se a aba aparece (ou está oculta) no PageControl. |
+| `Text` | `String` | Texto/Caption exibido na aba. |
 
 **Eventos:**
 
@@ -1136,13 +1235,14 @@ Classe base dos botões nativos do Windows (consolidando TButtonControl + TCusto
 | `HotImageIndex` | `Integer` | Índice da imagem usada no estado hot (hover). |
 | `ImageAlignment` | `Integer` | Alinhamento da imagem no botão. |
 | `ImageIndex` | `Integer` | Índice da imagem usada no estado normal. |
-| `ImageMargins` | [`TMargins`](#tmargins) | Margens da imagem no botão. |
+| `ImageMargins` | `TMargins` | Margens da imagem no botão. |
 | `Images` | `Variant` | Lista de imagens (ImageList) usada pelo botão. |
 | `ModalResult` | `Integer` | Determina como o botão fecha seu formulário pai (mrOk, mrCancel, mrYes, mrNo, etc.). |
 | `PressedImageIndex` | `Integer` | Índice da imagem usada no estado pressionado. |
 | `SelectedImageIndex` | `Integer` | Índice da imagem usada no estado selecionado. |
 | `Style` | `Integer` | Estilo do botão (bsPushButton, bsCommandLink, bsSplitButton). |
 | `StylusHotImageIndex` | `Integer` | Índice da imagem usada no estado hot via stylus (caneta touch). |
+| `Text` | `String` | Alias textual usado pelo Data7 para o caption do botao. |
 
 **Métodos:**
 
@@ -1222,7 +1322,7 @@ Classe base de todo controle visual da VCL Delphi. Define posição, dimensão, 
 
 | Nome | Tipo | Descrição |
 |---|---|---|
-| `Align` | [`TAlign`](#talign) | Como o controle se alinha dentro de seu container (parent control). |
+| `Align` | `TAlign` | Como o controle se alinha dentro de seu container (parent control). |
 | `AlignWithMargins` | `Boolean` | Se o controle deve ser restringido pelas suas margens. |
 | `Anchors` | `Integer` | Como o controle se ancora ao seu parent (akLeft, akTop, akRight, akBottom). |
 | `BiDiMode` | `Integer` | Modo bidirecional do controle (suporte a idiomas RTL). |
@@ -1244,6 +1344,7 @@ Classe base de todo controle visual da VCL Delphi. Define posição, dimensão, 
 | `ExplicitWidth` | `Integer` | Largura horizontal explícita do controle em pixels. |
 | `Floating` | `Boolean` | Indica se o controle está flutuando. |
 | `FloatingDockSiteClass` | `Variant` | Classe do controle temporário que hospeda o controle quando ele está flutuando. |
+| `Font` | [`TFont`](#tfont) | Fonte padrao usada para renderizar texto no controle. |
 | `Height` | `Integer` | Tamanho vertical do controle em pixels. |
 | `HelpContext` | `Integer` | Identificador numérico do tópico de Help para o controle. |
 | `HelpKeyword` | `String` | Palavra-chave que identifica o tópico de Help para o controle. |
@@ -1252,9 +1353,10 @@ Classe base de todo controle visual da VCL Delphi. Define posição, dimensão, 
 | `HostDockSite` | [`TWinControl`](#twincontrol) | Controle no qual este controle está encaixado. |
 | `Left` | `Integer` | Coordenada horizontal da borda esquerda do componente relativo ao parent. |
 | `LRDockWidth` | `Integer` | Largura do controle quando ele está encaixado horizontalmente. |
-| `Margins` | [`TMargins`](#tmargins) | Margens do controle. |
+| `Margins` | `TMargins` | Margens do controle. |
 | `Parent` | [`TWinControl`](#twincontrol) | Parent do controle. |
 | `ParentCustomHint` | `Boolean` | Onde o controle busca seu hint personalizado. |
+| `ParentFont` | `Boolean` | Indica se o controle herda a fonte do parent. |
 | `ShowHint` | `Boolean` | Se exibe o Help Hint quando o mouse passa sobre o controle. |
 | `StyleElements` | `Integer` | Elementos de estilo usados pelo controle. |
 | `TBDockHeight` | `Integer` | Altura do controle quando ele está encaixado verticalmente. |
@@ -1276,7 +1378,7 @@ Classe base de todo controle visual da VCL Delphi. Define posição, dimensão, 
 | `Dock` | `Void` | `()` | Uso interno para encaixar o controle. |
 | `Dragging` | `Boolean` | `()` | Indica se o controle está sendo arrastado. |
 | `EndDrag` | `Void` | `(Drop As Boolean)` | Encerra o arrasto do controle. |
-| `GetControlsAlignment` | [`TAlignment`](#talignment) | `()` | Indica como o texto é alinhado dentro do controle. |
+| `GetControlsAlignment` | `TAlignment` | `()` | Indica como o texto é alinhado dentro do controle. |
 | `GetTextBuf` | `Integer` | `(ByRef Buffer As String, BufSize As Integer)` | Recupera o texto do controle em um buffer e retorna a quantidade de caracteres copiados. |
 | `GetTextLen` | `Integer` | `()` | Retorna o comprimento do texto do controle. |
 | `Hide` | `Void` | `()` | Torna o controle invisível. |
@@ -1318,11 +1420,11 @@ Classe base de todo controle visual da VCL Delphi. Define posição, dimensão, 
 | `OnGetSiteInfo` | `TGetSiteInfoEvent` | `(...)` | Permite informar dimensões/aceitação ao avaliar este controle como dock site. |
 | `OnHelp` | `TMethod` | `(Sender As TObject)` | Disparado quando o usuário solicita ajuda contextual sobre o controle. |
 | `OnMouseActivate` | `TMethod` | `(Sender As TObject)` | Ocorre quando o controle é ativado por clique do mouse. |
-| `OnMouseDown` | `TMouseEvent` | `(Sender As TObject, Button As TMouseButton, Shift As TShiftState, X As Integer, Y As Integer)` | Ocorre quando o usuário pressiona um botão do mouse sobre o controle. |
+| `OnMouseDown` | `TMouseEvent` | `(Sender As TObject, Shift As TShiftState, X As Integer, Y As Integer)` | Ocorre quando o usuário pressiona um botão do mouse sobre o controle. |
 | `OnMouseEnter` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre quando o ponteiro do mouse entra na área do controle. |
 | `OnMouseLeave` | `TNotifyEvent` | `(Sender As TObject)` | Ocorre quando o ponteiro do mouse sai da área do controle. |
-| `OnMouseMove` | `TMouseEvent` | `(Sender As TObject, Button As TMouseButton, Shift As TShiftState, X As Integer, Y As Integer)` | Ocorre quando o usuário move o mouse sobre o controle. |
-| `OnMouseUp` | `TMouseEvent` | `(Sender As TObject, Button As TMouseButton, Shift As TShiftState, X As Integer, Y As Integer)` | Ocorre quando o usuário solta um botão do mouse sobre o controle. |
+| `OnMouseMove` | `TMouseEvent` | `(Sender As TObject, Shift As TShiftState, X As Integer, Y As Integer)` | Ocorre quando o usuário move o mouse sobre o controle. |
+| `OnMouseUp` | `TMouseEvent` | `(Sender As TObject, Shift As TShiftState, X As Integer, Y As Integer)` | Ocorre quando o usuário solta um botão do mouse sobre o controle. |
 | `OnShortCut` | `TMethod` | `(Sender As TObject)` | Disparado quando uma combinação de teclas (atalho) é pressionada. |
 | `OnStartDock` | `TMethod` | `(Sender As TObject)` | Ocorre quando o usuário inicia o docking do controle. |
 | `OnUnDock` | `TUnDockEvent` | `(...)` | Ocorre quando um controle filho deixa de estar docked. |
@@ -1376,7 +1478,7 @@ Classe base VCL (`Vcl.StdCtrls.TCustomEdit`) de todos os controles de edição t
 
 | Nome | Tipo | Descrição |
 |---|---|---|
-| `Alignment` | [`TAlignment`](#talignment) | Alinhamento horizontal do texto dentro do edit. |
+| `Alignment` | `TAlignment` | Alinhamento horizontal do texto dentro do edit. |
 | `AutoSelect` | `Boolean` | Se todo o texto é selecionado automaticamente quando o controle recebe foco. |
 | `AutoSize` | `Boolean` | Se a altura do controle se ajusta automaticamente para acomodar a fonte. |
 | `BorderStyle` | [`TBorderStyle`](#tborderstyle) | Se o edit tem borda (bsSingle) ou não (bsNone). |
@@ -1432,6 +1534,7 @@ Base da família DevExpress (cx*) de editores. Toda a família ExpressEditors he
 | `CanModify` | `Boolean` | Identifica se o editor está em modo somente leitura. |
 | `CanPostEditValue` | `Boolean` | Identifica se o editor data-aware pode persistir o valor no dataset vinculado. |
 | `CanSmartPaste` | `Boolean` | Identifica se o editor suporta operações de Smart Paste (AI-powered). |
+| `Color` | `Integer` | Define ou obtém a cor de fundo do controle |
 | `DataBinding` | `Variant` | Permite vincular o editor a uma fonte de dados. |
 | `EditModified` | `Boolean` | Indica se o conteúdo do editor foi modificado pelo usuário desde a última atribuição/post (dirty flag). Atribua False para resetar. |
 | `EditValue` | `Variant` | Valor de edição do componente (independente do tipo de display). |
@@ -1449,6 +1552,7 @@ Base da família DevExpress (cx*) de editores. Toda a família ExpressEditors he
 | `StyleReadOnly` | `Variant` | Configurações de aparência do editor em modo somente leitura. |
 | `Styles` | `Variant` | Acesso aos estilos individuais aplicados ao editor em estados diferentes. |
 | `SupportsSpelling` | `Boolean` | Identifica se o editor suporta verificação ortográfica. |
+| `Text` | `String` | Texto/Caption exibido no editor. |
 | `Transparent` | `Boolean` | Se o editor é transparente em modo GDI. |
 
 **Métodos:**
@@ -1487,6 +1591,8 @@ Especialização de TcxCustomEdit para entradas textuais. Adiciona Text, seleç�
 | Nome | Tipo | Descrição |
 |---|---|---|
 | `BeepOnEnter` | `Boolean` | Se o editor emite um beep quando o usuário pressiona Enter no campo. |
+| `CharCase` | `Integer` | Transformacao aplicada ao texto digitado (ccNormal, ccUpper, ccLower). |
+| `Color` | `Integer` | Cor para preencher o background. |
 | `CursorPos` | `Integer` | Posição do cursor (caret) dentro do editor. |
 | `EditingText` | `String` | Acessa e modifica o conteúdo textual em edição (independente de display masks). |
 | `EditText` | `String` | Acessa o texto raw que está sendo editado (independente de máscaras e formatação de display). Trazido de TcxCustomMaskEdit pela simplificação da árvore. |
@@ -1508,6 +1614,41 @@ Especialização de TcxCustomEdit para entradas textuais. Adiciona Text, seleç�
 | `FindSelection` | `Boolean` | `(ASearchText As String)` | Procura e seleciona um texto dentro do editor. |
 | `SetSelection` | `Void` | `(AStart As Integer, ALength As Integer)` | Seleciona um intervalo de texto no editor (start + length em caracteres). |
 | `Undo` | `Void` | `()` | Desfaz a última alteração de conteúdo enquanto o editor permanece focado. |
+
+#### `TFont`
+
+Define fonte (Name, Size, Style, Color) usada para pintar texto em um controle.
+
+**Propriedades:**
+
+| Nome | Tipo | Descrição |
+|---|---|---|
+| `Bold` | `Boolean` | Define se a fonte está em negrito. |
+| `Charset` | `Integer` | Charset da fonte. |
+| `Color` | `Integer` | Cor do texto renderizado com a fonte. |
+| `Height` | `Integer` | Altura da fonte em pixels lógicos. |
+| `Italic` | `Boolean` | Define se a fonte está em itálico. |
+| `Name` | `String` | Nome da fonte. |
+| `Orientation` | `Integer` | Orientação da fonte em graus. |
+| `Pitch` | `TFontPitch` | Pitch da fonte. |
+| `Quality` | `TFontQuality` | Quality da fonte. |
+| `Size` | `Integer` | Tamanho da fonte em pontos. |
+| `StrikeOut` | `Boolean` | Define se a fonte está riscada. |
+| `Style` | `TFontStyle` | Estilo da fonte (bold, italic, underline, strikeout). |
+| `Underline` | `Boolean` | Define se a fonte está sublinhada. |
+
+**Métodos:**
+
+| Nome | Retorno | Parâmetros | Descrição |
+|---|---|---|---|
+| `GetBold` | `Boolean` | `()` | Retorna se a fonte está em negrito. |
+| `GetItalic` | `Boolean` | `()` | Retorna se a fonte está em itálico. |
+| `GetStrikeOut` | `Boolean` | `()` | Retorna se a fonte está riscada. |
+| `GetUnderline` | `Boolean` | `()` | Retorna se a fonte está sublinhada. |
+| `SetBold` | `Void` | `(pValue As Boolean)` | Define se a fonte está em negrito. |
+| `SetItalic` | `Void` | `(pValue As Boolean)` | Define se a fonte está em itálico. |
+| `SetStrikeOut` | `Void` | `(pValue As Boolean)` | Define se a fonte está riscada. |
+| `SetUnderline` | `Void` | `(pValue As Boolean)` | Define se a fonte está sublinhada. |
 
 #### `TForm`
 
@@ -1588,7 +1729,6 @@ Classe base de janelas (formulários) da VCL Delphi. Adiciona suporte a posiçã
 | `SendCancelMode` | `Void` | `()` | Cancela modos no formulário. |
 | `SetFocusedControl` | `Boolean` | `(Control As TWinControl)` | Coloca o foco em um controle do formulário. |
 | `Show` | `Void` | `()` | Exibe o formulário. |
-| `ShowModal` | `Integer` | `()` | Exibe o formulário como diálogo modal e retorna o ModalResult. |
 | `Tile` | `Void` | `()` | Organiza formulários filhos MDI lado a lado. |
 | `WantChildKey` | `Boolean` | `()` | Indica se o formulário processa input de teclado para um controle do qual é dono. |
 
@@ -1653,23 +1793,6 @@ Caixa de entrada de texto com um rótulo (label) associado.
 | `ReadOnly` | `Boolean` | Indica se a caixa de texto é somente leitura. |
 | `Text` | `String` | Conteúdo textual digitado no controle. |
 
-#### `TMargins`
-
-**Herda de:** `TObject`
-
-**Cadeia completa:** `TObject` → `System.Classes.TObject`
-
-Classe do Delphi que gerencia as margens de posicionamento de um controle.
-
-**Propriedades:**
-
-| Nome | Tipo | Descrição |
-|---|---|---|
-| `Bottom` | `Integer` | Margem inferior. |
-| `Left` | `Integer` | Margem esquerda. |
-| `Right` | `Integer` | Margem direita. |
-| `Top` | `Integer` | Margem superior. |
-
 #### `TScrollingWinControl`
 
 **Herda de:** [`TWinControl`](#twincontrol)
@@ -1682,6 +1805,7 @@ Base para containers visuais com barras de rolagem horizontal e vertical (TForm,
 
 | Nome | Tipo | Descrição |
 |---|---|---|
+| `Color` | `Integer` | Define ou obtém a cor de fundo do controle |
 | `HorzScrollBar` | `Variant` | Representa a barra de rolagem horizontal do controle. |
 | `VertScrollBar` | `Variant` | Representa a barra de rolagem vertical do controle. |
 
@@ -1732,7 +1856,7 @@ Classe base para todos os controles visuais que possuem janela própria do Windo
 | `DoubleBuffered` | `Boolean` | Determina se a imagem do controle é renderizada direto na janela ou pintada em um bitmap em memória primeiro. |
 | `Handle` | `Integer` | Acesso ao handle Windows (HWND) subjacente do controle. |
 | `MouseInClient` | `Boolean` | Indica se o ponteiro do mouse está atualmente na área de cliente do controle. |
-| `Padding` | [`TMargins`](#tmargins) | Padding interno do controle. |
+| `Padding` | `TMargins` | Padding interno do controle. |
 | `ParentDoubleBuffered` | `Boolean` | Faz a propriedade DoubleBuffered deste componente seguir o valor do parent. |
 | `ParentWindow` | `Integer` | Referência ao controle subjacente do parent. |
 | `Showing` | `Boolean` | Indica se o controle está sendo exibido na tela. |
@@ -1790,33 +1914,11 @@ Caixa de texto especializada em valores monetários (TValorEditor). Wrapper sobr
 | `DisplayFormat` | `String` | Máscara de formatação para exibição do valor (ex.: 'R$ #,##0.00'). |
 | `MaxValue` | `Double` | Valor máximo aceito pelo editor (0 = sem máximo). |
 | `MinValue` | `Double` | Valor mínimo aceito pelo editor (0 = sem mínimo). |
+| `Value` | `Double` | Valor numérico atual no editor. |
 
 ## 4. Tipos enumerados (com constantes)
 
 > Tipos sem membros próprios cuja função é agrupar um conjunto fechado de constantes acessíveis globalmente.
-
-### `TAlign`
-
-Tipo de alinhamento de um controle dentro do seu container (TControl.Align). Valores possíveis (declarados globalmente, sem necessidade de Imports): alNone, alTop, alBottom, alLeft, alRight, alClient.
-
-| Constante | Descrição |
-|---|---|
-| `alBottom` | Alinhado à base. |
-| `alClient` | Alinhado preenchendo o espaço do cliente restante. |
-| `alLeft` | Alinhado à esquerda. |
-| `alNone` | Sem alinhamento automático. |
-| `alRight` | Alinhado à direita. |
-| `alTop` | Alinhado ao topo. |
-
-### `TAlignment`
-
-Alinhamento horizontal do texto/conteúdo. Valores possíveis (declarados globalmente, sem necessidade de Imports): taLeftJustify, taRightJustify, taCenter.
-
-| Constante | Descrição |
-|---|---|
-| `taCenter` | Texto alinhado ao centro. |
-| `taLeftJustify` | Texto alinhado à esquerda. |
-| `taRightJustify` | Texto alinhado à direita. |
 
 ### `TAnchorKind`
 
@@ -1897,16 +1999,14 @@ Modo bidirecional do controle (suporte a idiomas Right-to-Left como Árabe e Heb
 | `biMinimize` | Botão de minimizar. |
 | `biSystemMenu` | Menu de sistema (ícone do app no canto esquerdo). |
 
-### `TCloseAction`
+### `TBorderStyle`
 
-Ação a ser tomada no fechamento de um Form. Recebido como parâmetro `Action` (ByRef) em TCloseEvent — você pode alterar para controlar o que acontece após OnClose.
+Tipo da propriedade BorderStyle de controles com moldura (Panel, Grid, edits).
 
 | Constante | Descrição |
 |---|---|
-| `caFree` | Destrói o form e libera sua memória. |
-| `caHide` | Apenas oculta o form (Visible := False); a instância permanece em memória — padrão. |
-| `caMinimize` | Minimiza o form em vez de fechar. |
-| `caNone` | Não fechar o form (cancela o fechamento). |
+| `bsNone` | Sem borda visível. |
+| `bsSingle` | Borda simples visível. |
 
 ### `TDefaultMonitor`
 
@@ -2015,19 +2115,6 @@ Tipo de formatação automática aplicada a uma célula.
 | `ftNone` | Valor de TFormatType. Sem formatação. |
 | `ftNumeric` | Valor de TFormatType. Formatação numérica (inteiros). |
 | `ftTime` | Valor de TFormatType. Formatação de hora. |
-
-### `TFormBorderStyle`
-
-Estilo da borda e comportamento de redimensionamento de um Form (Form.BorderStyle).
-
-| Constante | Descrição |
-|---|---|
-| `bsDialog` | Borda de diálogo; não redimensionável e sem menu minimizar/maximizar (3). |
-| `bsNone` | Não redimensionável; sem borda visível (0). |
-| `bsSingle` | Não redimensionável; com menu de minimizar/maximizar (1). |
-| `bsSizeable` | Borda redimensionável padrão (2). |
-| `bsSizeToolWin` | Como bsSizeable com caption menor (estilo tool window redimensionável) (5). |
-| `bsToolWindow` | Como bsSingle mas com caption menor (estilo tool window) (4). |
 
 ### `TFormStyle`
 
@@ -2552,12 +2639,12 @@ Sub TCanDisunctRowSelectDragEvent(Sender As TObject, ARow As Integer, ByRef Allo
 
 ### `TCanEditCellEvent`
 
-Permite vetar a edição de uma célula.
+Permite vetar a edição de uma célula. Ordem TMS TAdvStringGrid: linha, depois coluna. ARow/ACol são 0-based.
 
 **Assinatura:**
 
 ```basic
-Sub TCanEditCellEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef CanEdit As Boolean)
+Sub TCanEditCellEvent(Sender As TObject, ARow As Integer, ACol As Integer, ByRef CanEdit As Boolean)
 ```
 
 ### `TCanInsertRowEvent`
@@ -2642,12 +2729,12 @@ Sub TCellsChangedEvent(Sender As TObject, ARect As TRect)
 
 ### `TCellValidateEvent`
 
-Permite validar o valor digitado em uma célula.
+Permite validar o valor digitado em uma célula. ACol/ARow são 0-based (ordem coluna, linha). AValue é ByRef: o handler pode devolver o texto corrigido.
 
 **Assinatura:**
 
 ```basic
-Sub TCellValidateEvent(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)
+Sub TCellValidateEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AValue As String, ByRef AValid As Boolean)
 ```
 
 ### `TCellValidateWideEvent`
@@ -2657,7 +2744,7 @@ Versão wide-string de TCellValidateEvent.
 **Assinatura:**
 
 ```basic
-Sub TCellValidateWideEvent(Sender As TObject, ACol As Integer, ARow As Integer, AValue As String, ByRef AValid As Boolean)
+Sub TCellValidateWideEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef AValue As String, ByRef AValid As Boolean)
 ```
 
 ### `TChangeScaleEvent`
@@ -2872,12 +2959,12 @@ Sub TDateTimeSpinClickEvent(Sender As TObject, ACol As Integer, ARow As Integer,
 
 ### `TDblClickCellEvent`
 
-Duplo-clique em uma célula normal.
+Duplo-clique em uma célula. Ordem linha, depois coluna. pRow/pCol são 0-based, no mesmo espaço de Cells.
 
 **Assinatura:**
 
 ```basic
-Sub TDblClickCellEvent(Sender As TObject, ACol As Integer, ARow As Integer)
+Sub TDblClickCellEvent(pSender As TObject, pRow As Integer, pCol As Integer)
 ```
 
 ### `TDragDropEvent`
@@ -2892,7 +2979,7 @@ Sub TDragDropEvent(Sender As TObject, Source As TObject, X As Integer, Y As Inte
 
 ### `TDrawCellEvent`
 
-Disparado para cada célula desenhada, permitindo customizar o conteúdo no Canvas.
+Disparado para cada célula desenhada, permitindo customizar o conteúdo no Canvas. ACol/ARow são 0-based, no mesmo espaço de Cells.
 
 **Assinatura:**
 
@@ -3077,7 +3164,7 @@ Permite ajustar propriedades do editor (cor, fonte) por célula.
 **Assinatura:**
 
 ```basic
-Sub TGetEditorPropEvent(Sender As TObject, ACol As Integer, ARow As Integer)
+Sub TGetEditorPropEvent(Sender As TObject, ACol As Integer, ARow As Integer, pEdit As Forms.GridEditorLink)
 ```
 
 ### `TGetEditorTypeEvent`
@@ -3112,7 +3199,7 @@ Sub TGridColorEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef A
 
 ### `TGridGetInplaceEditorEvent`
 
-Permite fornecer um inplace editor customizado para a célula.
+Permite fornecer um inplace editor customizado para a célula. ACol/ARow são 0-based, no mesmo espaço de Cells.
 
 **Assinatura:**
 
@@ -3262,12 +3349,12 @@ Sub TIsPasswordCellEvent(Sender As TObject, ACol As Integer, ARow As Integer, By
 
 ### `TMarcaDesmarcaLinhaParaExclusaoEvent`
 
-Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão.
+Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão (Delete). ARow é 0-based nativo; com cabeçalho, linha de dados = ARow - FixedRows.
 
 **Assinatura:**
 
 ```basic
-Sub TMarcaDesmarcaLinhaParaExclusaoEvent(Sender As TObject, ARow As Integer, Marcado As Boolean)
+Sub TMarcaDesmarcaLinhaParaExclusaoEvent(Sender As TObject, ARow As Integer)
 ```
 
 ### `TMethod`
@@ -3641,17 +3728,13 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 | `ButtonTextBox` | [`TcxCustomTextEdit`](#tcxcustomtextedit) | Caixa de texto com botão de ação lateral configurável (TEditorBotao). Wrapper sobre TcxButtonEdit. |
 | `Calendar` | [`TFrame`](#tframe) | Frame de calendário visual do Data7 para seleção de datas. |
 | `CommandButton` | [`TButtonControl`](#tbuttoncontrol) | Botão padrão do Data7 (TBotao) com janela própria. Equivalente ao TButton nativo do Delphi com estilo customizado do ERP. |
-| `ControlGroup` | [`TGraphicControl`](#tgraphiccontrol) | Agrupador visual de controles desenhado via Canvas (sem janela própria). Equivalente ao TControlGroup do Data7. |
 | `CustomControl` | [`TCustomControl`](#tcustomcontrol) | Controle customizável reutilizável pelo desenvolvedor no Data7. Especialização de TCustomControl com infraestrutura padrão do ERP. |
 | `Ellipse` | [`TShape`](#tshape) | Forma geométrica elíptica/circular para desenho na superfície do container pai. |
 | `Form` | [`TForm`](#tform) | Formulário base do Data7 (TfrmFormulario). Especialização de TForm com infraestrutura padrão do ERP. |
-| `FormButtons` | [`TForm`](#tform) | Formulário padrão do Data7 com barra de botões inferior (Ok/Cancela/auxiliares) já configurada. |
-| `GridConfigs` | `-` | Configurações de Grid do Data7 — agrega opções de layout, scrollbars, ordenação, agrupamento e estilização aplicadas a um componente Grid. |
 | `GridEditorLink` | [`TEditLink`](#teditlink) | Especialização Data7 de TEditLink que vincula células do Grid a editores inline (TextBox, DateTextBox, ValueTextBox etc.). |
 | `IFormVisualManager` | `-` | Interface que descreve um gerenciador visual de formulários do Data7 — controla skins, layouts e temas aplicados aos forms do ERP. |
 | `Line` | [`TShape`](#tshape) | Linha geométrica (horizontal, vertical ou diagonal) desenhada como TShape. |
 | `NumberTextBox` | [`TcxCustomTextEdit`](#tcxcustomtextedit) | Caixa de texto especializada em entrada numérica com calculadora popup (TNumeroEditor). Wrapper sobre TcxCalcEdit. |
-| `PageControl` | [`TCustomControl`](#tcustomcontrol) | Container de abas (TabSheets) — wrapper sobre o TRzPageControl da Raize. Permite alternar entre múltiplas páginas filhas. |
 | `Panel` | [`TCustomControl`](#tcustomcontrol) | Container retangular genérico para agrupar e posicionar outros controles. Wrapper sobre TCustomPanel da VCL. |
 | `PasswordTextBox` | [`TcxCustomTextEdit`](#tcxcustomtextedit) | Variante de TextBox configurada para entrada de senhas (caracteres mascarados). |
 | `Rectangle` | [`TShape`](#tshape) | Forma geométrica retangular para desenho na superfície do container pai. |
@@ -3661,8 +3744,7 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 | `TBevel` | [`TGraphicControl`](#tgraphiccontrol) | Borda decorativa da VCL. Ancestral de Border. |
 | `TBevelEdges` | `-` | Set de TBevelEdge — quais bordas exibem bevel (beLeft, beTop, beRight, beBottom). |
 | `TBorderIcons` | `-` | Set Delphi `set of TBorderIcon` — coleção de ícones exibidos na barra de título do formulário (biSystemMenu, biMinimize, biMaximize, biHelp). |
-| `TBorderStyle` | `-` | Tipo da propriedade BorderStyle de controles com moldura (Panel, Grid, edits). Sobreposto com TFormBorderStyle: aqui só existem bsNone/bsSingle (controles de moldura simples). |
-| `TBotao` | [`TSSCustomButton`](#tsscustombutton) | Botão base do Data7 (cor, fonte e estilo padronizados). Ancestral de CommandButton, ButtonOk e ButtonCancel.
+| `TBotao` | [`TSSCustomButton`](#tsscustombutton) | Botão base do Data7 (cor, fonte e estilo padronizados). Ancestral de CommandButton, ButtonOk e ButtonCancel. |
 | `TControlGroup` | [`TGraphicControl`](#tgraphiccontrol) | Container visual de agrupamento — ancestral de ControlGroup. |
 | `TCustomDrawGrid` | [`TCustomGrid`](#tcustomgrid) | Variante de TCustomGrid com suporte a desenho customizado de células (OnDrawCell). |
 | `TCustomForm` | [`TScrollingWinControl`](#tscrollingwincontrol) | Classe ancestral de TForm na VCL Delphi. Adiciona ciclo de vida do formulário, modalidade, menu e suporte a OLE. |
@@ -3697,7 +3779,6 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 | `TEditorBotao` | [`TcxButtonEdit`](#tcxbuttonedit) | Editor com botão Data7 — ancestral de ButtonTextBox. |
 | `TextBox` | [`TcxCustomTextEdit`](#tcxcustomtextedit) | Caixa de texto de linha única do Data7 (TEditor). Wrapper sobre TcxTextEdit. |
 | `TFilterDropDownColumns` | `-` | Set TMS — quais colunas exibem o botão de filtro dropdown. |
-| `TFont` | `-` | Define fonte (Name, Size, Style, Color) usada para pintar texto em um controle. |
 | `TFrame` | [`TScrollingWinControl`](#tscrollingwincontrol) | Base para componentes compostos reutilizáveis embutidos em formulários (frames). Funciona como container similar ao TForm mas projetado para ser colocado dentro de outros containers. |
 | `TFrameCalendario` | [`TFrame`](#tframe) | Frame base de Calendar no Data7. |
 | `TFrameTopbar` | [`TFrame`](#tframe) | Frame base de Topbar no Data7. |
@@ -3712,7 +3793,6 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 | `THoverRowCells` | `-` | Set TMS que indica quais células acompanham o destaque ao passar o mouse na linha (hcAll, hcSelected, hcNormal). |
 | `TImage` | [`TGraphicControl`](#tgraphiccontrol) | Componente de exibição de imagem da VCL. Ancestral de Imagem. |
 | `TMascaraEditor` | [`TcxMaskEdit`](#tcxmaskedit) | Editor com máscara Data7 — ancestral de MaskTextBox (controle de máscara genérico). |
-| `TMemoEditor` | [`TcxMemo`](#tcxmemo) | Memo multilinha Data7 — ancestral de MemoTextBox. |
 | `TNumeroEditor` | [`TcxCalcEdit`](#tcxcalcedit) | Editor numérico Data7 — ancestral de NumberTextBox. |
 | `TObjStringGrid` | [`TStringGrid`](#tstringgrid) | Variante Data7 de TStringGrid com suporte aprimorado a objetos por célula (Objects[col,row]). |
 | `Topbar` | [`TFrame`](#tframe) | Frame de barra superior padrão do Data7 (cabeçalho) usado nos formulários do ERP. |
@@ -3738,6 +3818,6 @@ Sub TWordWrapEvent(Sender As TObject, ACol As Integer, ARow As Integer, ByRef Wo
 
 ---
 
-_168 classes/tipos, 129 delegates, 1 funções, ~1151 membros próprios em classes, 235 constantes associadas a tipos enumerados._
+_162 classes/tipos, 129 delegates, 1 funções, ~1211 membros próprios em classes, 218 constantes associadas a tipos enumerados._
 
-_Snapshot `3d4378a049a1` — gerado em 2026-06-09T18:50:11.651Z pela extensão Data7 Dev Studio._
+_Snapshot `c06ddfb4a225` — gerado em 2026-08-19T22:37:45.533Z pela extensão Data7 Dev Studio._

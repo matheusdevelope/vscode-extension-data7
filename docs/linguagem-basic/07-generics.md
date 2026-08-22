@@ -214,11 +214,42 @@ A integração não viola a fence `analysis/` ↛ `project/`: o indexador clona 
 | Arquitetura: parser leaf, isolado de `analysis`/`vscode` | N/A | `eslint.config.mjs` fence `data7/parser-isolation` + regra em `architecture.mdc` | ✅ Fechado |
 | Fences ESLint silenciosamente desativados pela ordenação dos blocos de config | Bug pré-existente: `docs-example-isolation` (último, broad pattern) substituía `no-restricted-imports` de todos os layer blocks | Movido para ANTES dos layer blocks; cada layer bloco agora embute `DOCS_example_BAN` explicitamente | ✅ Fechado |
 
+## Metaprogramação em templates (`TypeSystem.*`)
+
+Dentro de templates genéricos, diretivas `<# IF ... THEN #>`, `<# ELSE #>` e `<# END IF #>` são avaliadas **depois** da substituição dos argumentos concretos. O corpo inativo é descartado na materialização.
+
+Expressões suportadas (todas aceitam `NOT`):
+
+| Expressão | Uso |
+|---|---|
+| `TypeSystem.InheritsFrom(T, "Base")` | `T` é `Base` ou descendente |
+| `TypeSystem.IsKind(T, "Delegate")` | kind do argumento concreto |
+| `TypeSystem.IsDelegate(T)` | atalho de `IsKind(T, "Delegate")` |
+| `TypeSystem.IsClass(T)` / `IsStructure(T)` / `IsPrimitive(T)` / `IsEnum(T)` | atalhos equivalentes |
+
+Kinds válidos em `IsKind`: `Class`, `Delegate`, `Structure`, `Primitive`, `Enum`, `Unknown`.
+
+```basic
+Class TBox_<T>
+   Function Describe() As String
+      <# IF TypeSystem.IsDelegate(T) THEN #>
+      Describe = "delegate"
+      <# ELSE #>
+      Describe = "value"
+      <# END IF #>
+   End Function
+End Class
+
+Dim a As TBox<THandler<Integer>>   ' materializa o ramo delegate
+Dim b As TBox<Integer>             ' materializa o ramo value
+```
+
 ## Padrão de uso recomendado
 
 1. **Defina coleções tipadas como subclasses** — não escreva `TList<T>` cru no código. Em vez disso, escreva `CardRecordList = TList<CardRecord>` ou (no futuro) `CardRecordList Inherits TList<CardRecord>`. Isso melhora mensagens de erro.
 2. **Use delegates monomorfizados** — `ListFindDelegate<Product>` em vez de `TObject`-erased.
 3. **Evite tipos profundamente aninhados** — `TList<Map<String, TList<Product>>>` funciona, mas o flat name fica gigante. Quebre em aliases/convenções nomeadas quando a legibilidade do `.bas` final importar.
+4. **Ramifique por kind quando o template precisar de caminhos distintos** — preferir `TypeSystem.IsDelegate(T)` / `IsPrimitive(T)` a checagens runtime.
 
 ## Cross-references
 

@@ -114,6 +114,74 @@ describe("System Library — inheritance chain", () => {
     });
   });
 
+  describe("Forms.Grid catalog (native API verified)", () => {
+    const findDelegate = (name: string): SymbolInfo | undefined =>
+      SYSTEM_SYMBOLS.find((s) => s.name === name && s.kind === "delegate");
+
+    const findGridMember = (name: string): SymbolInfo | undefined =>
+      SYSTEM_SYMBOLS.find((s) => s.name === name && s.containerName === "Grid");
+
+    test("TCanEditCellEvent is Sender, ARow, ACol, ByRef CanEdit", () => {
+      const d = findDelegate("TCanEditCellEvent");
+      assert.ok(d, "TCanEditCellEvent must exist");
+      assert.deepEqual(
+        d.parameters?.map((p) => p.name),
+        ["Sender", "ARow", "ACol", "CanEdit"],
+      );
+      assert.equal(d.parameters?.[3]?.isByRef, true);
+    });
+
+    test("TDblClickCellEvent is pSender, pRow, pCol", () => {
+      const d = findDelegate("TDblClickCellEvent");
+      assert.ok(d, "TDblClickCellEvent must exist");
+      assert.deepEqual(
+        d.parameters?.map((p) => p.name),
+        ["pSender", "pRow", "pCol"],
+      );
+    });
+
+    test("TCellValidateEvent has ByRef AValue and ByRef AValid", () => {
+      const d = findDelegate("TCellValidateEvent");
+      assert.ok(d, "TCellValidateEvent must exist");
+      assert.deepEqual(
+        d.parameters?.map((p) => p.name),
+        ["Sender", "ACol", "ARow", "AValue", "AValid"],
+      );
+      assert.equal(d.parameters?.[3]?.isByRef, true);
+      assert.equal(d.parameters?.[4]?.isByRef, true);
+    });
+
+    test("Col and Row are documented as 0-based", () => {
+      const col = findGridMember("Col");
+      const row = findGridMember("Row");
+      assert.match(col?.description ?? "", /0-based/);
+      assert.match(row?.description ?? "", /0-based/);
+      assert.doesNotMatch(col?.description ?? "", /1-based/);
+      assert.doesNotMatch(row?.description ?? "", /1-based/);
+    });
+
+    test("ColCount counts non-hidden columns", () => {
+      const colCount = findGridMember("ColCount");
+      assert.match(colCount?.description ?? "", /não ocultas/i);
+    });
+
+    test("PermiteMarcarExclusao documents the hidden extra column", () => {
+      const flag = findGridMember("PermiteMarcarExclusao");
+      assert.match(flag?.description ?? "", /coluna oculta extra/);
+      assert.match(flag?.description ?? "", /UnHideColumnsAll/);
+    });
+
+    test("UnHideColumnsAll warns about PermiteMarcarExclusao", () => {
+      const method = findGridMember("UnHideColumnsAll");
+      assert.match(method?.description ?? "", /PermiteMarcarExclusao/);
+    });
+
+    test("RealColIndex warns against mixing with Cells / ColWidth", () => {
+      const method = findGridMember("RealColIndex");
+      assert.match(method?.description ?? "", /não é o índice de Cells/i);
+    });
+  });
+
   describe("Forms.GridConfigs", () => {
     test("exposes visual option flags used by legacy Grid.Configs code", () => {
       for (const name of [

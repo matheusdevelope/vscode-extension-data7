@@ -33,6 +33,7 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
       "ArrowFunctionExpression",
       "MethodInvocation(map/filter/find/findIndex/some/every/reduce/forEach)",
     ],
+    requiredImports: () => ["mod_tlist"],
     createParserPlugin: () => new ArrayListParserPlugin(),
   }),
   metadata({

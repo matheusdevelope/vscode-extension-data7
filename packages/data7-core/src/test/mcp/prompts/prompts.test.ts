@@ -33,6 +33,8 @@ describe("data7_TEnum_pattern — Enun is the default form", () => {
     const code = buildExpandedTEnumClass("CardAdm", values);
     assert.match(code, /Class CardAdm/);
     assert.match(code, /Inherits TEnum/);
+    assert.match(code, /If TEnum\._IsCached\("CardAdm", "Stone"\) Then Exit Sub/);
+    assert.doesNotMatch(code, /_Initialized/);
     assert.match(code, /Shared Function Load\(pValue As String\)/);
     assert.doesNotMatch(code, /^Enun /m);
   });
@@ -91,10 +93,8 @@ End Namespace`;
       "Namespace mod_card_adm",
       "  Class CardAdm",
       "    Inherits TEnum",
-      "    Private Shared _Initialized As Boolean",
       "    Private Shared Sub Initialize()",
-      "      If _Initialized Then Exit Sub",
-      "      _Initialized = True",
+      '      If TEnum._IsCached("CardAdm", "Stone") Then Exit Sub',
       "    End Sub",
       "  End Class",
       "End Namespace",

@@ -4,6 +4,7 @@ import {
   type Expression,
   type ExpressionStatement,
   type Identifier,
+  type MemberAccess,
   type MethodInvocation,
   type Node,
   type ParameterDeclaration,
@@ -475,14 +476,58 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
         comment: declaration.comment,
       },
     ];
+    statements.push(...this.createArrayLiteralPushStatements(listRef, literal, declaration));
+    return statements;
+  }
 
+  /**
+   * `list = []` / `list = [a, b]` on a TTList/array-sugar target →
+   * `list = New TTList_T()` + optional `list.Push(...)` per element.
+   */
+  protected expandArrayLiteralAssignment(
+    target: Expression,
+    listType: TypeReference,
+    literal: Extract<Expression, { kind: "ArrayLiteralExpression" }>,
+    loc: Node["loc"],
+    comment?: string,
+  ): Statement[] {
+    const statements: Statement[] = [
+      {
+        kind: "Assignment",
+        target,
+        value: {
+          kind: "ObjectCreationExpression",
+          type: listType,
+          arguments: [],
+          loc,
+        },
+        loc,
+        comment,
+      },
+    ];
+    statements.push(
+      ...this.createArrayLiteralPushStatements(target, literal, {
+        kind: "VariableDeclaration",
+        name: "",
+        type: listType,
+        loc,
+      }),
+    );
+    return statements;
+  }
+
+  private createArrayLiteralPushStatements(
+    listTarget: Expression,
+    literal: Extract<Expression, { kind: "ArrayLiteralExpression" }>,
+    declaration: VariableDeclaration,
+  ): Statement[] {
+    const statements: Statement[] = [];
     for (const element of literal.elements) {
       if (element.kind === "SpreadExpression") {
-        const functionalSpread = this.expandArrayLiteralFunctionalSpread(
-          declaration,
-          element,
-          listRef,
-        );
+        const functionalSpread =
+          listTarget.kind === "Identifier"
+            ? this.expandArrayLiteralFunctionalSpread(declaration, element, listTarget)
+            : undefined;
         if (functionalSpread) {
           statements.push(...functionalSpread);
           continue;
@@ -497,7 +542,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
         kind: "ExpressionStatement",
         expression: {
           kind: "MethodInvocation",
-          callee: listRef,
+          callee: listTarget,
           methodName: "Push",
           typeArguments: [],
           arguments: [value],
@@ -506,8 +551,12 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
         loc: element.loc ?? declaration.loc,
       });
     }
-
     return statements;
+  }
+
+  /** Resolves the TTList/array-sugar type of an assignment target, if any. */
+  protected resolveAssignmentListType(_target: Expression): TypeReference | undefined {
+    return undefined;
   }
 
   protected expandArrayLiteralFunctionalSpread(
@@ -765,7 +814,57 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
   }
 
   protected isListExpression(expr: Expression): boolean {
-    return this.getListExpressionInfo(expr) !== undefined;
+    if (expr.kind === "Identifier") {
+      return this.getListExpressionInfo(expr) !== undefined;
+    }
+    if (expr.kind === "MemberAccess") {
+      return this.isListFieldOrPropertyAccess(expr);
+    }
+    return false;
+  }
+
+  /**
+   * True when `receiver.member` is a field/property whose type is a list
+   * container (`TTList` / array-sugar). Must not treat methods that return a
+   * list as indexable members (`factory.CreateList(i)` stays a call).
+   */
+  protected isListFieldOrPropertyAccess(_expr: MemberAccess): boolean {
+    return false;
+  }
+
+  /**
+   * VB-style `list(i)` parses as a bare MethodInvocation (methodName = list,
+   * one argument). `receiver.listField(i)` parses with a callee. When the
+   * receiver binding / member is a known TTList/array-sugar list, that is an
+   * indexer read/write, not a call — rewrite to GetItem/SetItem.
+   */
+  protected getListParenIndexAccess(
+    expression: Expression,
+  ): { readonly target: Expression; readonly index: Expression } | undefined {
+    if (expression.kind !== "MethodInvocation") return undefined;
+    if (expression.typeArguments.length > 0) return undefined;
+    if (expression.arguments.length !== 1) return undefined;
+    const index = expression.arguments[0];
+    if (!index) return undefined;
+
+    if (expression.callee === undefined) {
+      const target: Identifier = {
+        kind: "Identifier",
+        name: expression.methodName,
+        loc: expression.loc,
+      };
+      if (!this.isListExpression(target)) return undefined;
+      return { target, index };
+    }
+
+    const target: MemberAccess = {
+      kind: "MemberAccess",
+      target: expression.callee,
+      member: expression.methodName,
+      loc: expression.loc,
+    };
+    if (!this.isListFieldOrPropertyAccess(target)) return undefined;
+    return { target, index };
   }
 
   protected rememberListVariable(name: string, type: TypeReference): void {
@@ -773,6 +872,22 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
       type,
       elementType: this.extractListElementType(type),
     });
+  }
+
+  protected rememberListParameters(parameters: readonly ParameterDeclaration[]): void {
+    for (const parameter of parameters) {
+      if (this.isListContainerType(parameter.type)) {
+        this.rememberListVariable(parameter.name, parameter.type);
+      }
+    }
+  }
+
+  protected markArrayListSugarFromParameters(
+    parameters: readonly { readonly isArraySugar?: boolean }[],
+  ): void {
+    if (parameters.some((parameter) => parameter.isArraySugar === true)) {
+      this.usedSugars.add("array-list");
+    }
   }
 
   protected extractTTListElementType(type: TypeReference): TypeReference | undefined {

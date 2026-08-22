@@ -114,7 +114,7 @@ A IA explica ao usuário que `THTTP` e `TJSONObject` são tipos **globais** (do 
 
 **Resultado**: o humano recebe uma classe `TFormClientes` pronta, com o grid e o botão fiado, e só precisa preencher `_carregar()` com os dados reais (ex.: de um `SQL.Command`). Tudo passa no linter. Contexto consumido: ~2 k tokens.
 
-A IA lembra o usuário do padrão de células: `me._grid.Cells(coluna, linha) = valor`, com a primeira linha (`FixedRows = 1`) servindo de cabeçalho — informação que veio de `data7://examples/forms/05-grid-com-dados`.
+A IA lembra o usuário do padrão de células: `me._grid.Cells(coluna, linha) = valor` com índices **0-based**, com a primeira linha (`FixedRows = 1`) servindo de cabeçalho — informação que veio de `data7://examples/forms/05-grid-com-dados`.
 
 ## Padrão geral
 

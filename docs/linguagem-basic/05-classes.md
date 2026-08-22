@@ -160,14 +160,14 @@ Regras:
 Private _form As TPipelineForm           ' campo privado
 Public Nome As String                    ' campo público (padrão)
 Protected _baseConfig As TConfig         ' visível em descendentes
-Private Shared _Initialized As Boolean   ' campo de classe interno (estático)
+Private Shared _current As TPipeline     ' campo de classe interno (estático)
 ReadOnly Adm As CardAdm                  ' atribuível só no construtor
 ```
 
 A combinação `Private Shared` é comum para singletons internos:
 
 ```basic
-Private Shared _Initialized As Boolean
+Private Shared _current As TPipeline
 ```
 
 ## Campos vs. Propriedades
@@ -247,12 +247,9 @@ Membros `Shared` pertencem à **classe**, não à instância. Acessados via `Cla
 Class CardAdm
    Inherits TEnum
 
-   Private Shared _Initialized As Boolean
-
    Private Shared Sub Initialize()
-      If _Initialized Then Exit Sub
+      If TEnum._IsCached("CardAdm", "Stone") Then Exit Sub
       TEnum._AddEnumItem("CardAdm", New CardAdm(0, "Stone"))
-      _Initialized = True
    End Sub
 
    Shared Function Stone As CardAdm

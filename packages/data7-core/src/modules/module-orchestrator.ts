@@ -11,6 +11,7 @@ import { parseBasic } from "../project/parser";
 import { DependencyScanner } from "../analysis/dependency-scanner";
 import { logger } from "../infra/logger";
 import { GitHubPublisher } from "./github-publisher";
+import { selectPublishableModuleSources } from "./module-source-packaging";
 import { isRecord, writeProjectConfig } from "../project/project-config";
 import type { ProjectMetadata } from "../project/project-metadata";
 
@@ -227,17 +228,23 @@ export class ModuleOrchestrator {
       throw new Error("A pasta 'src' deve conter pelo menos um arquivo de código.");
     }
 
-    // Check syntax for all .bas files before publishing
-    for (const filePath of srcFiles) {
-      if (filePath.toLowerCase().endsWith(".bas")) {
-        const code = fs.readFileSync(filePath, "utf-8");
-        const result = parseBasic(code);
-        if (result.errors && result.errors.length > 0) {
-          const errMsgs = result.errors
-            .map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`)
-            .join("; ");
-          throw new Error(`Erro de compilação/sintaxe em '${path.basename(filePath)}': ${errMsgs}`);
-        }
+    const publishableFiles = selectPublishableModuleSources(srcFiles);
+    const publishableBas = publishableFiles.filter((f) => f.toLowerCase().endsWith(".bas"));
+    if (publishableBas.length === 0) {
+      throw new Error(
+        "A pasta 'src' deve conter pelo menos um arquivo .bas com Namespace declarado. Arquivos sem Namespace (ex.: Principal.bas de desenvolvimento) não são publicados.",
+      );
+    }
+
+    // Syntax-check only files that will be published
+    for (const filePath of publishableBas) {
+      const code = fs.readFileSync(filePath, "utf-8");
+      const result = parseBasic(code);
+      if (result.errors && result.errors.length > 0) {
+        const errMsgs = result.errors
+          .map((e: any) => `linha ${e.loc?.startLine ?? "?"}: ${e.message}`)
+          .join("; ");
+        throw new Error(`Erro de compilação/sintaxe em '${path.basename(filePath)}': ${errMsgs}`);
       }
     }
 
@@ -254,7 +261,7 @@ export class ModuleOrchestrator {
     const targetSrcDir = path.join(targetModuleDir, "src");
     fs.mkdirSync(targetSrcDir, { recursive: true });
 
-    for (const srcFilePath of srcFiles) {
+    for (const srcFilePath of publishableFiles) {
       const relPath = path.relative(srcDir, srcFilePath);
       const destPath = path.join(targetSrcDir, relPath);
       const destDir = path.dirname(destPath);

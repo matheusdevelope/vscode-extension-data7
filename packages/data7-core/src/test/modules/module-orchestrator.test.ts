@@ -110,7 +110,7 @@ describe("ModuleOrchestrator - publishModuleLocally", () => {
     );
   });
 
-  test("throws error when a .bas file contains syntax/parser errors", async () => {
+  test("throws error when a publishable .bas file contains syntax/parser errors", async () => {
     fs.writeFileSync(
       path.join(tempWorkspace, "data7.json"),
       JSON.stringify({
@@ -121,12 +121,33 @@ describe("ModuleOrchestrator - publishModuleLocally", () => {
     const srcDir = path.join(tempWorkspace, "src");
     fs.mkdirSync(srcDir);
 
-    // Write invalid basic syntax (unterminated Class block)
-    fs.writeFileSync(path.join(srcDir, "Principal.bas"), "Class Invalido\n");
+    // Namespaced file with invalid syntax (unterminated Class block)
+    fs.writeFileSync(
+      path.join(srcDir, "ModuloTeste.bas"),
+      "Namespace ModuloTeste\nClass Invalido\n",
+    );
 
     await assert.rejects(
       ModuleOrchestrator.publishModuleLocally(tempWorkspace),
-      /Erro de compilação\/sintaxe em 'Principal.bas'/,
+      /Erro de compilação\/sintaxe em 'ModuloTeste.bas'/,
+    );
+  });
+
+  test("throws when src only has Principal.bas without Namespace", async () => {
+    fs.writeFileSync(
+      path.join(tempWorkspace, "data7.json"),
+      JSON.stringify({
+        nome: "ModuloTeste",
+        opcoes: { versao: "1.0.0.0" },
+      }),
+    );
+    const srcDir = path.join(tempWorkspace, "src");
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(path.join(srcDir, "Principal.bas"), "Dim app As New TApp()\napp.Run()\n");
+
+    await assert.rejects(
+      ModuleOrchestrator.publishModuleLocally(tempWorkspace),
+      /pelo menos um arquivo \.bas com Namespace declarado/,
     );
   });
 
@@ -141,9 +162,10 @@ describe("ModuleOrchestrator - publishModuleLocally", () => {
     const srcDir = path.join(tempWorkspace, "src");
     fs.mkdirSync(srcDir);
 
-    // Write valid basic syntax
+    // Development entrypoint without Namespace — must not be published
+    fs.writeFileSync(path.join(srcDir, "Principal.bas"), "Dim app As New TApp()\napp.Run()\n");
     fs.writeFileSync(
-      path.join(srcDir, "Principal.bas"),
+      path.join(srcDir, "ModuloTeste.bas"),
       "Namespace ModuloTeste\n   Class TClient\n   End Class\nEnd Namespace\n",
     );
 
@@ -157,13 +179,17 @@ describe("ModuleOrchestrator - publishModuleLocally", () => {
       "data7.json should be copied",
     );
     assert.ok(
-      fs.existsSync(path.join(expectedModuleDir, "src", "Principal.bas")),
-      "Principal.bas should be copied",
+      !fs.existsSync(path.join(expectedModuleDir, "src", "Principal.bas")),
+      "Principal.bas without Namespace must not be published",
+    );
+    assert.ok(
+      fs.existsSync(path.join(expectedModuleDir, "src", "ModuloTeste.bas")),
+      "Namespaced module source should be copied",
     );
 
     // Verify content matches
     const copiedContent = fs.readFileSync(
-      path.join(expectedModuleDir, "src", "Principal.bas"),
+      path.join(expectedModuleDir, "src", "ModuloTeste.bas"),
       "utf-8",
     );
     assert.ok(copiedContent.includes("Class TClient"));

@@ -960,6 +960,14 @@ export class TypeResolver {
             if (delegateSym?.kind === "delegate") {
               return finishCalleeReturn(delegateSym.type);
             }
+            const indexedElement = TypeResolver.resolveDefaultIndexerElementType(
+              member.type,
+              invocationArity,
+              indexer,
+            );
+            if (indexedElement) {
+              return finishCalleeReturn(indexedElement);
+            }
           }
           return finishCalleeReturn(
             refineFunctionalListReturnType(
@@ -1003,7 +1011,8 @@ export class TypeResolver {
         // A local variable named the same as the invocation takes priority over global callables.
         // e.g. `Dim retorno As Foo` followed by `retorno()` — the parens are a no-op property-default
         // call on the variable, not an invocation of an unrelated global method called "retorno".
-        if (expr.arguments.length === 0) {
+        // With arguments, `list(i)` is the default indexer / TTList GetItem form.
+        {
           const position = { line: lineIdx, character: 0 } as vscode.Position;
           const localVarType = TypeResolver.getRawVariableType(
             expr.methodName,
@@ -1011,7 +1020,19 @@ export class TypeResolver {
             position,
             indexer,
           );
-          if (localVarType) return finishUnqualifiedReturn(localVarType);
+          if (localVarType) {
+            if (expr.arguments.length === 0) {
+              return finishUnqualifiedReturn(localVarType);
+            }
+            const indexedElement = TypeResolver.resolveDefaultIndexerElementType(
+              localVarType,
+              invocationArity,
+              indexer,
+            );
+            if (indexedElement) {
+              return finishUnqualifiedReturn(indexedElement);
+            }
+          }
         }
 
         const position = { line: lineIdx, character: 0 } as vscode.Position;
@@ -1065,6 +1086,21 @@ export class TypeResolver {
               lookupSystemByName(member.type).find((s) => s.kind === "delegate");
             if (delegateSym?.kind === "delegate") {
               return finishUnqualifiedReturn(delegateSym.type);
+            }
+            if (
+              member.kind === "variable" &&
+              member.nativeArrayRank !== undefined &&
+              member.nativeArrayRank === invocationArity
+            ) {
+              return finishUnqualifiedReturn(member.type);
+            }
+            const indexedElement = TypeResolver.resolveDefaultIndexerElementType(
+              member.type,
+              invocationArity,
+              indexer,
+            );
+            if (indexedElement) {
+              return finishUnqualifiedReturn(indexedElement);
             }
           }
           return finishUnqualifiedReturn(
@@ -1139,21 +1175,49 @@ export class TypeResolver {
       const member = TypeResolver.findMember(receiverType, expr.target.member, indexer, arity);
       if (member?.kind === "indexed-property") return member.type;
       if (member?.kind === "variable" && member.nativeArrayRank === arity) return member.type;
+      if (member && (member.kind === "variable" || member.kind === "property")) {
+        return TypeResolver.resolveDefaultIndexerElementType(member.type, arity, indexer);
+      }
       return undefined;
     }
 
     const targetType = TypeResolver.resolveExpressionType(expr.target, document, lineIdx, indexer);
     if (!targetType) return undefined;
+    return TypeResolver.resolveDefaultIndexerElementType(targetType, arity, indexer);
+  }
+
+  /**
+   * Element type of a default parentheses/bracket indexer on `targetType`
+   * (`list(i)` / `list[i]`): TTList/array-sugar element type first, then
+   * `Item`/`Take` indexed properties (e.g. StringList).
+   *
+   * Preferring `resolveListElementType` matters because `TTList<T>` inherits
+   * `TTComposerList.Item As TTObject` — that wrapper indexer must not win over `T`.
+   */
+  public static resolveDefaultIndexerElementType(
+    targetType: string,
+    arity: number,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
     const lowerTargetType = targetType.toLowerCase();
     if (lowerTargetType === "variant") return "Variant";
-    if (lowerTargetType === "string") return "String";
-    const genericElementType = parseGenericTypeReference(targetType)?.args[0];
-    if (genericElementType && isListLikeType(targetType)) return genericElementType;
+    if (lowerTargetType === "string" && arity === 1) return "String";
+
+    if (arity === 1) {
+      const listElement = TypeResolver.resolveListElementType(targetType, indexer);
+      if (listElement) return listElement;
+    }
+
     const item = TypeResolver.findMember(targetType, "Item", indexer, arity);
     if (item?.kind === "indexed-property") return item.type;
     const take = TypeResolver.findMember(targetType, "Take", indexer, arity);
     if (take?.kind === "indexed-property") return take.type;
-    return genericElementType;
+
+    const genericElementType = parseGenericTypeReference(targetType)?.args[0];
+    if (genericElementType && isListLikeType(targetType) && arity === 1) {
+      return genericElementType;
+    }
+    return undefined;
   }
 
   private static resolveArrayLiteralType(

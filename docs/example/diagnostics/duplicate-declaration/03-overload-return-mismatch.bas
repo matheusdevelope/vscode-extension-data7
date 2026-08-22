@@ -1,6 +1,6 @@
 ' @example: diagnostics/duplicate-declaration/03-overload-return-mismatch
-' @demonstrates: overload com parâmetros diferentes mas tipos de retorno distintos
-' @diagnostics: duplicate-declaration@12
+' @demonstrates: overload com parâmetros e tipos de retorno distintos é válido (padrão TTList First/Last)
+' @diagnostics: none
 '
 
 Namespace mod_dup_return

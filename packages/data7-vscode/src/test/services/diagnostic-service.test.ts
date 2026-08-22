@@ -1143,6 +1143,11 @@ describe("DiagnosticService live lifecycle", () => {
       clear: () => {
         entries.clear();
       },
+      forEach: (callback: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => void) => {
+        for (const [key, diags] of entries) {
+          callback(vscode.Uri.parse(key), diags);
+        }
+      },
       dispose: () => undefined,
     });
 
@@ -1172,6 +1177,88 @@ describe("DiagnosticService live lifecycle", () => {
         `expected duplicate-declaration in Problems; got: ${diags
           .map((d) => String(d.code))
           .join(", ")}`,
+      );
+    } finally {
+      (vscode.workspace as any).findFiles = originalFindFiles;
+      (vscode.workspace as any).workspaceFolders = originalFolders;
+    }
+  });
+
+  test("unused-code overlay keeps base Problems when DiagnosticCollection.get is case-sensitive", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-problems-case-"));
+    const srcDir = path.join(tmpDir, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "data7.json"),
+      JSON.stringify({ nome: "TmpProject", dependencies: {} }),
+      "utf8",
+    );
+    const basPath = path.join(srcDir, "mod_column.bas");
+    fs.writeFileSync(
+      basPath,
+      [
+        "Namespace mod_column",
+        "   Class TGridColumnDef",
+        '      Mask As String = ""',
+        "      Shared Function Mask(pCaption As String, pKey As String) As TGridColumnDef",
+        "         Mask = New TGridColumnDef()",
+        "      End Function",
+        "   End Class",
+        "End Namespace",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const uri = vscode.Uri.file(basPath);
+
+    // Real VS Code keys the collection by exact Uri string (case-sensitive).
+    const entries = new Map<string, vscode.Diagnostic[]>();
+    (vscode.languages as any).createDiagnosticCollection = () => ({
+      set: (target: vscode.Uri, diags: vscode.Diagnostic[]) => {
+        entries.set(target.toString(), diags);
+      },
+      get: (target: vscode.Uri) => entries.get(target.toString()),
+      delete: (target: vscode.Uri) => {
+        entries.delete(target.toString());
+      },
+      clear: () => {
+        entries.clear();
+      },
+      forEach: (callback: (uri: vscode.Uri, diags: vscode.Diagnostic[]) => void) => {
+        for (const [key, diags] of entries) {
+          callback(vscode.Uri.parse(key), diags);
+        }
+      },
+      dispose: () => undefined,
+    });
+
+    const originalFindFiles = vscode.workspace.findFiles;
+    const originalFolders = vscode.workspace.workspaceFolders;
+    (vscode.workspace as any).workspaceFolders = [
+      { uri: vscode.Uri.file(tmpDir), name: "TmpProject", index: 0 },
+    ];
+    (vscode.workspace as any).findFiles = async () => [uri];
+    (vscode.workspace as any).getWorkspaceFolder = () => ({
+      uri: vscode.Uri.file(tmpDir),
+      name: "TmpProject",
+      index: 0,
+    });
+
+    mockTextDocuments.length = 0;
+    DiagnosticService.initialize({ subscriptions: [] } as any);
+    DiagnosticService.markWorkspaceIndexReady();
+    DiagnosticService.invalidateWorkspaceFileList();
+
+    try {
+      await DiagnosticService.lintWorkspace(false);
+      const published = [...entries.values()].flat();
+      assert.ok(
+        published.some((diag) => diag.code === DiagnosticCodes.DuplicateDeclaration),
+        "workspace lint must leave duplicate-declaration visible after unused-code overlay",
+      );
+      assert.ok(
+        published.every((diag) => diag.range instanceof vscode.Range),
+        "published diagnostics must use host vscode.Range instances",
       );
     } finally {
       (vscode.workspace as any).findFiles = originalFindFiles;

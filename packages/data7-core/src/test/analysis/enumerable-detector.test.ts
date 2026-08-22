@@ -64,6 +64,42 @@ describe("detectEnumerable", () => {
     assert.equal(info.elementType, "TWidget");
   });
 
+  test("prefers GetItem over inherited Item As TTObject on TTList", () => {
+    const members: SymbolInfo[] = [
+      mkProperty("Length", "Integer"),
+      {
+        ...mkIndexerMethod("Item", "TTObject"),
+        kind: "indexed-property",
+      },
+      mkIndexerMethod("GetItem", "TGridColumnDef"),
+      mkIndexerMethod("Take", "TGridColumnDef"),
+    ];
+    const info = detectEnumerable("TTList_TGridColumnDef", () => members);
+    assert.ok(info);
+    assert.equal(info.countMember, "Length");
+    assert.equal(info.indexerMember, "GetItem");
+    assert.equal(info.elementType, "TGridColumnDef");
+  });
+
+  test("prefers GetItem when As-hint is namespace-qualified", () => {
+    const members: SymbolInfo[] = [
+      mkProperty("Length", "Integer"),
+      {
+        ...mkIndexerMethod("Item", "TTObject"),
+        kind: "indexed-property",
+      },
+      mkIndexerMethod("GetItem", "TGridColumnDef"),
+    ];
+    const info = detectEnumerable(
+      "TTList_TGridColumnDef",
+      () => members,
+      "mod_grid_column_def.TGridColumnDef",
+    );
+    assert.ok(info);
+    assert.equal(info.indexerMember, "GetItem");
+    assert.equal(info.elementType, "TGridColumnDef");
+  });
+
   test("prefers Count over Length when both are present", () => {
     const members: SymbolInfo[] = [
       mkProperty("Count", "Integer"),

@@ -35,10 +35,11 @@ export function buildExpandedTEnumClass(
   lines.push(`Class ${enumName}`);
   lines.push(`   Inherits TEnum`);
   lines.push("");
-  lines.push(`   Private Shared _Initialized As Boolean`);
-  lines.push("");
   lines.push("   Private Shared Sub Initialize()");
-  lines.push("      If _Initialized Then Exit Sub");
+  if (values.length > 0) {
+    const firstDescription = formatDescription(values[0]!.label);
+    lines.push(`      If TEnum._IsCached("${enumName}", ${firstDescription}) Then Exit Sub`);
+  }
   for (const [index, v] of values.entries()) {
     const ordinal = typeof v.id === "number" ? v.id : index;
     const description = formatDescription(v.label);
@@ -46,7 +47,6 @@ export function buildExpandedTEnumClass(
       `      TEnum._AddEnumItem("${enumName}", New ${enumName}(${ordinal}, ${description}))`,
     );
   }
-  lines.push("      _Initialized = True");
   lines.push("   End Sub");
   lines.push("");
   for (const v of values) {

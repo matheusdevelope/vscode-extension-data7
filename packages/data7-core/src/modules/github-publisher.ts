@@ -9,6 +9,7 @@ import { ManifestRegistry } from "./manifest-registry";
 import { DependencyScanner } from "../analysis/dependency-scanner";
 import { parseBasic } from "../project/parser";
 import { isRecord } from "../project/project-config";
+import { selectPublishableModuleSources } from "./module-source-packaging";
 import { RepositoryQueryService, type ModuleManifest } from "./repository-query-service";
 
 interface PreparedModuleForPublish {
@@ -322,8 +323,15 @@ export class GitHubPublisher {
       throw new Error("A pasta 'src' deve conter pelo menos um arquivo de código.");
     }
 
-    for (const filePath of srcFiles) {
-      if (!filePath.toLowerCase().endsWith(".bas")) continue;
+    const publishableFiles = selectPublishableModuleSources(srcFiles);
+    const publishableBas = publishableFiles.filter((f) => f.toLowerCase().endsWith(".bas"));
+    if (publishableBas.length === 0) {
+      throw new Error(
+        "A pasta 'src' deve conter pelo menos um arquivo .bas com Namespace declarado. Arquivos sem Namespace (ex.: Principal.bas de desenvolvimento) não são publicados.",
+      );
+    }
+
+    for (const filePath of publishableBas) {
       const code = fs.readFileSync(filePath, "utf-8");
       const result = parseBasic(code);
       if (result.errors && result.errors.length > 0) {
@@ -335,9 +343,16 @@ export class GitHubPublisher {
     }
 
     const moduleVersion = this.getManifestVersion(manifest.raw, manifest.opcoes.versao);
-    const localFiles = this.buildLocalFileMap(manifestPath, srcDir, srcFiles);
+    const localFiles = this.buildLocalFileMap(manifestPath, srcDir, publishableFiles);
     await this.assertReleaseIsPublishable(moduleName, moduleVersion, localFiles);
-    return { moduleName, moduleVersion, manifestPath, srcDir, srcFiles, localFiles };
+    return {
+      moduleName,
+      moduleVersion,
+      manifestPath,
+      srcDir,
+      srcFiles: publishableFiles,
+      localFiles,
+    };
   }
 
   private static async ensureToken(

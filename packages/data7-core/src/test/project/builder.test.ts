@@ -442,6 +442,61 @@ Print("Hello global dependency")
       });
     });
 
+    test("imports mod_tlist for parameter array sugar without explicit Imports", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_grid_builder
+
+Dim _cols[] As mod_grid_builder.TGridColumnDef = []
+
+Sub Main()
+End Sub
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_grid_builder.bas"),
+          `Namespace mod_grid_builder
+   Class TGridColumnDef
+   End Class
+   Class TGridBuilder
+      Function Columns(pColumns[] As TGridColumnDef) As TGridBuilder
+         Columns = me
+      End Function
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `'@Module
+Namespace mod_tlist
+   Class TTList<T>
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.equal((xml.match(/Imports mod_tlist/g) ?? []).length >= 2, true);
+        assert.match(xml, /Dim _cols As New TTList_TGridColumnDef\(\)/);
+        assert.match(xml, /Function Columns\(pColumns As TTList_TGridColumnDef\)/);
+        assert.match(xml, /Class TTList_TGridColumnDef/);
+      });
+    });
+
     test("imports mod_tlist when enum array sugar materializes TTList_Color", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);
@@ -710,6 +765,122 @@ End Namespace
         assert.match(xml, /Sub Touch/);
         assert.doesNotMatch(xml, /Namespace mod_unused/);
         assert.doesNotMatch(xml, /DeadClass/);
+      });
+    });
+
+    test("prune-enabled builds do not monomorphize generics from unused dependency modules", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          build?: unknown;
+        };
+        config.build = {
+          optimization: {
+            sourceMap: false,
+            minify: { enabled: false, stripComments: false },
+            prune: {
+              enabled: true,
+              report: false,
+              strategy: "principal-closure",
+              alwaysInclude: [],
+              remove: {
+                namespaces: true,
+                classes: false,
+                structures: false,
+                enums: false,
+                delegates: false,
+                methods: false,
+                declareMethods: false,
+                fields: false,
+                properties: false,
+                consts: false,
+                variables: false,
+                unusedImports: false,
+                localVariables: false,
+              },
+            },
+            uglify: { enabled: false },
+          },
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_tlist
+Namespace mod_grid
+   Class Program
+      Public Sub Main()
+         Dim xs As New TTList<Integer>()
+         Print(xs.First())
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const coreDir = path.join(tmp, "data7_modules", "core_modules");
+        fs.mkdirSync(coreDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(coreDir, "mod_tlist.bas"),
+          `'@Module
+Namespace mod_tlist
+   Delegate Function TFindDel<T>(pValue As T, i As Integer, extra As Variant) As Boolean
+   Class TTList<T>
+      Function First() As T
+         First = Null
+      End Function
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const matrixDir = path.join(tmp, "data7_modules", "mod_matrix", "src");
+        fs.mkdirSync(matrixDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(matrixDir, "mod_matrix.bas"),
+          `'@Module
+Namespace mod_matrix
+   Class MyGridRow
+   End Class
+
+   Class MatrixHost
+      Public Sub Build()
+         Dim rows As New TTList<MyGridRow>()
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        // Real packages often ship a namespace-less Principal.bas under data7_modules
+        // (demos/tests). It is indexed for generics discovery but must not become the
+        // reachability seed or always-include source for the consuming project.
+        fs.writeFileSync(
+          path.join(matrixDir, "Principal.bas"),
+          `Class MyGridCol
+End Class
+
+Sub RunDemo()
+   Dim rows As New TTList<MyGridRow>()
+   Dim cols[] As MyGridCol
+End Sub
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+        const xml = fs.readFileSync(destXml, "utf-8");
+
+        assert.doesNotMatch(xml, /Namespace mod_matrix/);
+        assert.doesNotMatch(xml, /MyGridRow/);
+        assert.doesNotMatch(xml, /MyGridCol/);
+        assert.doesNotMatch(xml, /TTList_MyGridRow/);
+        assert.doesNotMatch(xml, /TTList_MyGridCol/);
+        assert.doesNotMatch(xml, /TFindDel_MyGridRow/);
+        assert.match(xml, /TTList_Integer/);
       });
     });
 

@@ -143,7 +143,7 @@ class AstTypeCatalog {
   private collectMethodLocals(method: MethodDeclaration): void {
     const locals = new Map<string, string>();
     for (const parameter of method.parameters) {
-      locals.set(parameter.name.toLowerCase(), parameter.type.name);
+      locals.set(parameter.name.toLowerCase(), typeRefToName(parameter.type));
     }
     const collectStatements = (statements: readonly Statement[]): void => {
       for (const statement of statements) {
@@ -196,10 +196,29 @@ class AstTypeCatalog {
 
   private resolveMember(typeName: string, name: string, argumentCount: number): string | undefined {
     return (
-      this.classes.get(typeName.toLowerCase())?.values.get(name.toLowerCase()) ??
+      this.resolveValueMember(typeName, name) ??
       this.classes.get(typeName.toLowerCase())?.methods.get(name.toLowerCase())?.type ??
       this.ctx.resolveMemberType?.(typeName, name, argumentCount)
     );
+  }
+
+  /** Field/property type only — never method return types. */
+  public resolveValueMember(typeName: string, name: string): string | undefined {
+    const memberKey = name.toLowerCase();
+    const fromScope = (scopeName: string): string | undefined =>
+      this.classes.get(scopeName.toLowerCase())?.values.get(memberKey);
+
+    const direct = fromScope(typeName);
+    if (direct) return direct;
+
+    const simple = typeName.includes(".")
+      ? typeName.slice(typeName.lastIndexOf(".") + 1)
+      : typeName;
+    if (simple !== typeName) {
+      const viaSimple = fromScope(simple);
+      if (viaSimple) return viaSimple;
+    }
+    return undefined;
   }
 
   public resolveMemberSignature(
@@ -363,6 +382,14 @@ function simpleTypeName(typeName: string): string {
   return `${dot >= 0 ? prefix.slice(dot + 1) : prefix}${suffix}`;
 }
 
+/** Counts namespace dots in the non-generic prefix (`ns.sub.Foo<T>` → 2). */
+function typeQualificationScore(typeName: string): number {
+  const trimmed = typeName.trim();
+  const genericStart = trimmed.indexOf("<");
+  const prefix = genericStart >= 0 ? trimmed.slice(0, genericStart) : trimmed;
+  return (prefix.match(/\./g) ?? []).length;
+}
+
 function splitTopLevelCommas(value: string): string[] {
   const result: string[] = [];
   let depth = 0;
@@ -500,12 +527,19 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       node.members = this.transformMembers(node.members);
 
       // Auto-inject imports for utility modules and core module dependencies.
+      const declaredNamespaces = new Set<string>();
+      for (const member of node.members) {
+        if (member.kind === "NamespaceDeclaration") {
+          declaredNamespaces.add(member.name.toLowerCase());
+        }
+      }
       const imports = new Set([
         ...SugarRegistry.getUtilityModules(this.usedSugars).map((utility) => utility.namespace),
         ...SugarRegistry.getRequiredImports(this.usedSugars),
       ]);
       for (const target of imports) {
         if (target) {
+          if (declaredNamespaces.has(target.toLowerCase())) continue;
           const hasImport = node.members.some(
             (m) =>
               m.kind === "ImportsDeclaration" && m.target.toLowerCase() === target.toLowerCase(),
@@ -565,11 +599,44 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       this.activeMethod = node;
       this.listVariableScopes.push(this.createListScope());
       try {
+        this.rememberListParameters(node.parameters);
+        this.markArrayListSugarFromParameters(node.parameters);
         node.body = this.transformStatements(node.body);
       } finally {
         this.listVariableScopes.pop();
         this.activeMethod = previousMethod;
       }
+      return;
+    }
+    if (node.kind === "DelegateDeclaration") {
+      this.markArrayListSugarFromParameters(node.parameters);
+      super.walk(node);
+      return;
+    }
+    if (node.kind === "FieldDeclaration") {
+      if (node.isArraySugar) {
+        this.usedSugars.add("array-list");
+      }
+      if (
+        this.isSugarEnabled("array-list") &&
+        this.isListContainerType(node.type) &&
+        node.initializer?.kind === "ArrayLiteralExpression"
+      ) {
+        this.usedSugars.add("array-list");
+        // Field initializers cannot expand into Push statements; empty `[]`
+        // becomes `New TTList_T()`. Non-empty literals are rewritten to `New`
+        // plus the elements are not representable on the field — prefer
+        // assigning in the constructor (handled by Assignment expansion).
+        if (node.initializer.elements.length === 0) {
+          node.initializer = {
+            kind: "ObjectCreationExpression",
+            type: node.type,
+            arguments: [],
+            loc: node.initializer.loc ?? node.loc,
+          };
+        }
+      }
+      super.walk(node);
       return;
     }
     super.walk(node);
@@ -625,6 +692,9 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
   private transformStatementRaw(s: Statement): Statement | Statement[] {
     switch (s.kind) {
       case "VariableDeclaration": {
+        if (s.isArraySugar) {
+          this.usedSugars.add("array-list");
+        }
         if (s.type && this.isListContainerType(s.type)) {
           this.rememberListVariable(s.name, s.type);
         }
@@ -883,6 +953,38 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
             loc: s.loc,
             comment: s.comment,
           };
+        }
+
+        const parenIndexWrite = this.isSugarEnabled("array-list")
+          ? this.getListParenIndexAccess(s.target)
+          : undefined;
+        if (parenIndexWrite) {
+          this.usedSugars.add("array-list");
+          return {
+            kind: "ExpressionStatement",
+            expression: {
+              kind: "MethodInvocation",
+              callee: this.transformExpression(parenIndexWrite.target, false, s.loc?.startLine),
+              methodName: "SetItem",
+              typeArguments: [],
+              arguments: [
+                this.transformExpression(parenIndexWrite.index, false, s.loc?.startLine),
+                this.transformExpression(s.value, false, s.loc?.startLine),
+              ],
+              loc: s.loc,
+            },
+            loc: s.loc,
+            comment: s.comment,
+          };
+        }
+
+        if (this.isSugarEnabled("array-list") && s.value.kind === "ArrayLiteralExpression") {
+          const listType = this.resolveAssignmentListType(s.target);
+          if (listType) {
+            this.usedSugars.add("array-list");
+            const target = this.transformExpression(s.target, false, s.loc?.startLine);
+            return this.expandArrayLiteralAssignment(target, listType, s.value, s.loc, s.comment);
+          }
         }
 
         s.target = this.transformExpression(s.target, false, s.loc?.startLine);
@@ -1465,6 +1567,22 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
         return e;
 
       case "MethodInvocation": {
+        const parenIndexRead = this.isSugarEnabled("array-list")
+          ? this.getListParenIndexAccess(e)
+          : undefined;
+        if (parenIndexRead) {
+          this.usedSugars.add("array-list");
+          return this.createGetItemCall(
+            this.transformExpression(
+              parenIndexRead.target,
+              isAssignmentRhsOrCallStatementContext,
+              startLine,
+            ),
+            this.transformExpression(parenIndexRead.index, false, startLine),
+            e.loc,
+          );
+        }
+
         let receiverType: string | undefined;
         if (e.callee) {
           e.callee = this.transformExpression(
@@ -1805,6 +1923,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     this.activeMethod = method;
     this.listVariableScopes.push(this.createListScope());
     try {
+      this.rememberListParameters(params);
+      this.markArrayListSugarFromParameters(params);
       if (Array.isArray(lambda.body)) {
         const transformedBody = this.transformStatements(lambda.body);
         method.body =
@@ -1867,20 +1987,9 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
       const declared = lambda.parameters[i];
       const expectedParam = expected[i];
       if (declared) {
-        const expectedTypeName = expectedParam?.type;
-        const declaredTypeName = typeRefToName(declared.type);
-        const useDeclaredType =
-          expectedTypeName &&
-          isLikelyGenericTypeParameter(expectedTypeName) &&
-          !isLikelyGenericTypeParameter(declaredTypeName);
-        const expectedType = useDeclaredType
-          ? declared.type
-          : expectedParam
-            ? this.typeRefFromName(expectedParam.type, declared.loc)
-            : declared.type;
         result.push({
           ...declared,
-          type: this.cloneTypeRef(expectedType),
+          type: this.cloneTypeRef(this.resolveLambdaParameterType(declared, expectedParam)),
           isByRef: expectedParam
             ? expectedParam.isByRef === true
               ? true
@@ -1901,6 +2010,40 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     }
 
     return result;
+  }
+
+  /**
+   * Prefer the lambda source spelling when it is concrete. The expected
+   * delegate signature often carries a monomorphized simple name (`Foo`)
+   * while the lambda wrote `ns.Foo` — keep the qualified form so the
+   * generated `__data7_lambda_*` method compiles without an `Imports`.
+   * When both denote the same simple type, pick the more qualified one.
+   */
+  private resolveLambdaParameterType(
+    declared: ParameterDeclaration,
+    expectedParam:
+      | {
+          readonly type: string;
+        }
+      | undefined,
+  ): TypeReference {
+    const declaredTypeName = typeRefToName(declared.type);
+    const expectedTypeName = expectedParam?.type;
+    if (!expectedTypeName || isLikelyGenericTypeParameter(expectedTypeName)) {
+      return declared.type;
+    }
+    if (!declaredTypeName || isLikelyGenericTypeParameter(declaredTypeName)) {
+      return this.typeRefFromName(expectedTypeName, declared.loc);
+    }
+    if (
+      simpleTypeName(declaredTypeName).toLowerCase() ===
+      simpleTypeName(expectedTypeName).toLowerCase()
+    ) {
+      return typeQualificationScore(declaredTypeName) >= typeQualificationScore(expectedTypeName)
+        ? declared.type
+        : this.typeRefFromName(expectedTypeName, declared.loc);
+    }
+    return declared.type;
   }
 
   private rewriteLambdaFunctionReturns(
@@ -2098,6 +2241,67 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
   }
 
   /**
+   * `receiver.listField` is indexable with `(i)` only when `listField` is a
+   * field/property of list type — not a method that happens to return a list.
+   */
+  protected override isListFieldOrPropertyAccess(expr: MemberAccess): boolean {
+    const receiverType = this.inferType(expr.target, expr.loc?.startLine);
+    if (!receiverType) return false;
+
+    const valueType =
+      this.typeCatalog?.resolveValueMember(receiverType, expr.member) ??
+      this.resolveExternalListFieldType(receiverType, expr.member);
+    if (!valueType) return false;
+    return this.isListContainerTypeName(valueType);
+  }
+
+  protected override resolveAssignmentListType(target: Expression): TypeReference | undefined {
+    if (target.kind === "Identifier") {
+      const fromScope = this.getListExpressionInfo(target)?.type;
+      if (fromScope) return this.cloneTypeRef(fromScope);
+    }
+
+    if (target.kind === "MemberAccess") {
+      if (!this.isListFieldOrPropertyAccess(target)) return undefined;
+    } else if (target.kind !== "Identifier") {
+      return undefined;
+    }
+
+    const typeName = this.inferType(target, target.loc?.startLine);
+    if (!typeName || !this.isListContainerTypeName(typeName)) return undefined;
+
+    if (target.kind === "MemberAccess" && this.activeClass) {
+      const field = this.activeClass.members.find(
+        (member): member is Extract<typeof member, { kind: "FieldDeclaration" }> =>
+          member.kind === "FieldDeclaration" &&
+          member.name.toLowerCase() === target.member.toLowerCase(),
+      );
+      if (field && this.isListContainerType(field.type)) {
+        return this.cloneTypeRef(field.type);
+      }
+    }
+
+    return this.typeRefFromTypeName(typeName, target.loc);
+  }
+
+  private resolveExternalListFieldType(typeName: string, memberName: string): string | undefined {
+    const asMethod =
+      this.typeCatalog?.resolveMemberSignature(typeName, memberName, 1) ??
+      this.ctx.resolveMemberSignature?.(typeName, memberName, 1);
+    if (asMethod?.parameters && asMethod.parameters.length >= 1) {
+      return undefined;
+    }
+    return this.ctx.resolveMemberType?.(typeName, memberName, 0);
+  }
+
+  private isListContainerTypeName(typeName: string): boolean {
+    const parsed = parseGenericTypeName(typeName);
+    if (parsed.name.toLowerCase() === "ttlist") return true;
+    if (typeName.toLowerCase().startsWith("ttlist_")) return true;
+    return this.resolveListElementType(typeName) !== undefined;
+  }
+
+  /**
    * When a subclass list (e.g. `Pessoas`) calls inherited `Filter`/`Map` that
    * returns the flat `TTList_T`, copy the result into a new subclass instance.
    */
@@ -2256,10 +2460,15 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
   }
 
   private typeRefFromName(name: string, loc: Node["loc"]): TypeReference {
+    return this.typeRefFromTypeName(name, loc);
+  }
+
+  private typeRefFromTypeName(name: string, loc: Node["loc"]): TypeReference {
+    const parsed = parseGenericTypeName(name);
     return {
       kind: "TypeReference",
-      name,
-      typeArguments: [],
+      name: parsed.name,
+      typeArguments: parsed.args.map((argument) => this.typeRefFromTypeName(argument, loc)),
       loc,
     };
   }

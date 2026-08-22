@@ -1,5 +1,5 @@
 ' @example: forms/05-grid-com-dados
-' @demonstrates: Grid com cabeçalho fixo + preenchimento de células via Cells(col, row), ColCount/RowCount/FixedRows
+' @demonstrates: Grid com cabeçalho fixo + preenchimento de células via Cells(col, row) 0-based, ColCount/RowCount/FixedRows
 ' @diagnostics: none
 '
 Imports Forms

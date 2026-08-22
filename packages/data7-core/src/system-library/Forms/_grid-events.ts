@@ -106,7 +106,7 @@ const events: readonly EventSpec[] = [
       { name: "State", type: "TGridDrawState" },
     ],
     description:
-      "Disparado para cada célula desenhada, permitindo customizar o conteúdo no Canvas.",
+      "Disparado para cada célula desenhada, permitindo customizar o conteúdo no Canvas. ACol/ARow são 0-based, no mesmo espaço de Cells.",
   },
   {
     name: "TCustomCellDrawEvent",
@@ -506,11 +506,12 @@ const events: readonly EventSpec[] = [
   {
     name: "TDblClickCellEvent",
     params: [
-      { name: "Sender", type: "TObject" },
-      { name: "ACol", type: "Integer" },
-      { name: "ARow", type: "Integer" },
+      { name: "pSender", type: "TObject" },
+      { name: "pRow", type: "Integer" },
+      { name: "pCol", type: "Integer" },
     ],
-    description: "Duplo-clique em uma célula normal.",
+    description:
+      "Duplo-clique em uma célula. Ordem linha, depois coluna. pRow/pCol são 0-based, no mesmo espaço de Cells.",
   },
   {
     name: "TCanClickCellEvent",
@@ -526,11 +527,12 @@ const events: readonly EventSpec[] = [
     name: "TCanEditCellEvent",
     params: [
       { name: "Sender", type: "TObject" },
-      { name: "ACol", type: "Integer" },
       { name: "ARow", type: "Integer" },
+      { name: "ACol", type: "Integer" },
       { name: "CanEdit", type: "Boolean", isByRef: true },
     ],
-    description: "Permite vetar a edição de uma célula.",
+    description:
+      "Permite vetar a edição de uma célula. Ordem TMS TAdvStringGrid: linha, depois coluna. ARow/ACol são 0-based.",
   },
   {
     name: "TIsFixedCellEvent",
@@ -829,10 +831,11 @@ const events: readonly EventSpec[] = [
       { name: "Sender", type: "TObject" },
       { name: "ACol", type: "Integer" },
       { name: "ARow", type: "Integer" },
-      { name: "AValue", type: "String" },
+      { name: "AValue", type: "String", isByRef: true },
       { name: "AValid", type: "Boolean", isByRef: true },
     ],
-    description: "Permite validar o valor digitado em uma célula.",
+    description:
+      "Permite validar o valor digitado em uma célula. ACol/ARow são 0-based (ordem coluna, linha). AValue é ByRef: o handler pode devolver o texto corrigido.",
   },
   {
     name: "TCellValidateWideEvent",
@@ -840,7 +843,7 @@ const events: readonly EventSpec[] = [
       { name: "Sender", type: "TObject" },
       { name: "ACol", type: "Integer" },
       { name: "ARow", type: "Integer" },
-      { name: "AValue", type: "String" },
+      { name: "AValue", type: "String", isByRef: true },
       { name: "AValid", type: "Boolean", isByRef: true },
     ],
     description: "Versão wide-string de TCellValidateEvent.",
@@ -1158,7 +1161,8 @@ const events: readonly EventSpec[] = [
       { name: "ARow", type: "Integer" },
       { name: "AEditor", type: "TWinControl", isByRef: true },
     ],
-    description: "Permite fornecer um inplace editor customizado para a célula.",
+    description:
+      "Permite fornecer um inplace editor customizado para a célula. ACol/ARow são 0-based, no mesmo espaço de Cells.",
   },
 
   // ───────── TMS — OLE drag & drop ─────────
@@ -1250,7 +1254,8 @@ const events: readonly EventSpec[] = [
       { name: "Sender", type: "TObject" },
       { name: "ARow", type: "Integer" },
     ],
-    description: "Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão.",
+    description:
+      "Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão (Delete). ARow é 0-based nativo; com cabeçalho, linha de dados = ARow - FixedRows.",
   },
 
   // ───────── Genérico TMethod (placeholder Delphi) ─────────

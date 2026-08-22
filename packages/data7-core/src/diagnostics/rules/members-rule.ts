@@ -467,6 +467,7 @@ export class MembersRule implements Rule {
         };
       } else if (variableType) {
         // Parentheses default-indexer: `_arquivos(i)` ≡ `_arquivos.Item(i)` / Strings(i).
+        // TTList / array-sugar: `pColumns(i)` ≡ `pColumns.GetItem(i)`.
         const defaultIndexer = TypeResolver.findMember(
           variableType,
           "Item",
@@ -475,6 +476,18 @@ export class MembersRule implements Rule {
         );
         if (defaultIndexer?.kind === "indexed-property") {
           this.checkMethodArgumentTypes(node, defaultIndexer, lineIdx, context);
+          return;
+        }
+        const indexedElement = TypeResolver.resolveDefaultIndexerElementType(
+          variableType,
+          arity,
+          context.indexer,
+        );
+        if (indexedElement) {
+          const getItem = TypeResolver.findMember(variableType, "GetItem", context.indexer, arity);
+          if (getItem) {
+            this.checkMethodArgumentTypes(node, getItem, lineIdx, context);
+          }
           return;
         }
       }

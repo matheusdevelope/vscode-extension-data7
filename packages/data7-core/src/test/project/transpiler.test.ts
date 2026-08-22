@@ -4,7 +4,10 @@ import { strict as assert } from "node:assert";
 import { SugarTranspiler, type TranspileContext } from "../../project/transpiler";
 import { SugarRegistry } from "../../project/sugars";
 import type { EnumerableInfo } from "../../analysis/enumerable-detector";
+import { detectEnumerable } from "../../analysis/enumerable-detector";
+import type { SymbolInfo } from "../../analysis/symbol-indexer";
 import { lookupSystemByName } from "../../system-library";
+import { SYSTEM_RANGE } from "../../system-library/symbol-helpers";
 
 /**
  * Minimal in-memory enumerable resolver used by the transpiler tests.
@@ -87,6 +90,68 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Dim item As String = list\.Strings\(__idx0\)/);
     assert.match(out, /mod_logger\.Printe\(item\)/);
     assert.match(out, /^\s{3}Next$/m);
+  });
+
+  test("expands `For Each` over TTList with GetItem, not inherited Item", () => {
+    const ttListMembers: SymbolInfo[] = [
+      {
+        name: "Length",
+        kind: "property",
+        type: "Integer",
+        isShared: false,
+        isPrivate: false,
+        range: SYSTEM_RANGE,
+        fileUri: "test://ttlist",
+        containerName: "TTList_TGridColumnDef",
+      },
+      {
+        name: "Item",
+        kind: "indexed-property",
+        type: "TTObject",
+        isShared: false,
+        isPrivate: false,
+        parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }],
+        range: SYSTEM_RANGE,
+        fileUri: "test://ttlist",
+        containerName: "TTComposerList",
+      },
+      {
+        name: "GetItem",
+        kind: "method",
+        type: "TGridColumnDef",
+        isShared: false,
+        isPrivate: false,
+        parameters: [{ name: "pIndex", type: "Integer", isByRef: false, isOptional: false }],
+        range: SYSTEM_RANGE,
+        fileUri: "test://ttlist",
+        containerName: "TTList_TGridColumnDef",
+      },
+    ];
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        detectEnumerable: (typeName, preferredElementType) =>
+          detectEnumerable(typeName, () => ttListMembers, preferredElementType),
+      },
+    );
+    const code = [
+      "Sub SetColumns(pColumns As TTList_TGridColumnDef)",
+      "   For Each col As mod_grid_column_def.TGridColumnDef In pColumns",
+      "      Print(col)",
+      "   Next",
+      "End Sub",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /For __idx0 = 0 To pColumns\.Length - 1/);
+    assert.match(
+      out,
+      /Dim col As mod_grid_column_def\.TGridColumnDef = pColumns\.GetItem\(__idx0\)/,
+    );
+    assert.doesNotMatch(out, /pColumns\.Item\(/);
   });
 
   test("infers the element type from the indexer when `As` is omitted", () => {
@@ -643,6 +708,77 @@ describe("SugarTranspiler.transpile", () => {
     assert.doesNotMatch(out, /Wrap = pValue/);
     assert.doesNotMatch(out, /<#/);
   });
+
+  test("evaluates TypeSystem.IsKind / IsDelegate for delegate type arguments", () => {
+    const code = [
+      "Delegate Function THandler<T>(pValue As T) As Boolean",
+      "Class TBox_<T>",
+      "   Function Describe() As String",
+      '      <# IF TypeSystem.IsKind(T, "Delegate") THEN #>',
+      '      Describe = "delegate"',
+      "      <# ELSE #>",
+      '      Describe = "value"',
+      "      <# END IF #>",
+      "   End Function",
+      "   Function DescribeAlias() As String",
+      "      <# IF TypeSystem.IsDelegate(T) THEN #>",
+      '      DescribeAlias = "delegate-alias"',
+      "      <# ELSE #>",
+      '      DescribeAlias = "value-alias"',
+      "      <# END IF #>",
+      "   End Function",
+      "End Class",
+      "Dim byHandler As TBox<THandler<Integer>>",
+      "Dim byInt As TBox<Integer>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, makeContext({}));
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class TBox_THandler_Integer/);
+    assert.match(out, /Class TBox_Integer/);
+    assert.match(out, /Describe = "delegate"/);
+    assert.match(out, /DescribeAlias = "delegate-alias"/);
+    assert.match(out, /Describe = "value"/);
+    assert.match(out, /DescribeAlias = "value-alias"/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("evaluates TypeSystem.IsPrimitive and IsClass for scalar vs class arguments", () => {
+    const code = [
+      "Class TProbe_<T>",
+      "   Function Kind() As String",
+      "      <# IF TypeSystem.IsPrimitive(T) THEN #>",
+      '      Kind = "primitive"',
+      "      <# ELSE #>",
+      '      Kind = "non-primitive"',
+      "      <# END IF #>",
+      "   End Function",
+      "   Function ClassKind() As String",
+      '      <# IF TypeSystem.IsKind(T, "Class") THEN #>',
+      '      ClassKind = "class"',
+      "      <# ELSE #>",
+      '      ClassKind = "non-class"',
+      "      <# END IF #>",
+      "   End Function",
+      "End Class",
+      "Class Produto",
+      "End Class",
+      "Dim a As TProbe<String>",
+      "Dim b As TProbe<Produto>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, makeContext({}));
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class TProbe_String/);
+    assert.match(out, /Class TProbe_Produto/);
+    assert.match(out, /Kind = "primitive"/);
+    assert.match(out, /Kind = "non-primitive"/);
+    assert.match(out, /ClassKind = "class"/);
+    assert.match(out, /ClassKind = "non-class"/);
+    assert.doesNotMatch(out, /<#/);
+  });
 });
 
 describe("SugarTranspiler — For Each range (`0..N`)", () => {
@@ -1177,6 +1313,8 @@ describe("SugarTranspiler — D1 Enun declarative (multi-line)", () => {
     assert.doesNotMatch(out, /CType\(/);
     assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(0, "Stone"\)\)/);
     assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(1, "Cielo"\)\)/);
+    assert.match(out, /If TEnum\._IsCached\("CardAdm", "Stone"\) Then Exit Sub/);
+    assert.doesNotMatch(out, /_Initialized/);
     assert.match(out, /Stone = Load\("Stone"\)/);
     assert.match(out, /Shared Function Load\(pValue As CardAdm\) As CardAdm/);
     assert.match(out, /Shared Function Load\(pValue As Integer\) As CardAdm/);
@@ -1192,6 +1330,7 @@ describe("SugarTranspiler — D1 Enun declarative (multi-line)", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.match(out, /TEnum\._AddEnumItem\("CardAdm", New CardAdm\(0, "23"\)\)/);
+    assert.match(out, /If TEnum\._IsCached\("CardAdm", "23"\) Then Exit Sub/);
     assert.match(out, /RedeCard = Load\("23"\)/);
   });
 
@@ -1438,6 +1577,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
+      `Imports mod_tlist`,
       `Dim x As New TTList_String()`,
       `x.Push("a")`,
       `x.Push("b")`,
@@ -1455,6 +1595,202 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /Function Columns\(pColumns As TTList_String\) As Boolean/);
     assert.match(out, /Columns = pColumns\.Count > 0/);
     assert.doesNotMatch(out, /pColumns\[\]/);
+  });
+
+  test("injects Imports mod_tlist when parameter array sugar materializes TTList_T", () => {
+    const code = [
+      "Namespace mod_grid_builder",
+      "   Class TGridBuilder",
+      "      Function Columns(pColumns[] As TGridColumnDef) As TGridBuilder",
+      "         Columns = me",
+      "      End Function",
+      "   End Class",
+      "   Class TGridColumnDef",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Imports mod_tlist\r?\n/m);
+    assert.match(out, /Function Columns\(pColumns As TTList_TGridColumnDef\)/);
+  });
+
+  test("injects Imports mod_tlist when Dim array sugar materializes TTList_T", () => {
+    const code = `Dim cols[] As String = []`;
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^Imports mod_tlist\r?\n/m);
+    assert.match(out, /Dim cols As New TTList_String\(\)/);
+  });
+
+  test("materializes array-literal assignment to TTList field as New + Push", () => {
+    const code = [
+      "Class TGridDtoBinder",
+      "   Private _bindings[] As TGridFieldBinding",
+      "   Sub New()",
+      "      MyBase.New()",
+      "      me._bindings = []",
+      "      me._bindings = [New TGridFieldBinding()]",
+      "      Dim _teste[] As TGridFieldBinding = [New TGridFieldBinding()]",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(
+      out,
+      /Private _bindings As TTList_TGridFieldBinding = New TTList_TGridFieldBinding\(\)/,
+    );
+    assert.match(out, /me\._bindings = New TTList_TGridFieldBinding\(\)/);
+    assert.match(out, /me\._bindings\.Push\(New TGridFieldBinding\(\)\)/);
+    assert.match(out, /Dim _teste As New TTList_TGridFieldBinding\(\)/);
+    assert.match(out, /_teste\.Push\(New TGridFieldBinding\(\)\)/);
+    assert.doesNotMatch(out, /me\._bindings = \[\]/);
+    assert.doesNotMatch(out, /me\._bindings = \[New/);
+  });
+
+  test("materializes empty and populated array-literal assignment to Dim TTList", () => {
+    const code = [
+      "Sub Run()",
+      "   Dim items[] As String",
+      "   items = []",
+      '   items = ["a", "b"]',
+      "End Sub",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /items = New TTList_String\(\)/);
+    assert.match(out, /items\.Push\("a"\)/);
+    assert.match(out, /items\.Push\("b"\)/);
+    assert.doesNotMatch(out, /items = \[\]/);
+    assert.doesNotMatch(out, /items = \["a"/);
+  });
+
+  test("rewrites paren index on array-sugar parameter to GetItem", () => {
+    const code = [
+      "Sub SetColumns(pColumns[] As String)",
+      "   me.ColumnCount = 0",
+      "   If UBound(pColumns) < 0 Then",
+      "      Exit Sub",
+      "   End If",
+      "   Dim i As Integer",
+      "   For i = 0 To UBound(pColumns)",
+      "      me.Columns(me.ColumnCount) = pColumns(i)",
+      "      me.ColumnCount = me.ColumnCount + 1",
+      "   Next",
+      "End Sub",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Sub SetColumns\(pColumns As TTList_String\)/);
+    assert.match(out, /me\.Columns\(me\.ColumnCount\) = pColumns\.GetItem\(i\)/);
+    assert.doesNotMatch(out, /=\s*pColumns\(i\)/);
+  });
+
+  test("rewrites paren index on array-sugar field member to GetItem/SetItem", () => {
+    const code = [
+      "Class TGridConfig",
+      "   Columns[] As String",
+      "   ColumnCount As Integer",
+      "   Sub Push(pValue As String)",
+      "      me.Columns(me.ColumnCount) = pValue",
+      "      me.ColumnCount = me.ColumnCount + 1",
+      "   End Sub",
+      "End Class",
+      "",
+      "Class TGridColumnRegistry",
+      "   Sub BuildFromConfig(pConfig As TGridConfig)",
+      "      Dim i As Integer",
+      "      For i = 0 To pConfig.ColumnCount - 1",
+      "         Dim _col As String = pConfig.Columns(i)",
+      "      Next",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Columns As TTList_String/);
+    assert.match(out, /me\.Columns\.SetItem\(me\.ColumnCount, pValue\)/);
+    assert.match(out, /Dim _col As String = pConfig\.Columns\.GetItem\(i\)/);
+    assert.doesNotMatch(out, /pConfig\.Columns\(i\)/);
+    assert.doesNotMatch(out, /me\.Columns\(me\.ColumnCount\)\s*=/);
+  });
+
+  test("does not rewrite paren call on one-arg method that returns a list", () => {
+    const code = [
+      "Class TFactory",
+      "   Function CreateList(pSeed As Integer) As TTList_String",
+      "      CreateList = New TTList_String()",
+      "   End Function",
+      "End Class",
+      "",
+      "Sub Main(f As TFactory)",
+      "   Dim x As TTList_String = f.CreateList(0)",
+      "End Sub",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /f\.CreateList\(0\)/);
+    assert.doesNotMatch(out, /CreateList\.GetItem/);
+  });
+
+  test("does not rewrite paren index on native array field", () => {
+    const code = [
+      "Class TRegistry",
+      "   Private _columns(64) As String",
+      "   Private _count As Integer",
+      "   Function ByIndex(pCol As Integer) As String",
+      "      ByIndex = me._columns(pCol)",
+      "   End Function",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /me\._columns\(pCol\)/);
+    assert.doesNotMatch(out, /_columns\.GetItem/);
+  });
+
+  test("rewrites paren index on external array-sugar field via resolveMemberType", () => {
+    const memberCtx = makeContext(
+      {},
+      {},
+      {
+        resolveMemberType: (typeName, name) => {
+          if (typeName.toLowerCase().endsWith("tgridconfig") && name.toLowerCase() === "columns") {
+            return "TTList_String";
+          }
+          if (name.toLowerCase() === "columncount") return "Integer";
+          return undefined;
+        },
+        resolveListElementType: (typeName) =>
+          typeName.toLowerCase().startsWith("ttlist_")
+            ? typeName.slice("TTList_".length)
+            : undefined,
+      },
+    );
+    const code = [
+      "Sub BuildFromConfig(pConfig As mod_grid_config.TGridConfig)",
+      "   Dim i As Integer",
+      "   Dim _col As String = pConfig.Columns(i)",
+      "End Sub",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, memberCtx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim _col As String = pConfig\.Columns\.GetItem\(i\)/);
+    assert.doesNotMatch(out, /pConfig\.Columns\(i\)/);
+  });
+
+  test("rewrites paren index read/write on Dim TTList to GetItem/SetItem", () => {
+    const code = [
+      'Dim items[] As String = ["a"]',
+      "Dim first As String = items(0)",
+      'items(0) = "b"',
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Dim first As String = items\.GetItem\(0\)/);
+    assert.match(out, /items\.SetItem\(0, "b"\)/);
+    assert.doesNotMatch(out, /items\(0\)/);
   });
 
   test("injects mod_tlist when array-list materializes TTList_<Enum>", () => {
@@ -1491,6 +1827,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
+      `Imports mod_tlist`,
       `Dim x As New TTList_String()`,
       `x.Push("a")`,
       `x.Push(other)`,
@@ -1502,6 +1839,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.trimEnd().split("\n"), [
+      `Imports mod_tlist`,
       `Dim x As New TTList_String()`,
       `x.Push("a")`,
       `x.Push("b")`,
@@ -1515,6 +1853,7 @@ describe("SugarTranspiler — array-list", () => {
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
+      `Imports mod_tlist`,
       `Dim x As New TTList_Product()`,
       `Dim first As Product = x.GetItem(0)`,
       `x.SetItem(1, New Product())`,
@@ -1680,6 +2019,40 @@ describe("SugarTranspiler — array-list", () => {
     assert.match(out, /__data7_lambda_\d+ = __ret\d+/);
     assert.match(out, /Exit Function/);
     assert.doesNotMatch(out, /Return pIdx > 0/);
+  });
+
+  test("preserves namespace-qualified lambda parameter types in generated helpers", () => {
+    const code = [
+      "Namespace mod_grid_column_registry",
+      "   Class TGridColumnRegistry",
+      "      Private _columns As TTList_TGridColumnDef",
+      "      Sub Reindex()",
+      "         me._columns.ForEach(Sub(pItem As mod_grid_column_def.TGridColumnDef, i As Integer)",
+      "            pItem.Index = i",
+      "         End Sub)",
+      "      End Sub",
+      "   End Class",
+      "End Namespace",
+      "",
+      "Namespace mod_tlist",
+      "   Delegate Sub TForEachDel_TGridColumnDef(pItem As TGridColumnDef, i As Integer, extra As Variant)",
+      "   Class TTList_TGridColumnDef",
+      "      Sub ForEach(pHandler As TForEachDel_TGridColumnDef)",
+      "      End Sub",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /me\._columns\.ForEach\(__data7_lambda_\d+\)/);
+    assert.match(
+      out,
+      /Private Sub __data7_lambda_\d+\(pItem As mod_grid_column_def\.TGridColumnDef, i As Integer, extra As Variant\)/,
+    );
+    assert.doesNotMatch(
+      out,
+      /Private Sub __data7_lambda_\d+\(pItem As TGridColumnDef, i As Integer, extra As Variant\)/,
+    );
   });
 
   test("materializes reduce lambdas with the complete accumulator delegate signature", () => {

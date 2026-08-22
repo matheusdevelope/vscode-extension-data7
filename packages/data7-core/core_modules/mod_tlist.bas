@@ -36,11 +36,11 @@ Namespace mod_tlist
       End Sub
 
       Private Sub _init(pID As String, pValue As T)
-         pID = pID.Trim()
+         ' BYPASS: Evita processamento de strings vazias e alocação pesada de HashCode
          If pID <> "" Then
-            me._id = pID
+            me._id = pID.Trim()
          Else
-            me._id = CStr(me.GetHashCode)
+            me._id = ""
          End If
          me.Value = pValue
       End Sub
@@ -57,20 +57,39 @@ Namespace mod_tlist
       End Function
 
       Overrides Function GetID() As String
-         GetID = me._id
+         ' LAZY EVALUATION: Só calcula a reflexão pesada se o código exigir o ID deste item
+         If me._id <> "" Then
+            GetID = me._id
+         Else
+            GetID = MyBase.GetID()
+         End If
       End Function
 
       Overrides Function ToString() As String
          With me.BuildLogger(me.Classname)
             .Prop("ID", me._id)
+            <# If TypeSystem.IsDelegate(T) Then #>
+            .Prop("Value IS NULL", me.Value = Null)
+            Dim _type As String = "Delegate"
+            .Prop("Type", _type)
+            <# End If #>
+            <# If TypeSystem.IsClass(T) Then #>
             .Prop("Value", me.Value.ToString())
             .Prop("Type", TypeName(me.Value))
+            <# End If #>
+            <# If TypeSystem.IsPrimitive(T) Then #>
+            .Prop("Value", CStr(me.Value))
+            .Prop("Type", TypeName(me.Value))
+            <# End If #>
             ToString = .Text
          End With
       End Function
 
       Overrides Sub Dispose()
          me._id = Unassigned
+         <# If TypeSystem.IsDelegate(T) Then #>
+         me.Value = Null
+         <# Else #>
          <# If TypeSystem.InheritsFrom(T, "TObject") Then #>
          If Assigned(me.Value) Then
             me.Value.Free()
@@ -78,6 +97,7 @@ Namespace mod_tlist
          End If
          <# Else #>
          me.Value = Unassigned
+         <# End If #>
          <# End If #>
       End Sub
 
@@ -112,7 +132,7 @@ Namespace mod_tlist
       End Function
 
       Function GetItem(pIndex As Integer) As T
-         GetItem = me.Take(pIndex)
+         GetItem = me.Unwrap(me._base.Take(pIndex))
       End Function
 
       Sub SetItem(pIndex As Integer, pValue As T)
@@ -124,7 +144,11 @@ Namespace mod_tlist
       End Sub
 
       Sub Push(pValue As T)
+         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         me.Push(pValue.GetID(), pValue)
+         <# Else #>
          me.Push("", pValue)
+         <# End If #>
       End Sub
 
       Sub Push(pValue As TTList<T>)
@@ -136,7 +160,11 @@ Namespace mod_tlist
       End Sub
 
       Sub Unshift(pIndex As Integer, pValue As T)
+         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
+         me.Unshift(pIndex, pValue.GetID(), pValue)
+         <# Else #>
          me.Unshift(pIndex, "", pValue)
+         <# End If #>
       End Sub
 
       Overrides Function Take(pIndex As Integer) As T
@@ -224,6 +252,9 @@ Namespace mod_tlist
       End Function
 
       Function GetToString(pValue As T) As String
+         <# If TypeSystem.IsDelegate(T) Then #>
+         GetToString = ""
+         <# Else #>
          <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>
          If Assigned(pValue) Then
             GetToString = pValue.ToString()
@@ -232,6 +263,7 @@ Namespace mod_tlist
          End If
          <# Else #>
          GetToString = CStr(pValue)
+         <# End If #>
          <# End If #>
       End Function
 

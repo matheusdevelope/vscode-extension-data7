@@ -46,6 +46,7 @@ export type {
   RequestedGenericInstantiation,
   ClassGenericMethodRequest,
   CollectWorkspaceClassGenericMethodRequestsOptions,
+  MetaTypeKind,
 } from "./monomorphizer";
 export {
   canonicalNameOf,
@@ -53,4 +54,7 @@ export {
   flatNameOf,
   GenericsMonomorphizer,
   MAX_INSTANTIATIONS,
+  META_PRIMITIVE_TYPES,
+  parseMetaTypeKind,
+  resolveMetaTypeKind,
 } from "./monomorphizer";

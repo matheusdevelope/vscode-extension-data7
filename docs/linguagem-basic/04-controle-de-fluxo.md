@@ -76,7 +76,7 @@ For Each i In 0..10        ' range — açúcar de For numérico
 Next
 ```
 
-Para qualificar como **iterável** o tipo precisa expor `Count` **ou** `Length` como `Integer`, mais um acessor inteiro (`Items`, `Item`, `GetItem`, `Take`, `Strings` ou `Objects`). Isso cobre tanto `Collections.StringList` (`Count` + `Strings`) quanto `TTList<T>` (`Length` + `GetItem`/`Take`). Tipos sem isso disparam [`not-enumerable`](./13-diagnostic-codes.md#not-enumerable) e o Builder preserva a linha verbatim.
+Para qualificar como **iterável** o tipo precisa expor `Count` **ou** `Length` como `Integer`, mais um acessor inteiro (precedência `Items` > `GetItem` > `Take` > `Item` > `Strings` > `Objects`). Isso cobre tanto `Collections.StringList` (`Count` + `Strings`) quanto `TTList<T>` (`Length` + `GetItem`/`Take`; o `Item As TTObject` herdado não prevalece). Tipos sem isso disparam [`not-enumerable`](./13-diagnostic-codes.md#not-enumerable) e o Builder preserva a linha verbatim.
 
 ## `Select Case`
 

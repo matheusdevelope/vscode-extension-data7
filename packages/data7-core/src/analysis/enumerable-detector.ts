@@ -23,9 +23,13 @@ export interface EnumerableInfo {
  * Preferred indexer names, in priority order, when the user does not
  * disambiguate via `As <Type>`. Matches the conventional Delphi/VCL accessor
  * names so a `Collections.StringList` resolves to `Strings` (not `Objects`)
- * by default. `GetItem` / `Take` cover `TTList<T>` from `mod_tlist`.
+ * by default.
+ *
+ * `GetItem` / `Take` are ranked above bare `Item` because `TTList<T>` inherits
+ * `TTComposerList.Item As TTObject` — that wrapper indexer must not win over
+ * the typed `GetItem` / `Take` surface used by the `array-list` sugar.
  */
-const PREFERRED_INDEXER_NAMES = ["items", "item", "getitem", "take", "strings", "objects"] as const;
+const PREFERRED_INDEXER_NAMES = ["items", "getitem", "take", "item", "strings", "objects"] as const;
 
 /**
  * Decides whether `typeName` exposes a count surface (`Count` or `Length`) plus
@@ -69,8 +73,9 @@ export function detectEnumerable(
   if (indexerCandidates.length === 0) return undefined;
 
   if (preferredElementType) {
-    const preferredLower = preferredElementType.toLowerCase();
-    const match = indexerCandidates.find((m) => m.type.toLowerCase() === preferredLower);
+    const match = indexerCandidates.find((m) =>
+      elementTypesCompatible(m.type, preferredElementType),
+    );
     if (match) {
       return {
         countMember: count.name,
@@ -119,4 +124,15 @@ function findCountMember(members: readonly SymbolInfo[]): SymbolInfo | undefined
     members.find((m) => isIntegerCountSurface(m, "count")) ??
     members.find((m) => isIntegerCountSurface(m, "length"))
   );
+}
+
+/** Match `Foo` to `ns.Foo` so `For Each x As ns.Foo` still selects the typed indexer. */
+function elementTypesCompatible(actual: string, preferred: string): boolean {
+  if (actual.toLowerCase() === preferred.toLowerCase()) return true;
+  const simple = (typeName: string): string => {
+    const trimmed = typeName.trim();
+    const dot = trimmed.lastIndexOf(".");
+    return (dot >= 0 ? trimmed.slice(dot + 1) : trimmed).toLowerCase();
+  };
+  return simple(actual) === simple(preferred);
 }

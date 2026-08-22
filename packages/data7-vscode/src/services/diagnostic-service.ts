@@ -91,6 +91,13 @@ export class DiagnosticService {
   private static pendingDependentForce = false;
   /** Project-wide unused-code diagnostics keyed by uri (lowercase). */
   private static unusedCodeByUri = new Map<string, vscode.Diagnostic[]>();
+  /**
+   * Last non-unused-code diagnostics published per file. Authoritative for
+   * overlay merges — never re-read `DiagnosticCollection.get`, which is
+   * case-sensitive on Windows and can return `undefined` for a Uri that still
+   * has Problems (wiping errors while the summary still counted them).
+   */
+  private static publishedBaseByUri = new Map<string, vscode.Diagnostic[]>();
   private static unusedCodeRefreshScheduled = false;
   private static unusedCodeRefreshRunning = false;
   private static unusedCodeRefreshRequeued = false;
@@ -441,6 +448,7 @@ export class DiagnosticService {
     this.liveDiagnosticUris.delete(key);
     this.workspaceDiagnosticUris.delete(key);
     this.unusedCodeByUri.delete(key);
+    this.publishedBaseByUri.delete(key);
   }
 
   /**
@@ -452,6 +460,7 @@ export class DiagnosticService {
     this.liveDiagnosticUris.clear();
     this.workspaceDiagnosticUris.clear();
     this.unusedCodeByUri.clear();
+    this.publishedBaseByUri.clear();
   }
 
   /**
@@ -1182,7 +1191,67 @@ export class DiagnosticService {
     await this.refreshUnusedCodeDiagnostics(uris);
     this.persistAnalysisCacheAfterWorkspaceLint();
 
-    return { errorCount, warningCount, infoCount, fileCount: uris.length };
+    // Prefer what we retained in Problems after unused-code overlay. Mid-flight
+    // counters can diverge when a publish path no-ops or an overlay wipe used to
+    // drop base diagnostics after they were already tallied.
+    const retained = this.countPublishedDiagnostics(uris);
+    return {
+      errorCount: retained.errorCount,
+      warningCount: retained.warningCount,
+      infoCount: retained.infoCount,
+      fileCount: uris.length,
+    };
+  }
+
+  /**
+   * Counts diagnostics from the in-memory publish maps (base + unused-code),
+   * which stay aligned with what `publishMergedDiagnostics` wrote. When the
+   * host collection supports `forEach`, prefer that so the toast matches Problems.
+   */
+  private static countPublishedDiagnostics(
+    uris: readonly vscode.Uri[],
+  ): Pick<WorkspaceLintSummary, "errorCount" | "warningCount" | "infoCount"> {
+    let errorCount = 0;
+    let warningCount = 0;
+    let infoCount = 0;
+
+    const tally = (diag: vscode.Diagnostic): void => {
+      if (diag.severity === vscode.DiagnosticSeverity.Error) {
+        errorCount++;
+      } else if (diag.severity === vscode.DiagnosticSeverity.Warning) {
+        warningCount++;
+      } else {
+        infoCount++;
+      }
+    };
+
+    const collection = this._collection as
+      | (vscode.DiagnosticCollection & {
+          forEach?: (
+            callback: (uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]) => void,
+          ) => void;
+        })
+      | undefined;
+    if (typeof collection?.forEach === "function") {
+      collection.forEach((_uri, diags) => {
+        for (const diag of diags) tally(diag);
+      });
+      return { errorCount, warningCount, infoCount };
+    }
+
+    const seen = new Set<string>();
+    for (const uri of uris) {
+      const key = this.uriKey(uri);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      for (const diag of [
+        ...(this.publishedBaseByUri.get(key) ?? []),
+        ...(this.unusedCodeByUri.get(key) ?? []),
+      ]) {
+        tally(diag);
+      }
+    }
+    return { errorCount, warningCount, infoCount };
   }
 
   private static async lintUriForBatch(uri: vscode.Uri): Promise<vscode.Diagnostic[]> {
@@ -1457,6 +1526,8 @@ export class DiagnosticService {
     this.workspaceCache.clear();
     this.liveDiagnosticUris.clear();
     this.workspaceDiagnosticUris.clear();
+    this.publishedBaseByUri.clear();
+    this.unusedCodeByUri.clear();
     this.pendingDependentUris.clear();
     this.dependentPriorities.clear();
     this.backgroundLintQueue.clear();
@@ -1630,8 +1701,14 @@ export class DiagnosticService {
       this._collection?.delete(uri);
     }
 
-    const withoutUnusedCode = baseDiags.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
-    const unusedCode = this.unusedCodeByUri.get(key) ?? [];
+    // Core diagnostics use the platform shim (`Range`/`Diagnostic` classes).
+    // Re-host them on the real `vscode` API before `DiagnosticCollection.set`
+    // so the Problems panel retains markers in the extension host.
+    const withoutUnusedCode = this.toHostDiagnostics(
+      baseDiags.filter((d) => d.code !== DiagnosticCodes.UnusedCode),
+    );
+    this.publishedBaseByUri.set(key, withoutUnusedCode);
+    const unusedCode = this.toHostDiagnostics(this.unusedCodeByUri.get(key) ?? []);
     this._collection?.set(canonical, [...withoutUnusedCode, ...unusedCode]);
     if (origin === "live") {
       this.liveDiagnosticUris.set(key, canonical);
@@ -1640,6 +1717,58 @@ export class DiagnosticService {
       this.workspaceDiagnosticUris.set(key, canonical);
       this.liveDiagnosticUris.delete(key);
     }
+  }
+
+  /**
+   * Clones diagnostics onto host `vscode.Diagnostic` / `vscode.Range` instances.
+   * Duck-typed objects from `@data7/core` can be counted in memory yet fail to
+   * appear in Problems when the collection rejects non-host types.
+   */
+  private static toHostDiagnostics(diags: readonly vscode.Diagnostic[]): vscode.Diagnostic[] {
+    return diags.map((diag) => {
+      const host = new vscode.Diagnostic(
+        new vscode.Range(
+          diag.range.start.line,
+          diag.range.start.character,
+          diag.range.end.line,
+          diag.range.end.character,
+        ),
+        diag.message,
+        diag.severity,
+      );
+      if (diag.code !== undefined) {
+        host.code = diag.code;
+      }
+      host.source = diag.source ?? DIAGNOSTIC_SOURCE;
+      if (diag.tags !== undefined) {
+        host.tags = [...diag.tags];
+      }
+      const data = (diag as { data?: unknown }).data;
+      if (data !== undefined) {
+        (host as { data?: unknown }).data = data;
+      }
+      if (diag.relatedInformation !== undefined) {
+        host.relatedInformation = diag.relatedInformation.map((info) => {
+          const relatedUri =
+            typeof (info.location.uri as { toString?: () => string }).toString === "function"
+              ? vscode.Uri.parse(info.location.uri.toString())
+              : vscode.Uri.parse(String(info.location.uri));
+          return {
+            location: new vscode.Location(
+              relatedUri,
+              new vscode.Range(
+                info.location.range.start.line,
+                info.location.range.start.character,
+                info.location.range.end.line,
+                info.location.range.end.character,
+              ),
+            ),
+            message: info.message,
+          };
+        });
+      }
+      return host;
+    });
   }
 
   /**
@@ -1743,8 +1872,18 @@ export class DiagnosticService {
 
   private static republishUnusedCodeMap(nextMap: Map<string, vscode.Diagnostic[]>): void {
     const previousKeys = [...this.unusedCodeByUri.keys()];
-    this.unusedCodeByUri = nextMap;
-    const allKeys = new Set([...previousKeys, ...nextMap.keys()]);
+    const hostedNext = new Map<string, vscode.Diagnostic[]>();
+    for (const [key, diags] of nextMap) {
+      hostedNext.set(key, this.toHostDiagnostics(diags));
+    }
+    this.unusedCodeByUri = hostedNext;
+    // Include files that already have base lint results so unused-code overlays
+    // never rely on `DiagnosticCollection.get` (Windows URI casing).
+    const allKeys = new Set([
+      ...previousKeys,
+      ...hostedNext.keys(),
+      ...this.publishedBaseByUri.keys(),
+    ]);
 
     for (const key of allKeys) {
       const tracked = this.liveDiagnosticUris.get(key) ?? this.workspaceDiagnosticUris.get(key);
@@ -1757,9 +1896,8 @@ export class DiagnosticService {
         }
       }
       const collectionUri = tracked ?? uri;
-      const existing = this._collection?.get(collectionUri) ?? [];
-      const base = existing.filter((d) => d.code !== DiagnosticCodes.UnusedCode);
-      const unusedCode = nextMap.get(key) ?? [];
+      const base = this.publishedBaseByUri.get(key) ?? [];
+      const unusedCode = hostedNext.get(key) ?? [];
       if (base.length === 0 && unusedCode.length === 0) {
         this.deleteFromCollection(collectionUri);
         continue;

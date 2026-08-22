@@ -38,19 +38,17 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
     description: formatEnumDescription(entry.name, entry.value),
   }));
 
-  const classMembers: ClassMember[] = [
-    {
-      kind: "FieldDeclaration",
-      name: "_Initialized",
-      type: { kind: "TypeReference", name: "Boolean", typeArguments: [], loc: declaration.loc },
-      modifiers: ["private", "shared"],
-      loc: declaration.loc,
-    },
-  ];
+  const classMembers: ClassMember[] = [];
 
-  const initBody: Statement[] = [
-    { kind: "OpaqueStatement", text: "If _Initialized Then Exit Sub", loc: declaration.loc },
-  ];
+  const initBody: Statement[] = [];
+  const firstEntry = entries[0];
+  if (firstEntry) {
+    initBody.push({
+      kind: "OpaqueStatement",
+      text: `If TEnum._IsCached("${enumName}", ${firstEntry.description}) Then Exit Sub`,
+      loc: declaration.loc,
+    });
+  }
   entries.forEach((entry, index) => {
     initBody.push({
       kind: "OpaqueStatement",
@@ -58,7 +56,6 @@ export function expandEnumDeclaration(declaration: EnumDeclaration): Statement {
       loc: declaration.loc,
     });
   });
-  initBody.push({ kind: "OpaqueStatement", text: "_Initialized = True", loc: declaration.loc });
 
   classMembers.push({
     kind: "MethodDeclaration",

@@ -16,7 +16,26 @@
 const path = require("path");
 const fs = require("fs");
 
-const { DocsGenerator } = require(path.join("..", "out", "system-library", "docs-generator"));
+function requireFirstExisting(candidates) {
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (error) {
+      if (!error || error.code !== "MODULE_NOT_FOUND") {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`Nenhum build compatível encontrado:\n${candidates.join("\n")}`);
+}
+
+const coreDistRoot = path.resolve(__dirname, "..", "packages", "data7-core", "dist");
+const legacyOutRoot = path.resolve(__dirname, "..", "out");
+const { DocsGenerator } = requireFirstExisting([
+  path.join(coreDistRoot, "system-library", "docs-generator"),
+  path.join(legacyOutRoot, "system-library", "docs-generator"),
+]);
 
 const args = process.argv.slice(2);
 const outputDir = path.resolve(args[0] || path.join(__dirname, "..", "docs", "system-library"));

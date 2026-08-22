@@ -77,6 +77,10 @@ import {
   flatNameFromParts as flattenGenericNameFromParts,
   flatNameOf as flattenGenericName,
 } from "./type-names";
+import { parseMetaTypeKind, resolveMetaTypeKind, type MetaTypeKind } from "./meta-type-kind";
+
+export type { MetaTypeKind } from "./meta-type-kind";
+export { META_PRIMITIVE_TYPES, parseMetaTypeKind, resolveMetaTypeKind } from "./meta-type-kind";
 
 // ============================================================================
 // Public API
@@ -94,6 +98,8 @@ export interface MonomorphizationResult {
 
 export interface MonomorphizerOptions {
   readonly isTypeDescendantOf?: (typeName: string, baseTypeName: string) => boolean | undefined;
+  /** Classifies a concrete type for `TypeSystem.IsKind` / `IsDelegate` / … directives. */
+  readonly resolveTypeKind?: (typeName: string) => MetaTypeKind | undefined;
   readonly externalTemplates?: readonly ExternalGenericTemplate[];
   readonly requestedInstantiations?: readonly RequestedGenericInstantiation[];
   /** Owner-specific generic method requests discovered from workspace sources. */
@@ -1616,22 +1622,71 @@ function evaluateMetaCondition(
     source = source.replace(/^not\b/i, "").trim();
   }
 
-  const call = /^TypeSystem\.InheritsFrom\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(
+  const inherits = /^TypeSystem\.InheritsFrom\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(
     source,
   );
-  if (!call) return !negate;
+  if (inherits) {
+    const paramName = inherits[1];
+    const baseTypeName = inherits[2];
+    if (!paramName || !baseTypeName) return !negate;
 
-  const paramName = call[1];
-  const baseTypeName = call[2];
-  if (!paramName || !baseTypeName) return !negate;
+    const typeRef = substitution.get(paramName);
+    if (!typeRef) return !negate;
 
-  const typeRef = substitution.get(paramName);
-  if (!typeRef) return !negate;
+    const typeName = typeRefToSource(typeRef);
+    const result = ctx.options.isTypeDescendantOf?.(typeName, baseTypeName);
+    const value = result ?? false;
+    return negate ? !value : value;
+  }
 
-  const typeName = typeRefToSource(typeRef);
-  const result = ctx.options.isTypeDescendantOf?.(typeName, baseTypeName);
-  const value = result ?? false;
-  return negate ? !value : value;
+  const isKind = /^TypeSystem\.IsKind\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(source);
+  if (isKind) {
+    const paramName = isKind[1];
+    const kindName = isKind[2];
+    if (!paramName || !kindName) return !negate;
+    const expectedKind = parseMetaTypeKind(kindName);
+    if (!expectedKind) return !negate;
+
+    const typeRef = substitution.get(paramName);
+    if (!typeRef) return !negate;
+
+    const actualKind = resolveMetaTypeKind(typeRefToSource(typeRef), {
+      unit: ctx.unit,
+      templates: ctx.templates,
+      concreteInstantiations: ctx.concreteInstantiations,
+      resolveTypeKind: ctx.options.resolveTypeKind,
+    });
+    const value = actualKind === expectedKind;
+    return negate ? !value : value;
+  }
+
+  const kindAlias =
+    /^TypeSystem\.Is(Delegate|Class|Structure|Primitive|Enum)\(\s*<?([A-Za-z_]\w*)>?\s*\)$/i.exec(
+      source,
+    );
+  if (kindAlias) {
+    const kindToken = kindAlias[1];
+    const paramName = kindAlias[2];
+    if (!kindToken || !paramName) return !negate;
+    const expectedKind = parseMetaTypeKind(kindToken);
+    if (!expectedKind) return !negate;
+
+    const typeRef = substitution.get(paramName);
+    if (!typeRef) return !negate;
+
+    const actualKind = resolveMetaTypeKind(typeRefToSource(typeRef), {
+      unit: ctx.unit,
+      templates: ctx.templates,
+      concreteInstantiations: ctx.concreteInstantiations,
+      resolveTypeKind: ctx.options.resolveTypeKind,
+    });
+    const value = actualKind === expectedKind;
+    return negate ? !value : value;
+  }
+
+  // Unknown directive expressions are treated as false so accidental typos
+  // do not keep the IF-branch body (and NOT flips that to true).
+  return !negate;
 }
 
 function stripMetaDirectiveMembers(members: TopLevelMember[]): void {

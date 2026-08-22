@@ -22,6 +22,9 @@ import type { SystemSymbolInfo, SystemContainer } from "../types";
  * são referenciados em código `.bas` (ver `src/diagnostic-codes.ts`).
  *
  * Para identificar a origem do levantamento, ver `docs/levantamentos/grid.txt`.
+ * Índices de Cells / Col / Row / ColWidth / HideColumn são 0-based (verificado
+ * na API nativa e no exemplo oficial `forms/05-grid-com-dados`). ColCount conta
+ * só colunas não ocultas; AllColCount inclui ocultas.
  */
 
 const FORMS: SystemContainer = "Forms";
@@ -151,7 +154,8 @@ const properties: readonly PropSpec[] = [
   {
     name: "ColCount",
     type: "Integer",
-    description: "Quantidade total de colunas (incluindo fixas).",
+    description:
+      "Quantidade de colunas não ocultas (não é o total). Colunas escondidas entram em AllColCount.",
   },
   {
     name: "RowCount",
@@ -166,7 +170,8 @@ const properties: readonly PropSpec[] = [
   {
     name: "FixedRows",
     type: "Integer",
-    description: "Quantidade de linhas fixas no topo (cabeçalho superior).",
+    description:
+      "Quantidade de linhas fixas no topo (cabeçalho superior). Com FixedRows = 1, a linha 0 de Cells é o cabeçalho.",
   },
   {
     name: "FixedRightCols",
@@ -313,7 +318,8 @@ const properties: readonly PropSpec[] = [
   {
     name: "VisibleColCount",
     type: "Integer",
-    description: "Quantidade de colunas visíveis na viewport atual.",
+    description:
+      "Quantidade de colunas visíveis na viewport atual. Não confundir com ColCount (não ocultas) nem AllColCount (inclui ocultas).",
   },
   {
     name: "VisibleRowCount",
@@ -946,7 +952,8 @@ const properties: readonly PropSpec[] = [
   {
     name: "PermiteMarcarExclusao",
     type: "Boolean",
-    description: "Habilita o fluxo Data7 de marcar/desmarcar linhas para exclusão.",
+    description:
+      "Habilita marcar/desmarcar linha para exclusão (Delete). Cria uma coluna oculta extra no fim (AllColCount = ColCount + 1) com S/N — o estado não vive na célula de negócio. Aplicar por último, depois de ColCount e HideColumn; reaplicar após qualquer mudança estrutural de colunas. Atribuir ColCount depois da flag destrói a coluna oculta. Não chamar UnHideColumnsAll com a flag ligada (revela essa coluna).",
   },
   {
     name: "SortHeader",
@@ -955,8 +962,18 @@ const properties: readonly PropSpec[] = [
   },
 
   // ───────── Posição / cursor ─────────
-  { name: "Row", type: "Integer", description: "Índice (1-based) da linha atualmente focada." },
-  { name: "Col", type: "Integer", description: "Índice (1-based) da coluna atualmente focada." },
+  {
+    name: "Row",
+    type: "Integer",
+    description:
+      "Índice 0-based da linha atualmente focada. Com FixedRows = 1, Row = 0 é o cabeçalho; a primeira linha de dados é Row = 1.",
+  },
+  {
+    name: "Col",
+    type: "Integer",
+    description:
+      "Índice 0-based da coluna atualmente focada. Mesmo espaço de Cells / ColWidth / HideColumn.",
+  },
   {
     name: "TopRow",
     type: "Integer",
@@ -975,7 +992,12 @@ const properties: readonly PropSpec[] = [
   { name: "RealCol", type: "Integer", description: "Índice real da coluna." },
   { name: "LastCol", type: "Integer", description: "Índice da última coluna acessível." },
   { name: "LastRow", type: "Integer", description: "Índice da última linha acessível." },
-  { name: "AllColCount", type: "Integer", description: "Total de colunas, incluindo ocultas." },
+  {
+    name: "AllColCount",
+    type: "Integer",
+    description:
+      "Total de colunas visíveis + ocultas (incluindo a coluna interna de PermiteMarcarExclusao).",
+  },
   { name: "AllRowCount", type: "Integer", description: "Total de linhas, incluindo ocultas." },
   { name: "RowSelectCount", type: "Integer", description: "Quantidade de linhas selecionadas." },
   { name: "ColSelectCount", type: "Integer", description: "Quantidade de colunas selecionadas." },
@@ -1977,7 +1999,11 @@ const events: readonly PropSpec[] = [
     type: "TMethod",
     description: "Drag-over VCL — placeholder para método genérico.",
   },
-  { name: "OnDrawCell", type: "TDrawCellEvent", description: "Pintura customizada por célula." },
+  {
+    name: "OnDrawCell",
+    type: "TDrawCellEvent",
+    description: "Pintura customizada por célula. ACol/ARow são 0-based, no mesmo espaço de Cells.",
+  },
   {
     name: "OnEndDock",
     type: "TEndDragEvent",
@@ -2287,7 +2313,12 @@ const events: readonly PropSpec[] = [
     type: "TClickCellEvent",
     description: "Clique com botão direito em célula.",
   },
-  { name: "OnDblClickCell", type: "TDblClickCellEvent", description: "Duplo-clique em célula." },
+  {
+    name: "OnDblClickCell",
+    type: "TDblClickCellEvent",
+    description:
+      "Duplo-clique em célula. Assinatura: (pSender, pRow, pCol) — linha, depois coluna. Índices 0-based, no mesmo espaço de Cells.",
+  },
   {
     name: "OnCanClickCell",
     type: "TCanClickCellEvent",
@@ -2296,7 +2327,8 @@ const events: readonly PropSpec[] = [
   {
     name: "OnCanEditCell",
     type: "TCanEditCellEvent",
-    description: "Permite vetar a edição de uma célula.",
+    description:
+      "Permite vetar a edição de uma célula. Assinatura TMS: Sender, ARow, ACol (linha, depois coluna), ByRef CanEdit. Índices 0-based.",
   },
   {
     name: "OnFixedEdit",
@@ -2391,7 +2423,8 @@ const events: readonly PropSpec[] = [
   {
     name: "OnCellValidate",
     type: "TCellValidateEvent",
-    description: "Permite validar o valor digitado em uma célula.",
+    description:
+      "Permite validar o valor digitado em uma célula. Ordem (ACol, ARow) 0-based; AValue é ByRef e o handler pode devolver o texto corrigido.",
   },
   {
     name: "OnCellValidateWide",
@@ -2785,7 +2818,8 @@ const events: readonly PropSpec[] = [
   {
     name: "OnMarcaDesmarcaLinhaParaExclusao",
     type: "TMarcaDesmarcaLinhaParaExclusaoEvent",
-    description: "Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão.",
+    description:
+      "Evento Data7 disparado ao marcar/desmarcar uma linha para exclusão (Delete). ARow é 0-based nativo; com cabeçalho, linha de dados = ARow - FixedRows.",
   },
   {
     name: "OnFindNoResult",
@@ -2800,7 +2834,8 @@ const events: readonly PropSpec[] = [
   {
     name: "OnGetInplaceEditor",
     type: "TGridGetInplaceEditorEvent",
-    description: "Permite fornecer um inplace editor customizado para a célula.",
+    description:
+      "Permite fornecer um inplace editor customizado para a célula. ACol/ARow são 0-based, no mesmo espaço de Cells.",
   },
   {
     name: "OnGetEditorPropInt",
@@ -2861,7 +2896,7 @@ const methods: readonly MethodSpec[] = [
       { name: "ACol", type: "Integer" },
       { name: "Value", type: "Integer" },
     ],
-    description: "Define a largura de uma coluna.",
+    description: "Define a largura de uma coluna. ACol é 0-based, no mesmo espaço de Cells.",
   },
   {
     name: "SetRowHeight",
@@ -2876,13 +2911,14 @@ const methods: readonly MethodSpec[] = [
     name: "GetColWidth",
     returns: "Integer",
     params: [{ name: "ACol", type: "Integer" }],
-    description: "Retorna a largura de uma coluna.",
+    description: "Retorna a largura de uma coluna. ACol é 0-based, no mesmo espaço de Cells.",
   },
   {
     name: "ColWidth",
     returns: "Integer",
     params: [{ name: "ACol", type: "Integer" }],
-    description: "Define ou retorna a largura de uma coluna.",
+    description:
+      "Define ou retorna a largura de uma coluna. ACol é 0-based, no mesmo espaço de Cells / HideColumn.",
     indexed: true,
   },
   {
@@ -2899,7 +2935,8 @@ const methods: readonly MethodSpec[] = [
       { name: "ACol", type: "Integer" },
       { name: "ARow", type: "Integer" },
     ],
-    description: "Define ou retorna o valor da célula (ACol, ARow).",
+    description:
+      "Define ou retorna o valor da célula (ACol, ARow), ambos 0-based. Cells(0, 0) é a primeira coluna da primeira linha (cabeçalho se FixedRows = 1).",
     indexed: true,
   },
   {
@@ -3101,13 +3138,15 @@ const methods: readonly MethodSpec[] = [
     name: "RealRowIndex",
     returns: "Integer",
     params: [{ name: "ARow", type: "Integer" }],
-    description: "Retorna o índice real (raw) de uma linha exibida.",
+    description:
+      "Retorna o índice real (raw) de uma linha exibida. ARow de entrada não é o índice de Cells / RowHeight (esses usam i 0-based direto). Não misturar com o espaço de Cells.",
   },
   {
     name: "RealColIndex",
     returns: "Integer",
     params: [{ name: "ACol", type: "Integer" }],
-    description: "Retorna o índice real (raw) de uma coluna exibida.",
+    description:
+      "Retorna o índice real (raw) de uma coluna exibida. ACol de entrada não é o índice de Cells / ColWidth / HideColumn (esses usam i 0-based direto). ColWidth(RealColIndex(i)) com i 0-based dispara 'Grid index out of range'.",
   },
   {
     name: "DisplRowIndex",
@@ -3550,7 +3589,8 @@ const methods: readonly MethodSpec[] = [
     name: "HideColumn",
     returns: "Void",
     params: [{ name: "Colindex", type: "Integer" }],
-    description: "Oculta uma coluna específica.",
+    description:
+      "Oculta uma coluna específica. Colindex é 0-based, no mesmo espaço de Cells / ColWidth. Não usar RealColIndex neste caminho.",
   },
   {
     name: "HideColumns",
@@ -3559,13 +3599,15 @@ const methods: readonly MethodSpec[] = [
       { name: "FromCol", type: "Integer" },
       { name: "ToCol", type: "Integer" },
     ],
-    description: "Oculta o intervalo de colunas [FromCol, ToCol].",
+    description:
+      "Oculta o intervalo de colunas [FromCol, ToCol]. Índices 0-based, no mesmo espaço de Cells / ColWidth.",
   },
   {
     name: "UnHideColumn",
     returns: "Void",
     params: [{ name: "Colindex", type: "Integer" }],
-    description: "Reexibe uma coluna previamente oculta.",
+    description:
+      "Reexibe uma coluna previamente oculta. Colindex é 0-based, no mesmo espaço de Cells / ColWidth.",
   },
   {
     name: "UnHideColumns",
@@ -3580,7 +3622,8 @@ const methods: readonly MethodSpec[] = [
     name: "UnHideColumnsAll",
     returns: "Void",
     params: [],
-    description: "Reexibe todas as colunas ocultas.",
+    description:
+      "Reexibe todas as colunas ocultas, inclusive a coluna interna de PermiteMarcarExclusao. Não usar se a flag estiver ligada, a menos que a intenção seja mostrar essa coluna.",
   },
   {
     name: "IsHiddenRow",
@@ -3755,7 +3798,7 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
   namespaceContainer: FORMS,
   inheritsFrom: "TGrade",
   description:
-    "Componente de grade (Grid) para exibição e manipulação tabular de dados. Wrapper Data7 sobre TGrade (especialização TMS TAdvColumnGrid). Herda toda a cadeia VCL/TMS — ver `_aliases.ts`.",
+    "Componente de grade (Grid) para exibição e manipulação tabular de dados. Wrapper Data7 sobre TGrade (especialização TMS TAdvColumnGrid). Índices de Cells / Col / Row / ColWidth / HideColumn são 0-based. ColCount conta só colunas não ocultas (AllColCount inclui ocultas). Herda toda a cadeia VCL/TMS — ver `_aliases.ts`.",
   properties: [...properties, ...events],
   methods,
 });

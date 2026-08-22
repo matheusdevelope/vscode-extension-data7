@@ -1357,4 +1357,8 @@ Namespace mod_logger
       _timers.Delete(_timers.IndexOfName(pLabel))
    End Function
 
+   Sub Profile(pLabel As String, pMessage As String = "")
+      GetDefault().Profile(pLabel, pMessage)
+   End Sub
+
 End Namespace

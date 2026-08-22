@@ -1,5 +1,5 @@
 ' @example: sugar/array-list/05-parameter-array-sugar
-' @demonstrates: array sugar em parâmetros de Function/Sub — pList[] As T materializa TTList_T e resolve no escopo
+' @demonstrates: array sugar em parâmetros — pList[] As T materializa TTList_T; pList(i) vira GetItem(i)
 ' @diagnostics: none
 '
 Imports mod_tlist
@@ -12,12 +12,20 @@ Namespace mod_testes_array_param
             Columns = False
             Exit Function
          End If
-         Dim first As String = pColumns.GetItem(0)
+         Dim first As String = pColumns(0)
          Columns = first <> ""
       End Function
 
+      Sub SetColumns(pColumns[] As String)
+         Dim i As Integer
+         For i = 0 To pColumns.Length - 1
+            me.Name = pColumns(i)
+         Next
+      End Sub
+
       Sub Configure(ByRef pColumns[] As String)
          pColumns.Push("extra")
+         pColumns(0) = "first"
       End Sub
 
       Sub New()

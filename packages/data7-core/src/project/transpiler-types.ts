@@ -2,6 +2,7 @@ import type { EnumerableInfo } from "../analysis/enumerable-detector";
 import type {
   ClassGenericMethodRequest,
   ExternalGenericTemplate,
+  MetaTypeKind,
   RequestedGenericInstantiation,
 } from "./generics";
 import type { SugarEngineOptions } from "./sugars";
@@ -42,6 +43,8 @@ export interface TranspileCallableSignature {
 export interface TranspileContext {
   detectEnumerable(typeName: string, preferredElementType?: string): EnumerableInfo | undefined;
   isTypeDescendantOf?(typeName: string, baseTypeName: string): boolean | undefined;
+  /** Classifies a concrete type for `TypeSystem.IsKind` / `IsDelegate` metaprogramming. */
+  resolveTypeKind?(typeName: string): MetaTypeKind | undefined;
   resolveTypeImport?(typeName: string): string | undefined;
   resolveGlobalSymbolType?(name: string, argumentCount: number): string | undefined;
   resolveMemberType?(typeName: string, name: string, argumentCount: number): string | undefined;

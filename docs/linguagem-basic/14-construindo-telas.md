@@ -212,7 +212,7 @@ End Using
 
 ### `Grid` — colunas e células
 
-O `Grid` é endereçado por `(coluna, linha)` via a propriedade indexada `Cells`. A primeira linha costuma ser cabeçalho (`FixedRows = 1`):
+O `Grid` é endereçado por `(coluna, linha)` via a propriedade indexada `Cells`. Índices de `Cells`, `Col`, `Row`, `ColWidth` e `HideColumn` são **0-based** (mesmo espaço). A primeira linha costuma ser cabeçalho (`FixedRows = 1`):
 
 ```basic
 me._grid = New Forms.Grid(me._content)
@@ -227,7 +227,25 @@ me._grid.Cells(0, 1) = "1"        ' primeira linha de dados
 me._grid.Cells(1, 1) = "Se7e Sistemas"
 ```
 
-`Cells(c, r)` lê **e** escreve (`Dim nome As String = me._grid.Cells(1, 1)`). `Clear()` esvazia o grid. A API completa (`ColWidth`, `SetColAlignment`, eventos de edição, etc.) tem ~200 membros — consulte `data7_describe_symbol Forms.Grid`.
+`Cells(c, r)` lê **e** escreve (`Dim nome As String = me._grid.Cells(1, 1)`). `Clear()` esvazia o grid.
+
+Contagem de colunas:
+
+| Propriedade | Significado |
+|---|---|
+| `ColCount` | colunas **não ocultas** (não é o total) |
+| `AllColCount` | visíveis + ocultas |
+| `VisibleColCount` | colunas na **viewport** atual |
+
+`PermiteMarcarExclusao = True` cria uma coluna **oculta extra** no fim (`AllColCount = ColCount + 1`) com `S`/`N`. Aplique a flag **por último**, depois de `ColCount` e `HideColumn`; reaplicar após qualquer mudança estrutural. Não chame `UnHideColumnsAll` com a flag ligada (revela essa coluna). Não use `RealColIndex` no caminho de `Cells` / `ColWidth` / `HideColumn`.
+
+Eventos (handlers precisam bater posição a posição com o nativo):
+
+- `OnCanEditCell` / `TCanEditCellEvent`: `(Sender, ARow, ACol, ByRef CanEdit)` — ordem **linha, coluna**.
+- `OnDblClickCell` / `TDblClickCellEvent`: `(pSender, pRow, pCol)` — ordem **linha, coluna**.
+- `OnCellValidate` / `TCellValidateEvent`: `(Sender, ACol, ARow, ByRef AValue, ByRef AValid)` — `AValue` é `ByRef` (o handler pode devolver o texto corrigido). `ARow` é 0-based; com cabeçalho, linha de dados = `ARow - FixedRows`.
+
+A API completa tem ~200 membros — consulte `data7_describe_symbol Forms.Grid`.
 
 ### `TextBox` / `NumberTextBox` — valor e mudança
 
@@ -278,7 +296,7 @@ Veja exemplos completos e versionados em [`docs/example/forms/`](../example/READ
 | `forms/02-layout-header-content-footer` | O padrão de 3 regiões com `Line` divisória. |
 | `forms/03-form-com-eventos` | Botão com `OnClick` + evento próprio `OnSalvarEvent`. |
 | `forms/04-grid-basico` | Colocação de um `Grid` no conteúdo. |
-| `forms/05-grid-com-dados` | Grid com cabeçalho fixo + preenchimento via `Cells(col, row)`, `ColCount`/`RowCount`/`FixedRows`. |
+| `forms/05-grid-com-dados` | Grid com cabeçalho fixo + preenchimento via `Cells(col, row)` 0-based, `ColCount`/`RowCount`/`FixedRows`. |
 | `forms/06-textbox-validacao` | `TextBox` + `NumberTextBox` com `OnChange` lendo `.Text` para validar. |
 | `forms/07-abas-pagecontrol` | `PageControl` + `TabSheet` (abas com `Caption`, conteúdo por aba). |
 

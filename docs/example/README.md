@@ -137,7 +137,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/array-list/02-object-windowing-chains.bas`](./sugar/array-list/02-object-windowing-chains.bas) | array sugar em objetos — Map homomórfico, First/Last/Slice, Includes, cadeia Filter.Map (mod_testes_array_objetos) | `none` | — |
 | [`sugar/array-list/03-four-stage-chain.bas`](./sugar/array-list/03-four-stage-chain.bas) | cadeia Filter → Map → Map → Reduce com mutação de tipo (mod_exemplo_encadeamento) | `none` | — |
 | [`sugar/array-list/04-subclass-filter.bas`](./sugar/array-list/04-subclass-filter.bas) | Filter em subclasse de TTList retorna o tipo concreto (Principal.bas / Pessoas) | `none` | — |
-| [`sugar/array-list/05-parameter-array-sugar.bas`](./sugar/array-list/05-parameter-array-sugar.bas) | array sugar em parâmetros de Function/Sub — pList[] As T materializa TTList_T e resolve no escopo | `none` | — |
+| [`sugar/array-list/05-parameter-array-sugar.bas`](./sugar/array-list/05-parameter-array-sugar.bas) | array sugar em parâmetros — pList[] As T materializa TTList_T; pList(i) vira GetItem(i) | `none` | — |
 | [`sugar/auto-new/_expected/01-simple.bas`](./sugar/auto-new/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/auto-new/01-simple | `none` | — |
 | [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) normalizado para `As New T()` | `none` | — |
 | [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/coalesce-assign/01-simple | `none` | — |
@@ -219,7 +219,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/destructure-too-deep/trigger.bas`](./diagnostics/destructure-too-deep/trigger.bas) | destructure aninhado profundamente — não suportado pelo parser line-based | `destructure-too-deep@6` | `emissão futura do linter quando o parser de destructure detectar aninhamento profundo` |
 | [`diagnostics/destructure-unknown-member/trigger.bas`](./diagnostics/destructure-unknown-member/trigger.bas) | destructure faz referência a membro inexistente | `destructure-unknown-member@6` | `classe TPessoa que NÃO tem campo Endereco no workspace` |
 | [`diagnostics/duplicate-declaration/02-shared-factory-field.bas`](./diagnostics/duplicate-declaration/02-shared-factory-field.bas) | Shared Function colide com campo de instância de mesmo nome (Mask) | `duplicate-declaration@10` | — |
-| [`diagnostics/duplicate-declaration/03-overload-return-mismatch.bas`](./diagnostics/duplicate-declaration/03-overload-return-mismatch.bas) | overload com parâmetros diferentes mas tipos de retorno distintos | `duplicate-declaration@12` | — |
+| [`diagnostics/duplicate-declaration/03-overload-return-mismatch.bas`](./diagnostics/duplicate-declaration/03-overload-return-mismatch.bas) | overload com parâmetros e tipos de retorno distintos é válido (padrão TTList First/Last) | `none` | — |
 | [`diagnostics/duplicate-declaration/trigger.bas`](./diagnostics/duplicate-declaration/trigger.bas) | declaração de duas variáveis locais com o mesmo nome no mesmo método | `duplicate-declaration@7` | — |
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
@@ -304,7 +304,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`forms/02-layout-header-content-footer.bas`](./forms/02-layout-header-content-footer.bas) | layout de 3 regiões (header alTop / content alClient / footer alBottom) com Line divisória | `none` | — |
 | [`forms/03-form-com-eventos.bas`](./forms/03-form-com-eventos.bas) | botão com OnClick ligado a um handler + evento próprio OnSalvarEvent disparado com guarda <> NULL | `none` | — |
 | [`forms/04-grid-basico.bas`](./forms/04-grid-basico.bas) | colocação de um Forms.Grid preenchendo o conteúdo da tela (alClient) | `none` | — |
-| [`forms/05-grid-com-dados.bas`](./forms/05-grid-com-dados.bas) | Grid com cabeçalho fixo + preenchimento de células via Cells(col, row), ColCount/RowCount/FixedRows | `none` | — |
+| [`forms/05-grid-com-dados.bas`](./forms/05-grid-com-dados.bas) | Grid com cabeçalho fixo + preenchimento de células via Cells(col, row) 0-based, ColCount/RowCount/FixedRows | `none` | — |
 | [`forms/06-textbox-validacao.bas`](./forms/06-textbox-validacao.bas) | TextBox + NumberTextBox com OnChange ligado a um handler que lê .Text e valida | `none` | — |
 | [`forms/07-abas-pagecontrol.bas`](./forms/07-abas-pagecontrol.bas) | PageControl com abas (TabSheet) — cada aba é criada com o PageControl como pai e recebe Caption | `none` | — |
 

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { RepositoryQueryService } from "./repository-query-service";
+import { normalizeImportedModuleSources } from "./module-source-packaging";
 import { getCoreModulesPath } from "../infra/extension-paths";
 import { logger } from "../infra/logger";
 
@@ -26,6 +27,7 @@ export class DependencySynchronizer {
       const coreDest = path.join(data7ModulesDir, "core_modules");
       if (fs.existsSync(coreSrc)) {
         this.replaceDirectorySync(coreSrc, coreDest);
+        normalizeImportedModuleSources(coreDest);
         synced.push("core_modules");
       }
     } catch (err) {
@@ -42,6 +44,7 @@ export class DependencySynchronizer {
         const localPrivate = RepositoryQueryService.findLocalPrivateModule(depName);
         if (localPrivate) {
           this.replaceDirectorySync(localPrivate.dirPath, depDestDir);
+          normalizeImportedModuleSources(depDestDir);
           synced.push(`${depName} (💻 Local v${localPrivate.manifest.version})`);
           continue;
         }
@@ -49,12 +52,17 @@ export class DependencySynchronizer {
         // Step B: Check online repo
         const onlineFiles = await RepositoryQueryService.fetchOnlineModuleFiles(depName);
         if (onlineFiles && onlineFiles.length > 0) {
-          if (!fs.existsSync(depDestDir)) {
-            fs.mkdirSync(depDestDir, { recursive: true });
-          }
+          this.deleteDirectorySync(depDestDir);
+          fs.mkdirSync(depDestDir, { recursive: true });
           for (const file of onlineFiles) {
-            fs.writeFileSync(path.join(depDestDir, file.path), file.content, "utf-8");
+            const destPath = path.join(depDestDir, file.path);
+            const destDir = path.dirname(destPath);
+            if (!fs.existsSync(destDir)) {
+              fs.mkdirSync(destDir, { recursive: true });
+            }
+            fs.writeFileSync(destPath, file.content, "utf-8");
           }
+          normalizeImportedModuleSources(depDestDir);
           synced.push(`${depName} (🌐 Online v${version})`);
           continue;
         }

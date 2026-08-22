@@ -184,30 +184,6 @@ export function validateDuplicateDeclarations(
           return;
         }
 
-        if (conflict === "return-mismatch") {
-          createConflictDiag(
-            new vscode.Range(
-              s.range.startLine,
-              s.range.startChar,
-              s.range.startLine,
-              s.range.endChar,
-            ),
-            `Declaração duplicada: overload de '${s.name}' exige o mesmo tipo de retorno ('${normalizeReturnType(existing.type)}'); encontrado '${normalizeReturnType(s.type)}'.`,
-            {
-              code: DiagnosticCodes.DuplicateDeclaration,
-              name: s.name,
-              scope: "namespace",
-              conflictingWithName: existing.name,
-            },
-            {
-              uri: existing.fileUri,
-              range: symbolRange(existing),
-              message: `Declaração anterior de '${existing.name}' retorna '${normalizeReturnType(existing.type)}'.`,
-            },
-          );
-          return;
-        }
-
         createConflictDiag(
           new vscode.Range(
             s.range.startLine,
@@ -279,8 +255,8 @@ export function validateDuplicateDeclarations(
   });
 
   // Class members checks — Shared and instance share one name table.
-  // Overloads are allowed only when both are callables, parameter types differ,
-  // and the return type is identical.
+  // Overloads are allowed when both are callables and parameter types differ
+  // (return types may diverge, matching Data7 TTList First/Last patterns).
   const classes = fileSyms.symbols.filter((s) => s.kind === "class" || s.kind === "structure");
   classes.forEach((C) => {
     const members = fileSyms.symbols.filter(
@@ -326,30 +302,6 @@ export function validateDuplicateDeclarations(
               uri: existing.fileUri,
               range: symbolRange(existing),
               message: `Membro anterior '${existing.name}'.`,
-            },
-          );
-          return;
-        }
-
-        if (conflict === "return-mismatch") {
-          createConflictDiag(
-            new vscode.Range(
-              m.range.startLine,
-              m.range.startChar,
-              m.range.startLine,
-              m.range.endChar,
-            ),
-            `Membro duplicado: overload de '${m.name}' na classe '${C.name}' exige o mesmo tipo de retorno ('${normalizeReturnType(existing.type)}'); encontrado '${normalizeReturnType(m.type)}'.`,
-            {
-              code: DiagnosticCodes.DuplicateDeclaration,
-              name: m.name,
-              scope: "class",
-              conflictingWithName: existing.name,
-            },
-            {
-              uri: existing.fileUri,
-              range: symbolRange(existing),
-              message: `Membro anterior '${existing.name}' retorna '${normalizeReturnType(existing.type)}'.`,
             },
           );
           return;
@@ -483,16 +435,12 @@ function isCallableMemberKind(kind: SymbolInfo["kind"]): boolean {
   return kind === "method" || kind === "declare_sub" || kind === "declare_function";
 }
 
-function normalizeReturnType(typeName: string | undefined): string {
-  const normalized = (typeName ?? "Void").trim().toLowerCase();
-  return normalized.length > 0 ? normalized : "void";
-}
-
-type MemberNameConflict = "ok-overload" | "same-signature" | "return-mismatch" | "name-collision";
+type MemberNameConflict = "ok-overload" | "same-signature" | "name-collision";
 
 /**
- * Overloads are accepted only when both declarations are callables, the
- * parameter type sequences differ, and the return types match. Shared vs
+ * Overloads are accepted when both declarations are callables and the
+ * parameter type sequences differ. Return types may diverge (Data7 allows
+ * `First() As T` alongside `First(n As Integer) As TTList<T>`). Shared vs
  * instance does not create a separate name space — a field and a Shared
  * factory with the same name collide.
  */
@@ -507,10 +455,6 @@ function classifyMemberNameConflict(
 
   if (isSameSignature(existing.parameters, candidate.parameters)) {
     return "same-signature";
-  }
-
-  if (normalizeReturnType(existing.type) !== normalizeReturnType(candidate.type)) {
-    return "return-mismatch";
   }
 
   return "ok-overload";

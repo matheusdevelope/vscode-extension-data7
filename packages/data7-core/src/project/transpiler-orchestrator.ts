@@ -116,6 +116,7 @@ export class SugarTranspiler {
       _injectImportsForMaterializedGenericInstantiations(finalUnit, ctx);
       const monomorphizer = new GenericsMonomorphizer({
         isTypeDescendantOf: ctx.isTypeDescendantOf?.bind(ctx),
+        resolveTypeKind: ctx.resolveTypeKind?.bind(ctx),
         externalTemplates: ctx.externalGenericTemplates,
         requestedInstantiations: ctx.requestedGenericInstantiations,
         requestedClassGenericMethods: ctx.requestedClassGenericMethods,

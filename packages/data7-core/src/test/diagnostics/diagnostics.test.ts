@@ -2034,17 +2034,37 @@ End Namespace`;
       );
     });
 
-    test("emits error for method overloads with different return types", () => {
+    test("does NOT emit error for method overloads with different return types", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       const code = loadExample("diagnostics/duplicate-declaration/03-overload-return-mismatch.bas");
       const uri = "file:///dup_return_mismatch.bas";
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-      expectDiagnostic(
-        diags,
-        DiagnosticCodes.DuplicateDeclaration,
-        "overload de 'Get' na classe 'C' exige o mesmo tipo de retorno",
-      );
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("does NOT emit error for TTList-style First()/First(n) overloads with divergent returns", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = `Namespace mod_list
+   Class TTList_Item
+      Function First() As Item
+         First = Null
+      End Function
+      Function First(pLimit As Integer) As TTList_Item
+         First = me
+      End Function
+      Function Last() As Item
+         Last = Null
+      End Function
+      Function Last(pLimit As Integer) As TTList_Item
+         Last = me
+      End Function
+   End Class
+End Namespace`;
+      const uri = "file:///dup_ttlist_first_last.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
     });
 
     test("does NOT emit error for Shared and instance overloads with same return and different params", () => {
@@ -5472,6 +5492,82 @@ End Namespace`;
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
       expectNoDiagnostic(diags, DiagnosticCodes.InvalidAssignmentTarget);
       expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+
+    test("paren index on array-sugar parameter is element type not TTList (no type-mismatch)", () => {
+      const code = `Imports mod_tlist
+
+Namespace mod_grid_column_registry
+   Class TGridColumnDef
+   End Class
+
+   Class Registry
+      Dim Columns(10) As TGridColumnDef
+      Dim ColumnCount As Integer
+
+      Sub SetColumns(pColumns[] As TGridColumnDef)
+         Dim i As Integer
+         me.Columns(me.ColumnCount) = pColumns(i)
+      End Sub
+   End Class
+End Namespace`;
+      const { indexer, uri } = indexExampleWithTtListStub(
+        "sugar/array-list/01-primitive-filter-map-reduce.bas",
+      );
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+      expectNoDiagnostic(diags, DiagnosticCodes.DefaultIndexerMissing);
+    });
+
+    test("paren index prefers TTList element over inherited Item As TTObject", () => {
+      // Mirrors real mod_tlist: TTList<T> Inherits TTComposerList whose Item returns TTObject.
+      const tlist = `Namespace mod_tlist
+   Class TTObject
+   End Class
+
+   Class TTComposerList
+      Property Item(pIndex As Integer) As TTObject
+      End Property
+   End Class
+
+   Class TTList<T>
+      Inherits TTComposerList
+      Property Length As Integer
+      End Property
+      Function GetItem(pIndex As Integer) As T
+      End Function
+      Sub SetItem(pIndex As Integer, pValue As T)
+      End Sub
+   End Class
+End Namespace`;
+
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      registerOpenDocument("file:///mod_tlist.bas", "mod_tlist.bas");
+      indexer.updateFileContent("file:///mod_tlist.bas", tlist);
+
+      const uri = "file:///mod_grid_column_registry_ttobject.bas";
+      const code = `Imports mod_tlist
+
+Namespace mod_grid_column_registry
+   Class TGridColumnDef
+   End Class
+
+   Class Registry
+      Dim Columns(10) As TGridColumnDef
+      Dim ColumnCount As Integer
+
+      Sub SetColumns(pColumns[] As TGridColumnDef)
+         Dim i As Integer
+         me.Columns(me.ColumnCount) = pColumns(i)
+      End Sub
+   End Class
+End Namespace`;
+      registerOpenDocument(uri);
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
     });
   });
 

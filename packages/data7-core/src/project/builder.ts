@@ -5,7 +5,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-metadata";
 import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
-import { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
+import { WorkspaceSymbolIndexer, type FileSymbols } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
@@ -21,6 +21,7 @@ import { SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
 import type {
   ClassGenericMethodRequest,
   ExternalGenericTemplate,
+  MetaTypeKind,
   RequestedGenericInstantiation,
 } from "./generics";
 import { GenericsMonomorphizer } from "./generics";
@@ -32,7 +33,9 @@ import {
   uglifyBuildModules,
   type BuildOptimizationOptions,
   type BuildOptimizationOverride,
+  type PruneOptimizationOptions,
 } from "./optimizer";
+import { analyzeDeclarationReachability } from "../analysis/declaration-reachability";
 import {
   composeLineMaps,
   Data7SourceMapBuilder,
@@ -306,6 +309,7 @@ export class Builder {
     srcDir: string,
     data7ModulesDir: string,
     options: BuildProjectOptions,
+    pruneOptions?: PruneOptimizationOptions,
   ): { transpileCtx: TranspileContext; indexer: WorkspaceSymbolIndexer } {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     const isExcluded = options.isExcluded ?? (() => false);
@@ -318,8 +322,17 @@ export class Builder {
     const externalGenericTemplates = genericsEnabled
       ? this.collectExternalGenericTemplates(indexer)
       : [];
+    const liveNamespacesForGenerics =
+      genericsEnabled && pruneOptions?.enabled
+        ? this.collectLiveNamespacesForGenericDiscovery(indexer, pruneOptions, srcDir)
+        : undefined;
     const requestedGenericInstantiations = genericsEnabled
-      ? this.collectRequestedGenericInstantiations(indexer, externalGenericTemplates)
+      ? this.collectRequestedGenericInstantiations(
+          indexer,
+          externalGenericTemplates,
+          liveNamespacesForGenerics,
+          srcDir,
+        )
       : [];
     const requestedClassGenericMethods = genericsEnabled
       ? this.collectRequestedClassGenericMethods(
@@ -338,6 +351,8 @@ export class Builder {
         ),
       isTypeDescendantOf: (typeName: string, baseTypeName: string) =>
         TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
+      resolveTypeKind: (typeName: string): MetaTypeKind | undefined =>
+        this.resolveTypeKind(typeName, indexer),
       resolveTypeImport: (typeName: string) => this.resolveTypeImport(typeName, indexer),
       resolveGlobalSymbolType: (name: string, argumentCount: number) =>
         indexer.findSymbolByName(name)?.type ??
@@ -410,6 +425,114 @@ export class Builder {
     return { transpileCtx, indexer };
   }
 
+  /**
+   * Pre-transpile principal-closure of namespaces used to gate generic
+   * instantiation discovery when prune is enabled. Without this, unused
+   * dependency modules still request `TTList_MyGridRow`-style monomorphs that
+   * survive in `mod_tlist` after their type-arg types are pruned.
+   *
+   * Only the workspace `src/Principal.bas` is treated as the entry Principal.
+   * Dependency packages often ship their own `Principal.bas` (tests/demos);
+   * naming those "Principal" would steal the reachability seed and mark unused
+   * dependency namespaces as live.
+   */
+  private static collectLiveNamespacesForGenericDiscovery(
+    indexer: WorkspaceSymbolIndexer,
+    pruneOptions: PruneOptimizationOptions,
+    srcDir: string,
+  ): ReadonlySet<string> | undefined {
+    const srcDirNormalized = path.resolve(srcDir).toLowerCase();
+    const inputs: {
+      moduleName: string;
+      fileUri: string;
+      code: string;
+    }[] = [];
+    for (const fileSyms of indexer.getAllFileSymbols()) {
+      const resolvedPath = path.resolve(fileSyms.filePath);
+      const basename = path.basename(resolvedPath, path.extname(resolvedPath));
+      if (!basename) continue;
+      const underSrc = resolvedPath.toLowerCase().startsWith(srcDirNormalized + path.sep);
+      const isWorkspacePrincipal = underSrc && basename.toLowerCase() === "principal";
+      // Unique module keys for non-entry files; only the workspace Principal keeps
+      // the canonical name so reachability seeds Main from the real project entry.
+      const moduleName = isWorkspacePrincipal
+        ? "Principal"
+        : path
+            .relative(path.resolve(srcDir, ".."), resolvedPath)
+            .replace(/\\/g, "/")
+            .replace(/\.bas$/i, "") || basename;
+      inputs.push({
+        moduleName,
+        fileUri: fileSyms.fileUri,
+        code: fileSyms.content,
+      });
+    }
+    if (inputs.length === 0) return undefined;
+
+    const analysis = analyzeDeclarationReachability(inputs, {
+      alwaysInclude: pruneOptions.alwaysInclude,
+      remove: pruneOptions.remove,
+      allowPartialParse: true,
+    });
+    if (analysis.skippedDueToParseErrors) {
+      // Fail open: keep previous discovery behaviour rather than under-monomorphizing.
+      return undefined;
+    }
+    return analysis.live.namespaces;
+  }
+
+  private static fileContributesGenericDiscovery(
+    fileSyms: FileSymbols,
+    liveNamespaces: ReadonlySet<string> | undefined,
+    srcDir?: string,
+  ): boolean {
+    if (!liveNamespaces) return true;
+    const resolvedPath = path.resolve(fileSyms.filePath);
+    if (srcDir) {
+      const srcDirNormalized = path.resolve(srcDir).toLowerCase();
+      const basename = path.basename(resolvedPath, path.extname(resolvedPath));
+      const underSrc = resolvedPath.toLowerCase().startsWith(srcDirNormalized + path.sep);
+      // Only the project's own Principal — never a dependency's Principal.bas.
+      if (underSrc && basename.toLowerCase() === "principal") return true;
+    }
+    for (const symbol of fileSyms.symbols) {
+      if (symbol.kind === "namespace" && liveNamespaces.has(symbol.name.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static resolveTypeKind(
+    typeName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): MetaTypeKind | undefined {
+    const trimmed = typeName.trim();
+    if (!trimmed) return undefined;
+    const withoutGeneric = trimmed.replace(/<[^>]*>/g, "").trim();
+    const simple = withoutGeneric.includes(".")
+      ? withoutGeneric.slice(withoutGeneric.lastIndexOf(".") + 1)
+      : withoutGeneric;
+    if (!simple) return undefined;
+
+    if (TypeResolver.findDelegateSymbol(simple, indexer)) return "Delegate";
+
+    const classLike =
+      TypeResolver.findClassSymbol(simple, indexer) ??
+      TypeResolver.findClassSymbol(withoutGeneric, indexer);
+    if (classLike?.kind === "delegate") return "Delegate";
+    if (classLike?.kind === "structure") return "Structure";
+    if (classLike?.kind === "enum") return "Enum";
+    if (classLike?.kind === "class") return "Class";
+
+    const enumHit = indexer
+      .getSymbolsByName(simple)
+      .find((symbol) => symbol.kind === "enum" && indexer.isFileValid(symbol.fileUri));
+    if (enumHit) return "Enum";
+
+    return undefined;
+  }
+
   private static resolveTypeImport(
     typeName: string,
     indexer: WorkspaceSymbolIndexer,
@@ -423,23 +546,39 @@ export class Builder {
     if (BUILDER_PRIMITIVE_TYPE_NAMES.has(simpleName.toLowerCase())) return undefined;
 
     const symbol = indexer.findSymbolByName(simpleName);
-    if (!symbol) return undefined;
-    if (symbol.isSyntheticGenericInstantiation) {
+    if (symbol) {
+      if (symbol.isSyntheticGenericInstantiation) {
+        if (symbol.containerName) return symbol.containerName;
+        if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
+        return undefined;
+      }
+      if (
+        symbol.kind !== "class" &&
+        symbol.kind !== "structure" &&
+        symbol.kind !== "delegate" &&
+        symbol.kind !== "namespace"
+      ) {
+        return undefined;
+      }
+
       if (symbol.containerName) return symbol.containerName;
       if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
       return undefined;
     }
-    if (
-      symbol.kind !== "class" &&
-      symbol.kind !== "structure" &&
-      symbol.kind !== "delegate" &&
-      symbol.kind !== "namespace"
-    ) {
-      return undefined;
-    }
 
-    if (symbol.containerName) return symbol.containerName;
-    if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
+    // Flat monomorphs (`TTList_Foo`) may not be indexed yet when a usage file is
+    // transpiled; fall back to the open template's namespace (`TTList` → mod_tlist).
+    const lower = simpleName.toLowerCase();
+    for (const candidate of indexer.getAllSymbols()) {
+      if (candidate.kind !== "class" && candidate.kind !== "delegate") continue;
+      if (!candidate.genericTypeParameters || candidate.genericTypeParameters.length === 0) {
+        continue;
+      }
+      if (!candidate.containerName) continue;
+      if (lower.startsWith(`${candidate.name.toLowerCase()}_`)) {
+        return candidate.containerName;
+      }
+    }
     return undefined;
   }
 
@@ -464,6 +603,8 @@ export class Builder {
   private static collectRequestedGenericInstantiations(
     indexer: WorkspaceSymbolIndexer,
     externalGenericTemplates: readonly ExternalGenericTemplate[],
+    liveNamespaces?: ReadonlySet<string>,
+    srcDir?: string,
   ): RequestedGenericInstantiation[] {
     const requests: RequestedGenericInstantiation[] = [];
     const seen = new Set<string>();
@@ -479,6 +620,9 @@ export class Builder {
     }));
 
     for (const fileSyms of indexer.getAllFileSymbols()) {
+      if (!this.fileContributesGenericDiscovery(fileSyms, liveNamespaces, srcDir)) {
+        continue;
+      }
       const ctx = collectGenericsContext(fileSyms.content, {
         externalTemplates: analysisTemplates,
       });
@@ -712,6 +856,7 @@ export class Builder {
       srcDir,
       data7ModulesDir,
       options,
+      optimizationOptions.prune,
     );
     const transpileCacheContextHash = this.buildTranspileCacheContextHash(
       transpileCtx,
