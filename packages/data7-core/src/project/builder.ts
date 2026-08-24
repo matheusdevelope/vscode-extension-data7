@@ -7,7 +7,7 @@ import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
 import { WorkspaceSymbolIndexer, type FileSymbols } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
-import { collectGenericsContext } from "../analysis/generics-analyzer";
+import { collectGenericsContext, type GenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
 import { lookupSystemByName } from "../system-library";
 import { readProjectConfig, writeProjectConfig, PROJECT_CONFIG_FILENAME } from "./project-config";
@@ -17,14 +17,14 @@ import {
   type SugarDiagnostic,
   type TranspileResult,
 } from "./transpiler";
-import { SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
+import { SugarEngine, SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
 import type {
   ClassGenericMethodRequest,
   ExternalGenericTemplate,
   MetaTypeKind,
   RequestedGenericInstantiation,
 } from "./generics";
-import { GenericsMonomorphizer } from "./generics";
+import { GenericsMonomorphizer, MAX_INSTANTIATIONS } from "./generics";
 import type { TypeReference } from "./ast/ast";
 import {
   resolveBuildOptimizationOptions,
@@ -68,6 +68,39 @@ function hasOpenGenericTypeArgument(
     }
     return false;
   });
+}
+
+function simpleGenericTypeArgName(typeArg: string): string {
+  const trimmed = typeArg.trim();
+  if (!trimmed.includes(".")) return trimmed;
+  return trimmed.substring(trimmed.lastIndexOf(".") + 1);
+}
+
+/**
+ * Substitutes enclosing-template type parameters inside a collected (already
+ * flattened) type argument. Exact matches keep identity (`TypeRow` → `TGridRow`);
+ * flattened nested names also rewrite (`TTList_TypeRow` → `TTList_TGridRow`).
+ * Underscore is treated as a delimiter so `T` does not match inside `Product`.
+ */
+function substituteFlatTypeArg(typeArg: string, paramToFlat: ReadonlyMap<string, string>): string {
+  const exact = paramToFlat.get(typeArg.toLowerCase());
+  if (exact !== undefined) return exact;
+  let result = typeArg;
+  for (const [fromLower, toFlat] of paramToFlat) {
+    result = result.replace(
+      new RegExp(`(?<![A-Za-z0-9])${escapeRegExp(fromLower)}(?![A-Za-z0-9])`, "gi"),
+      toFlat,
+    );
+  }
+  return result;
+}
+
+interface NestedGenericTemplateUsages {
+  readonly typeParams: readonly string[];
+  readonly usages: Array<{
+    readonly templateName: string;
+    readonly typeArgs: readonly string[];
+  }>;
 }
 
 function escapeRegExp(value: string): string {
@@ -324,7 +357,12 @@ export class Builder {
       : [];
     const liveNamespacesForGenerics =
       genericsEnabled && pruneOptions?.enabled
-        ? this.collectLiveNamespacesForGenericDiscovery(indexer, pruneOptions, srcDir)
+        ? this.collectLiveNamespacesForGenericDiscovery(
+            indexer,
+            pruneOptions,
+            srcDir,
+            options.sugarOptions,
+          )
         : undefined;
     const requestedGenericInstantiations = genericsEnabled
       ? this.collectRequestedGenericInstantiations(
@@ -436,10 +474,29 @@ export class Builder {
    * naming those "Principal" would steal the reachability seed and mark unused
    * dependency namespaces as live.
    */
+  /**
+   * Namespaces that enabled sugars will reference after transpile, even when
+   * the pre-transpile Principal closure does not mention them. `logger-print`
+   * rewrites `Print` to qualified `mod_logger.Printe` without `Imports`, so
+   * reachability on the original source never marks `mod_logger` live — yet
+   * that module's `TTList<LogTransport>` must still be requested.
+   */
+  private static sugarRuntimeNamespacesForGenericDiscovery(
+    sugarOptions?: SugarEngineOptions,
+  ): readonly string[] {
+    const engine = new SugarEngine(sugarOptions);
+    const namespaces: string[] = [];
+    if (engine.isEnabled("logger-print")) {
+      namespaces.push("mod_logger");
+    }
+    return namespaces;
+  }
+
   private static collectLiveNamespacesForGenericDiscovery(
     indexer: WorkspaceSymbolIndexer,
     pruneOptions: PruneOptimizationOptions,
     srcDir: string,
+    sugarOptions?: SugarEngineOptions,
   ): ReadonlySet<string> | undefined {
     const srcDirNormalized = path.resolve(srcDir).toLowerCase();
     const inputs: {
@@ -478,7 +535,11 @@ export class Builder {
       // Fail open: keep previous discovery behaviour rather than under-monomorphizing.
       return undefined;
     }
-    return analysis.live.namespaces;
+    const live = new Set(analysis.live.namespaces);
+    for (const namespaceName of this.sugarRuntimeNamespacesForGenericDiscovery(sugarOptions)) {
+      live.add(namespaceName.toLowerCase());
+    }
+    return live;
   }
 
   private static fileContributesGenericDiscovery(
@@ -608,6 +669,7 @@ export class Builder {
   ): RequestedGenericInstantiation[] {
     const requests: RequestedGenericInstantiation[] = [];
     const seen = new Set<string>();
+    const nestedByTemplate = new Map<string, NestedGenericTemplateUsages>();
     const workspaceTemplateNames = new Set(
       externalGenericTemplates.map((template) => template.name.toLowerCase()),
     );
@@ -620,12 +682,18 @@ export class Builder {
     }));
 
     for (const fileSyms of indexer.getAllFileSymbols()) {
-      if (!this.fileContributesGenericDiscovery(fileSyms, liveNamespaces, srcDir)) {
-        continue;
-      }
+      const contributes = this.fileContributesGenericDiscovery(fileSyms, liveNamespaces, srcDir);
+      const declaresGenericTemplate = fileSyms.symbols.some(
+        (symbol) => (symbol.genericTypeParameters?.length ?? 0) > 0,
+      );
+      if (!contributes && !declaresGenericTemplate) continue;
+
       const ctx = collectGenericsContext(fileSyms.content, {
         externalTemplates: analysisTemplates,
       });
+      this.recordNestedGenericUsages(ctx, nestedByTemplate);
+
+      if (!contributes) continue;
       for (const usage of ctx.usages) {
         if (!workspaceTemplateNames.has(usage.templateName.toLowerCase())) continue;
         if (hasOpenGenericTypeArgument(usage.typeArgs, openTypeParams)) continue;
@@ -642,7 +710,104 @@ export class Builder {
         });
       }
     }
-    return requests;
+
+    return this.closeNestedGenericInstantiations(
+      requests,
+      nestedByTemplate,
+      workspaceTemplateNames,
+      openTypeParams,
+      indexer,
+    );
+  }
+
+  private static recordNestedGenericUsages(
+    ctx: GenericsContext,
+    nestedByTemplate: Map<string, NestedGenericTemplateUsages>,
+  ): void {
+    for (const usage of ctx.usages) {
+      const enclosing = usage.enclosingTemplateName;
+      if (!enclosing) continue;
+      const enclosingKey = enclosing.toLowerCase();
+      const enclosingTemplate = ctx.templates.get(enclosingKey);
+      if (!enclosingTemplate || enclosingTemplate.typeParams.length === 0) continue;
+
+      let entry = nestedByTemplate.get(enclosingKey);
+      if (!entry) {
+        entry = { typeParams: enclosingTemplate.typeParams, usages: [] };
+        nestedByTemplate.set(enclosingKey, entry);
+      }
+      entry.usages.push({
+        templateName: usage.templateName,
+        typeArgs: usage.typeArgs,
+      });
+    }
+  }
+
+  /**
+   * When `TTMatrix<TGridRow>` is requested, also request nested generics from
+   * the template body (`TTList<TypeRow>` → `TTList<TGridRow>`). Cross-file
+   * templates such as `TTList` are only materialized via this global queue.
+   */
+  private static closeNestedGenericInstantiations(
+    seeds: readonly RequestedGenericInstantiation[],
+    nestedByTemplate: ReadonlyMap<string, NestedGenericTemplateUsages>,
+    workspaceTemplateNames: ReadonlySet<string>,
+    openTypeParams: ReadonlySet<string>,
+    indexer: WorkspaceSymbolIndexer,
+  ): RequestedGenericInstantiation[] {
+    const instantiationKey = (request: RequestedGenericInstantiation): string => {
+      const requestFlats = request.flatTypeArgs ?? request.typeArgs.map(simpleGenericTypeArgName);
+      return `${request.templateName.toLowerCase()}<${requestFlats.join(",")}>`;
+    };
+    const worklist: RequestedGenericInstantiation[] = [...seeds];
+    const seen = new Set(seeds.map(instantiationKey));
+
+    for (let index = 0; index < worklist.length && index < MAX_INSTANTIATIONS; index++) {
+      const request = worklist[index];
+      if (!request) continue;
+      const nested = nestedByTemplate.get(request.templateName.toLowerCase());
+      if (!nested) continue;
+      if (nested.typeParams.length !== request.typeArgs.length) continue;
+
+      const flats = request.flatTypeArgs ?? request.typeArgs.map(simpleGenericTypeArgName);
+      if (flats.length !== nested.typeParams.length) continue;
+
+      const paramToQualified = new Map<string, string>();
+      const paramToFlat = new Map<string, string>();
+      for (let paramIndex = 0; paramIndex < nested.typeParams.length; paramIndex++) {
+        const paramName = nested.typeParams[paramIndex];
+        const qualifiedArg = request.typeArgs[paramIndex];
+        const flatArg = flats[paramIndex];
+        if (!paramName || !qualifiedArg || !flatArg) continue;
+        paramToQualified.set(paramName.toLowerCase(), qualifiedArg);
+        paramToFlat.set(paramName.toLowerCase(), simpleGenericTypeArgName(flatArg));
+      }
+
+      for (const usage of nested.usages) {
+        if (!workspaceTemplateNames.has(usage.templateName.toLowerCase())) continue;
+        const substFlats = usage.typeArgs.map((typeArg) =>
+          substituteFlatTypeArg(typeArg, paramToFlat),
+        );
+        if (hasOpenGenericTypeArgument(substFlats, openTypeParams)) continue;
+        const key = `${usage.templateName.toLowerCase()}<${substFlats.join(",")}>`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const qualifiedTypeArgs = usage.typeArgs.map((typeArg, argIndex) => {
+          const exact = paramToQualified.get(typeArg.toLowerCase());
+          if (exact !== undefined) return exact;
+          const substFlat = substFlats[argIndex] ?? typeArg;
+          return qualifyGenericTypeArgument(substFlat, "", indexer);
+        });
+        worklist.push({
+          templateName: usage.templateName,
+          typeArgs: qualifiedTypeArgs,
+          flatTypeArgs: substFlats,
+        });
+      }
+    }
+
+    return worklist;
   }
 
   private static collectRequestedClassGenericMethods(

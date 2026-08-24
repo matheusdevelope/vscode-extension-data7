@@ -36,4 +36,47 @@ describe("collectGenericsContextFromUnit", () => {
       fromCode.warnings.map((warning) => warning.code),
     );
   });
+
+  test("records the enclosing generic template for nested usages", () => {
+    const code = [
+      "Namespace ns_matrix",
+      "  Class TTMatrix<TypeRow>",
+      "    Function FilterRows() As TTList<TypeRow>",
+      "      Dim result[] As TypeRow = []",
+      "      FilterRows = result",
+      "    End Function",
+      "  End Class",
+      "  Class TGridRow",
+      "  End Class",
+      "  Class TGridData",
+      "    Inherits TTMatrix<TGridRow>",
+      "  End Class",
+      "End Namespace",
+      "",
+    ].join("\n");
+
+    const ctx = collectGenericsContext(code, {
+      externalTemplates: [{ kind: "class", name: "TTList", typeParams: ["T"], line: 0 }],
+    });
+
+    const nestedListUsages = ctx.usages.filter(
+      (usage) =>
+        usage.templateName === "TTList" &&
+        usage.typeArgs.length === 1 &&
+        usage.typeArgs[0] === "TypeRow",
+    );
+    assert.ok(nestedListUsages.length >= 1, "expected TTList<TypeRow> usages inside TTMatrix");
+    for (const usage of nestedListUsages) {
+      assert.equal(usage.enclosingTemplateName, "TTMatrix");
+    }
+
+    const outer = ctx.usages.find(
+      (usage) =>
+        usage.templateName === "TTMatrix" &&
+        usage.typeArgs.length === 1 &&
+        usage.typeArgs[0] === "TGridRow",
+    );
+    assert.ok(outer, "expected TTMatrix<TGridRow> usage on TGridData");
+    assert.equal(outer.enclosingTemplateName, undefined);
+  });
 });

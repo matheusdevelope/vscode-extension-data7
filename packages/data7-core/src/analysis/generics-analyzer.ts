@@ -3,6 +3,7 @@ import { SugarEngine } from "../project/sugars";
 import {
   ASTWalker,
   type CompilationUnit,
+  type Node,
   type TypeReference,
   type MethodInvocation,
   type OpaqueStatement,
@@ -50,6 +51,14 @@ export interface GenericUsageOccurrence {
   readonly flatName: string;
   readonly line: number;
   readonly column: number;
+  /**
+   * Innermost generic class/delegate/method that contains this usage.
+   * Undefined for namespace-level or non-generic enclosing declarations.
+   * Used by the builder to close nested instantiations (`TTList<TypeRow>`
+   * inside `TTMatrix<TypeRow>` becomes `TTList<TGridRow>` when the outer
+   * template is instantiated).
+   */
+  readonly enclosingTemplateName?: string;
 }
 
 /**
@@ -233,6 +242,7 @@ class ASTGenericsCollector extends ASTWalker {
   public readonly warnings: GenericsPassWarning[] = [];
   private readonly flatToCanonical = new Map<string, string>();
   private readonly externalTemplateKeys = new Set<string>();
+  private readonly enclosingTemplates: string[] = [];
 
   constructor(
     private readonly unit: CompilationUnit,
@@ -258,6 +268,58 @@ class ASTGenericsCollector extends ASTWalker {
 
     // Walk the entire AST to find generic usages and validate them
     this.walk(this.unit);
+  }
+
+  override walk(node: Node): void {
+    if (node.kind === "ClassDeclaration" && node.typeParameters.length > 0) {
+      this.withEnclosingTemplate(node.name, () => {
+        super.walk(node);
+      });
+      return;
+    }
+    if (node.kind === "MethodDeclaration" && node.typeParameters.length > 0) {
+      this.withEnclosingTemplate(node.name, () => {
+        super.walk(node);
+      });
+      return;
+    }
+    if (node.kind === "DelegateDeclaration" && node.typeParameters.length > 0) {
+      this.withEnclosingTemplate(node.name, () => {
+        super.walk(node);
+      });
+      return;
+    }
+    super.walk(node);
+  }
+
+  private withEnclosingTemplate(name: string, fn: () => void): void {
+    this.enclosingTemplates.push(name);
+    try {
+      fn();
+    } finally {
+      this.enclosingTemplates.pop();
+    }
+  }
+
+  private currentEnclosingTemplateName(): string | undefined {
+    return this.enclosingTemplates[this.enclosingTemplates.length - 1];
+  }
+
+  private recordUsage(
+    templateName: string,
+    typeArgs: readonly string[],
+    flatName: string,
+    line: number,
+    column: number,
+  ): void {
+    this.usages.push({
+      templateName,
+      typeArgs,
+      flatName,
+      line,
+      column,
+      enclosingTemplateName: this.currentEnclosingTemplateName(),
+    });
   }
 
   private collectTemplates(members: readonly TopLevelMember[]): void {
@@ -411,13 +473,7 @@ class ASTGenericsCollector extends ASTWalker {
 
     const typeArgs = node.typeArguments.map((arg) => this.getFlatName(arg));
 
-    this.usages.push({
-      templateName: template.name,
-      typeArgs,
-      flatName: flat,
-      line,
-      column,
-    });
+    this.recordUsage(template.name, typeArgs, flat, line, column);
   }
 
   protected override visitMethodInvocation(node: MethodInvocation): void {
@@ -440,13 +496,7 @@ class ASTGenericsCollector extends ASTWalker {
           this.walk(arg);
         }
         const typeArgs = node.typeArguments.map((arg) => this.getFlatName(arg));
-        this.usages.push({
-          templateName: template.name,
-          typeArgs,
-          flatName: flat,
-          line,
-          column,
-        });
+        this.recordUsage(template.name, typeArgs, flat, line, column);
         return;
       }
       for (const arg of node.typeArguments) {
@@ -501,13 +551,7 @@ class ASTGenericsCollector extends ASTWalker {
 
     const typeArgs = node.typeArguments.map((arg) => this.getFlatName(arg));
 
-    this.usages.push({
-      templateName: template.name,
-      typeArgs,
-      flatName: flat,
-      line,
-      column,
-    });
+    this.recordUsage(template.name, typeArgs, flat, line, column);
   }
 
   protected override visitOpaqueStatement(node: OpaqueStatement): void {
@@ -552,13 +596,7 @@ class ASTGenericsCollector extends ASTWalker {
       const canonical = `${template.name}<${hit.typeArgs.join(",")}>`;
       this.detectCollision(flat, canonical, line, absCol);
 
-      this.usages.push({
-        templateName: template.name,
-        typeArgs: hit.typeArgs,
-        flatName: flat,
-        line,
-        column: absCol,
-      });
+      this.recordUsage(template.name, hit.typeArgs, flat, line, absCol);
 
       current = current.slice(0, hit.start) + flat + current.slice(hit.end);
     }

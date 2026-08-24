@@ -497,6 +497,83 @@ End Namespace
       });
     });
 
+    test("materializes TTList_T from nested array-list sugar inside another generic template", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports mod_grid_data
+
+Sub Main()
+   Dim data As New TGridData()
+End Sub
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_grid_data.bas"),
+          `Imports mod_ttmatrix
+Imports mod_grid_row
+
+Namespace mod_grid_data
+   Class TGridData
+      Inherits TTMatrix<TGridRow>
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_grid_row.bas"),
+          `Namespace mod_grid_row
+   Class TGridRow
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `'@Module
+Namespace mod_tlist
+   Class TTList<T>
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_ttmatrix.bas"),
+          `'@Module
+Imports mod_tlist
+
+Namespace mod_ttmatrix
+   Class TTMatrix<TypeRow>
+      Function FilterRows() As TTList<TypeRow>
+         Dim result[] As TypeRow = []
+         FilterRows = result
+      End Function
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Function FilterRows\(\) As TTList_TGridRow/);
+        assert.match(xml, /Dim result As New TTList_TGridRow\(\)/);
+        assert.match(xml, /Class TTList_TGridRow/);
+      });
+    });
+
     test("imports mod_tlist when enum array sugar materializes TTList_Color", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);
@@ -881,6 +958,99 @@ End Sub
         assert.doesNotMatch(xml, /TTList_MyGridCol/);
         assert.doesNotMatch(xml, /TFindDel_MyGridRow/);
         assert.match(xml, /TTList_Integer/);
+      });
+    });
+
+    test("prune-enabled builds still materialize TTList_LogTransport used inside logger-print runtime", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        const configPath = path.join(tmp, "data7.json");
+        const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
+          build?: unknown;
+        };
+        config.build = {
+          optimization: {
+            sourceMap: false,
+            minify: { enabled: false, stripComments: false },
+            prune: {
+              enabled: true,
+              report: false,
+              strategy: "principal-closure",
+              alwaysInclude: [],
+              remove: {
+                namespaces: true,
+                classes: true,
+                structures: true,
+                enums: true,
+                delegates: true,
+                methods: true,
+                declareMethods: true,
+                fields: true,
+                properties: true,
+                consts: true,
+                variables: true,
+                unusedImports: true,
+                localVariables: true,
+              },
+            },
+            uglify: { enabled: false },
+          },
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Namespace mod_grid
+   Class Program
+      Public Sub Main()
+         Print("hello")
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const coreDir = path.join(tmp, "data7_modules", "core_modules");
+        fs.mkdirSync(coreDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(coreDir, "mod_tlist.bas"),
+          `'@Module
+Namespace mod_tlist
+   Class TTList<T>
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(coreDir, "mod_logger.bas"),
+          `'@Module
+Namespace mod_logger
+   Class LogTransport
+   End Class
+   Class LogTransportList
+      Private _list As TTList<LogTransport>
+      Sub New()
+         me._list = New TTList<LogTransport>()
+      End Sub
+   End Class
+   Sub Printe(pMessage As String)
+      Dim transports As New LogTransportList()
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+        const xml = fs.readFileSync(destXml, "utf-8");
+
+        assert.match(xml, /mod_logger\.Printe/);
+        assert.match(xml, /Private _list As TTList_LogTransport/);
+        assert.match(xml, /Class TTList_LogTransport/);
       });
     });
 
