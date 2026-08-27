@@ -6,7 +6,7 @@ Namespace mod_tobject
     Delegate Function SortPropDel(pValue As TTObject, i As Integer, extra As Variant) As String
     Delegate Sub ForEachDel(pValue As TTObject, i As Integer, extra As Variant)
     Delegate Sub OnActionListDel(pList As TTObjectList, pItem As TTObject, pIndex As Integer)
-    Private Class TTObjectPrinter
+    Class TTObjectPrinter
         Private _title As String
         Private _lines As StringList
         Private _closed As Boolean

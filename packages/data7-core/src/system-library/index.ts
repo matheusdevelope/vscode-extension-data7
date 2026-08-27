@@ -166,6 +166,7 @@ import { symbols as sym_Globals_Exception } from "./Globals/Exception";
 import { symbols as sym_Globals_TColor } from "./Globals/TColor";
 import { symbols as sym_Globals_TCursor } from "./Globals/TCursor";
 import { symbols as sym_Globals_TFont } from "./Globals/TFont";
+import { symbols as sym_Globals_TBrush } from "./Globals/TBrush";
 import { symbols as sym_Globals_FontConfig } from "./Globals/FontConfig";
 import { symbols as sym_Globals_TFontPitch } from "./Globals/TFontPitch";
 import { symbols as sym_Globals_TFontQuality } from "./Globals/TFontQuality";
@@ -382,6 +383,7 @@ export const SYSTEM_SYMBOLS: SymbolInfo[] = [
   ...sym_Globals_TColor,
   ...sym_Globals_TCursor,
   ...sym_Globals_TFont,
+  ...sym_Globals_TBrush,
   ...sym_Globals_FontConfig,
   ...sym_Globals_TFontPitch,
   ...sym_Globals_TFontQuality,

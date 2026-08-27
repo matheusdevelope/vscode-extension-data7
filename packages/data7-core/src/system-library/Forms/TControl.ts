@@ -642,6 +642,7 @@ export const symbols: SystemSymbolInfo[] = [
     parameters: [],
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
+    isUnsupported: true,
     containerName: "TControl",
     description: "Repinta completamente o controle.",
   },
