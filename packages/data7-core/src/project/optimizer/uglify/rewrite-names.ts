@@ -537,7 +537,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
           return;
         }
         case "ThrowStatement": {
-          this.walkExpression(statement.expression, locals);
+          if (statement.expression) this.walkExpression(statement.expression, locals);
           return;
         }
         case "DestructuredVariableDeclaration": {

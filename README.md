@@ -168,22 +168,22 @@ Comandos exclusivos de contexto (Gerenciador de Módulos, menu do editor) não a
 
 Todas as opções da extensão ficam no editor interno **Data7: Configurações** (`data7.settings.open`), persistidas em `extension-settings.json` no armazenamento global da extensão.
 
-| Grupo               | Opções                                                                   |
-| ------------------- | ------------------------------------------------------------------------ |
-| Ambiente            | `executorPath`, `sharedModulesPath`                                      |
-| Execução (fallback) | `userName`, `companyCode`, `branchCode`, `databaseConnectionId`          |
-| Indexação / linter  | `exclude`, `diagnosticSeverity`                                          |
-| Funcionalidades     | `features.*` (generics, sugars, linter, save, build, preview, workspace) |
-| Açúcares            | `sugars.enabled`, `sugars.enabledIds`, `sugars.disabledIds`              |
+| Grupo               | Opções                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| Ambiente            | `executorPath`, `sharedModulesPath`                                                  |
+| Execução (fallback) | `userName`, `companyCode`, `branchCode`, `databaseConnectionId`                      |
+| Indexação / linter  | `exclude`, `diagnosticSeverity`                                                      |
+| Funcionalidades     | `features.*` (generics, sugars, stackTrace, linter, save, build, preview, workspace) |
+| Açúcares            | `sugars.enabled`, `sugars.enabledIds`, `sugars.disabledIds`                          |
 
-Projetos usam `data7.json` para metadados de build e execução (`opcoes.*`, `build.optimization`, `dependencies`). Novos projetos já nascem com o bloco completo `build.optimization`.
+Projetos usam `data7.json` para metadados de build e execução (`opcoes.*`, `build.optimization`, `dependencies`, `stackTrace`). Novos projetos já nascem com o bloco completo `build.optimization` e com `stackTrace.enabled: false` (opt-in). Para instrumentar métodos com `StackTrace.Push`/`Pop` e encapsular o `Principal.bas` em `Try`/`Catch`/`Finally` no build/F5, ligue `stackTrace.enabled` no projeto **e** mantenha `features.language.stackTrace` (default `true`). O `Catch` registra o relatório, limpa a pilha e relança (`Throw`) para interromper o fluxo quando o erro não foi tratado. Chamadas são qualificadas (`StackTrace.Push`); não há `Imports StackTrace`. O sugar não reescreve o próprio `mod_stacktrace`.
 
 `data7.features` mantém os recursos existentes ativos por padrão, exceto o auto-fix antes do build, que fica desligado para evitar uma varredura completa a cada execução. Exemplo para usar somente o núcleo, sem extensões de linguagem nem automações de workspace:
 
 ```json
 {
   "data7.features": {
-    "language": { "generics": false, "sugars": false },
+    "language": { "generics": false, "sugars": false, "stackTrace": false },
     "diagnostics": { "enabled": true, "lintWorkspaceOnStartup": false },
     "workspace": {
       "detectProjectFiles": false,

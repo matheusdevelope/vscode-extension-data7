@@ -1014,7 +1014,7 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
         if (cloned.expression) cloned.expression = visitExpression(cloned.expression);
         return cloned;
       case "ThrowStatement":
-        cloned.expression = visitExpression(cloned.expression);
+        if (cloned.expression) cloned.expression = visitExpression(cloned.expression);
         return cloned;
       case "Block":
         cloned.statements = visitStatements(cloned.statements);

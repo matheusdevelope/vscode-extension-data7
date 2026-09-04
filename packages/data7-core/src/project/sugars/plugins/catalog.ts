@@ -1,6 +1,7 @@
 import type { SugarPlugin } from "../types";
 import { enumSugarPlugin } from "./enum";
 import { inlineIfSugarPlugin } from "./inline-if";
+import { stackTraceSugarPlugin } from "./stack-trace";
 import { ArrayListParserPlugin } from "./array-list/parser";
 import { TernaryParserPlugin } from "./ternary/parser";
 import { NullCoalesceParserPlugin } from "./null-coalesce/parser";
@@ -177,4 +178,5 @@ export const builtInSugarPlugins: readonly SugarPlugin[] = [
     priority: 1000,
     syntaxKinds: ["MethodInvocation(Print)"],
   }),
+  stackTraceSugarPlugin,
 ];

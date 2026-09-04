@@ -639,7 +639,19 @@ export class Parser {
   private parseThrowStatement(): ThrowStatement {
     const startLoc = this.peek().loc;
     this.advance(); // consume 'Throw'
-    const expression = this.parseExpression();
+    let expression: Expression | undefined;
+
+    const next = this.peek();
+    if (
+      next.kind !== "newline" &&
+      next.kind !== "eof" &&
+      next.kind !== "comment" &&
+      next.value !== ":" &&
+      !(next.kind === "keyword" && Parser.eq(next, "end"))
+    ) {
+      expression = this.parseExpression();
+    }
+
     const comment = this.skipToEndOfLine();
     return {
       kind: "ThrowStatement",

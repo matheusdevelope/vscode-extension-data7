@@ -48,6 +48,9 @@ export function createDefaultProjectMetadata(
     build: {
       optimization: createDefaultProjectBuildOptimization(),
     },
+    stackTrace: {
+      enabled: false,
+    },
     virtualFolders: [
       {
         nome: `Unidades (${moduleCount})`,

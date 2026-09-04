@@ -20,6 +20,8 @@ export class BuildCache {
       optimizationOptions: options.optimizationOptions,
       optimizationOverride: options.optimizationOverride,
       validateTranspiled: typeof options.validateTranspiled === "function",
+      stackTraceLocationMode: options.stackTraceLocationMode,
+      stackTraceEnabled: options.stackTraceEnabled,
     });
 
     if (!isBuildSnapshotFresh(snapshot)) return undefined;
@@ -50,6 +52,8 @@ export class BuildCache {
       optimizationOptions: options.optimizationOptions,
       optimizationOverride: options.optimizationOverride,
       validateTranspiled: typeof options.validateTranspiled === "function",
+      stackTraceLocationMode: options.stackTraceLocationMode,
+      stackTraceEnabled: options.stackTraceEnabled,
     });
     recordBuildSnapshot(rebuiltSnapshot);
 

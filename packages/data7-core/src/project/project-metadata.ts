@@ -78,6 +78,10 @@ export interface ProjectBuildOptions {
   optimization?: ProjectBuildOptimization;
 }
 
+export interface ProjectStackTraceOptions {
+  enabled?: boolean;
+}
+
 export interface ProjectModuleOptions {
   enabled?: boolean;
   name?: string;
@@ -96,4 +100,6 @@ export interface ProjectMetadata {
   modulesMetadata: Record<string, ModuleMetadata>;
   dependencies?: Record<string, string>;
   build?: ProjectBuildOptions;
+  /** Opt-in stack-trace instrumentation for this project. Requires the extension feature flag. */
+  stackTrace?: ProjectStackTraceOptions;
 }

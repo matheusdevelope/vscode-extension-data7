@@ -489,7 +489,7 @@ function serializeStatement(
     case "ThrowStatement":
       out.push(
         indent(depth, options) +
-          `Throw ${emitExpression(s.expression)}` +
+          (s.expression ? `Throw ${emitExpression(s.expression)}` : "Throw") +
           (s.comment && !options.minify ? " " + s.comment : ""),
       );
       return;
@@ -733,7 +733,7 @@ function emitStatementInline(s: Statement): string {
     case "ContinueStatement":
       return "Continue";
     case "ThrowStatement":
-      return `Throw ${emitExpression(s.expression)}`;
+      return s.expression ? `Throw ${emitExpression(s.expression)}` : "Throw";
     default:
       return "";
   }

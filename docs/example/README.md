@@ -125,11 +125,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (170 arquivos)
+## Índice de exemplos (174 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (69)
+### sugar (73)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -194,6 +194,10 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/return-if/01-basic.bas`](./sugar/return-if/01-basic.bas) | Return If cond Then a Else b expandido para If/Then/Return | `none` | — |
 | [`sugar/spread-collection/01-basic.bas`](./sugar/spread-collection/01-basic.bas) | convenção atual de inicialização de StringList por Add manual | `none` | — |
 | [`sugar/spread-object/01-basic.bas`](./sugar/spread-object/01-basic.bas) | convenção atual usando .Assign() para spread em object init | `none` | — |
+| [`sugar/stack-trace/_expected/01-method-push-pop.bas`](./sugar/stack-trace/_expected/01-method-push-pop.bas) | Push no início do método e Pop antes de Return/Exit e no fim | `none` | — |
+| [`sugar/stack-trace/_expected/02-principal-try.bas`](./sugar/stack-trace/_expected/02-principal-try.bas) | Principal.bas encapsula o conteúdo após Imports em Try/Catch/Finally; o Catch relança após Report e Clean | `none` | — |
+| [`sugar/stack-trace/01-method-push-pop.bas`](./sugar/stack-trace/01-method-push-pop.bas) | Push no início do método e Pop antes de Return/Exit e no fim | `none` | — |
+| [`sugar/stack-trace/02-principal-try.bas`](./sugar/stack-trace/02-principal-try.bas) | Principal.bas encapsula o conteúdo após Imports em Try/Catch/Finally; o Catch relança após Report e Clean | `none` | — |
 | [`sugar/ternary/_expected/01-dim-assignment.bas`](./sugar/ternary/_expected/01-dim-assignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/ternary/01-dim-assignment | `none` | — |
 | [`sugar/ternary/_expected/02-reassignment.bas`](./sugar/ternary/_expected/02-reassignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/ternary/02-reassignment | `none` | — |
 | [`sugar/ternary/_expected/03-member-assignment.bas`](./sugar/ternary/_expected/03-member-assignment.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/ternary/03-member-assignment | `none` | — |

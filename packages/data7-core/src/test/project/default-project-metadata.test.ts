@@ -41,9 +41,19 @@ describe("default-project-metadata", () => {
     assert.equal(metadata.nome, "mod_test");
     assert.ok(metadata.build?.optimization);
     assert.equal(metadata.build.optimization.sourceMap, true);
-    assert.equal(metadata.build.optimization.minify?.enabled, false);
-    assert.equal(metadata.build.optimization.prune?.enabled, false);
-    assert.equal(metadata.build.optimization.uglify?.enabled, false);
+    assert.equal(
+      metadata.build.optimization.minify?.enabled,
+      DEFAULT_BUILD_OPTIMIZATION_OPTIONS.minify.enabled,
+    );
+    assert.equal(
+      metadata.build.optimization.prune?.enabled,
+      DEFAULT_BUILD_OPTIMIZATION_OPTIONS.prune.enabled,
+    );
+    assert.equal(
+      metadata.build.optimization.uglify?.enabled,
+      DEFAULT_BUILD_OPTIMIZATION_OPTIONS.uglify.enabled,
+    );
+    assert.equal(metadata.stackTrace?.enabled, false);
     assert.equal(metadata.virtualFolders.length, 1);
     assert.match(metadata.virtualFolders[0]?.nome ?? "", /^Unidades \(/);
   });

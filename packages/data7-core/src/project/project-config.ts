@@ -49,6 +49,8 @@ export interface ProjectConfig {
   readonly dependencies: Readonly<Record<string, string>>;
   /** Convenience accessor for `opcoes.identificacaoBancoDados`. */
   readonly databaseConnectionId: string;
+  /** Project opt-in for stack-trace instrumentation. Default false. */
+  readonly stackTraceEnabled: boolean;
 }
 
 const DEFAULT_OPCOES: Readonly<ProjectOptions> = Object.freeze({
@@ -141,5 +143,12 @@ function narrow(raw: Record<string, unknown>): ProjectConfig {
     opcoes,
     dependencies,
     databaseConnectionId: opcoes.identificacaoBancoDados,
+    stackTraceEnabled: parseStackTraceEnabled(raw.stackTrace),
   };
+}
+
+function parseStackTraceEnabled(value: unknown): boolean {
+  if (value === true) return true;
+  if (isRecord(value) && value.enabled === true) return true;
+  return false;
 }

@@ -68,6 +68,21 @@ export interface TranspileContext {
   genericsEnabled?: boolean;
   sugarOptions?: SugarEngineOptions;
   rewritePrintToLogger?: boolean;
+  /**
+   * When the `stack-trace` sugar is enabled, labels Push frames with either the
+   * original `.bas` path/line (`source`, F5) or the packaged unit name/generated
+   * line (`generated`, final build / DevStudio).
+   */
+  stackTrace?: StackTraceTranspileOptions;
+}
+
+export type StackTraceLocationMode = "source" | "generated";
+
+export interface StackTraceTranspileOptions {
+  readonly locationMode: StackTraceLocationMode;
+  readonly sourceFilePath: string;
+  readonly moduleName: string;
+  readonly wrapPrincipal: boolean;
 }
 
 export interface TranspileResult {

@@ -4,8 +4,9 @@ import * as path from "node:path";
 import { PROJECT_CONFIG_FILENAME } from "./project-config";
 import type { BuildOptimizationOptions, BuildOptimizationOverride } from "./optimizer";
 import type { SugarEngineOptions } from "./sugar-registry";
+import type { StackTraceLocationMode } from "./transpiler-types";
 
-export const BUILD_SNAPSHOT_SCHEMA_VERSION = 3;
+export const BUILD_SNAPSHOT_SCHEMA_VERSION = 4;
 
 export interface BuildSnapshotOptions {
   readonly vscodeLoggerFilePath?: string;
@@ -14,6 +15,8 @@ export interface BuildSnapshotOptions {
   readonly validateTranspiled?: boolean;
   readonly optimizationOptions?: BuildOptimizationOptions;
   readonly optimizationOverride?: BuildOptimizationOverride;
+  readonly stackTraceLocationMode?: StackTraceLocationMode;
+  readonly stackTraceEnabled?: boolean;
 }
 
 export interface BuildSnapshotEntry {
@@ -58,6 +61,8 @@ export function computeBuildSnapshot(
     optimizationOverride: options.optimizationOverride ?? null,
     validateTranspiled: options.validateTranspiled === true,
     vscodeLoggerFilePath: normalizeOptionalPath(options.vscodeLoggerFilePath),
+    stackTraceLocationMode: options.stackTraceLocationMode ?? null,
+    stackTraceEnabled: options.stackTraceEnabled ?? null,
   });
   const payload = {
     schemaVersion: BUILD_SNAPSHOT_SCHEMA_VERSION,

@@ -829,6 +829,27 @@ describe("parser/parser", () => {
     assert.equal((m.body[0] as any).expression.kind, "ObjectCreationExpression");
   });
 
+  test("parses bare Throw as a rethrow without expression", () => {
+    const src = [
+      "Sub TestRethrow()",
+      "   Try",
+      '      Throw New Exception("error")',
+      "   Catch ex As Exception",
+      "      Throw",
+      "   End Try",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const m = r.unit.members[0] as MethodDeclaration;
+    assert.equal(m.body[0]?.kind, "TryCatchStatement");
+    if (m.body[0]?.kind !== "TryCatchStatement") return;
+    const rethrow = m.body[0].catchBody[0];
+    assert.equal(rethrow?.kind, "ThrowStatement");
+    if (rethrow?.kind !== "ThrowStatement") return;
+    assert.equal(rethrow.expression, undefined);
+  });
+
   test("parses method parameters with default values (GAP-09)", () => {
     const src = ["Sub New(pTimeToStart As Integer = 10)", "End Sub"].join("\n");
     const r = parse(src);

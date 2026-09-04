@@ -17,7 +17,14 @@ import {
   type SugarDiagnostic,
   type TranspileResult,
 } from "./transpiler";
-import { SugarEngine, SugarRegistry, type SugarEngineOptions } from "./sugar-registry";
+import type { StackTraceLocationMode } from "./transpiler-types";
+import {
+  SugarEngine,
+  SugarRegistry,
+  sugarOptionsWithStackTrace,
+  type SugarEngineOptions,
+} from "./sugar-registry";
+import { rewriteGeneratedStackTraceLocations } from "./sugars/plugins/stack-trace";
 import type {
   ClassGenericMethodRequest,
   ExternalGenericTemplate,
@@ -174,6 +181,10 @@ export interface BuildProjectOptions {
   readonly vscodeLoggerFilePath?: string;
   readonly sugarOptions?: SugarEngineOptions;
   readonly genericsEnabled?: boolean;
+  /** Host kill-switch for stack-trace support. Default true when omitted. */
+  readonly stackTraceEnabled?: boolean;
+  /** F5 uses `source`; final build / DevStudio use `generated`. */
+  readonly stackTraceLocationMode?: StackTraceLocationMode;
   readonly optimizationOptions?: BuildOptimizationOptions;
   readonly optimizationOverride?: BuildOptimizationOverride;
   readonly isExcluded?: (filePath: string) => boolean;
@@ -225,6 +236,36 @@ function stableJson(value: unknown): string {
       .join(",")}}`;
   }
   return JSON.stringify(value);
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
+}
+
+function withStackTraceFile(
+  ctx: TranspileContext,
+  filePath: string,
+  moduleName: string,
+  wrapPrincipal: boolean,
+): TranspileContext {
+  if (!ctx.stackTrace) return ctx;
+  return {
+    ...ctx,
+    stackTrace: {
+      ...ctx.stackTrace,
+      sourceFilePath: filePath,
+      moduleName,
+      wrapPrincipal,
+    },
+  };
 }
 
 function cloneTranspileResult(result: TranspileResult): TranspileResult {
@@ -459,21 +500,18 @@ export class Builder {
       requestedClassGenericMethods,
       genericsEnabled,
       sugarOptions: options.sugarOptions,
+      stackTrace: options.stackTraceLocationMode
+        ? {
+            locationMode: options.stackTraceLocationMode,
+            sourceFilePath: "",
+            moduleName: "",
+            wrapPrincipal: false,
+          }
+        : undefined,
     };
     return { transpileCtx, indexer };
   }
 
-  /**
-   * Pre-transpile principal-closure of namespaces used to gate generic
-   * instantiation discovery when prune is enabled. Without this, unused
-   * dependency modules still request `TTList_MyGridRow`-style monomorphs that
-   * survive in `mod_tlist` after their type-arg types are pruned.
-   *
-   * Only the workspace `src/Principal.bas` is treated as the entry Principal.
-   * Dependency packages often ship their own `Principal.bas` (tests/demos);
-   * naming those "Principal" would steal the reachability seed and mark unused
-   * dependency namespaces as live.
-   */
   /**
    * Namespaces that enabled sugars will reference after transpile, even when
    * the pre-transpile Principal closure does not mention them. `logger-print`
@@ -489,9 +527,23 @@ export class Builder {
     if (engine.isEnabled("logger-print")) {
       namespaces.push("mod_logger");
     }
+    if (engine.isEnabled("stack-trace")) {
+      namespaces.push("StackTrace");
+    }
     return namespaces;
   }
 
+  /**
+   * Pre-transpile principal-closure of namespaces used to gate generic
+   * instantiation discovery when prune is enabled. Without this, unused
+   * dependency modules still request `TTList_MyGridRow`-style monomorphs that
+   * survive in `mod_tlist` after their type-arg types are pruned.
+   *
+   * Only the workspace `src/Principal.bas` is treated as the entry Principal.
+   * Dependency packages often ship their own `Principal.bas` (tests/demos);
+   * naming those "Principal" would steal the reachability seed and mark unused
+   * dependency namespaces as live.
+   */
   private static collectLiveNamespacesForGenericDiscovery(
     indexer: WorkspaceSymbolIndexer,
     pruneOptions: PruneOptimizationOptions,
@@ -899,6 +951,7 @@ export class Builder {
           ),
         ),
         publicSymbols,
+        stackTrace: ctx.stackTrace,
       }),
     );
   }
@@ -1014,14 +1067,32 @@ export class Builder {
       throw new Error("Código principal src/Principal.bas não encontrado.");
     }
 
-    const optimizationOptions =
+    const stackTraceOn = projectConfig.stackTraceEnabled && (options.stackTraceEnabled ?? true);
+    const stackTraceLocationMode =
+      options.stackTraceLocationMode ?? (options.vscodeLoggerFilePath ? "source" : "generated");
+    const sugarOptions = sugarOptionsWithStackTrace(options.sugarOptions, stackTraceOn);
+    let optimizationOptions =
       options.optimizationOptions ??
       resolveBuildOptimizationOptions(metadata, options.optimizationOverride);
+    if (stackTraceOn) {
+      optimizationOptions = {
+        ...optimizationOptions,
+        prune: {
+          ...optimizationOptions.prune,
+          alwaysInclude: uniqueStrings([...optimizationOptions.prune.alwaysInclude, "StackTrace"]),
+        },
+      };
+    }
+    const effectiveOptions: BuildProjectOptions = {
+      ...options,
+      sugarOptions,
+      stackTraceLocationMode: stackTraceOn ? stackTraceLocationMode : undefined,
+    };
     const stripComments = this.shouldStripComments(metadata, optimizationOptions);
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
       srcDir,
       data7ModulesDir,
-      options,
+      effectiveOptions,
       optimizationOptions.prune,
     );
     const transpileCacheContextHash = this.buildTranspileCacheContextHash(
@@ -1289,7 +1360,7 @@ export class Builder {
     const mainTranspiledRaw = this.transpileWithCache(
       mainUri,
       mainCodeRaw,
-      transpileCtx,
+      withStackTraceFile(transpileCtx, mainCodePath, "Principal", true),
       transpileCacheContextHash,
     );
     const loggerInject = this.injectRuntimeLoggerConfig(
@@ -1332,7 +1403,7 @@ export class Builder {
       const transpiled = this.transpileWithCache(
         fileUri,
         rawCode,
-        transpileCtx,
+        withStackTraceFile(transpileCtx, filePath, filename, false),
         transpileCacheContextHash,
       );
       if (transpiled.usedSugars) {
@@ -1412,7 +1483,7 @@ export class Builder {
           const transpiled = this.transpileWithCache(
             fileUri,
             rawCode,
-            transpileCtx,
+            withStackTraceFile(transpileCtx, filePath, filename, false),
             transpileCacheContextHash,
           );
           if (transpiled.usedSugars) {
@@ -1699,6 +1770,12 @@ export class Builder {
         composeModuleLineMap(module.name, uglified.lineMaps?.get(module.name));
       }
       uglifySymbols = uglified.symbols ?? [];
+    }
+    if (stackTraceOn && stackTraceLocationMode === "generated") {
+      mainCode = rewriteGeneratedStackTraceLocations(mainCode, "Principal");
+      for (const module of modulesToCompile) {
+        module.code = rewriteGeneratedStackTraceLocations(module.code, module.name);
+      }
     }
     // Order virtual folders: root first, data7_modules folder next, then the rest.
     const orderedFolders: VirtualFolder[] = [];

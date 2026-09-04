@@ -9,7 +9,11 @@ import {
   readConfiguration,
   readProjectConfig,
 } from "@data7/core";
-import type { BuildProjectOptions, EnsureProjectBuiltResult } from "@data7/core";
+import type {
+  BuildProjectOptions,
+  EnsureProjectBuiltResult,
+  StackTraceLocationMode,
+} from "@data7/core";
 
 import { DependencyService } from "./dependency-service";
 import { ExtensionSettingsService } from "./extension-settings-service";
@@ -91,6 +95,7 @@ export class BuildService {
 
           const result = this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath, {
             openEditorPaths: this.collectOpenEditorPaths(),
+            ...this.stackTraceBuildOptions("generated"),
           });
           vscode.window.showInformationMessage(
             result.skipped
@@ -186,6 +191,7 @@ export class BuildService {
       this._ensureProjectBuilt(project.workspaceDir, runProjectFilePath, {
         vscodeLoggerFilePath,
         openEditorPaths: this.collectOpenEditorPaths(),
+        ...this.stackTraceBuildOptions("source"),
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -311,12 +317,17 @@ export class BuildService {
       await this.applyAutoFixBeforeBuild(project.workspaceDir);
       const dependencies = this.readDependencies(project.workspaceDir);
       await DependencyService.syncProjectData7Modules(project.workspaceDir, dependencies);
-      if (this._getFreshProjectBuild(project.workspaceDir, project.projectFilePath)) {
+      if (
+        this._getFreshProjectBuild(project.workspaceDir, project.projectFilePath, {
+          ...this.stackTraceBuildOptions("generated"),
+        })
+      ) {
         await this.openInDevStudioDirectly(project.projectFilePath);
         return;
       }
       this._ensureProjectBuilt(project.workspaceDir, project.projectFilePath, {
         openEditorPaths: this.collectOpenEditorPaths(),
+        ...this.stackTraceBuildOptions("generated"),
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -427,6 +438,15 @@ export class BuildService {
   private static getRunProjectFilePath(workspaceDir: string, projectFilePath: string): string {
     const projectName = path.basename(projectFilePath, path.extname(projectFilePath));
     return path.join(workspaceDir, ".data7", "run", `${projectName}.run.7Proj`);
+  }
+
+  private static stackTraceBuildOptions(
+    locationMode: StackTraceLocationMode,
+  ): Pick<BuildProjectOptions, "stackTraceEnabled" | "stackTraceLocationMode"> {
+    return {
+      stackTraceEnabled: readConfiguration().features.language.stackTrace,
+      stackTraceLocationMode: locationMode,
+    };
   }
 
   private static startVSCodeLoggerMirror(logFilePath: string): void {

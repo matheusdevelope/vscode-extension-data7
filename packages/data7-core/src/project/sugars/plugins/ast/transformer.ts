@@ -1555,6 +1555,17 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
 
       case "OpaqueStatement":
         return s;
+
+      case "ExitStatement":
+      case "ContinueStatement":
+        return s;
+
+      case "ThrowStatement": {
+        if (s.expression) {
+          s.expression = this.transformExpression(s.expression, false, s.loc?.startLine);
+        }
+        return s;
+      }
     }
     return s;
   }

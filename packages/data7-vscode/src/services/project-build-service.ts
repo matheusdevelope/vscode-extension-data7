@@ -31,6 +31,8 @@ export class ProjectBuildService {
         disabledSugarIds: sugars.disabledIds,
       },
       genericsEnabled: configuration.features.language.generics,
+      stackTraceEnabled: configuration.features.language.stackTrace,
+      stackTraceLocationMode: options.stackTraceLocationMode ?? "generated",
       isExcluded,
       onWarning: (message) => {
         logger.warn(message);

@@ -16,6 +16,7 @@ import {
 } from "./ast/ast";
 import { ASTSugarTransformer } from "./sugars/plugins/ast/transformer";
 import { LoggerPrintSugarTransformer } from "./sugars/plugins/logger-print/transformer";
+import { STACK_TRACE_SUGAR_ID, StackTraceSugarTransformer } from "./sugars/plugins/stack-trace";
 import { normalizeMetaProgrammingSyntax } from "./sugars/plugins/metaprogramming";
 import { removeNumericSeparators } from "./sugars/plugins/numeric-separator";
 import type { SugarDiagnostic, TranspileContext, TranspileResult } from "./transpiler-types";
@@ -132,14 +133,21 @@ export class SugarTranspiler {
       !declaredNamespaces.has("mod_logger");
     const transformer = new ASTSugarTransformer(ctx, sugarEngine);
     transformer.walk(finalUnit);
-    const finalSugarTransformers = sugarEngine
+    const finalSugarIds = sugarEngine
       .getEnabledSugarIdsInPrecedenceOrder()
-      .filter((id) => id === "logger-print");
-    for (const _ of finalSugarTransformers) {
-      if (rewritePrintToLogger) {
+      .filter((id) => id === "logger-print" || id === STACK_TRACE_SUGAR_ID);
+    for (const sugarId of finalSugarIds) {
+      if (sugarId === "logger-print" && rewritePrintToLogger) {
         const loggerPrintTransformer = new LoggerPrintSugarTransformer();
         loggerPrintTransformer.transform(finalUnit);
         for (const usedSugar of loggerPrintTransformer.usedSugars) {
+          transformer.usedSugars.add(usedSugar);
+        }
+      }
+      if (sugarId === STACK_TRACE_SUGAR_ID) {
+        const stackTraceTransformer = new StackTraceSugarTransformer(ctx.stackTrace);
+        stackTraceTransformer.transform(finalUnit);
+        for (const usedSugar of stackTraceTransformer.usedSugars) {
           transformer.usedSugars.add(usedSugar);
         }
       }

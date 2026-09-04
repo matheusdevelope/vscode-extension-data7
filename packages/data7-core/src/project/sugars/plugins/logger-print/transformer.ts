@@ -145,7 +145,9 @@ export class LoggerPrintSugarTransformer {
         }
         return statement;
       case "ThrowStatement":
-        statement.expression = this.transformExpression(statement.expression);
+        if (statement.expression) {
+          statement.expression = this.transformExpression(statement.expression);
+        }
         return statement;
       case "Block":
         statement.statements = this.transformStatements(statement.statements);

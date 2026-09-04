@@ -124,7 +124,7 @@ A árvore de fontes e o arquivo `.7proj` seguem um fluxo manual: use os comandos
 - **`.bas`**: Arquivos de script contendo a codificação em Data7 Basic. Podem declarar namespaces, classes, estruturas, métodos, variáveis locais, atributos globais e declarações `Declare Sub` / `Declare Function` de DLLs (estruturalmente analisadas em `MethodDeclaration` com metadados DLL).
 - **`.7proj`**: Arquivo XML de projeto estruturado que contém metadados, formulários e todos os scripts `.bas` agregados do projeto do ERP.
 
-Os módulos core são sincronizados para `data7_modules/core_modules/` junto com o projeto em ativação, criação/decomposição, build, F5 e abertura no DevStudio. Essa pasta é espelhada a partir dos arquivos embarcados na extensão e reindexada após a cópia, garantindo que `mod_tlist`, `mod_tenum`, `mod_tobject` e `mod_logger` estejam disponíveis para linter, transpiler e Builder. O logging desse runtime é centralizado em `mod_logger`; `TEnum` deriva de `TTObject` para uso seguro em listas, e a serialização de valores trata `TDateTime`, `TTObject` e objetos nativos pelo seu tipo concreto. O módulo legado `mod_console` não faz parte desse conjunto.
+Os módulos core são sincronizados para `data7_modules/core_modules/` junto com o projeto em ativação, criação/decomposição, build, F5 e abertura no DevStudio. Essa pasta é espelhada a partir dos arquivos embarcados na extensão e reindexada após a cópia, garantindo que `mod_tlist`, `mod_tenum`, `mod_tobject`, `mod_logger` e `mod_stacktrace` estejam disponíveis para linter, transpiler e Builder. O logging desse runtime é centralizado em `mod_logger`; o stack trace instrumentado usa o namespace `StackTrace` (`mod_stacktrace`); `TEnum` deriva de `TTObject` para uso seguro em listas, e a serialização de valores trata `TDateTime`, `TTObject` e objetos nativos pelo seu tipo concreto. O módulo legado `mod_console` não faz parte desse conjunto.
 
 ### 2.7. Açúcares sintáticos transpilados
 
@@ -267,6 +267,14 @@ End Class
 #### `Type X = Y` (type alias)
 
 - Apagado pelo Builder; o linter o trata como o tipo aliasado.
+
+#### `stack-trace` (`StackTrace.Push` / `Pop` + Try no Principal)
+
+- Opt-in por projeto (`data7.json#stackTrace.enabled`, default `false`) e kill-switch da extensão (`features.language.stackTrace`, default `true`). Os dois precisam estar ligados; o sugar também respeita `features.language.sugars` / `sugars.disabledIds`.
+- Roda por último no pipeline (depois de `logger-print`). Injeta `StackTrace.Push(nome, arquivo, linha)` no início de cada `Method` e `Property Get/Set`, `StackTrace.Pop` antes de `Return` / `Exit Function|Sub|Property` (não `Exit For/Do/While`) e no fim do método se ele não terminar num exit.
+- Depois da instrumentação, o `src/Principal.bas` **sempre** envolve o conteúdo após os `Imports` em `Try` / `Catch ex As Exception` / `Finally` — inclusive arquivos só com `Dim` e chamadas (sem `Sub`/`Class`) e mesmo quando já existe um `Try` no entrypoint. O `Catch` emite `mod_logger.Printe(StackTrace.Report(ex))`, `StackTrace.Clean()` e um `Throw` nu (relança a exceção para interromper o fluxo quando não há tratamento adequado); o `Finally` emite `StackTrace.Clean()`. Classes, métodos, namespaces e enums ficam fora do `Try`. As chamadas usam nome qualificado (`StackTrace.Push`, `mod_logger.Printe`); o sugar **não** injeta `Imports StackTrace`. O catch emite `mod_logger.Printe` direto porque o sugar roda depois de `logger-print` e um `Print` nativo não seria reescrito.
+- No F5 (`locationMode: source`) o `Push` usa o caminho absoluto do `.bas` e a linha original (clicável no VS Code). No build final / DevStudio (`generated`) usa só o nome da unidade empacotada (`Principal.bas`, `mod_tlist.bas`) e a linha gerada após prune/minify/uglify.
+- Aplica-se a **todos** os módulos, inclusive `core_modules` (`mod_logger`, `mod_tlist`, …). **Não** instrumenta o próprio runtime (`Namespace StackTrace` / `mod_stacktrace.bas`): `Push` dentro de `Push` geraria recursão infinita.
 
 #### Invariante de round-trip
 

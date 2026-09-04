@@ -182,6 +182,31 @@ describe("parser/serializer", () => {
     const r = parse(src);
     const out = serializeUnit(r.unit);
     assert.match(out, /Throw New Exception\(\)/);
+    assert.doesNotMatch(out, /\bThrow\(\)/);
+  });
+
+  test("serialises bare Throw as a statement, not a method call", () => {
+    const src = [
+      "Sub TestRethrow()",
+      "   Try",
+      '      Throw New Exception("x")',
+      "   Catch ex As Exception",
+      "      Throw",
+      "   End Try",
+      "End Sub",
+    ].join("\n");
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /^\s*Throw$/m);
+    assert.doesNotMatch(out, /\bThrow\(\)/);
+  });
+
+  test("serialises Throw with an exception operand", () => {
+    const src = "Sub TestThrowEx()\n   Throw ex\nEnd Sub";
+    const r = parse(src);
+    const out = serializeUnit(r.unit);
+    assert.match(out, /Throw ex/);
+    assert.doesNotMatch(out, /\bThrow\(\)/);
   });
 
   test("serialises method parameters with default values correctly (GAP-09)", () => {

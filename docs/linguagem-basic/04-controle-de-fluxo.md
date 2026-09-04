@@ -163,7 +163,7 @@ End Try
 ```
 
 - `Catch ex As Exception` captura qualquer exceção. Para tipos específicos, use `Catch ex As MeuTipoExcecao`.
-- `Throw <expr>` levanta uma exceção. `Throw ex` re-levanta a atual.
+- `Throw <expr>` levanta uma exceção. `Throw` (sem expressão) ou `Throw ex` re-levanta a atual.
 - `Throw New Exception("mensagem")` é o padrão.
 - `Finally` sempre executa (sucesso ou exceção). Use para `Free()` em recursos manuais ou use o sugar [`Using` em 10-acucares-atuais.md](./10-acucares-atuais.md#fase-b--inicializacao-e-objeto) quando o padrão couber.
 
@@ -247,7 +247,8 @@ Onde a saída vai depende do executor do ERP (geralmente um buffer de console in
 
 ```basic
 Throw New Exception("Grouper não implementado na Stone.")
-Throw ex                                      ' re-levanta
+Throw                                           ' relança a exceção do Catch
+Throw ex                                        ' re-levanta
 Throw New ArgumentException("pIndex inválido")  ' tipo específico
 ```
 

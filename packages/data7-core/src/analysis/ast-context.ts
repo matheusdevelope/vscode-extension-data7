@@ -899,6 +899,9 @@ function collectStatements(statements: readonly Statement[], out: Statement[]): 
       case "ReturnStatement":
         if (statement.expression) collectStatementsFromExpression(statement.expression, out);
         break;
+      case "ThrowStatement":
+        if (statement.expression) collectStatementsFromExpression(statement.expression, out);
+        break;
       case "VariableDeclaration":
         if (statement.initializer) collectStatementsFromExpression(statement.initializer, out);
         break;
@@ -937,6 +940,9 @@ function walkStatementExpressions(statement: Statement, visit: (expr: Expression
       }
       break;
     case "ReturnStatement":
+      if (statement.expression) walkExpression(statement.expression, visit);
+      break;
+    case "ThrowStatement":
       if (statement.expression) walkExpression(statement.expression, visit);
       break;
     case "ForEachStatement":

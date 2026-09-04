@@ -3837,6 +3837,19 @@ function collectLocalDeclarations(
         );
       }
       break;
+
+    case "ThrowStatement":
+      if (node.expression) {
+        collectExpressionLocalDeclarations(
+          node.expression,
+          position,
+          locals,
+          indexer,
+          document,
+          lineIdx,
+        );
+      }
+      break;
   }
 }
 

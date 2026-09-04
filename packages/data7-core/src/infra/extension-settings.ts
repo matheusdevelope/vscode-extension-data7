@@ -18,10 +18,10 @@ export const DEFAULT_EXTENSION_SETTINGS: Data7Configuration = {
   exclude: ["**/node_modules/**", "**/.git/**", "**/out/**"],
   diagnosticSeverity: {},
   features: {
-    language: { generics: true, sugars: true },
+    language: { generics: true, sugars: true, stackTrace: true },
     diagnostics: { enabled: true, lintWorkspaceOnStartup: false, useLanguageServer: false },
     workspace: { detectProjectFiles: true, installMcpServerOnStartup: true },
-    save: { autoFixOnSave: true, autoFormatOnSave: false },
+    save: { autoFixOnSave: true, autoFormatOnSave: true },
     build: { autoFixBeforeBuild: false },
     preview: { enabled: true },
   },
@@ -77,6 +77,7 @@ export function normalizeExtensionSettings(
       language: {
         generics: asBoolean(features?.language?.generics, base.features.language.generics),
         sugars: asBoolean(features?.language?.sugars, base.features.language.sugars),
+        stackTrace: asBoolean(features?.language?.stackTrace, base.features.language.stackTrace),
       },
       diagnostics: {
         enabled: asBoolean(features?.diagnostics?.enabled, base.features.diagnostics.enabled),

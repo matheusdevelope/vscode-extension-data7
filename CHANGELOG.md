@@ -54,6 +54,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
   - **Resiliência:** falha na indexação inicial não deixa mais o linter morto (`markWorkspaceIndexReady` roda em `finally`); mudanças em `data7.json` limpam os caches certos; `LanguageProcessor` só descarta a AST quando a configuração que afeta parsing muda.
 
 ### Adicionado
+- **Sugar `stack-trace`:** instrumentação opt-in de `StackTrace.Push`/`Pop` em métodos e properties, com `Try`/`Catch`/`Finally` no `Principal.bas` (sempre, inclusive scripts só com `Dim`/chamadas). O catch usa `mod_logger.Printe(StackTrace.Report(ex))`, `StackTrace.Clean()` e `Throw` nu para relançar a exceção (o sugar roda depois de `logger-print`, então `Print` nativo não seria convertido); o `Finally` também chama `StackTrace.Clean()`. Chamadas qualificadas — sem `Imports StackTrace`. Liga com `data7.json#stackTrace.enabled` **e** `features.language.stackTrace`. F5 usa caminho/linha do `.bas` fonte; build/DevStudio usa o nome da unidade gerada. Roda por último no pipeline e vale para todos os módulos (inclusive `core_modules`), exceto o runtime `mod_stacktrace` / `Namespace StackTrace`.
 - **Comando `data7.linter.restartAnalysis`:** reinicia o motor de análise em ordem — limpa estado e Problems, zera caches, recria índice e republica diagnósticos — sem exigir recarregar a janela.
 
 ### Corrigido

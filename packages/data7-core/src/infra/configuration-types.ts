@@ -13,6 +13,8 @@ export interface Data7Configuration {
     readonly language: {
       readonly generics: boolean;
       readonly sugars: boolean;
+      /** When false, the stack-trace sugar is never applied, even if the project opts in. */
+      readonly stackTrace: boolean;
     };
     readonly diagnostics: {
       readonly enabled: boolean;
@@ -49,7 +51,7 @@ export interface Data7Configuration {
 export const DEFAULT_EXCLUDE: readonly string[] = ["**/node_modules/**", "**/.git/**", "**/out/**"];
 
 export const DEFAULT_FEATURES: Data7Configuration["features"] = {
-  language: { generics: true, sugars: true },
+  language: { generics: true, sugars: true, stackTrace: true },
   diagnostics: { enabled: true, lintWorkspaceOnStartup: false, useLanguageServer: false },
   workspace: {
     detectProjectFiles: true,

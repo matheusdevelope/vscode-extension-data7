@@ -15,6 +15,7 @@ describe("extension-settings", () => {
     });
     assert.equal(settings.executorPath, "C:\\Executor.exe");
     assert.equal(settings.features.language.generics, true);
+    assert.equal(settings.features.language.stackTrace, true);
     assert.equal(settings.sugars.enabled, true);
     assert.deepEqual(settings.exclude, [...DEFAULT_EXTENSION_SETTINGS.exclude]);
   });

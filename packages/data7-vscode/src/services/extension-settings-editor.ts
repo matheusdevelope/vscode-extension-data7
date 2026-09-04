@@ -166,6 +166,7 @@ export class ExtensionSettingsEditor {
     <div class="checks">
       <label><input type="checkbox" id="features.language.generics" /> Generics</label>
       <label><input type="checkbox" id="features.language.sugars" /> Açúcares sintáticos</label>
+      <label><input type="checkbox" id="features.language.stackTrace" /> StackTrace (instrumentação de métodos)</label>
       <label><input type="checkbox" id="features.diagnostics.enabled" /> Linter ao editar</label>
       <label><input type="checkbox" id="features.diagnostics.lintWorkspaceOnStartup" /> Linter completo ao abrir IDE</label>
       <label><input type="checkbox" id="features.workspace.detectProjectFiles" /> Detectar .7Proj ao abrir pasta</label>
@@ -217,6 +218,7 @@ export class ExtensionSettingsEditor {
       document.getElementById('diagnosticSeverity').value = JSON.stringify(settings.diagnosticSeverity || {}, null, 2);
       setChecked('features.language.generics', settings.features?.language?.generics);
       setChecked('features.language.sugars', settings.features?.language?.sugars);
+      setChecked('features.language.stackTrace', settings.features?.language?.stackTrace);
       setChecked('features.diagnostics.enabled', settings.features?.diagnostics?.enabled);
       setChecked('features.diagnostics.lintWorkspaceOnStartup', settings.features?.diagnostics?.lintWorkspaceOnStartup);
       setChecked('features.workspace.detectProjectFiles', settings.features?.workspace?.detectProjectFiles);
@@ -252,6 +254,7 @@ export class ExtensionSettingsEditor {
           language: {
             generics: getChecked('features.language.generics'),
             sugars: getChecked('features.language.sugars'),
+            stackTrace: getChecked('features.language.stackTrace'),
           },
           diagnostics: {
             enabled: getChecked('features.diagnostics.enabled'),

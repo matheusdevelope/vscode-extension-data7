@@ -401,7 +401,8 @@ export interface ContinueStatement extends BaseNode {
 
 export interface ThrowStatement extends BaseNode {
   readonly kind: "ThrowStatement";
-  expression: Expression;
+  /** Omit for a bare `Throw` rethrow inside `Catch`. */
+  expression?: Expression;
 }
 
 export interface Block extends BaseNode {
@@ -631,7 +632,7 @@ export abstract class ASTWalker {
       case "ContinueStatement":
         return;
       case "ThrowStatement":
-        this.walk(node.expression);
+        if (node.expression) this.walk(node.expression);
         return;
       case "Block":
         for (const s of node.statements) this.walk(s);
