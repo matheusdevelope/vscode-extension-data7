@@ -1,10 +1,15 @@
-import type * as vscode from "../platform/vscode-api";
+import * as vscode from "../platform/vscode-api";
 import type { WorkspaceSymbolIndexer } from "../analysis/symbol-indexer";
 import { TypeResolver } from "../analysis/type-resolver";
-import { lookupSystemByName } from "../system-library";
+import { lookupSystemByName, SYSTEM_SYMBOLS } from "../system-library";
 import { DiagnosticCodes, setDiagnosticPayload } from "./diagnostic-codes";
-import type { UnknownMemberPayload } from "./diagnostic-codes";
-import type { Expression, MethodInvocation, TypeReference } from "../project/ast/ast";
+import type { NullOnVariantPayload, UnknownMemberPayload } from "./diagnostic-codes";
+import type {
+  Expression,
+  MethodInvocation,
+  SourceLocation,
+  TypeReference,
+} from "../project/ast/ast";
 
 /**
  * Whether a symbol's `containerName` is visible at the current walker position.
@@ -315,4 +320,78 @@ function flattenGenericTypeName(typeName: string): string {
   const parsed = parseGenericTypeName(typeName);
   if (!parsed) return typeName.trim();
   return `${parsed.base}_${parsed.args.map(flattenGenericTypeName).join("_")}`;
+}
+
+function namespaceFirstIdentifier(namespaceName: string): string {
+  const dot = namespaceName.indexOf(".");
+  return dot === -1 ? namespaceName : namespaceName.slice(0, dot);
+}
+
+let systemNamespaceIdentifiers: ReadonlyMap<string, string> | undefined;
+
+function getSystemNamespaceIdentifiers(): ReadonlyMap<string, string> {
+  if (systemNamespaceIdentifiers) return systemNamespaceIdentifiers;
+  const map = new Map<string, string>();
+  for (const symbol of SYSTEM_SYMBOLS) {
+    if (symbol.kind !== "namespace") continue;
+    const first = namespaceFirstIdentifier(symbol.name);
+    const key = first.toLowerCase();
+    if (!map.has(key)) map.set(key, first);
+  }
+  systemNamespaceIdentifiers = map;
+  return map;
+}
+
+/**
+ * True when `identifier` is the leading name of a System Library or workspace
+ * namespace (`sql` → `SQL`, `system` → `System` from `System.Classes`).
+ */
+export function findConflictingNamespace(
+  identifier: string,
+  indexer: WorkspaceSymbolIndexer,
+): { readonly namespaceName: string; readonly source: "system" | "workspace" } | undefined {
+  const trimmed = identifier.trim();
+  if (!trimmed) return undefined;
+
+  const systemName = getSystemNamespaceIdentifiers().get(trimmed.toLowerCase());
+  if (systemName) return { namespaceName: systemName, source: "system" };
+
+  const workspace = indexer
+    .getSymbolsByName(trimmed)
+    .find((symbol) => symbol.kind === "namespace" && indexer.isFileValid(symbol.fileUri));
+  if (workspace) return { namespaceName: workspace.name, source: "workspace" };
+  return undefined;
+}
+
+/** True when one side is `Null` and the other is `Variant` (either direction). */
+export function isNullOnVariant(typeA: string, typeB: string): boolean {
+  const a = typeA.toLowerCase();
+  const b = typeB.toLowerCase();
+  return (a === "null" && b === "variant") || (a === "variant" && b === "null");
+}
+
+export function rangeFromSourceLocation(loc: SourceLocation): vscode.Range {
+  return new vscode.Range(loc.startLine - 1, loc.startChar, loc.endLine - 1, loc.endChar);
+}
+
+export function reportNullOnVariant(
+  context: { report(diagnostic: vscode.Diagnostic): void },
+  range: vscode.Range,
+  usage: NullOnVariantPayload["usage"],
+): void {
+  const message =
+    usage === "comparison"
+      ? "Não é possível comparar Variant com NULL. Variant não aceita NULL; use Unassigned para valor vazio. NULL é apenas para objetos."
+      : "Não é possível atribuir NULL a Variant. Variant não aceita NULL; use Unassigned para valor vazio. NULL é apenas para objetos.";
+  const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
+  diag.code = DiagnosticCodes.NullOnVariant;
+  const payload: NullOnVariantPayload = {
+    code: DiagnosticCodes.NullOnVariant,
+    line: range.start.line,
+    startChar: range.start.character,
+    endChar: range.end.character,
+    usage,
+  };
+  setDiagnosticPayload(diag, payload);
+  context.report(diag);
 }

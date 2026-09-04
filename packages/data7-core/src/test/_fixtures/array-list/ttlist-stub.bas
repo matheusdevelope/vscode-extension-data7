@@ -30,6 +30,9 @@ Namespace mod_tlist
       Function Last() As T
       End Function
 
+      Function Take(pIndex As Integer) As T
+      End Function
+
       Function First(pLimit As Integer) As TTList<T>
       End Function
 

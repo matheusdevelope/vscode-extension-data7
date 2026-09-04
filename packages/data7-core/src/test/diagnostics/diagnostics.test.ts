@@ -387,6 +387,213 @@ End Namespace`;
     });
   });
 
+  describe("qualified-private-shared-access", () => {
+    const run = (code: string, uri = "file:///qualified_private_shared.bas") => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("emits when a Private Shared field or method is accessed with the class name", () => {
+      const code = loadExample("diagnostics/qualified-private-shared-access/trigger.bas");
+      const header = parseExampleHeader(code);
+      const diags = run(code, "file:///qualified_private_shared_example.bas");
+      const hits = diags.filter((d) => d.code === DiagnosticCodes.QualifiedPrivateSharedAccess);
+      assert.equal(hits.length, 3);
+      assert.deepEqual(
+        header.diagnostics.map((d) => d.line),
+        [13, 14, 18],
+      );
+      assert.equal(hits[0]?.range.start.line, 12);
+      expectDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess, "_tplReady");
+      expectDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess, "_tplCount");
+      expectDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess, "ResetTpl");
+      expectNoDiagnostic(diags, DiagnosticCodes.PrivateMemberAccess);
+    });
+
+    test("does not emit for unqualified Private Shared names", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TTable
+      Private Shared _tplReady As Boolean
+      Shared Sub EnsureTplCache()
+         If Not _tplReady Then
+            _tplReady = True
+         End If
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess);
+    });
+
+    test("does not emit for a public Shared method accessed with the class name", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TTable
+      Private Shared _tplReady As Boolean
+      Shared Function IsReady() As Boolean
+         IsReady = _tplReady
+      End Function
+      Shared Sub EnsureTplCache()
+         If TTable.IsReady() Then
+            _tplReady = True
+         End If
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess);
+    });
+
+    test("does not emit instance-member-access as this code for a public instance field", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TTable
+      Schema As Integer
+      Shared Sub EnsureTplCache()
+         TTable.Schema = 1
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess);
+    });
+
+    test("respects data7:disable-line qualified-private-shared-access", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TTable
+      Private Shared _tplReady As Boolean
+      Shared Sub EnsureTplCache()
+         If Not TTable._tplReady Then ' data7:disable-line qualified-private-shared-access
+            _tplReady = True
+         End If
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.QualifiedPrivateSharedAccess);
+    });
+  });
+
+  describe("null-on-variant", () => {
+    const run = (code: string, uri = "file:///null_on_variant.bas") => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("emits on comparison and assignment of NULL to Variant", () => {
+      const code = loadExample("diagnostics/null-on-variant/trigger.bas");
+      const header = parseExampleHeader(code);
+      const diags = run(code, "file:///null_on_variant_example.bas");
+      const hits = diags.filter((d) => d.code === DiagnosticCodes.NullOnVariant);
+      assert.equal(hits.length, 2);
+      assert.deepEqual(
+        header.diagnostics.map((d) => d.line),
+        [8, 12],
+      );
+      assert.equal(hits[0]?.range.start.line, 7);
+      assert.equal(hits[1]?.range.start.line, 11);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("emits on Dim initializer Null to Variant", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class C
+      Public Sub Run()
+         Dim v As Variant = NULL
+      End Sub
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.NullOnVariant);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("emits when NULL is passed as a Variant argument", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class C
+      Sub Take(pValue As Variant)
+      End Sub
+      Public Sub Run()
+         Take(NULL)
+      End Sub
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.NullOnVariant);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("does not emit for NULL on an object type", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TTObject
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class C
+      Public Sub Run()
+         Dim obj As TTObject = NULL
+         If obj <> NULL Then
+            obj.Free()
+         End If
+      End Sub
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.NullOnVariant);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("does not emit for Unassigned on Variant", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class C
+      Function IsEmptyValue(pValue As Variant) As Boolean
+         If pValue = Unassigned Then
+            IsEmptyValue = True
+            Exit Function
+         End If
+         pValue = Unassigned
+         IsEmptyValue = False
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.NullOnVariant);
+      expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("does not emit for a delegate compared with Null", () => {
+      const diags = run(`Namespace mod_exemplo
+Delegate Function DelOnExecute() As Boolean
+Class C
+   OnExecute As DelOnExecute
+   Function Execute() As Boolean
+      If OnExecute <> Null Then
+         Execute = True
+         Exit Function
+      End If
+      Execute = False
+   End Function
+   Sub Free()
+      OnExecute = Null
+      MyBase.Free()
+   End Sub
+End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.NullOnVariant);
+    });
+
+    test("respects data7:disable-line null-on-variant", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class C
+      Function IsEmptyValue(pValue As Variant) As Boolean
+         If pValue = Null Then ' data7:disable-line null-on-variant
+            IsEmptyValue = True
+            Exit Function
+         End If
+         IsEmptyValue = False
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.NullOnVariant);
+    });
+  });
+
   // -------------------------------------------------------------------------
   // event-signature-mismatch
   // -------------------------------------------------------------------------
@@ -677,6 +884,51 @@ End Namespace`;
    copiaProdutos.Last().SetNome("teste")
 End Namespace`;
       const uri = "file:///last_element.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
+
+    test("resolves element members on Take from a subclass of TTList<T>", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = `Namespace mod_itens
+   Class TTList<T>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function Take(pIndex As Integer) As T
+         Take = Nothing
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTesteItem
+      CodProduto As Integer
+      Sub New()
+         MyBase.New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTesteItens
+      Inherits TTList<TTesteItem>
+      Sub New()
+         MyBase.New()
+      End Sub
+      Function CodProdutoFirst() As Integer
+         CodProdutoFirst = me.Take(0).CodProduto
+      End Function
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`;
+      const uri = "file:///subclass_take_element.bas";
       indexer.updateFileContent(uri, code);
 
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
@@ -1755,6 +2007,35 @@ End Namespace`;
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectDiagnostic(diags, DiagnosticCodes.UnknownMember, "AsString");
     });
+
+    test("does not treat T As TTable>(pWhere as the receiver type of a constrained generic method", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///generic_method_constraint_members.bas";
+      const code = `Namespace mod_table
+   Class TTable
+      Function FetchRows(pWhere As String) As Integer
+         FetchRows = 0
+      End Function
+      Function Exists(pWhere As String) As Boolean
+         Exists = True
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+      Shared Function Fetch<T As TTable>(pWhere As String) As TTList<T>
+         Dim probe As New T()
+         Dim n As Integer = probe.FetchRows(pWhere)
+         probe.Free()
+         Fetch = Null
+      End Function
+   End Class
+   Class TTList<U>
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -2120,6 +2401,15 @@ End Namespace`;
    End Class
 End Namespace`;
       const uri = "file:///dup_shared_valid_overload.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("does NOT emit error for instance Exists and Shared Exists<T> with the same parameter types", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const code = loadExample("diagnostics/duplicate-declaration/04-generic-method-overload.bas");
+      const uri = "file:///dup_generic_method_overload.bas";
       indexer.updateFileContent(uri, code);
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
@@ -3577,7 +3867,7 @@ End Namespace`,
         "file:///unknown_null_condition.bas",
         `Namespace mod_dead_unknown
    Class C
-      Public Sub Run(pHandler As Variant)
+      Public Sub Run(pHandler As TObject)
          If pHandler <> NULL Then
             pHandler = pHandler
          Else
@@ -5045,7 +5335,7 @@ End Namespace`;
     const uri = "file:///return_assignment_in_catch_call.bas";
     const code = `Namespace mod_return_catch_call
    Class C
-      Shared Function StringToDate(pValue As String) As TDateTime
+      Function StringToDate(pValue As String) As TDateTime
          Try
             StringToDate = StrToDateTime(pValue)
          Catch ex As Exception
@@ -5065,6 +5355,119 @@ End Namespace`;
       (catchAssignmentDiag as any).data.expressionText,
       'StrToDateTime("01/01/1900 00:00:00")',
     );
+    expectNoDiagnostic(diags, DiagnosticCodes.SharedReturnAssignmentInTry);
+  });
+
+  describe("shared-return-assignment-in-try", () => {
+    const run = (code: string, uri = "file:///shared_return_try.bas") => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("emits warning when a Shared Function assigns to its name inside Try", () => {
+      const code = loadExample("diagnostics/shared-return-assignment-in-try/trigger.bas");
+      const header = parseExampleHeader(code);
+      const uri = "file:///shared_return_try_example.bas";
+      const diags = run(code, uri);
+      const diag = expectDiagnostic(
+        diags,
+        DiagnosticCodes.SharedReturnAssignmentInTry,
+        "ExecSqlWithTx",
+      );
+      assert.equal(header.diagnostics[0]?.code, DiagnosticCodes.SharedReturnAssignmentInTry);
+      assert.equal(diag.range.start.line, (header.diagnostics[0]?.line ?? 0) - 1);
+      const payload = (
+        diag as vscode.Diagnostic & {
+          data?: {
+            functionName?: string;
+            tempName?: string;
+            tempType?: string;
+            tryStartLine?: number;
+            tryEndLine?: number;
+          };
+        }
+      ).data;
+      assert.equal(payload?.functionName, "ExecSqlWithTx");
+      assert.equal(payload?.tempName, "_result");
+      assert.equal(payload?.tempType, "Integer");
+      assert.equal(payload?.tryStartLine, 7);
+      assert.equal(payload?.tryEndLine, 11);
+      assert.equal(diag.severity, vscode.DiagnosticSeverity.Warning);
+      expectNoDiagnostic(diags, DiagnosticCodes.ReturnAssignmentInCatch);
+    });
+
+    test("emits the same warning when the Shared Function assigns inside Catch", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TSql
+      Shared Function ExecSqlWithTx(pValue As Integer) As Integer
+         Try
+            Throw New Exception("fail")
+         Catch ex As Exception
+            ExecSqlWithTx = pValue
+         End Try
+      End Function
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.SharedReturnAssignmentInTry, "ExecSqlWithTx");
+      expectNoDiagnostic(diags, DiagnosticCodes.ReturnAssignmentInCatch);
+    });
+
+    test("does not emit for an instance Function that assigns inside Try", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TSql
+      Function ExecSqlWithTx(pValue As Integer) As Integer
+         Try
+            ExecSqlWithTx = pValue
+         Catch ex As Exception
+            Throw New Exception(ex.Message)
+         End Try
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.SharedReturnAssignmentInTry);
+    });
+
+    test("does not emit when Shared Function assigns outside Try/Catch", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TSql
+      Shared Function ExecSqlWithTx(pValue As Integer) As Integer
+         ExecSqlWithTx = pValue
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.SharedReturnAssignmentInTry);
+    });
+
+    test("does not emit return-unrecommended for Return inside Shared Function Try", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TSql
+      Shared Function ExecSqlWithTx(pValue As Integer) As Integer
+         Try
+            Return pValue
+         Catch ex As Exception
+            Throw New Exception(ex.Message)
+         End Try
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.ReturnUnrecommended);
+    });
+
+    test("respects data7:disable-line shared-return-assignment-in-try", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TSql
+      Shared Function ExecSqlWithTx(pValue As Integer) As Integer
+         Try
+            ExecSqlWithTx = pValue ' data7:disable-line shared-return-assignment-in-try
+         Catch ex As Exception
+            Throw New Exception(ex.Message)
+         End Try
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.SharedReturnAssignmentInTry);
+    });
   });
 
   test("warns on inline If statements and sets isSingleLineIf on Return payload", () => {
@@ -5338,11 +5741,268 @@ End Namespace`;
       assert.equal(payload?.name?.toLowerCase(), "foons");
       assert.equal(payload?.memberKind, "class");
     });
+  });
 
-    test("does not emit unknown-member when accessing static members of nested classes", () => {
+  // ---------------------------------------------------------------------------
+  // namespace-shadow
+  // ---------------------------------------------------------------------------
+  describe("namespace-shadow", () => {
+    const run = (code: string, uri = "file:///ns_shadow.bas") => {
       const indexer = WorkspaceSymbolIndexer.createDetached();
-      const uri = "file:///nested_class_test.bas";
-      const code = `Namespace FooNs
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("emits error when Dim sql shadows the SQL system namespace", () => {
+      const code = loadExample("diagnostics/namespace-shadow/trigger.bas");
+      const header = parseExampleHeader(code);
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///ns_shadow_example.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.NamespaceShadow, "SQL");
+      assert.equal(header.diagnostics[0]?.code, DiagnosticCodes.NamespaceShadow);
+      assert.equal(diag.range.start.line, (header.diagnostics[0]?.line ?? 0) - 1);
+      const payload = (diag as vscode.Diagnostic & { data?: { namespaceName?: string } }).data;
+      assert.equal(payload?.namespaceName, "SQL");
+    });
+
+    test("does not emit when the local name only contains the namespace as a prefix", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TDemo
+      Function Run() As Boolean
+         Dim sqlText As String = "SELECT 1"
+         Dim cmd As SQL.Command = New SQL.Command()
+         Run = True
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.NamespaceShadow);
+    });
+
+    test("emits error for a parameter that shadows SQL", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TDemo
+      Function Run(sql As String) As Boolean
+         Dim cmd As SQL.Command = New SQL.Command()
+         Run = True
+      End Function
+   End Class
+End Namespace`);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.NamespaceShadow, "parâmetro");
+      const payload = (
+        diag as vscode.Diagnostic & { data?: { declarationKind?: string; name?: string } }
+      ).data;
+      assert.equal(payload?.declarationKind, "parameter");
+      assert.equal(payload?.name, "sql");
+    });
+
+    test("emits error for a field that shadows Forms", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TDemo
+      forms As String
+      Function Run() As Boolean
+         Run = True
+      End Function
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.NamespaceShadow, "Forms");
+    });
+
+    test("emits error when a local shadows a workspace namespace", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const otherUri = "file:///mod_tlist.bas";
+      const otherCode = `Namespace mod_tlist
+   Class TTList
+   End Class
+End Namespace`;
+      createMockDoc(otherUri, otherCode);
+      indexer.updateFileContent(otherUri, otherCode);
+      const uri = "file:///ns_shadow_ws.bas";
+      const code = `Namespace mod_exemplo
+   Class TDemo
+      Function Run() As Boolean
+         Dim mod_tlist As String
+         Run = True
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.NamespaceShadow, "mod_tlist");
+      const payload = (diag as vscode.Diagnostic & { data?: { source?: string } }).data;
+      assert.equal(payload?.source, "workspace");
+    });
+
+    test("respects data7:disable-line namespace-shadow", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TDemo
+      Function Run() As Boolean
+         Dim sql As String = "SELECT 1" ' data7:disable-line namespace-shadow
+         Run = True
+      End Function
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.NamespaceShadow);
+    });
+  });
+
+  describe("generic methods", () => {
+    const tableFixture = `Namespace mod_table
+   Class TTable
+      Function FetchRows(pWhere As String) As Integer
+         FetchRows = 0
+      End Function
+      Function Exists(pWhere As String) As Boolean
+         Exists = True
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+      Shared Sub EnsureRuntime()
+      End Sub
+      Shared Function Fetch<T As TTable>(pWhere As String) As TTList<T>
+         Dim probe As New T()
+         Dim n As Integer = probe.FetchRows(pWhere)
+         probe.Free()
+         Fetch = Null
+      End Function
+      Shared Function Exists<T As TTable>(pWhere As String) As Boolean
+         Dim probe As New T()
+         Dim ok As Boolean = probe.Exists(pWhere)
+         probe.Free()
+         Exists = ok
+      End Function
+   End Class
+   Class TTList<U>
+   End Class
+   Class TTestPedido
+      Inherits TTable
+   End Class
+   Class TRunner
+      Sub Run()
+         Dim ok As Boolean = TTestPedido.Exists<TTestPedido>("x")
+         TTestPedido.EnsureRuntime()
+      End Sub
+   End Class
+End Namespace`;
+
+    test("accepts Shared generic methods called on a derived type", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///inherited_shared_generic.bas";
+      indexer.updateFileContent(uri, tableFixture);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(
+        createMockDoc(uri, tableFixture),
+        indexer,
+      );
+      expectNoDiagnostic(diags, DiagnosticCodes.InstanceMemberAccessOnType);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("accepts canonical inherited Shared generic example", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = loadExample(
+        "diagnostics/instance-member-access-on-type/02-inherited-shared-generic.bas",
+      );
+      const uri = "file:///inherited_shared_generic_example.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.InstanceMemberAccessOnType);
+      expectNoDiagnostic(diags, DiagnosticCodes.DuplicateDeclaration);
+    });
+
+    test("emits generic-constraint-violated for an incompatible type argument", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const code = loadExample("diagnostics/generic-constraint-violated/trigger.bas");
+      const uri = "file:///generic_constraint_violated.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      const hits = diags.filter((d) => d.code === DiagnosticCodes.GenericConstraintViolated);
+      assert.equal(hits.length, 1);
+      expectDiagnostic(diags, DiagnosticCodes.GenericConstraintViolated, "Integer");
+    });
+
+    test("does not emit generic-constraint-violated for the constraint type or a subclass", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///generic_constraint_ok.bas";
+      const code = `Namespace mod_demo
+   Class TTable
+      Shared Function Exists<T As TTable>(pWhere As String) As Boolean
+         Exists = True
+      End Function
+   End Class
+   Class TTestPedido
+      Inherits TTable
+   End Class
+   Class TRunner
+      Sub Run()
+         Dim a As Boolean = TTable.Exists<TTable>("x")
+         Dim b As Boolean = TTestPedido.Exists<TTestPedido>("x")
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.GenericConstraintViolated);
+      expectNoDiagnostic(diags, DiagnosticCodes.InstanceMemberAccessOnType);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // auto-new-non-default-ctor (System Library Create)
+  // ---------------------------------------------------------------------------
+  describe("auto-new-non-default-ctor", () => {
+    const run = (code: string, uri = "file:///ctor_arity.bas") => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      indexer.updateFileContent(uri, code);
+      return DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    };
+
+    test("emits error when New Exception receives an inner-exception argument", () => {
+      const code = loadExample("diagnostics/auto-new-non-default-ctor/exception-extra-args.bas");
+      const header = parseExampleHeader(code);
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///exception_extra_args.bas";
+      indexer.updateFileContent(uri, code);
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      const diag = expectDiagnostic(diags, DiagnosticCodes.AutoNewNonDefaultCtor, "Exception");
+      assert.equal(header.diagnostics[0]?.code, DiagnosticCodes.AutoNewNonDefaultCtor);
+      assert.equal(diag.range.start.line, (header.diagnostics[0]?.line ?? 0) - 1);
+      const extraArgHits = diags.filter(
+        (item) => item.code === DiagnosticCodes.AutoNewNonDefaultCtor,
+      );
+      assert.equal(extraArgHits.length, 1, "New Exception(string) must remain valid");
+    });
+
+    test("does not emit when New Exception receives only the message string", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TDemo
+      Sub Run()
+         Dim ex As Exception = New Exception("Erro ao executar ação")
+         Throw New Exception("Erro ao executar ação: " & ex.Message)
+      End Sub
+   End Class
+End Namespace`);
+      expectNoDiagnostic(diags, DiagnosticCodes.AutoNewNonDefaultCtor);
+    });
+
+    test("does not accept TObject.Create when the type declares its own Create", () => {
+      const diags = run(`Namespace mod_exemplo
+   Class TDemo
+      Sub Run()
+         Dim c As Forms.TComponent = New Forms.TComponent()
+      End Sub
+   End Class
+End Namespace`);
+      expectDiagnostic(diags, DiagnosticCodes.AutoNewNonDefaultCtor, "TComponent");
+    });
+  });
+
+  test("does not emit unknown-member when accessing static members of nested classes", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///nested_class_test.bas";
+    const code = `Namespace FooNs
    Class WinAPI
       Class Window
          Shared Function GetForeground() As Long
@@ -5357,10 +6017,9 @@ End Namespace`;
       End Function
    End Class
 End Namespace`;
-      indexer.updateFileContent(uri, code);
-      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
-      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
-    });
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
   });
 
   describe("array-list + generics integration", () => {
@@ -5386,6 +6045,14 @@ End Namespace`;
       );
       const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
       expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
+    });
+
+    test("resolves Take element members from canonical 08-subclass-element-members example", () => {
+      const { indexer, uri, code } = indexExampleWithTtListStub(
+        "sugar/array-list/08-subclass-element-members.bas",
+      );
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.UnknownMember);
     });
 
     test("resolves Some Every and external delegate Find on primitive array sugar", () => {

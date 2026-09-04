@@ -6,7 +6,7 @@
 
 ## Visão geral
 
-A extensão declara **73 códigos** em `DiagnosticCodes` ([`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts)). Cada código tem severidade (`error`, `warning`, `info`, `hint` ou `off` via configuração), payload opcional e Code Action correspondente quando aplicável.
+A extensão declara **81 códigos** em `DiagnosticCodes` ([`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts)). Cada código tem severidade (`error`, `warning`, `info`, `hint` ou `off` via configuração), payload opcional e Code Action correspondente quando aplicável.
 
 Os códigos se dividem em duas faixas:
 
@@ -34,6 +34,9 @@ export const DiagnosticCodes = {
    ReturnUnrecommended: "return-unrecommended",
    RedundantTerminalExit: "redundant-terminal-exit",
    ReturnAssignmentInCatch: "return-assignment-in-catch",
+   SharedReturnAssignmentInTry: "shared-return-assignment-in-try",
+   QualifiedPrivateSharedAccess: "qualified-private-shared-access",
+   NullOnVariant: "null-on-variant",
    // Generics (Fase 1 do plano "Generics Hardening + AST Parser + Linter Integration")
    UnknownTemplate: "unknown-template",
    GenericArityMismatch: "generic-arity-mismatch",
@@ -164,6 +167,8 @@ Acesso a propriedade/método inexistente no tipo resolvido.
 Dim form As Form
 form.Aline = alTop    ' <-- unknown-member (typo: Aline → Align)
 ```
+
+Não dispara em `me.Take(0).Campo` quando o receiver herda `TTList<TipoDoCampo>` — o retorno de `Take` é o elemento concreto, não o parâmetro aberto `T`. Exemplo negativo: [`08-subclass-element-members.bas`](../example/sugar/array-list/08-subclass-element-members.bas).
 
 **Payload** (`UnknownMemberPayload`):
 
@@ -510,6 +515,116 @@ End Sub
 
 ---
 
+### `shared-return-assignment-in-try`
+
+Uma `Shared Function` atribui o retorno ao próprio nome (`ExecSqlWithTx = expr`) dentro de `Try`/`Catch`/`Finally`. O compilador nativo trata esse retorno de forma incorreta.
+
+```basic
+Private Shared Function ExecSqlWithTx(pValue As Integer) As Integer
+   Try
+      ExecSqlWithTx = pValue   ' <-- shared-return-assignment-in-try
+   Catch ex As Exception
+      Throw New Exception(ex.Message)
+   End Try
+End Function
+```
+
+Workaround: `Return pValue` dentro do `Try`, ou `Dim _result As Integer` antes do `Try`, atribuir na linha e `ExecSqlWithTx = _result` depois do `End Try`.
+
+**Payload** (`SharedReturnAssignmentInTryPayload`):
+
+```ts
+{
+  code: "shared-return-assignment-in-try",
+  line: 8,
+  startChar: 12,
+  endChar: 36,
+  expressionText: "pValue",
+  functionName: "ExecSqlWithTx",
+  tempName: "_result",
+  tempType: "Integer",
+  tryStartLine: 7,
+  tryEndLine: 11
+}
+```
+
+**Code Action**: "Substituir atribuição de retorno por Return" (preferido, com bulk no arquivo) ou "Atribuir a uma temporária e retornar após o End Try".
+
+**Severidade**: `warning`.
+
+**Exemplos**: [`docs/example/diagnostics/shared-return-assignment-in-try/`](../example/diagnostics/shared-return-assignment-in-try).
+
+---
+
+### `qualified-private-shared-access`
+
+Um campo ou método `Private Shared` foi acessado com o nome da classe (`TTable._tplReady`) de dentro da própria classe. O compilador nativo só aceita o identificador simples.
+
+```basic
+Class TTable
+   Private Shared _tplReady As Boolean
+   Shared Sub EnsureTplCache()
+      If Not TTable._tplReady Then   ' <-- qualified-private-shared-access
+         _tplReady = True
+      End If
+   End Sub
+End Class
+```
+
+**Payload** (`QualifiedPrivateSharedAccessPayload`):
+
+```ts
+{
+  code: "qualified-private-shared-access",
+  line: 3,
+  startChar: 13,
+  endChar: 29,
+  className: "TTable",
+  memberName: "_tplReady"
+}
+```
+
+**Code Action**: "Acessar \"_tplReady\" sem o nome da classe" (com bulk no arquivo).
+
+**Severidade**: `error`.
+
+**Exemplos**: [`docs/example/diagnostics/qualified-private-shared-access/`](../example/diagnostics/qualified-private-shared-access).
+
+---
+
+### `null-on-variant`
+
+`NULL` foi atribuído a, ou comparado com, um `Variant`. Variant não aceita `NULL` — nem para checagem. Use `Unassigned` para valor vazio; `NULL` é apenas para objetos.
+
+```basic
+Function IsEmptyValue(pValue As Variant) As Boolean
+   If pValue = Null Then   ' <-- null-on-variant
+      IsEmptyValue = True
+      Exit Function
+   End If
+End Function
+```
+
+**Payload** (`NullOnVariantPayload`):
+
+```ts
+{
+  code: "null-on-variant",
+  line: 1,
+  startChar: 16,
+  endChar: 20,
+  usage: "comparison"
+}
+```
+
+**Code Action**: "Substituir NULL por Unassigned" (com bulk no arquivo).
+
+**Severidade**: `error`.
+
+**Exemplos**: [`docs/example/diagnostics/null-on-variant/`](../example/diagnostics/null-on-variant).
+
+---
+
 Declarados em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diagnostic-codes.ts) e emitidos pelo `SugarTranspiler` em build-time. Cada um tem exemplo em [`docs/example/diagnostics/<code>/`](../example/README.md).
 
 | Código | Quando | Onde emitido | Fase |
@@ -518,9 +633,9 @@ Declarados em [`src/diagnostics/diagnostic-codes.ts`](../../src/diagnostics/diag
 | [`optional-chain-context-unsupported`](../example/diagnostics/optional-chain-context-unsupported) | `?.` fora de assignment/chamada | SugarTranspiler | A5 |
 | [`optional-chain-too-deep`](../example/diagnostics/optional-chain-too-deep) | chain `?.` excede 3 níveis | SugarTranspiler | A5 |
 | [`using-non-disposable`](../example/diagnostics/using-non-disposable) | `Using x As T` mas `T` não tem `Free`/`Dispose` | Planejado (linter) | B2 |
-| [`auto-new-non-default-ctor`](../example/diagnostics/auto-new-non-default-ctor) | `Dim x As New T` mas `T` exige construtor com args | Planejado (linter) | B3 |
+| [`auto-new-non-default-ctor`](../example/diagnostics/auto-new-non-default-ctor) | `Dim x As New T` sem construtor zero-arg, ou `New T(args)` incompatível (`Exception.Create` só aceita `String`) | Linter | B3 |
 | [`default-indexer-missing`](../example/diagnostics/default-indexer-missing) | `list(i)` em tipo sem default indexer | Planejado (linter) | C5 |
-| [`generic-constraint-violated`](../example/diagnostics/generic-constraint-violated) | `Class TList<T As TEnum>` com `T` incompatível | Planejado (linter) | C7 |
+| [`generic-constraint-violated`](../example/diagnostics/generic-constraint-violated) | `Class TList<T As TEnum>` / `Exists<T As TTable>` com argumento incompatível | Linter | C7 |
 | [`destructure-unknown-member`](../example/diagnostics/destructure-unknown-member) | `Dim { Foo } = pessoa` mas `pessoa.Foo` não existe | Planejado (linter) | E1 |
 | [`destructure-non-array`](../example/diagnostics/destructure-non-array) | `Dim [a, b] = x` mas `x` não é indexável | Planejado (linter) | E4 |
 | [`destructure-context-unsupported`](../example/diagnostics/destructure-context-unsupported) | destructuring fora de `Dim`/parâmetro | Planejado (linter) | E1 |

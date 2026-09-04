@@ -67,6 +67,15 @@ import {
   addReturnAssignmentInCatchBulkFix,
 } from "./quick-fixes/return-assignment-in-catch";
 import {
+  addSharedReturnAssignmentInTryFix,
+  addSharedReturnAssignmentInTryBulkFix,
+} from "./quick-fixes/shared-return-assignment-in-try";
+import {
+  addQualifiedPrivateSharedAccessFix,
+  addQualifiedPrivateSharedAccessBulkFix,
+} from "./quick-fixes/qualified-private-shared-access";
+import { addNullOnVariantFix, addNullOnVariantBulkFix } from "./quick-fixes/null-on-variant";
+import {
   addSharedReturnGlobalFunctionFix,
   addSharedReturnGlobalFunctionBulkFix,
 } from "./quick-fixes/shared-return-global-function";
@@ -99,6 +108,7 @@ const DIAGNOSTIC_PRIORITY: Record<string, number> = {
   [DiagnosticCodes.SharedReturnGlobalFunction]: 0,
   [DiagnosticCodes.ReturnUnrecommended]: 1,
   [DiagnosticCodes.ReturnAssignmentInCatch]: 1,
+  [DiagnosticCodes.SharedReturnAssignmentInTry]: 1,
   [DiagnosticCodes.InlineIfThen]: 2,
   [DiagnosticCodes.ElseIfWhitespace]: 3,
   [DiagnosticCodes.MissingThen]: 4,
@@ -228,6 +238,18 @@ export class D7BasicCodeActionProvider implements vscode.CodeActionProvider {
       case DiagnosticCodes.ReturnAssignmentInCatch:
         addReturnAssignmentInCatchFix(actions, document, diagnostic);
         addReturnAssignmentInCatchBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.SharedReturnAssignmentInTry:
+        addSharedReturnAssignmentInTryFix(actions, document, diagnostic);
+        addSharedReturnAssignmentInTryBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.QualifiedPrivateSharedAccess:
+        addQualifiedPrivateSharedAccessFix(actions, document, diagnostic);
+        addQualifiedPrivateSharedAccessBulkFix(actions, document, diagnostic);
+        break;
+      case DiagnosticCodes.NullOnVariant:
+        addNullOnVariantFix(actions, document, diagnostic);
+        addNullOnVariantBulkFix(actions, document, diagnostic);
         break;
       case DiagnosticCodes.SharedReturnGlobalFunction:
         addSharedReturnGlobalFunctionFix(actions, document, diagnostic);

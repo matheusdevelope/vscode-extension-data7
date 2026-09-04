@@ -10,8 +10,9 @@ import {
 import { createLocalRenameMap, type UglifyRenameMaps } from "./collect-renames";
 import {
   bindingTypeLowerFromDeclaration,
+  isQualifiedSystemTypeKey,
   resolveReceiverTypeLower,
-  typeReferenceSimpleLower,
+  typeReferenceKeyLower,
   userTypeOwnsMember,
   type ReceiverScope,
 } from "./user-type-index";
@@ -38,6 +39,12 @@ function resolveMemberRename(
   namespaceLower?: string,
 ): string {
   const lower = memberName.toLowerCase();
+
+  // Qualified native types (`SQL.TField`) must never pick up user-member
+  // renames from a homonymous user class (`TField.AsInteger`).
+  if (receiverTypeLower && isQualifiedSystemTypeKey(receiverTypeLower)) {
+    return memberName;
+  }
 
   // Nested class access (`WinAPI.Window`) must win over an unrelated Property/Method
   // that shares the same simple name in the global members map.
@@ -205,13 +212,13 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
         this.currentBaseLower =
           maps.userTypes.get(this.currentClassLower)?.baseLower ??
           maps.userTypes.get(originalLower)?.baseLower ??
-          typeReferenceSimpleLower(node.baseType);
+          typeReferenceKeyLower(node.baseType);
 
         for (const member of node.members) {
           if (member.kind === "FieldDeclaration") {
-            this.bindName(member.name, typeReferenceSimpleLower(member.type));
+            this.bindName(member.name, typeReferenceKeyLower(member.type));
           } else if (member.kind === "PropertyDeclaration") {
-            this.bindName(member.name, typeReferenceSimpleLower(member.type));
+            this.bindName(member.name, typeReferenceKeyLower(member.type));
           }
         }
 
@@ -267,7 +274,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
 
       if (node.kind === "PropertyDeclaration") {
         const originalName = node.name;
-        const typeLower = typeReferenceSimpleLower(node.type);
+        const typeLower = typeReferenceKeyLower(node.type);
         const next = maps.members.get(node.name.toLowerCase());
         if (next !== undefined) {
           node.name = next;
@@ -289,7 +296,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
 
       if (node.kind === "FieldDeclaration") {
         const originalName = node.name;
-        const typeLower = typeReferenceSimpleLower(node.type);
+        const typeLower = typeReferenceKeyLower(node.type);
         const next = maps.members.get(node.name.toLowerCase());
         if (next !== undefined) {
           node.name = next;
@@ -387,7 +394,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
 
       for (const parameter of method.parameters) {
         const original = parameter.name;
-        const typeLower = typeReferenceSimpleLower(parameter.type);
+        const typeLower = typeReferenceKeyLower(parameter.type);
         this.bindName(original, typeLower);
         const localNext = locals.get(parameter.name.toLowerCase());
         if (localNext !== undefined) {
@@ -438,10 +445,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
           const localNext = locals.get(statement.elementVar.name.toLowerCase());
           if (localNext !== undefined) statement.elementVar.name = localNext;
           if (statement.elementType) {
-            this.bindName(
-              statement.elementVar.name,
-              typeReferenceSimpleLower(statement.elementType),
-            );
+            this.bindName(statement.elementVar.name, typeReferenceKeyLower(statement.elementType));
             rewriteTypeReference(statement.elementType, maps);
           }
           this.walkExpression(statement.enumerable, locals);
@@ -450,7 +454,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
         }
         case "UsingStatement": {
           const original = statement.resourceVar.name;
-          const typeLower = typeReferenceSimpleLower(statement.resourceType);
+          const typeLower = typeReferenceKeyLower(statement.resourceType);
           this.bindName(original, typeLower);
           const localNext = locals.get(statement.resourceVar.name.toLowerCase());
           if (localNext !== undefined) {
@@ -465,7 +469,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
         case "TryCatchStatement": {
           for (const body of statement.tryBody) this.walkStatement(body, locals);
           if (statement.catchVar) {
-            const typeLower = typeReferenceSimpleLower(statement.catchType);
+            const typeLower = typeReferenceKeyLower(statement.catchType);
             this.bindName(statement.catchVar.name, typeLower);
             const localNext = locals.get(statement.catchVar.name.toLowerCase());
             if (localNext !== undefined) {
@@ -607,7 +611,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
           return;
         }
         case "ObjectInitializerExpression": {
-          const receiverType = typeReferenceSimpleLower(expression.type);
+          const receiverType = typeReferenceKeyLower(expression.type);
           rewriteTypeReference(expression.type, maps);
           for (const arg of expression.arguments) this.walkExpression(arg, locals);
           for (const assignment of expression.assignments) {
@@ -679,7 +683,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
             [...globalTaken, ...locals.values()],
           );
           for (const parameter of expression.parameters) {
-            const typeLower = typeReferenceSimpleLower(parameter.type);
+            const typeLower = typeReferenceKeyLower(parameter.type);
             this.bindName(parameter.name, typeLower);
             const localNext = nested.get(parameter.name.toLowerCase());
             if (localNext !== undefined) {

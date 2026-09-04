@@ -54,6 +54,39 @@ Namespace mod_list
 End Namespace
 ```
 
+### Método genérico (inclusive Shared na classe)
+
+Métodos aceitam type parameters, com constraint opcional `T As Type` (só aquele tipo ou um subtipo). Dentro do método, um valor `As T` expõe os membros de `Type`. Shared declarado na classe base é chamável pelo nome do tipo derivado:
+
+```basic
+Class TTable
+   Function Exists(pWhere As String) As Boolean
+      Exists = TSql.ExistsFlag(...)
+   End Function
+
+   Shared Function Exists<T As TTable>(pWhere As String) As Boolean
+      Dim probe As New T()
+      Dim ok As Boolean = probe.Exists(pWhere)
+      probe.Free()
+      Exists = ok
+   End Function
+
+   Shared Function Fetch<T As TTable>(pWhere As String) As TTList<T>
+      Dim probe As New T()
+      Dim raw[] As TTable = probe.FetchRows(pWhere)
+      ...
+   End Function
+End Class
+
+Class TTestPedido
+   Inherits TTable
+End Class
+
+Dim ok As Boolean = TTestPedido.Exists<TTestPedido>("Titulo = 'A'")
+```
+
+`Exists(pWhere)` (instância) e `Exists<T As TTable>(pWhere)` (Shared) são overloads distintos — a aridade genérica faz parte da assinatura.
+
 ### Uso
 
 ```basic
@@ -181,8 +214,8 @@ Colisões (dois templates diferentes que produziriam o mesmo flat name) emitem o
 | Sem **higher-kinded types** (`T<U>` como parâmetro) | Aceitar `T` simples; aplicar manualmente o segundo nível |
 | Sem **variance annotations** (`In T`, `Out T`) | Não há cast covariante/contravariante automático; use `CType` manual |
 | Sem **default type parameters** | Sempre exija que o caller forneça o tipo |
-| **Constraints paramétricos** (`T As List<U>`) não são aceitos | Constraints simples (`T As TEnum`) são aceitas e descartadas após validação |
-| **Generic methods dentro de classe** | Detectados e podados com warning `class-generic-method-unsupported` — gere `Map<T>` em namespace livre |
+| **Constraints paramétricos** (`T As List<U>`) não são aceitos | Constraints simples (`T As TEnum`) são aceitas; o linter exige o tipo ou um subtipo no uso |
+| **Generic methods dentro de classe** | Suportados (`Shared Function Exists<T As TTable>(...)`); a classe derivada pode chamar o Shared da base (`TTestPedido.Exists<TTestPedido>(...)`) |
 | **Cap de 10.000 instanciações** | Programas patológicos disparam `instantiation-limit-exceeded` |
 | **Primitivos (`TList<Integer>`)** geram classe plana (`TList_Integer`) | Use quando o runtime aceitar o valor concreto; não há boxing genérico nativo |
 
@@ -193,7 +226,7 @@ Antes do Builder rodar, o `WorkspaceSymbolIndexer` detecta templates (`Class T<T
 - **Hover** em `_products.Add(...)` mostra `Add(pValue As Product) As Integer` (com `T` substituído pelo argumento).
 - **Autocomplete** em `_products.` lista todos os membros do template, com `T` resolvido — o `(pValue As Product)` aparece na linha de detalhe da label.
 - **SignatureHelp** sobre `_products.Add(` exibe a assinatura substituída.
-- O linter live emite os warnings `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision` e `instantiation-limit-exceeded` enquanto o usuário digita, sem precisar rodar o Builder.
+- O linter live emite `unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `flat-name-collision`, `instantiation-limit-exceeded` e `generic-constraint-violated` enquanto o usuário digita, sem precisar rodar o Builder. Métodos genéricos de classe (`Sub Foo<T>` / `Shared Function Exists<T As TTable>`) são analisados no design-time: `T` resolve para o constraint, overloads distinguem aridade genérica, e Shared da classe base é visível pelo nome do tipo derivado.
 
 A integração não viola a fence `analysis/` ↛ `project/`: o indexador clona os membros do template já parsados (`SymbolInfo` com `containerName === "TList"`) e aplica substituição textual de `T` → `Product` em `type` e `parameters[*].type`, gerando entradas equivalentes com `containerName === "TList_Product"`.
 
@@ -206,7 +239,7 @@ A integração não viola a fence `analysis/` ↛ `project/`: o indexador clona 
 | Phantom flat-copies a partir de comentários do header (e.g. `@demonstrates: Class TList<T>`) | Pipeline textual gerava `TList_T` espúrio para cada exemplo cujo header mencionava `TList<T>` | Mesma máscara acima — exemplos canônicos `_expected/*.bas` validados por golden tests | ✅ Fechado |
 | Function self-reference (`Wrap = pValue`) não renomeado em template `Function Wrap<T>` | Após monomorfização para `Wrap_Integer`, o corpo ainda dizia `Wrap = pValue` → função retornava `Variant` default | Novo passe `substituteTemplateNameInBodyLine` renomeia o auto-referência lexicalmente (skipa member-access, strings, comments) | ✅ Fechado |
 | Generic free functions (`Sub Foo<T>` no namespace) | Não suportado | Reconhecido e monomorfizado pelos dois pipelines | ✅ Fechado |
-| Generic methods em classe (`Sub T.Foo<U>`) | Reescrita textual incorreta (corpo opaco) | Detectado e emitido `class-generic-method-unsupported`; declaração permanece verbatim — workaround: extrair para função livre no namespace | ⚠️ Detectado, sem reescrita automática |
+| Generic methods em classe (`Sub T.Foo<U>`) | Reescrita textual incorreta (corpo opaco) | Monomorfizados quando invocados; linter resolve `T As Type`, overloads `Foo` vs `Foo<T>`, e Shared herdado (`TTestPedido.Exists<TTestPedido>`) | ✅ Fechado |
 | Linter sem feedback até build | Nenhum diagnóstico até `Build` | Seis warnings emitidos por `DiagnosticsLinter` no save (`unknown-template`, `generic-arity-mismatch`, `duplicate-template`, `class-generic-method-unsupported`, `flat-name-collision`, `instantiation-limit-exceeded`) | ✅ Fechado |
 | Hover / completion / signature ignoravam tipo genérico | `_products.Add` resolvia para o template cru | Símbolos planos `TList_Product` registrados pelo `WorkspaceSymbolIndexer` (via [`collectGenericsContext`](../../src/analysis/generics-analyzer.ts)); resolver normaliza `TList<Product>` ⇒ `TList_Product` (também aninhado: `TList<TList<Integer>>` ⇒ `TList_TList_Integer`) | ✅ Fechado |
 | Engine AST desconectada | Vivia em protótipo separado | Integrada ao `SugarTranspiler`, alimentada por [`src/project/parser/`](../../src/project/parser) e validada por [`generics-monomorphizer.test.ts`](../../src/test/project/generics-monomorphizer.test.ts) | ✅ Fechado |
@@ -222,7 +255,7 @@ Expressões suportadas (todas aceitam `NOT`):
 
 | Expressão | Uso |
 |---|---|
-| `TypeSystem.InheritsFrom(T, "Base")` | `T` é `Base` ou descendente |
+| `TypeSystem.InheritsFrom(T, "Base")` | `T` é `Base` ou descendente. O lookup usa o nome qualificado do argumento (`mod_tfield.TField`) e não pode resolver um homônimo de outro namespace (`SQL.TField`). |
 | `TypeSystem.IsKind(T, "Delegate")` | kind do argumento concreto |
 | `TypeSystem.IsDelegate(T)` | atalho de `IsKind(T, "Delegate")` |
 | `TypeSystem.IsClass(T)` / `IsStructure(T)` / `IsPrimitive(T)` / `IsEnum(T)` | atalhos equivalentes |
@@ -246,7 +279,7 @@ Dim b As TBox<Integer>             ' materializa o ramo value
 
 ## Padrão de uso recomendado
 
-1. **Defina coleções tipadas como subclasses** — não escreva `TList<T>` cru no código. Em vez disso, escreva `CardRecordList = TList<CardRecord>` ou (no futuro) `CardRecordList Inherits TList<CardRecord>`. Isso melhora mensagens de erro.
+1. **Defina coleções tipadas como subclasses** — `Class TTesteItens Inherits TTList<TTesteItem>` (ou alias `CardRecordList = TList<CardRecord>`). O linter trata `me.Take(0)` / `me.Last()` nessa subclasse como o elemento concreto (`TTesteItem`), não o parâmetro aberto `T` — vide [`08-subclass-element-members.bas`](../example/sugar/array-list/08-subclass-element-members.bas).
 2. **Use delegates monomorfizados** — `ListFindDelegate<Product>` em vez de `TObject`-erased.
 3. **Evite tipos profundamente aninhados** — `TList<Map<String, TList<Product>>>` funciona, mas o flat name fica gigante. Quebre em aliases/convenções nomeadas quando a legibilidade do `.bas` final importar.
 4. **Ramifique por kind quando o template precisar de caminhos distintos** — preferir `TypeSystem.IsDelegate(T)` / `IsPrimitive(T)` a checagens runtime.

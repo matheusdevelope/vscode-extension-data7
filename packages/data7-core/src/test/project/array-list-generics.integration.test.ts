@@ -131,6 +131,37 @@ describe("array-list + generics integration", () => {
       assert.match(out, /newList\.Push\(/);
       assert.doesNotMatch(out, /Dim newList As Pessoas = list\.filter/i);
     });
+
+    test("06-return: FunctionName = [] and Return [] become New TTList_T", () => {
+      const { code: out, diagnostics } = transpileExample(
+        "sugar/array-list/06-function-return-empty-literal.bas",
+        [{ templateName: "TTList", typeArgs: ["TDdlOp"] }],
+        "mod_testes_array_return",
+        ["TDdlOp"],
+      );
+      expectNoBlockingTranspileDiagnostics(diagnostics);
+      assert.match(out, /Function BuildOps\(pHasTable As Boolean\) As TTList_TDdlOp/);
+      assert.match(out, /BuildOps = New TTList_TDdlOp\(\)/);
+      assert.match(out, /Return New TTList_TDdlOp\(\)/);
+      assert.doesNotMatch(out, /BuildOps = \[\]/);
+      assert.doesNotMatch(out, /Return \[\]/);
+    });
+
+    test("07-declaration: x[] As T without = [] stays uninitialized; = [] becomes New", () => {
+      const { code: out, diagnostics } = transpileExample(
+        "sugar/array-list/07-declaration-without-init.bas",
+        [{ templateName: "TTList", typeArgs: ["TField"] }],
+        "mod_exemplo",
+        ["TField"],
+      );
+      expectNoBlockingTranspileDiagnostics(diagnostics);
+      assert.match(out, /^      Fields As TTList_TField$/m);
+      assert.doesNotMatch(out, /Fields As TTList_TField = New/);
+      assert.match(out, /Fields2 As TTList_TField = New TTList_TField\(\)/);
+      assert.match(out, /^         Dim f3 As TTList_TField$/m);
+      assert.doesNotMatch(out, /Dim f3 As New TTList_TField/);
+      assert.match(out, /Dim f4 As New TTList_TField\(\)/);
+    });
   });
 
   describe("generics monomorphizer — workspace collection", () => {

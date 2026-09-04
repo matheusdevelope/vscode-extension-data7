@@ -12,13 +12,26 @@ import type {
   ArrowFunctionExpression,
   Statement,
   PropertyDeclaration,
+  BinaryExpression,
+  FieldDeclaration,
+  ParameterDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
-import type { IncompletePropertyBodyPayload, MissingReturnTypePayload } from "../diagnostic-codes";
+import type {
+  GenericConstraintViolatedPayload,
+  IncompletePropertyBodyPayload,
+  MissingReturnTypePayload,
+} from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { DiagnosticsLinter } from "../diagnostics";
 import { TypeResolver } from "../../analysis/type-resolver";
-import { typeRefToString, exprToString } from "../diagnostic-helpers";
+import {
+  typeRefToString,
+  exprToString,
+  isNullOnVariant,
+  rangeFromSourceLocation,
+  reportNullOnVariant,
+} from "../diagnostic-helpers";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
 import { lookupSystemByName } from "../../system-library";
@@ -33,7 +46,12 @@ const TYPES_RULE_NODE_KINDS = new Set<Node["kind"]>([
   "ObjectCreationExpression",
   "MethodInvocation",
   "PropertyDeclaration",
+  "BinaryExpression",
+  "FieldDeclaration",
+  "ParameterDeclaration",
 ]);
+
+const NULL_VARIANT_COMPARISON_OPERATORS = new Set(["=", "<>", "==", "is", "isnot"]);
 
 export class TypesRule implements Rule {
   public readonly name = "types";
@@ -64,6 +82,15 @@ export class TypesRule implements Rule {
       case "PropertyDeclaration":
         this.checkPropertyMissingType(node, context);
         this.checkPropertyIncompleteBody(node, context);
+        break;
+      case "BinaryExpression":
+        this.checkBinaryNullOnVariant(node, context);
+        break;
+      case "FieldDeclaration":
+        this.checkFieldInitializerTypes(node, context);
+        break;
+      case "ParameterDeclaration":
+        this.checkParameterDefaultTypes(node, context);
         break;
     }
   }
@@ -168,9 +195,7 @@ export class TypesRule implements Rule {
   ): void {
     if (!node.loc) return;
     const typeName = node.type.name;
-    const constructors = TypeResolver.getAllMembersForType(typeName, context.indexer).filter(
-      (member) => member.kind === "method" && member.name.toLowerCase() === "new",
-    );
+    const constructors = TypeResolver.getDeclaredConstructors(typeName, context.indexer);
     if (constructors.length === 0) return;
 
     const argumentTypes = node.arguments.map((argument) =>
@@ -275,6 +300,62 @@ export class TypesRule implements Rule {
         activeClassNesting: context.activeClassNesting,
       },
     );
+    this.checkGenericTypeArgumentConstraints(node, context, lineIdx);
+  }
+
+  private checkGenericTypeArgumentConstraints(
+    node: TypeReference,
+    context: RuleContext,
+    lineIdx: number,
+  ): void {
+    if (node.typeArguments.length === 0) return;
+    const template =
+      TypeResolver.findClassSymbol(node.name, context.indexer) ??
+      TypeResolver.findDelegateSymbol(node.name, context.indexer);
+    const parameters = template?.genericTypeParameters;
+    const constraints = template?.genericTypeConstraints;
+    if (!template || !parameters || parameters.length === 0) return;
+    const genericParams = TypeResolver.getGenericParametersInScope(
+      context.document,
+      new vscode.Position(lineIdx, node.loc?.startChar ?? 0),
+      context.indexer,
+    );
+    for (let i = 0; i < parameters.length; i++) {
+      const parameter = parameters[i];
+      const constraint = constraints?.[i];
+      const argument = node.typeArguments[i];
+      if (!parameter || !constraint || !argument) continue;
+      const actual = typeRefToString(argument);
+      if (!actual) continue;
+      if (
+        TypeResolver.typeSatisfiesGenericConstraint(
+          actual,
+          constraint,
+          context.indexer,
+          genericParams,
+        )
+      ) {
+        continue;
+      }
+      const range = argument.loc
+        ? rangeFromSourceLocation(argument.loc)
+        : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 0);
+      const diag = new vscode.Diagnostic(
+        range,
+        `O argumento de tipo "${actual}" não satisfaz a restrição "${parameter} As ${constraint}" de "${template.name}".`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.GenericConstraintViolated;
+      const payload: GenericConstraintViolatedPayload = {
+        code: DiagnosticCodes.GenericConstraintViolated,
+        templateName: template.name,
+        typeParameter: parameter,
+        constraint,
+        actual,
+      };
+      setDiagnosticPayload(diag, payload);
+      context.report(diag);
+    }
   }
 
   private isArrayListRuntimeType(typeName: string): boolean {
@@ -325,13 +406,7 @@ export class TypesRule implements Rule {
           lineIdx,
           node.initializer.loc?.endChar ?? 0,
         );
-        const diag = new vscode.Diagnostic(
-          range,
-          `Incompatibilidade de tipos: não é possível atribuir "${rhsType}" para "${lhsType}".`,
-          vscode.DiagnosticSeverity.Error,
-        );
-        diag.code = DiagnosticCodes.TypeMismatch;
-        context.report(diag);
+        this.reportAssignmentIncompatibility(range, rhsType, lhsType, context);
       }
     }
   }
@@ -465,15 +540,103 @@ export class TypesRule implements Rule {
           lineIdx,
           node.value.loc?.endChar ?? 0,
         );
-        const diag = new vscode.Diagnostic(
-          range,
-          `Incompatibilidade de tipos: não é possível atribuir "${rhsType}" para "${lhsType}".`,
-          vscode.DiagnosticSeverity.Error,
-        );
-        diag.code = DiagnosticCodes.TypeMismatch;
-        context.report(diag);
+        this.reportAssignmentIncompatibility(range, rhsType, lhsType, context);
       }
     }
+  }
+
+  private reportAssignmentIncompatibility(
+    range: vscode.Range,
+    rhsType: string,
+    lhsType: string,
+    context: RuleContext,
+  ): void {
+    if (isNullOnVariant(rhsType, lhsType)) {
+      reportNullOnVariant(context, range, "assignment");
+      return;
+    }
+    const diag = new vscode.Diagnostic(
+      range,
+      `Incompatibilidade de tipos: não é possível atribuir "${rhsType}" para "${lhsType}".`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.TypeMismatch;
+    context.report(diag);
+  }
+
+  private checkBinaryNullOnVariant(node: BinaryExpression, context: RuleContext): void {
+    if (!NULL_VARIANT_COMPARISON_OPERATORS.has(node.operator.toLowerCase())) return;
+    const lineIdx = (node.loc?.startLine ?? 1) - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () => {
+      const leftType = TypeResolver.resolveExpressionType(
+        node.left,
+        context.document,
+        lineIdx,
+        context.indexer,
+      );
+      const rightType = TypeResolver.resolveExpressionType(
+        node.right,
+        context.document,
+        lineIdx,
+        context.indexer,
+      );
+      if (!leftType || !rightType || !isNullOnVariant(leftType, rightType)) return;
+      const nullSide =
+        node.left.kind === "Literal" && node.left.value === null
+          ? node.left
+          : node.right.kind === "Literal" && node.right.value === null
+            ? node.right
+            : node;
+      const loc = nullSide.loc ?? node.loc;
+      if (!loc) return;
+      reportNullOnVariant(context, rangeFromSourceLocation(loc), "comparison");
+    });
+  }
+
+  private checkFieldInitializerTypes(node: FieldDeclaration, context: RuleContext): void {
+    const initializer = node.initializer;
+    if (!node.loc || !initializer) return;
+    const lineIdx = node.loc.startLine - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () => {
+      const lhsType = typeRefToString(node.type);
+      const rhsType = TypeResolver.resolveExpressionType(
+        initializer,
+        context.document,
+        lineIdx,
+        context.indexer,
+        lhsType,
+      );
+      if (!lhsType || !rhsType || rhsType.toLowerCase() === "void") return;
+      if (DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, context.indexer)) return;
+      const loc = initializer.loc;
+      const range = loc
+        ? rangeFromSourceLocation(loc)
+        : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 0);
+      this.reportAssignmentIncompatibility(range, rhsType, lhsType, context);
+    });
+  }
+
+  private checkParameterDefaultTypes(node: ParameterDeclaration, context: RuleContext): void {
+    const defaultValue = node.defaultValue;
+    if (!defaultValue) return;
+    const lineIdx = (node.loc?.startLine ?? defaultValue.loc?.startLine ?? 1) - 1;
+    TypeResolver.runWithClassResolutionContext(context.document, lineIdx, context.indexer, () => {
+      const lhsType = typeRefToString(node.type);
+      const rhsType = TypeResolver.resolveExpressionType(
+        defaultValue,
+        context.document,
+        lineIdx,
+        context.indexer,
+        lhsType,
+      );
+      if (!lhsType || !rhsType || rhsType.toLowerCase() === "void") return;
+      if (DiagnosticsLinter.isTypeCompatible(rhsType, lhsType, context.indexer)) return;
+      const loc = defaultValue.loc;
+      const range = loc
+        ? rangeFromSourceLocation(loc)
+        : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 0);
+      this.reportAssignmentIncompatibility(range, rhsType, lhsType, context);
+    });
   }
 
   private checkEventSignatureMismatch(
@@ -618,12 +781,14 @@ export class TypesRule implements Rule {
           node.methodName,
           context.indexer,
           argumentTypes,
+          { typeArgumentCount: node.typeArguments.length },
         ) ??
         TypeResolver.findMember(
           receiverType,
           node.methodName,
           context.indexer,
           node.arguments.length,
+          { typeArgumentCount: node.typeArguments.length },
         );
       return symbol ? { symbol, receiverType } : undefined;
     }

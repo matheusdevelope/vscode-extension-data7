@@ -32,7 +32,7 @@ A lista canônica vive em [`src/utils/primitive-types.ts`](../../src/utils/primi
 | `String` | string de comprimento variável | `""` | UTF-16 internamente (`String`) |
 | `Char` | um caractere | `Chr(0)` | raramente usado direto |
 | `Byte` | inteiro 8 bits sem sinal | `0` | |
-| `Variant` | qualquer valor — discriminado em runtime | `NULL` (Empty) | escape hatch para tipagem dinâmica |
+| `Variant` | primitivos e `TDateTime` (objetos como escape hatch) — discriminado em runtime | `Unassigned` | nunca aceita `NULL`; use `Unassigned` para vazio |
 | `Pointer` | endereço bruto | `nil` | uso restrito (`GetMem`, `Move`) |
 
 Outros tipos primitivos aceitos pelo linter (vindos da herança Delphi/VCL) — você pode encontrá-los em assinaturas da System Library mas raramente declara em código de aplicação: `Cardinal`, `Decimal`, `Short`, `ShortString`, `WideChar`, `LongInt`, `HMODULE`, `HRESULT`, `TGUID`, `THandle`, `TVarType`, `TClass`, `PVOID`, `IInterface`.
@@ -62,7 +62,7 @@ Comparações usam `=` e `<>` — **não** existe `Is Nothing` nem `Is Null`.
 
 ```basic
 Dim s As String           ' s = "" por default
-Dim v As Variant          ' v = NULL por default
+Dim v As Variant          ' v = Unassigned por default
 Dim p As TForm            ' p = NULL (objetos não inicializados são NULL)
 ```
 
@@ -82,8 +82,10 @@ Dim v As Variant
 v = 42
 v = "agora string"
 v = pessoa
-v = NULL
+v = Unassigned
 ```
+
+Não atribua nem compare `NULL` com `Variant` (`If v = Null` / `v = Null`) — o linter emite `null-on-variant`. `NULL` é o sentinela de objeto (`If obj = NULL`). O vazio de Variant é `Unassigned`.
 
 A função `VarType(v)` retorna um código `TVarType` identificando o tipo atual. Tipos enumerados (`varNull`, `varEmpty`, `varInteger`, `varString`, etc.) vivem em `System`.
 

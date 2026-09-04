@@ -22,6 +22,9 @@ import type {
   RedundantTerminalExitPayload,
   ReturnAssignmentInCatchPayload,
   ReturnUnrecommendedPayload,
+  SharedReturnAssignmentInTryPayload,
+  QualifiedPrivateSharedAccessPayload,
+  NullOnVariantPayload,
   SharedReturnGlobalFunctionPayload,
   UnknownMemberPayload,
   UnsupportedMemberPayload,
@@ -1535,6 +1538,368 @@ describe("D7BasicCodeActionProvider", () => {
         type: "replace",
         textIncludes: 'Return StrToDateTime("01/01/1900 00:00:00")',
       });
+    });
+
+    test("shared-return-assignment-in-try rewrites assignment to Return", async () => {
+      const doc = mockDoc("            ExecSqlWithTx = pQuery.ExecSQL() ' keep\n");
+      const payload: SharedReturnAssignmentInTryPayload = {
+        code: DiagnosticCodes.SharedReturnAssignmentInTry,
+        line: 0,
+        startChar: 12,
+        endChar: 51,
+        expressionText: "pQuery.ExecSQL()",
+        functionName: "ExecSqlWithTx",
+        tempName: "_result",
+        tempType: "Integer",
+        tryStartLine: 0,
+        tryEndLine: 0,
+      };
+      const range = new vscode.Range(0, 12, 0, 25);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.SharedReturnAssignmentInTry, payload, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) =>
+        action.edit?.edits?.some((edit: { text?: string }) =>
+          edit.text?.includes("Return pQuery.ExecSQL()"),
+        ),
+      );
+      assert.ok(fix);
+      assert.equal(fix.isPreferred, true);
+      expectEdit(fix.edit, {
+        type: "replace",
+        textIncludes: "Return pQuery.ExecSQL() ' keep",
+      });
+    });
+
+    test("shared-return-assignment-in-try extracts a temp and assigns after End Try", async () => {
+      const source = [
+        "Shared Function ExecSqlWithTx(pValue As Integer) As Integer",
+        "   Try",
+        "      ExecSqlWithTx = pValue",
+        "   Catch ex As Exception",
+        "      Throw",
+        "   End Try",
+        "End Function",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const payload: SharedReturnAssignmentInTryPayload = {
+        code: DiagnosticCodes.SharedReturnAssignmentInTry,
+        line: 2,
+        startChar: 6,
+        endChar: 28,
+        expressionText: "pValue",
+        functionName: "ExecSqlWithTx",
+        tempName: "_result",
+        tempType: "Integer",
+        tryStartLine: 1,
+        tryEndLine: 5,
+      };
+      const range = new vscode.Range(2, 6, 2, 19);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.SharedReturnAssignmentInTry, payload, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("temporária"));
+      assert.ok(fix);
+      assert.equal(fix.edit.edits.length, 3);
+
+      const sorted = [...fix.edit.edits].sort((left: any, right: any) => {
+        const leftLine = left.range?.start?.line ?? left.position?.line ?? 0;
+        const leftChar = left.range?.start?.character ?? left.position?.character ?? 0;
+        const rightLine = right.range?.start?.line ?? right.position?.line ?? 0;
+        const rightChar = right.range?.start?.character ?? right.position?.character ?? 0;
+        if (leftLine !== rightLine) return rightLine - leftLine;
+        return rightChar - leftChar;
+      });
+      let result = source;
+      for (const edit of sorted) {
+        if (edit.type === "insert") result = applyInsertEdit(result, edit);
+        else if (edit.type === "replace") result = applyReplaceEdit(result, edit);
+      }
+      assert.equal(
+        result,
+        [
+          "Shared Function ExecSqlWithTx(pValue As Integer) As Integer",
+          "   Dim _result As Integer",
+          "   Try",
+          "      _result = pValue",
+          "   Catch ex As Exception",
+          "      Throw",
+          "   End Try",
+          "   ExecSqlWithTx = _result",
+          "End Function",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    test("shared-return-assignment-in-try offers a bulk Return fix for every occurrence in the file", async () => {
+      const source = [
+        "      Shared Function Calc() As Integer",
+        "         Try",
+        "            Calc = fallback",
+        "         Catch ex As Exception",
+        "            Throw",
+        "         End Try",
+        "      End Function",
+        "      Shared Function Total() As Integer",
+        "         Try",
+        "            Total = current ' keep",
+        "         Catch ex As Exception",
+        "            Throw",
+        "         End Try",
+        "      End Function",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const firstPayload: SharedReturnAssignmentInTryPayload = {
+        code: DiagnosticCodes.SharedReturnAssignmentInTry,
+        line: 2,
+        startChar: 12,
+        endChar: 27,
+        expressionText: "fallback",
+        functionName: "Calc",
+        tempName: "_result",
+        tempType: "Integer",
+        tryStartLine: 1,
+        tryEndLine: 5,
+      };
+      const secondPayload: SharedReturnAssignmentInTryPayload = {
+        code: DiagnosticCodes.SharedReturnAssignmentInTry,
+        line: 9,
+        startChar: 12,
+        endChar: 35,
+        expressionText: "current",
+        functionName: "Total",
+        tempName: "_result",
+        tempType: "Integer",
+        tryStartLine: 8,
+        tryEndLine: 12,
+      };
+      const first = diagWith(
+        DiagnosticCodes.SharedReturnAssignmentInTry,
+        firstPayload,
+        new vscode.Range(2, 12, 2, 16),
+      );
+      const second = diagWith(
+        DiagnosticCodes.SharedReturnAssignmentInTry,
+        secondPayload,
+        new vscode.Range(9, 12, 9, 17),
+      );
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [first, second];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(doc, first.range, { diagnostics: [first] } as any, noopToken),
+        )) as any[];
+        const bulk = onlyQuickFixes(all).find((action) =>
+          action.title.includes("todas as atribuições de Shared Function"),
+        );
+        assert.ok(bulk);
+        assert.equal(bulk.edit.edits.length, 2);
+        assert.deepEqual(
+          bulk.edit.edits.map((edit: { text: string }) => edit.text).sort(),
+          ["Return current ' keep", "Return fallback"].sort(),
+        );
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+
+    test("qualified-private-shared-access strips the class qualifier", async () => {
+      const doc = mockDoc("         If Not TTable._tplReady Then\n");
+      const payload: QualifiedPrivateSharedAccessPayload = {
+        code: DiagnosticCodes.QualifiedPrivateSharedAccess,
+        line: 0,
+        startChar: 16,
+        endChar: 32,
+        className: "TTable",
+        memberName: "_tplReady",
+      };
+      const range = new vscode.Range(0, 16, 0, 32);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.QualifiedPrivateSharedAccess, payload, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("_tplReady"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "replace", textIncludes: "_tplReady" });
+      const replacement = fix.edit.edits[0];
+      assert.ok(replacement);
+      assert.equal(
+        applyReplaceEdit(doc.getText(), replacement),
+        "         If Not _tplReady Then\n",
+      );
+    });
+
+    test("qualified-private-shared-access offers a bulk fix for every occurrence in the file", async () => {
+      const source = [
+        "         If Not TTable._tplReady Then",
+        "            TTable._tplCount = 0",
+        "",
+      ].join("\n");
+      const doc = mockDoc(source);
+      const firstPayload: QualifiedPrivateSharedAccessPayload = {
+        code: DiagnosticCodes.QualifiedPrivateSharedAccess,
+        line: 0,
+        startChar: 16,
+        endChar: 32,
+        className: "TTable",
+        memberName: "_tplReady",
+      };
+      const secondPayload: QualifiedPrivateSharedAccessPayload = {
+        code: DiagnosticCodes.QualifiedPrivateSharedAccess,
+        line: 1,
+        startChar: 12,
+        endChar: 28,
+        className: "TTable",
+        memberName: "_tplCount",
+      };
+      const first = diagWith(
+        DiagnosticCodes.QualifiedPrivateSharedAccess,
+        firstPayload,
+        new vscode.Range(0, 16, 0, 32),
+      );
+      const second = diagWith(
+        DiagnosticCodes.QualifiedPrivateSharedAccess,
+        secondPayload,
+        new vscode.Range(1, 12, 1, 28),
+      );
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [first, second];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(doc, first.range, { diagnostics: [first] } as any, noopToken),
+        )) as any[];
+        const bulk = onlyQuickFixes(all).find((action) =>
+          action.title.includes("todos os acessos Private Shared"),
+        );
+        assert.ok(bulk);
+        assert.equal(bulk.edit.edits.length, 2);
+        assert.deepEqual(
+          bulk.edit.edits.map((edit: { text: string }) => edit.text).sort(),
+          ["_tplCount", "_tplReady"].sort(),
+        );
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
+    });
+
+    test("null-on-variant replaces NULL with Unassigned", async () => {
+      const line = "         If pValue = Null Then\n";
+      const startChar = line.indexOf("Null");
+      const endChar = startChar + "Null".length;
+      const doc = mockDoc(line);
+      const payload: NullOnVariantPayload = {
+        code: DiagnosticCodes.NullOnVariant,
+        line: 0,
+        startChar,
+        endChar,
+        usage: "comparison",
+      };
+      const range = new vscode.Range(0, startChar, 0, endChar);
+      const provider = new D7BasicCodeActionProvider();
+      const all = (await Promise.resolve(
+        provider.provideCodeActions(
+          doc,
+          range,
+          {
+            diagnostics: [diagWith(DiagnosticCodes.NullOnVariant, payload, range)],
+          } as any,
+          noopToken,
+        ),
+      )) as any[];
+      const fix = onlyQuickFixes(all).find((action) => action.title.includes("Unassigned"));
+      assert.ok(fix);
+      expectEdit(fix.edit, { type: "replace", textIncludes: "Unassigned" });
+      const replacement = fix.edit.edits[0];
+      assert.ok(replacement);
+      assert.equal(
+        applyReplaceEdit(doc.getText(), replacement),
+        "         If pValue = Unassigned Then\n",
+      );
+    });
+
+    test("null-on-variant offers a bulk fix for every occurrence in the file", async () => {
+      const firstLine = "         If pValue = Null Then";
+      const secondLine = "         pValue = NULL";
+      const source = [firstLine, secondLine, ""].join("\n");
+      const doc = mockDoc(source);
+      const firstStart = firstLine.indexOf("Null");
+      const firstEnd = firstStart + "Null".length;
+      const secondStart = secondLine.indexOf("NULL");
+      const secondEnd = secondStart + "NULL".length;
+      const firstPayload: NullOnVariantPayload = {
+        code: DiagnosticCodes.NullOnVariant,
+        line: 0,
+        startChar: firstStart,
+        endChar: firstEnd,
+        usage: "comparison",
+      };
+      const secondPayload: NullOnVariantPayload = {
+        code: DiagnosticCodes.NullOnVariant,
+        line: 1,
+        startChar: secondStart,
+        endChar: secondEnd,
+        usage: "assignment",
+      };
+      const first = diagWith(
+        DiagnosticCodes.NullOnVariant,
+        firstPayload,
+        new vscode.Range(0, firstStart, 0, firstEnd),
+      );
+      const second = diagWith(
+        DiagnosticCodes.NullOnVariant,
+        secondPayload,
+        new vscode.Range(1, secondStart, 1, secondEnd),
+      );
+      const originalGetDiagnostics = vscode.languages.getDiagnostics;
+      (vscode.languages as any).getDiagnostics = () => [first, second];
+
+      try {
+        const provider = new D7BasicCodeActionProvider();
+        const all = (await Promise.resolve(
+          provider.provideCodeActions(doc, first.range, { diagnostics: [first] } as any, noopToken),
+        )) as any[];
+        const bulk = onlyQuickFixes(all).find((action) =>
+          action.title.includes("todos os NULL em Variant"),
+        );
+        assert.ok(bulk);
+        assert.equal(bulk.edit.edits.length, 2);
+        assert.deepEqual(
+          bulk.edit.edits.map((edit: { text: string }) => edit.text),
+          ["Unassigned", "Unassigned"],
+        );
+      } finally {
+        (vscode.languages as any).getDiagnostics = originalGetDiagnostics;
+      }
     });
 
     test("return-unrecommended remains available when VS Code omits Diagnostic.data", async () => {

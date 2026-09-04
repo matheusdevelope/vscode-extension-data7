@@ -974,6 +974,12 @@ export class Parser {
         kind: "ParameterDeclaration",
         name: nameToken.value,
         type,
+        loc: {
+          startLine: nameToken.loc.line,
+          startChar: nameToken.loc.column,
+          endLine: nameToken.loc.line,
+          endChar: nameToken.loc.column + nameToken.value.length,
+        },
       };
       if (isByRef) decl.isByRef = true;
       if (isByVal) decl.isByVal = true;

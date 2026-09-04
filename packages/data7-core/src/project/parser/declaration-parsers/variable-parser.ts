@@ -34,13 +34,6 @@ export function parseSingleVariableDeclaration(
   const asNewArguments = hasAsNew ? parser.parseOptionalArgumentList() : [];
   if (parser.consume("punct", "=")) {
     initializer = parser.parseExpression();
-  } else if (isArraySugar && type) {
-    initializer = {
-      kind: "ObjectCreationExpression",
-      type,
-      arguments: [],
-      loc: type.loc,
-    };
   } else if (hasAsNew && type) {
     initializer = {
       kind: "ObjectCreationExpression",

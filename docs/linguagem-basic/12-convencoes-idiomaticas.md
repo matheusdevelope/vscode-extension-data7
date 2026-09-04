@@ -21,6 +21,9 @@ Exemplos canônicos de array-list:
 - [`sugar/array-list/02-object-windowing-chains`](../example/sugar/array-list/02-object-windowing-chains.bas) — objetos, First/Last/Slice
 - [`sugar/array-list/03-four-stage-chain`](../example/sugar/array-list/03-four-stage-chain.bas) — cadeia multi-estágio
 - [`sugar/array-list/04-subclass-filter`](../example/sugar/array-list/04-subclass-filter.bas) — subclasse quando Filter retorna tipo concreto
+- [`sugar/array-list/08-subclass-element-members`](../example/sugar/array-list/08-subclass-element-members.bas) — `Take`/`Last` na subclasse expõem membros do elemento `T`
+- [`sugar/array-list/06-function-return-empty-literal`](../example/sugar/array-list/06-function-return-empty-literal.bas) — `NomeDaFunction = []` / `Return []` viram `New TTList_T()`
+- [`sugar/array-list/07-declaration-without-init`](../example/sugar/array-list/07-declaration-without-init.bas) — `x[] As T` sem `=` não recebe `New`; `= []` materializa `New TTList_T()`
 
 Requisitos: `language.sugars` e `language.generics` habilitados nas configurações da extensão (`data7.features`).
 

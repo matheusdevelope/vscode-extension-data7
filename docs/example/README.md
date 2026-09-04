@@ -125,11 +125,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (160 arquivos)
+## Índice de exemplos (170 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (66)
+### sugar (69)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -138,6 +138,9 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/array-list/03-four-stage-chain.bas`](./sugar/array-list/03-four-stage-chain.bas) | cadeia Filter → Map → Map → Reduce com mutação de tipo (mod_exemplo_encadeamento) | `none` | — |
 | [`sugar/array-list/04-subclass-filter.bas`](./sugar/array-list/04-subclass-filter.bas) | Filter em subclasse de TTList retorna o tipo concreto (Principal.bas / Pessoas) | `none` | — |
 | [`sugar/array-list/05-parameter-array-sugar.bas`](./sugar/array-list/05-parameter-array-sugar.bas) | array sugar em parâmetros — pList[] As T materializa TTList_T; pList(i) vira GetItem(i) | `none` | — |
+| [`sugar/array-list/06-function-return-empty-literal.bas`](./sugar/array-list/06-function-return-empty-literal.bas) | Function As TTList<T> com Nome = [] materializa New TTList_T() | `none` | — |
+| [`sugar/array-list/07-declaration-without-init.bas`](./sugar/array-list/07-declaration-without-init.bas) | Dim/campo x[] As T sem = [] não recebe New; só = [] materializa New TTList_T() | `none` | — |
+| [`sugar/array-list/08-subclass-element-members.bas`](./sugar/array-list/08-subclass-element-members.bas) | Take em subclasse de TTList<T> expõe os membros do elemento T, não o parâmetro aberto | `none` | — |
 | [`sugar/auto-new/_expected/01-simple.bas`](./sugar/auto-new/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/auto-new/01-simple | `none` | — |
 | [`sugar/auto-new/01-simple.bas`](./sugar/auto-new/01-simple.bas) | Dim x As New T (sem `()`) normalizado para `As New T()` | `none` | — |
 | [`sugar/coalesce-assign/_expected/01-simple.bas`](./sugar/coalesce-assign/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/coalesce-assign/01-simple | `none` | — |
@@ -200,11 +203,12 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (83)
+### diagnostics (90)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
 | [`diagnostics/abstract-instantiation/trigger.bas`](./diagnostics/abstract-instantiation/trigger.bas) | classe MustInherit nao pode ser instanciada diretamente | `abstract-instantiation@12` | — |
+| [`diagnostics/auto-new-non-default-ctor/exception-extra-args.bas`](./diagnostics/auto-new-non-default-ctor/exception-extra-args.bas) | New Exception(msg, inner) — Exception.Create só aceita uma String | `auto-new-non-default-ctor@9` | — |
 | [`diagnostics/auto-new-non-default-ctor/trigger.bas`](./diagnostics/auto-new-non-default-ctor/trigger.bas) | Dim x As New T mas T só tem construtor com args — runtime falha | `auto-new-non-default-ctor@5` | `classe TNeedsArgs sem construtor sem-args` |
 | [`diagnostics/call-parentheses-mismatch/trigger.bas`](./diagnostics/call-parentheses-mismatch/trigger.bas) | missing parentheses for method call with multiple arguments | `call-parentheses-mismatch@12` | `linter implementation for call parentheses validation` |
 | [`diagnostics/chained-global-function-assignment/trigger.bas`](./diagnostics/chained-global-function-assignment/trigger.bas) | assignment from a member chain rooted at a global function | `chained-global-function-assignment@20` | `linter implementation for chained global function assignment detection` |
@@ -220,6 +224,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/destructure-unknown-member/trigger.bas`](./diagnostics/destructure-unknown-member/trigger.bas) | destructure faz referência a membro inexistente | `destructure-unknown-member@6` | `classe TPessoa que NÃO tem campo Endereco no workspace` |
 | [`diagnostics/duplicate-declaration/02-shared-factory-field.bas`](./diagnostics/duplicate-declaration/02-shared-factory-field.bas) | Shared Function colide com campo de instância de mesmo nome (Mask) | `duplicate-declaration@10` | — |
 | [`diagnostics/duplicate-declaration/03-overload-return-mismatch.bas`](./diagnostics/duplicate-declaration/03-overload-return-mismatch.bas) | overload com parâmetros e tipos de retorno distintos é válido (padrão TTList First/Last) | `none` | — |
+| [`diagnostics/duplicate-declaration/04-generic-method-overload.bas`](./diagnostics/duplicate-declaration/04-generic-method-overload.bas) | instance Exists(pWhere) and Shared Exists<T As TTable>(pWhere) are distinct overloads | `none` | — |
 | [`diagnostics/duplicate-declaration/trigger.bas`](./diagnostics/duplicate-declaration/trigger.bas) | declaração de duas variáveis locais com o mesmo nome no mesmo método | `duplicate-declaration@7` | — |
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
@@ -228,10 +233,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/flat-name-collision/trigger.bas`](./diagnostics/flat-name-collision/trigger.bas) | source type carries `_` so two distinct usages collapse to the same flat name | `flat-name-collision@14` | `emitted by the SugarTranspiler at build-time (Fase 6); the live linter does not yet track flat-name collisions.` |
 | [`diagnostics/function-read-self/trigger.bas`](./diagnostics/function-read-self/trigger.bas) | reading from function name inside its own body | `function-read-self@10` | `linter implementation for function self read detection` |
 | [`diagnostics/generic-arity-mismatch/trigger.bas`](./diagnostics/generic-arity-mismatch/trigger.bas) | TList<T> declares 1 type parameter but usage supplies 2 args | `generic-arity-mismatch@13` | — |
-| [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As TEnum> violada por Integer | `generic-constraint-violated@10` | `classes TEnum + CardAdm declaradas no workspace` |
+| [`diagnostics/generic-constraint-violated/trigger.bas`](./diagnostics/generic-constraint-violated/trigger.bas) | constraint Class TList<T As TEnum> violada por Integer | `generic-constraint-violated@16` | — |
 | [`diagnostics/incomplete-member-access/trigger.bas`](./diagnostics/incomplete-member-access/trigger.bas) | acesso a membro encerrado no ponto sem nome de membro | `incomplete-member-access@8` | — |
 | [`diagnostics/incomplete-property-body/trigger.bas`](./diagnostics/incomplete-property-body/trigger.bas) | Property declarada sem bloco Get/Set e End Property | `incomplete-property-body@7` | — |
 | [`diagnostics/inline-if-then/trigger.bas`](./diagnostics/inline-if-then/trigger.bas) | a sintaxe If Then inline não é recomendada | `inline-if-then@7` | — |
+| [`diagnostics/instance-member-access-on-type/02-inherited-shared-generic.bas`](./diagnostics/instance-member-access-on-type/02-inherited-shared-generic.bas) | Shared generic method of the base class is callable on the derived type name | `none` | — |
 | [`diagnostics/instance-member-access-on-type/trigger.bas`](./diagnostics/instance-member-access-on-type/trigger.bas) | access to an instance member statically on the type | `instance-member-access-on-type@20` | `o código diagnóstico existe, mas o linter live atual resolve identificadores de classe como tipos antes de marcar acesso estático; pendente wiring do checker` |
 | [`diagnostics/instantiation-limit-exceeded/trigger.bas`](./diagnostics/instantiation-limit-exceeded/trigger.bas) | a generic template that recursively instantiates itself exceeds MAX_INSTANTIATIONS | `instantiation-limit-exceeded@11` | `emitted by the SugarTranspiler at build-time (Fase 6) when the worklist exceeds 10_000 instantiations; the live linter does not run the drain.` |
 | [`diagnostics/invalid-assignment-target/trigger.bas`](./diagnostics/invalid-assignment-target/trigger.bas) | assigning to another function name | `invalid-assignment-target@13` | `linter implementation for invalid assignment target` |
@@ -255,13 +261,16 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/module-not-found/trigger.bas`](./diagnostics/module-not-found/trigger.bas) | Imports de um módulo que não existe no workspace, repositório privado, nem System Library | `module-not-found@6` | `nenhum módulo "mod_unknown_module" instalado em lugar nenhum` |
 | [`diagnostics/mustoverride-not-implemented/trigger.bas`](./diagnostics/mustoverride-not-implemented/trigger.bas) | classe concreta deve implementar metodo MustOverride herdado | `mustoverride-not-implemented@11` | — |
 | [`diagnostics/namespace-name-conflict/trigger.bas`](./diagnostics/namespace-name-conflict/trigger.bas) | classe com o mesmo nome do namespace que a contém | `namespace-name-conflict@2` | — |
+| [`diagnostics/namespace-shadow/trigger.bas`](./diagnostics/namespace-shadow/trigger.bas) | Dim sql sombreia o namespace SQL; o compilador deixa de resolver SQL.Command | `namespace-shadow@8` | — |
 | [`diagnostics/not-enumerable/trigger.bas`](./diagnostics/not-enumerable/trigger.bas) | For Each sobre tipo do workspace sem propriedade Count + indexer inteiro | `not-enumerable@12` | — |
 | [`diagnostics/null-coalesce-context-unsupported/trigger.bas`](./diagnostics/null-coalesce-context-unsupported/trigger.bas) | ?? usado fora de assignment RHS — Print não é assignment | `null-coalesce-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/null-narrowing/01-after-guard.bas`](./diagnostics/null-narrowing/01-after-guard.bas) | TypeResolver propaga NotNull(x) após If x = NULL Then Return | `none` | — |
+| [`diagnostics/null-on-variant/trigger.bas`](./diagnostics/null-on-variant/trigger.bas) | Variant não aceita NULL (atribuição nem comparação) | `null-on-variant@8, null-on-variant@12` | — |
 | [`diagnostics/object-creation-parentheses-missing/trigger.bas`](./diagnostics/object-creation-parentheses-missing/trigger.bas) | object creation missing empty constructor parentheses | `object-creation-parentheses-missing@8` | — |
 | [`diagnostics/optional-chain-context-unsupported/trigger.bas`](./diagnostics/optional-chain-context-unsupported/trigger.bas) | ?. usado fora de assignment ou call-statement | `optional-chain-context-unsupported@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/optional-chain-too-deep/trigger.bas`](./diagnostics/optional-chain-too-deep/trigger.bas) | cadeia ?. com mais de 3 níveis — refator manual exigido | `optional-chain-too-deep@6` | `o diagnóstico é emitido pelo SugarTranspiler em build-time (ainda não wired ao linter live)` |
 | [`diagnostics/private-member-access/trigger.bas`](./diagnostics/private-member-access/trigger.bas) | acesso a membro Private de uma classe a partir de outra classe | `private-member-access@13` | `módulo "mod_vault" exportando a classe Vault com campo Private "secret"` |
+| [`diagnostics/qualified-private-shared-access/trigger.bas`](./diagnostics/qualified-private-shared-access/trigger.bas) | Private Shared não pode ser acessado com o nome da classe | `qualified-private-shared-access@13, qualified-private-shared-access@14, qualified-private-shared-access@18` | — |
 | [`diagnostics/readonly-assignment/trigger.bas`](./diagnostics/readonly-assignment/trigger.bas) | atribuição a campo ReadOnly fora do construtor | `readonly-assignment@11` | `emissão futura do linter quando a checagem ReadOnly for implementada (I3)` |
 | [`diagnostics/redundant-public-modifier/trigger.bas`](./diagnostics/redundant-public-modifier/trigger.bas) | Public explicito e redundante porque a visibilidade default ja e publica | `redundant-public-modifier@6` | — |
 | [`diagnostics/redundant-terminal-exit/trigger.bas`](./diagnostics/redundant-terminal-exit/trigger.bas) | Exit Sub terminal redundante no fim exato da rotina | `redundant-terminal-exit@9` | — |
@@ -269,6 +278,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/return-unrecommended/equality-comparison.bas`](./diagnostics/return-unrecommended/equality-comparison.bas) | Return com comparação (=) deve preservar a expressão completa no quick fix | `return-unrecommended@4` | — |
 | [`diagnostics/return-unrecommended/trigger.bas`](./diagnostics/return-unrecommended/trigger.bas) | uso de Return em função onde a forma preferida é atribuição ao nome da rotina | `return-unrecommended@4` | — |
 | [`diagnostics/sealed-inheritance/trigger.bas`](./diagnostics/sealed-inheritance/trigger.bas) | classe NotInheritable nao pode ser herdada | `sealed-inheritance@12` | — |
+| [`diagnostics/shared-return-assignment-in-try/trigger.bas`](./diagnostics/shared-return-assignment-in-try/trigger.bas) | Shared Function atribui ao próprio nome dentro de Try — bug do compilador nativo | `shared-return-assignment-in-try@9` | — |
 | [`diagnostics/shared-return-global-function/trigger.bas`](./diagnostics/shared-return-global-function/trigger.bas) | shared-return-global-function warning when shared function return variable is assigned directly from global function | `shared-return-global-function@9` | `linter implementation for shared return global function detection` |
 | [`diagnostics/spread-non-persistent/trigger.bas`](./diagnostics/spread-non-persistent/trigger.bas) | spread em New T() With { ...other, ... } mas T não tem Assign | `spread-non-persistent@5` | `classe TPoint sem TPersistent na cadeia` |
 | [`diagnostics/sub-used-as-function/trigger.bas`](./diagnostics/sub-used-as-function/trigger.bas) | using a Sub procedure as a function in an expression context | `sub-used-as-function@12` | — |

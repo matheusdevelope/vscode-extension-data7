@@ -89,7 +89,8 @@ export const DiagnosticCodes = {
   /**
    * `Dim x As New T` (auto-new without `()`) targeted a type whose only
    * known constructors require arguments — the resulting `New T()` call
-   * will fail in runtime.
+   * will fail in runtime. Also emitted when `New T(args)` matches no
+   * declared constructor (`Sub New` or System Library instance `Create`).
    */
   AutoNewNonDefaultCtor: "auto-new-non-default-ctor",
   /**
@@ -270,6 +271,23 @@ export const DiagnosticCodes = {
   ReturnUnrecommended: "return-unrecommended",
   /** Function/property return assignment was used inside Catch, which the native compiler rejects. */
   ReturnAssignmentInCatch: "return-assignment-in-catch",
+  /**
+   * A Shared Function assigns to its own name inside Try/Catch. The native
+   * compiler mishandles that return style; use `Return` or assign after End Try.
+   */
+  SharedReturnAssignmentInTry: "shared-return-assignment-in-try",
+  /**
+   * A Private Shared field/method was accessed as `ClassName.Member` from
+   * inside the declaring class. The native compiler only accepts the
+   * unqualified name (`Member`) for private shared members.
+   */
+  QualifiedPrivateSharedAccess: "qualified-private-shared-access",
+  /**
+   * `NULL` was assigned to or compared with a `Variant`. Variant accepts
+   * primitives and `TDateTime` (and objects as an escape hatch) but never
+   * `NULL` — empty Variant is `Unassigned`. `NULL` is the object-null sentinel.
+   */
+  NullOnVariant: "null-on-variant",
   InlineIfThen: "inline-if-then",
   /**
    * A `Class`, `Structure`, or `Delegate` is declared inside a `Namespace`
@@ -278,6 +296,13 @@ export const DiagnosticCodes = {
    * the type to resolve the conflict.
    */
   NamespaceNameConflict: "namespace-name-conflict",
+  /**
+   * A variable, field, parameter or similar binding reuses the identifier of a
+   * workspace or System Library namespace (`Dim sql As String` vs `SQL`).
+   * The native compiler is case-insensitive and then resolves `SQL.Command`
+   * as a member of the local instead of the namespace.
+   */
+  NamespaceShadow: "namespace-shadow",
   /**
    * A `Function` or `Property` declaration is missing its return type (`As <Type>`).
    * Every `Function` and every `Property` must declare an explicit return type so the
@@ -460,6 +485,22 @@ export interface GenericArityMismatchPayload {
   expected: number;
   /** Number of type arguments supplied at the usage site. */
   actual: number;
+}
+
+/**
+ * Payload for `GenericConstraintViolated`: the type argument is not the
+ * constraint type nor a subclass (`T As TTable` with `Integer`).
+ */
+export interface GenericConstraintViolatedPayload {
+  code: typeof DiagnosticCodes.GenericConstraintViolated;
+  /** Template or method that declared the constraint (`TTable.Exists`, `TList`). */
+  templateName: string;
+  /** Type parameter name (`T`). */
+  typeParameter: string;
+  /** Declared constraint (`TTable`). */
+  constraint: string;
+  /** Type argument at the usage site. */
+  actual: string;
 }
 
 /**
@@ -649,6 +690,40 @@ export interface ReturnAssignmentInCatchPayload {
   expressionText?: string;
 }
 
+export interface SharedReturnAssignmentInTryPayload {
+  code: typeof DiagnosticCodes.SharedReturnAssignmentInTry;
+  line: number;
+  startChar: number;
+  endChar: number;
+  expressionText?: string;
+  functionName: string;
+  tempName: string;
+  tempType: string;
+  /** 0-based line of the enclosing `Try`. */
+  tryStartLine: number;
+  /** 0-based line of the enclosing `End Try`. */
+  tryEndLine: number;
+}
+
+export interface QualifiedPrivateSharedAccessPayload {
+  code: typeof DiagnosticCodes.QualifiedPrivateSharedAccess;
+  line: number;
+  startChar: number;
+  endChar: number;
+  className: string;
+  memberName: string;
+}
+
+export type NullOnVariantUsage = "assignment" | "comparison";
+
+export interface NullOnVariantPayload {
+  code: typeof DiagnosticCodes.NullOnVariant;
+  line: number;
+  startChar: number;
+  endChar: number;
+  usage: NullOnVariantUsage;
+}
+
 export interface InlineIfThenPayload {
   code: typeof DiagnosticCodes.InlineIfThen;
   line: number;
@@ -664,6 +739,31 @@ export interface NamespaceNameConflictPayload {
   name: string;
   /** Kind of the conflicting declaration: "class", "structure", or "delegate". */
   memberKind: string;
+}
+
+export type NamespaceShadowKind =
+  | "variable"
+  | "field"
+  | "parameter"
+  | "property"
+  | "loop-variable"
+  | "catch-variable"
+  | "using-variable";
+
+/**
+ * Payload for `NamespaceShadow`: the binding that collides with a namespace
+ * and the canonical namespace identifier it shadows.
+ */
+export interface NamespaceShadowPayload {
+  code: typeof DiagnosticCodes.NamespaceShadow;
+  /** Identifier as written in source (`sql`). */
+  name: string;
+  /** Canonical namespace name (`SQL`, `Forms`, `mod_tlist`). */
+  namespaceName: string;
+  /** Whether the shadowed namespace is from the System Library or the workspace. */
+  source: "system" | "workspace";
+  /** Kind of the binding that introduced the name. */
+  declarationKind: NamespaceShadowKind;
 }
 
 /**
@@ -712,6 +812,7 @@ export type DiagnosticPayload =
   | OptionalChainTooDeepPayload
   | UnknownTemplatePayload
   | GenericArityMismatchPayload
+  | GenericConstraintViolatedPayload
   | DuplicateTemplatePayload
   | ClassGenericMethodUnsupportedPayload
   | FlatNameCollisionPayload
@@ -732,8 +833,12 @@ export type DiagnosticPayload =
   | ChainedGlobalFunctionAssignmentPayload
   | SharedReturnGlobalFunctionPayload
   | ReturnAssignmentInCatchPayload
+  | SharedReturnAssignmentInTryPayload
+  | QualifiedPrivateSharedAccessPayload
+  | NullOnVariantPayload
   | InlineIfThenPayload
   | NamespaceNameConflictPayload
+  | NamespaceShadowPayload
   | MissingReturnTypePayload
   | IncompletePropertyBodyPayload
   | ChainedInstantiationAccessPayload;

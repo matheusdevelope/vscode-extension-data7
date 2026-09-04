@@ -376,6 +376,18 @@ export class DiagnosticsLinter {
     if (isStringListFamily(lhsLower) && isStringListFamily(rhsLower)) return true;
 
     if (isNumeric(lhsLower) && isNumeric(rhsLower)) return true;
+
+    // Variant is a value box for primitives / TDateTime (and objects as an
+    // escape hatch). NULL is the object-null sentinel and is never a Variant
+    // value — empty Variant is Unassigned. Check this before the Variant
+    // wildcard below, which would otherwise accept Null.
+    if (
+      (rhsLower === "null" && lhsLower === "variant") ||
+      (lhsLower === "null" && rhsLower === "variant")
+    ) {
+      return false;
+    }
+
     if (lhsLower === "variant" || rhsLower === "variant") return true;
 
     if (DiagnosticsLinter.isWideningNumericConversion(rhsLower, lhsLower)) return true;
@@ -458,6 +470,7 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.TernaryContextUnsupported]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.UnknownTemplate]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.GenericArityMismatch]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.GenericConstraintViolated]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.DuplicateTemplate]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ClassGenericMethodUnsupported]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.FlatNameCollision]: vscode.DiagnosticSeverity.Warning,
@@ -503,6 +516,9 @@ export class DiagnosticsLinter {
     [DiagnosticCodes.MissingThen]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ReturnUnrecommended]: vscode.DiagnosticSeverity.Warning,
     [DiagnosticCodes.ReturnAssignmentInCatch]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.SharedReturnAssignmentInTry]: vscode.DiagnosticSeverity.Warning,
+    [DiagnosticCodes.QualifiedPrivateSharedAccess]: vscode.DiagnosticSeverity.Error,
+    [DiagnosticCodes.NullOnVariant]: vscode.DiagnosticSeverity.Error,
     [DiagnosticCodes.InlineIfThen]: vscode.DiagnosticSeverity.Warning,
   };
 

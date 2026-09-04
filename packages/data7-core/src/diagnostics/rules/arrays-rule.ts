@@ -6,6 +6,11 @@ import { TypeResolver } from "../../analysis/type-resolver";
 import { DiagnosticsLinter } from "../diagnostics";
 import { SymbolInfo } from "../../analysis/symbol-indexer";
 import { lookupSystemClassByName } from "../../system-library";
+import {
+  isNullOnVariant,
+  rangeFromSourceLocation,
+  reportNullOnVariant,
+} from "../diagnostic-helpers";
 
 const ARRAYS_RULE_NODE_KINDS = new Set<Node["kind"]>(["ArrayAccessExpression", "OpaqueStatement"]);
 
@@ -227,11 +232,15 @@ export class ArraysRule implements Rule {
     node: Node,
     actual: string,
     expected: string,
-    lineIdx: number,
+    _lineIdx: number,
     context: RuleContext,
   ): void {
     if (!node.loc) return;
-    const range = new vscode.Range(lineIdx, node.loc.startChar, lineIdx, node.loc.endChar);
+    const range = rangeFromSourceLocation(node.loc);
+    if (isNullOnVariant(actual, expected)) {
+      reportNullOnVariant(context, range, "assignment");
+      return;
+    }
     const diag = new vscode.Diagnostic(
       range,
       `Incompatibilidade de tipos: não é possível atribuir "${actual}" para "${expected}".`,

@@ -44,6 +44,7 @@ import {
 import type {
   Expression,
   TypeReference,
+  TypeParameter,
   Node,
   BinaryExpression,
   MethodInvocation,
@@ -84,6 +85,16 @@ export interface ClassResolutionContext {
   readonly fileUri: string;
   readonly namespace?: string;
   readonly imports: readonly string[];
+}
+
+/**
+ * Extra filters for overload selection. Generic arity (`Foo` vs `Foo<T>`) and
+ * Shared vs instance are distinct slots — a derived type may call a Shared
+ * method declared on its base class (`TTestPedido.Exists<TTestPedido>(...)`).
+ */
+export interface MemberLookupOptions {
+  readonly typeArgumentCount?: number;
+  readonly preferShared?: boolean;
 }
 
 const classResolutionContextHolder: { context?: ClassResolutionContext } = {};
@@ -425,13 +436,14 @@ export class TypeResolver {
       const namePart = qualifiedOrSimpleName.substring(lastDot + 1);
       const nsPart = qualifiedOrSimpleName.substring(0, lastDot);
 
-      const exact = lookupSystemClassByName(namePart).find(
-        (s) => s.containerName?.toLowerCase() === nsPart.toLowerCase(),
+      // Namespace must match. A system-library homonym with a *different*
+      // container (SQL.TField vs mod_tfield.TField) must not win just because
+      // the simple name exists in the catalog — that made TypeSystem.InheritsFrom
+      // classify workspace TTObject descendants as primitives and wrap them in TTItem.
+      const exactSystem = lookupSystemClassByName(namePart).find((symbol) =>
+        classContainerMatchesNamespace(symbol.containerName, nsPart),
       );
-      if (exact) return exact;
-
-      const byName = lookupSystemClassByName(namePart)[0];
-      if (byName) return byName;
+      if (exactSystem) return exactSystem;
 
       const wsMatches = indexer
         .getSymbolsByName(namePart)
@@ -441,8 +453,7 @@ export class TypeResolver {
               s.kind === "structure" ||
               s.kind === "delegate" ||
               s.kind === "enum") &&
-            (s.containerName?.toLowerCase() === nsPart.toLowerCase() ||
-              nsPart.toLowerCase().endsWith("." + s.containerName?.toLowerCase())),
+            classContainerMatchesNamespace(s.containerName, nsPart),
         );
       if (wsMatches.length > 0) {
         return wsMatches[0];
@@ -1506,34 +1517,7 @@ export class TypeResolver {
       return indexer.inheritedMembersForClassCache.get(cacheKey)!;
     }
 
-    const membersMap = new Map<string, SymbolInfo>();
-    const visited = new Set<string>();
-
-    const collect = (currentClass: SymbolInfo): void => {
-      const key = classIdentityKey(currentClass);
-      if (visited.has(key)) return;
-      visited.add(key);
-
-      for (const s of TypeResolver.getOwnMembersForClassSymbol(currentClass, indexer)) {
-        const signatureKey = memberSignatureKey(s);
-        if (!membersMap.has(signatureKey)) {
-          membersMap.set(signatureKey, s);
-        }
-      }
-
-      const parent = TypeResolver.resolveParent(currentClass);
-      const parentClass = parent
-        ? TypeResolver.findParentClassSymbol(currentClass, parent, indexer)
-        : undefined;
-      if (parentClass) collect(parentClass);
-    };
-
-    const parent = TypeResolver.resolveParent(classSymbol);
-    const parentClass = parent
-      ? TypeResolver.findParentClassSymbol(classSymbol, parent, indexer)
-      : undefined;
-    if (parentClass) collect(parentClass);
-    const resolved = Array.from(membersMap.values());
+    const resolved = TypeResolver.walkClassInheritanceMembers(classSymbol, indexer, false);
     indexer.inheritedMembersForClassCache.set(cacheKey, resolved, classSymbol.fileUri);
     return resolved;
   }
@@ -1638,12 +1622,13 @@ export class TypeResolver {
     memberName: string,
     indexer: WorkspaceSymbolIndexer,
     arity?: number,
+    options?: MemberLookupOptions,
   ): SymbolInfo | undefined {
     const t0 = LintPipelineProfiler.isEnabled() ? performance.now() : 0;
     // Member lookup is cached per resolved class identity in findMemberOnClassSymbol.
     // Do not cache by bare type name here — homonymous workspace classes (e.g. mod_enum.TEnum
     // vs core_modules/mod_tenum.TEnum) resolve differently depending on ClassResolutionContext.
-    const resolved = TypeResolver.findMemberInternal(typeName, memberName, indexer, arity);
+    const resolved = TypeResolver.findMemberInternal(typeName, memberName, indexer, arity, options);
     if (resolved) {
       if (LintPipelineProfiler.isEnabled()) {
         recordPerf("TypeResolver.findMember", performance.now() - t0);
@@ -1654,7 +1639,7 @@ export class TypeResolver {
     // Delphi-style `Count` is the conventional name; `TTList<T>` exposes `Length`.
     // Treat Count as an alias so member access and For Each stay consistent.
     if (memberName.toLowerCase() === "count") {
-      const length = TypeResolver.findMemberInternal(typeName, "Length", indexer, arity);
+      const length = TypeResolver.findMemberInternal(typeName, "Length", indexer, arity, options);
       if (length && length.type.toLowerCase() === "integer") {
         const alias: SymbolInfo = { ...length, name: "Count" };
         if (LintPipelineProfiler.isEnabled()) {
@@ -1675,10 +1660,9 @@ export class TypeResolver {
     memberName: string,
     indexer: WorkspaceSymbolIndexer,
     arity?: number,
+    options?: MemberLookupOptions,
   ): SymbolInfo | undefined {
-    const cacheKey = `class:${classIdentityKey(classSymbol)}#${memberName.toLowerCase()}#${
-      arity ?? "any"
-    }`;
+    const cacheKey = memberLookupCacheKey(classSymbol, memberName, arity, options);
     if (indexer.findMemberCache.has(cacheKey)) {
       return indexer.findMemberCache.get(cacheKey);
     }
@@ -1696,13 +1680,9 @@ export class TypeResolver {
               symbol.nativeArrayRank === arity,
           )
         : undefined;
-    const arityHit =
-      arity !== undefined
-        ? hits.find((symbol) =>
-            isArityMatch(symbol.parameters, arity, symbol.variadicParameters ?? false),
-          )
-        : undefined;
-    const hit = nativeArrayHit ?? arityHit ?? hits[0];
+    const hit =
+      nativeArrayHit ??
+      TypeResolver.pickCallableMember(hits, arity, indexer, undefined, undefined, options);
 
     indexer.findMemberCache.set(cacheKey, hit, classSymbol.fileUri);
     return hit;
@@ -1718,25 +1698,7 @@ export class TypeResolver {
       return indexer.allMembersForTypeCache.get(cacheKey)!;
     }
 
-    const membersMap = new Map<string, SymbolInfo>();
-    const visited = new Set<string>();
-
-    let current: SymbolInfo | undefined = classSymbol;
-    while (current && !visited.has(classIdentityKey(current))) {
-      visited.add(classIdentityKey(current));
-
-      for (const s of TypeResolver.getOwnMembersForClassSymbol(current, indexer)) {
-        const signatureKey = memberSignatureKey(s);
-        if (!membersMap.has(signatureKey)) {
-          membersMap.set(signatureKey, s);
-        }
-      }
-
-      const parent = TypeResolver.resolveParent(current);
-      current = parent ? TypeResolver.findParentClassSymbol(current, parent, indexer) : undefined;
-    }
-
-    const resolved = Array.from(membersMap.values());
+    const resolved = TypeResolver.walkClassInheritanceMembers(classSymbol, indexer, true);
     indexer.allMembersForTypeCache.set(cacheKey, resolved, classSymbol.fileUri);
     if (LintPipelineProfiler.isEnabled()) {
       recordPerf("TypeResolver.getAllMembersForClassSymbol", performance.now() - t0);
@@ -1744,16 +1706,80 @@ export class TypeResolver {
     return resolved;
   }
 
+  /**
+   * Walks `startClass` → parent → …, substituting type arguments when the
+   * declared parent is an instantiated generic (`Inherits TTList<TItem>`).
+   * Preferring the open template in {@link findParentClassSymbol} would
+   * otherwise keep inherited members typed as the open parameter (`T`).
+   */
+  private static walkClassInheritanceMembers(
+    startClass: SymbolInfo,
+    indexer: WorkspaceSymbolIndexer,
+    includeStartClass: boolean,
+  ): SymbolInfo[] {
+    const membersMap = new Map<string, SymbolInfo>();
+    const visited = new Set<string>();
+    let current: SymbolInfo | undefined = startClass;
+    let instantiatedTypeName: string | undefined;
+    let includeCurrent = includeStartClass;
+
+    while (current && !visited.has(classIdentityKey(current))) {
+      visited.add(classIdentityKey(current));
+
+      if (includeCurrent) {
+        for (const s of TypeResolver.ownMembersForInheritanceStep(
+          current,
+          instantiatedTypeName,
+          indexer,
+        )) {
+          const signatureKey = memberSignatureKey(s);
+          if (!membersMap.has(signatureKey)) {
+            membersMap.set(signatureKey, s);
+          }
+        }
+      }
+      includeCurrent = true;
+
+      const parent = TypeResolver.resolveParent(current);
+      if (!parent) break;
+
+      const nextInstantiated =
+        instantiatedTypeName && parseGenericTypeReference(instantiatedTypeName)
+          ? (getGenericTemplateParentForType(instantiatedTypeName, indexer) ?? parent)
+          : parent;
+
+      current = TypeResolver.findParentClassSymbol(current, parent, indexer);
+      instantiatedTypeName = nextInstantiated;
+    }
+
+    return Array.from(membersMap.values());
+  }
+
+  private static ownMembersForInheritanceStep(
+    classSymbol: SymbolInfo,
+    instantiatedTypeName: string | undefined,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo[] {
+    if (instantiatedTypeName && parseGenericTypeReference(instantiatedTypeName)) {
+      const substituted = getGenericTemplateMembersForType(instantiatedTypeName, indexer);
+      if (substituted.length > 0) {
+        return substituted;
+      }
+    }
+    return TypeResolver.getOwnMembersForClassSymbol(classSymbol, indexer);
+  }
+
   private static findMemberInternal(
     typeName: string,
     memberName: string,
     indexer: WorkspaceSymbolIndexer,
     arity?: number,
+    options?: MemberLookupOptions,
   ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const classSymbol = TypeResolver.findClassSymbol(normalizeGenericTypeName(typeName), indexer);
     if (classSymbol) {
-      return TypeResolver.findMemberOnClassSymbol(classSymbol, memberName, indexer, arity);
+      return TypeResolver.findMemberOnClassSymbol(classSymbol, memberName, indexer, arity, options);
     }
 
     const hits = TypeResolver.getAllMembersForType(typeName, indexer).filter(
@@ -1772,12 +1798,11 @@ export class TypeResolver {
       if (nativeArrayHit) {
         return nativeArrayHit;
       }
-      const arityHit = hits.find((symbol) => isArityMatch(symbol.parameters, arity));
-      if (arityHit) {
-        return arityHit;
-      }
     }
-    return hits[0];
+    return (
+      TypeResolver.pickCallableMember(hits, arity, indexer, undefined, undefined, options) ??
+      hits[0]
+    );
   }
 
   public static findMemberForReceiverExpression(
@@ -1908,6 +1933,7 @@ export class TypeResolver {
     memberName: string,
     indexer: WorkspaceSymbolIndexer,
     argumentTypes: readonly (string | undefined)[],
+    options?: MemberLookupOptions,
   ): SymbolInfo | undefined {
     const memberLower = memberName.toLowerCase();
     const candidates = TypeResolver.getAllMembersForType(typeName, indexer).filter(
@@ -1920,6 +1946,8 @@ export class TypeResolver {
       argumentTypes.length,
       indexer,
       argumentTypes,
+      undefined,
+      options,
     );
   }
 
@@ -1935,12 +1963,21 @@ export class TypeResolver {
     const candidates = TypeResolver.getAllMembersForType(typeName, indexer).filter(
       (symbol) => symbol.name.toLowerCase() === memberLower,
     );
+    const options: MemberLookupOptions = {
+      typeArgumentCount: expr.typeArguments.length,
+    };
     return (
-      TypeResolver.pickCallableMember(candidates, expr.arguments.length, indexer, undefined, () =>
-        expr.arguments.map((arg) =>
-          TypeResolver.resolveExpressionType(arg, document, lineIdx, indexer),
-        ),
-      ) ?? TypeResolver.findMember(typeName, methodName, indexer, expr.arguments.length)
+      TypeResolver.pickCallableMember(
+        candidates,
+        expr.arguments.length,
+        indexer,
+        undefined,
+        () =>
+          expr.arguments.map((arg) =>
+            TypeResolver.resolveExpressionType(arg, document, lineIdx, indexer),
+          ),
+        options,
+      ) ?? TypeResolver.findMember(typeName, methodName, indexer, expr.arguments.length, options)
     );
   }
 
@@ -1950,19 +1987,42 @@ export class TypeResolver {
     indexer: WorkspaceSymbolIndexer,
     argumentTypes?: readonly (string | undefined)[],
     resolveArgumentTypes?: () => readonly (string | undefined)[],
+    options?: MemberLookupOptions,
   ): SymbolInfo | undefined {
     if (symbols.length === 0) {
       return undefined;
     }
-    const filtered =
+    let filtered =
       arity === undefined
-        ? symbols
+        ? [...symbols]
         : symbols.filter((symbol) =>
             isArityMatch(symbol.parameters, arity, symbol.variadicParameters ?? false),
           );
     if (filtered.length === 0) {
       return undefined;
     }
+
+    if (options?.typeArgumentCount !== undefined) {
+      const matchingGeneric = filtered.filter(
+        (symbol) => genericArityOf(symbol) === options.typeArgumentCount,
+      );
+      if (matchingGeneric.length > 0) {
+        filtered = matchingGeneric;
+      }
+    }
+
+    if (options?.preferShared === true) {
+      const shared = filtered.filter((symbol) => symbol.isShared);
+      if (shared.length > 0) {
+        filtered = shared;
+      }
+    } else if (options?.preferShared === false) {
+      const instance = filtered.filter((symbol) => !symbol.isShared);
+      if (instance.length > 0) {
+        filtered = instance;
+      }
+    }
+
     if (filtered.length === 1) {
       return filtered[0];
     }
@@ -2038,20 +2098,9 @@ export class TypeResolver {
       visited.add(key);
 
       const addSymbol = (s: SymbolInfo): void => {
-        const namePart = s.name.toLowerCase();
+        const signatureKey = memberSignatureKey(s);
 
-        // Extrai a impressão digital da sobrecarga usando os tipos dos parâmetros.
-        // Ex: para Take(pIndex As Integer), paramsPart será "integer".
-        // Ex: para Take(), paramsPart será "".
-        let paramsPart = "";
-        if (s.parameters && s.parameters.length > 0) {
-          paramsPart = s.parameters.map((p) => p.type.toLowerCase()).join(",");
-        }
-
-        // A chave gerada será algo como "take#" ou "take#integer".
-        const signatureKey = `${namePart}#${paramsPart}`;
-
-        // Se a assinatura (nome + tipos) ainda não existir, adicionamos.
+        // Se a assinatura (nome + tipos + aridade genérica) ainda não existir, adicionamos.
         // Como o fluxo vai da classe atual (filho) para a classe base (pai),
         // a implementação do filho sempre ganha se houver override.
         if (!membersMap.has(signatureKey)) {
@@ -2087,13 +2136,12 @@ export class TypeResolver {
         const parentClass = classSymbol
           ? TypeResolver.findParentClassSymbol(classSymbol, parent, indexer)
           : undefined;
-        collect(
-          parentClass
-            ? parentClass.containerName
-              ? `${parentClass.containerName}.${parentClass.name}`
-              : parentClass.name
-            : parent,
-        );
+        // Keep `TTList<TItem>` (not the open template name) so the next
+        // collect() substitutes T → TItem on inherited Take/Last/Filter.
+        const instantiatedParent = parseGenericTypeReference(currentTypeName)
+          ? getGenericTemplateParentForType(currentTypeName, indexer)
+          : undefined;
+        collect(instantiatedParent ?? parentTypeNameForMemberWalk(parent, parentClass));
       }
     };
 
@@ -2102,6 +2150,21 @@ export class TypeResolver {
     // Resolved by walking a whole inheritance chain, so no single file owns it.
     indexer.allMembersForTypeCache.set(cacheKey, resolved);
     return resolved;
+  }
+
+  /**
+   * Constructors declared on `typeName` itself: workspace `Sub New`, or an
+   * instance `Create`/`New` in the System Library. Inherited constructors
+   * (e.g. `TObject.Create`) are ignored so a catalogued `Exception.Create(String)`
+   * is not mixed with the parent's zero-arg constructor.
+   */
+  public static getDeclaredConstructors(
+    typeName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): SymbolInfo[] {
+    return TypeResolver.getAllMembersForType(typeName, indexer).filter((member) =>
+      isDeclaredConstructor(member, typeName),
+    );
   }
 
   /**
@@ -2127,16 +2190,20 @@ export class TypeResolver {
   /**
    * Parses a `<T As Constraint, U>` declaration into an array of parameter names and constraints.
    * Generic parameters without an explicit `As` constraint remain open (`T -> T`).
+   * Matches the first angle-bracket list (the type-parameter clause), not a later
+   * generic return type such as `As TTList<T>`.
    */
   public static parseGenericDeclaration(lineText: string): { name: string; constraint: string }[] {
     const openBracket = lineText.indexOf("<");
-    const closeBracket = lineText.lastIndexOf(">");
-    if (openBracket === -1 || closeBracket === -1 || closeBracket <= openBracket) {
+    if (openBracket === -1) {
+      return [];
+    }
+    const closeBracket = findMatchingAngleBracket(lineText, openBracket);
+    if (closeBracket === -1 || closeBracket <= openBracket) {
       return [];
     }
     const raw = lineText.substring(openBracket + 1, closeBracket);
-    return raw
-      .split(",")
+    return splitAtDepthZeroComma(raw)
       .map((p) => {
         const parts = p.trim().split(/\s+As\s+/i);
         const name = parts[0]?.trim() ?? "";
@@ -2174,37 +2241,25 @@ export class TypeResolver {
     const currentMethod = lineContext.getMethod(position.line);
     const currentClass = lineContext.getClass(position.line);
 
-    const scopeKey = `${currentClass?.name ?? ""}-${currentMethod?.name ?? ""}`;
+    const scopeKey = `${currentClass?.name ?? ""}#${currentMethod?.range.startLine ?? -1}#${
+      currentMethod?.name ?? ""
+    }`;
     const cachedParams = fileCache.get(scopeKey);
     if (cachedParams) {
       return cachedParams;
     }
 
     const params = new Map<string, string>();
-    if (currentMethod) {
-      try {
-        const methodLine = document.lineAt(currentMethod.range.startLine).text;
-        const parsed = TypeResolver.parseGenericDeclaration(methodLine);
-        for (const p of parsed) {
-          params.set(p.name.toLowerCase(), p.constraint);
-        }
-      } catch {
-        /* ignore line-range or empty text errors */
-      }
+    const scopeIndex = getOrBuildLocalScopeIndex(unit, document, indexer);
+    const methodDecl = scopeIndex.getMethodAtLine(position.line);
+    if (methodDecl && methodDecl.typeParameters.length > 0) {
+      addTypeParameterConstraints(params, methodDecl.typeParameters);
+    } else if (currentMethod) {
+      addSymbolTypeParameterConstraints(params, currentMethod);
     }
 
     if (currentClass) {
-      try {
-        const classLine = document.lineAt(currentClass.range.startLine).text;
-        const parsed = TypeResolver.parseGenericDeclaration(classLine);
-        for (const p of parsed) {
-          if (!params.has(p.name.toLowerCase())) {
-            params.set(p.name.toLowerCase(), p.constraint);
-          }
-        }
-      } catch {
-        /* ignore line-range or empty text errors */
-      }
+      addSymbolTypeParameterConstraints(params, currentClass, { skipExisting: true });
     }
 
     fileCache.set(scopeKey, params);
@@ -2228,6 +2283,28 @@ export class TypeResolver {
       current = current.replace(regex, constraint);
     }
     return current;
+  }
+
+  /**
+   * `T As Type` accepts the constraint type itself or any subclass.
+   * Open type-parameter names (`T`) are compared by their in-scope constraint.
+   */
+  public static typeSatisfiesGenericConstraint(
+    typeArgument: string,
+    constraint: string,
+    indexer: WorkspaceSymbolIndexer,
+    genericParamsInScope?: ReadonlyMap<string, string>,
+  ): boolean {
+    const bound = constraint.trim();
+    if (!bound) return true;
+    let actual = typeArgument.trim();
+    if (!actual) return true;
+    const scoped = genericParamsInScope?.get(actual.toLowerCase());
+    if (scoped) {
+      actual = scoped;
+    }
+    if (actual.toLowerCase() === bound.toLowerCase()) return true;
+    return TypeResolver.isSubclassOf(actual, bound, indexer);
   }
 
   public static isSubclassOf(
@@ -2393,7 +2470,92 @@ function memberSignatureKey(symbol: SymbolInfo): string {
     symbol.parameters && symbol.parameters.length > 0
       ? symbol.parameters.map((p) => p.type.toLowerCase()).join(",")
       : "";
-  return `${namePart}#${paramsPart}`;
+  return `${namePart}#g${genericArityOf(symbol)}#${paramsPart}`;
+}
+
+function genericArityOf(symbol: SymbolInfo): number {
+  return symbol.genericTypeParameters?.length ?? 0;
+}
+
+function memberLookupCacheKey(
+  classSymbol: SymbolInfo,
+  memberName: string,
+  arity: number | undefined,
+  options: MemberLookupOptions | undefined,
+): string {
+  const typeArgs = options?.typeArgumentCount ?? "any";
+  const shared =
+    options?.preferShared === true
+      ? "shared"
+      : options?.preferShared === false
+        ? "instance"
+        : "any";
+  return `class:${classIdentityKey(classSymbol)}#${memberName.toLowerCase()}#${
+    arity ?? "any"
+  }#g${typeArgs}#${shared}`;
+}
+
+function addTypeParameterConstraints(
+  params: Map<string, string>,
+  typeParameters: readonly TypeParameter[],
+  options?: { readonly skipExisting?: boolean },
+): void {
+  for (const typeParameter of typeParameters) {
+    const lower = typeParameter.name.toLowerCase();
+    if (options?.skipExisting && params.has(lower)) continue;
+    params.set(lower, typeRefToString(typeParameter.constraint) ?? typeParameter.name);
+  }
+}
+
+function addSymbolTypeParameterConstraints(
+  params: Map<string, string>,
+  symbol: SymbolInfo,
+  options?: { readonly skipExisting?: boolean },
+): void {
+  const names = symbol.genericTypeParameters;
+  if (!names || names.length === 0) return;
+  const constraints = symbol.genericTypeConstraints ?? [];
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    if (options?.skipExisting && params.has(lower)) continue;
+    const constraint = constraints[i];
+    params.set(lower, constraint && constraint.length > 0 ? constraint : name);
+  }
+}
+
+function findMatchingAngleBracket(text: string, openIndex: number): number {
+  let depth = 0;
+  for (let i = openIndex; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "<") depth++;
+    else if (ch === ">") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function splitAtDepthZeroComma(value: string): string[] {
+  const result: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of value) {
+    if (ch === "<") depth++;
+    else if (ch === ">") depth--;
+    if (ch === "," && depth === 0) {
+      const item = current.trim();
+      if (item) result.push(item);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  const tail = current.trim();
+  if (tail) result.push(tail);
+  return result;
 }
 
 function sameFileUri(left: string, right: string): boolean {
@@ -2592,6 +2754,26 @@ function setsIntersect(left: ReadonlySet<string>, right: ReadonlySet<string>): b
     if (right.has(value)) return true;
   }
   return false;
+}
+
+/**
+ * Parent type to continue a member walk with. Instantiated generics
+ * (`TTList<TItem>`) keep their type arguments; otherwise use the resolved
+ * class identity (qualified when the parent lives in another namespace).
+ */
+function parentTypeNameForMemberWalk(
+  parentDecl: string,
+  parentClass: SymbolInfo | undefined,
+): string {
+  if (parseGenericTypeReference(parentDecl)) {
+    return parentDecl;
+  }
+  if (!parentClass) {
+    return parentDecl;
+  }
+  return parentClass.containerName
+    ? `${parentClass.containerName}.${parentClass.name}`
+    : parentClass.name;
 }
 
 function getGenericTemplateMembersForType(
@@ -2857,9 +3039,19 @@ function findGenericBaseSymbol(
     const namePart = genericBaseName.substring(lastDot + 1);
     const nsPart = genericBaseName.substring(0, lastDot);
     symbol =
-      lookupSystemClassByName(namePart).find(
-        (s) => s.containerName?.toLowerCase() === nsPart.toLowerCase(),
-      ) ?? indexer.findSymbolByName(namePart);
+      lookupSystemClassByName(namePart).find((s) =>
+        classContainerMatchesNamespace(s.containerName, nsPart),
+      ) ??
+      indexer
+        .getSymbolsByName(namePart)
+        .find(
+          (s) =>
+            (s.kind === "class" ||
+              s.kind === "structure" ||
+              s.kind === "delegate" ||
+              s.kind === "enum") &&
+            classContainerMatchesNamespace(s.containerName, nsPart),
+        );
   } else {
     symbol =
       lookupSystemClassByName(genericBaseName)[0] ?? indexer.findSymbolByName(genericBaseName);
@@ -2880,6 +3072,40 @@ function isVariableLikeSymbol(symbol: SymbolInfo): boolean {
   return (
     symbol.kind === "variable" || symbol.kind === "property" || symbol.kind === "indexed-property"
   );
+}
+
+/**
+ * True when `containerName` is the requested namespace, or the request is a
+ * longer qualification that ends with that container (`System.Classes` vs `Classes`).
+ */
+function classContainerMatchesNamespace(
+  containerName: string | undefined,
+  requestedNamespace: string,
+): boolean {
+  if (!containerName) return false;
+  const container = containerName.toLowerCase();
+  const ns = requestedNamespace.toLowerCase();
+  return container === ns || ns.endsWith("." + container);
+}
+
+function isConstructorMethodName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === "new" || lower === "create";
+}
+
+/** True when `containerName` is the instantiated type (`Exception`, `SQL.Command`). */
+function memberContainerMatchesType(containerName: string | undefined, typeName: string): boolean {
+  if (!containerName) return false;
+  const container = containerName.toLowerCase();
+  const typeLower = typeName.toLowerCase();
+  const short = typeLower.includes(".") ? (typeLower.split(".").pop() ?? typeLower) : typeLower;
+  return container === typeLower || container === short || container.endsWith("." + short);
+}
+
+function isDeclaredConstructor(member: SymbolInfo, typeName: string): boolean {
+  if (member.kind !== "method" || member.isShared) return false;
+  if (!isConstructorMethodName(member.name)) return false;
+  return memberContainerMatchesType(member.containerName, typeName);
 }
 
 /** True when `containerName` names a namespace (not a class/structure that happens to share the name). */

@@ -81,7 +81,7 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Remove o objeto na posição especificada.",
   },
   {
-    name: "Item",
+    name: "Items",
     kind: "indexed-property",
     type: "TObject",
     isShared: false,

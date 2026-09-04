@@ -218,13 +218,15 @@ Sintaxe suportada (requer `language.sugars` + `language.generics`):
 ```basic
 Imports mod_tlist
 
+Dim pending[] As Integer            ' → Dim pending As TTList_Integer  (sem New)
+Dim ready[] As Integer = []         ' → Dim ready As New TTList_Integer()
 Dim numeros[] As Integer = [1, 2, 3, 4, 5]
 Dim mais[] As Integer = [0, ...numeros, 6]
 Dim valor As Integer = numeros[0]
 Dim mesmo As Integer = numeros(0)   ' forma VB → GetItem(0)
 
-Function TemItens(pItems[] As Integer) As Boolean
-   TemItens = pItems.Count > 0
+Function EmptyOps() As TTList<Integer>
+   EmptyOps = []   ' → EmptyOps = New TTList_Integer()
 End Function
 
 Sub Copiar(pItems[] As Integer)
@@ -257,7 +259,7 @@ produtos. _
 
 Lambdas usam sintaxe VB-like (`Function(...) As T expr` ou bloco `End Function`) — **não** use `=>`.
 
-Materializa `Dim x[] As T` e parâmetros `p[] As T` em `TTList_T` (monomorfizado). Leitura/escrita `x[i]` ou `x(i)` vira `GetItem`/`SetItem` — a classe materializada não tem indexer padrão por parênteses. O mesmo vale para campos sugar no receptor (`obj.Lista(i)` → `obj.Lista.GetItem(i)`). Atribuições `lista = []` / `lista = [a, b]` (incluindo `me.campo = [...]`) viram `New TTList_T()` + `Push` por elemento. Operações funcionais (`map`, `filter`, `find`, `findIndex`, `some`, `every`, `reduce`, `forEach`) expandem para loops nativos inline.
+Subclasses de `TTList<T>` (`Class Pessoas Inherits TTList<Pessoa>`) expõem `Take`/`Last`/`First` como o elemento concreto; o linter não trata o retorno como o parâmetro aberto `T`.
 
 ### Fase D — Enum declarativo
 

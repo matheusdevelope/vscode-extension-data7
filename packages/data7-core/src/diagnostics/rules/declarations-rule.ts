@@ -4,23 +4,42 @@ import type {
   CompilationUnit,
   DelegateDeclaration,
   FieldDeclaration,
+  Identifier,
   MethodDeclaration,
   Node,
   PropertyDeclaration,
+  SourceLocation,
   VariableDeclaration,
 } from "../../project/ast/ast";
 import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
+import type { NamespaceShadowKind, NamespaceShadowPayload } from "../diagnostic-codes";
 import type { RedundantPublicModifierPayload } from "../diagnostic-codes";
+import { findConflictingNamespace } from "../diagnostic-helpers";
 import type { Rule, RuleContext } from "./base-rule";
 
 const DECLARATIONS_RULE_NODE_KINDS = new Set<Node["kind"]>([
   "VariableDeclaration",
   "FieldDeclaration",
+  "ParameterDeclaration",
   "ClassDeclaration",
   "DelegateDeclaration",
   "PropertyDeclaration",
   "MethodDeclaration",
+  "ForStatement",
+  "ForEachStatement",
+  "UsingStatement",
+  "TryCatchStatement",
 ]);
+
+const NAMESPACE_SHADOW_LABEL: Readonly<Record<NamespaceShadowKind, string>> = {
+  variable: "variável",
+  field: "campo",
+  parameter: "parâmetro",
+  property: "propriedade",
+  "loop-variable": "variável de laço",
+  "catch-variable": "variável do Catch",
+  "using-variable": "variável do Using",
+};
 
 export class DeclarationsRule implements Rule {
   public readonly name = "declarations";
@@ -38,6 +57,9 @@ export class DeclarationsRule implements Rule {
       case "FieldDeclaration":
         this.checkFieldDeclaration(node, context);
         break;
+      case "ParameterDeclaration":
+        this.checkNamespaceShadow(node.name, node.loc, "parameter", context);
+        break;
       case "ClassDeclaration":
         this.checkInvalidShared(node, context, "classe");
         this.checkRedundantPublic(node, context);
@@ -49,9 +71,24 @@ export class DeclarationsRule implements Rule {
       case "PropertyDeclaration":
         this.checkInvalidShared(node, context, "propriedade");
         this.checkRedundantPublic(node, context);
+        this.checkNamespaceShadow(node.name, node.loc, "property", context);
         break;
       case "MethodDeclaration":
         this.checkRedundantPublic(node, context);
+        break;
+      case "ForStatement":
+        this.checkLoopIdentifier(node.counter, "loop-variable", context);
+        break;
+      case "ForEachStatement":
+        this.checkLoopIdentifier(node.elementVar, "loop-variable", context);
+        break;
+      case "UsingStatement":
+        this.checkLoopIdentifier(node.resourceVar, "using-variable", context);
+        break;
+      case "TryCatchStatement":
+        if (node.catchVar) {
+          this.checkLoopIdentifier(node.catchVar, "catch-variable", context);
+        }
         break;
     }
   }
@@ -62,6 +99,7 @@ export class DeclarationsRule implements Rule {
 
   private checkVariableDeclaration(node: VariableDeclaration, context: RuleContext): void {
     this.checkRedundantPublic(node, context);
+    this.checkNamespaceShadow(node.name, node.loc, "variable", context);
     if (!node.isConst || !node.type || !node.loc) return;
 
     const lineIdx = node.loc.startLine - 1;
@@ -78,6 +116,49 @@ export class DeclarationsRule implements Rule {
   private checkFieldDeclaration(node: FieldDeclaration, context: RuleContext): void {
     this.checkInvalidShared(node, context, "campo");
     this.checkRedundantPublic(node, context);
+    this.checkNamespaceShadow(node.name, node.loc, "field", context);
+  }
+
+  private checkLoopIdentifier(
+    identifier: Identifier,
+    kind: NamespaceShadowKind,
+    context: RuleContext,
+  ): void {
+    this.checkNamespaceShadow(identifier.name, identifier.loc, kind, context);
+  }
+
+  private checkNamespaceShadow(
+    name: string,
+    declarationLoc: SourceLocation | undefined,
+    declarationKind: NamespaceShadowKind,
+    context: RuleContext,
+  ): void {
+    if (!name) return;
+    const conflict = findConflictingNamespace(name, context.indexer);
+    if (!conflict) return;
+    const loc = declarationLoc ?? enclosingDeclarationLoc(context);
+    if (!loc) return;
+
+    const range = rangeForIdentifierName(name, loc, context.lines);
+    const label = NAMESPACE_SHADOW_LABEL[declarationKind];
+    const article = masculineShadowKind(declarationKind) ? "O" : "A";
+    const diag = new vscode.Diagnostic(
+      range,
+      `${article} ${label} '${name}' usa o nome do namespace '${conflict.namespaceName}'. ` +
+        `O compilador trata o identificador como ${article.toLowerCase()} ${label} e deixa de resolver tipos ` +
+        `qualificados como '${conflict.namespaceName}.…'. Renomeie ${article.toLowerCase()} ${label}.`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.NamespaceShadow;
+    const payload: NamespaceShadowPayload = {
+      code: DiagnosticCodes.NamespaceShadow,
+      name,
+      namespaceName: conflict.namespaceName,
+      source: conflict.source,
+      declarationKind,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
   }
 
   private checkInvalidShared(
@@ -142,7 +223,37 @@ function hasModifier(modifiers: readonly string[] | undefined, modifier: string)
   return modifiers?.some((item) => item.toLowerCase() === modifier) ?? false;
 }
 
+function masculineShadowKind(kind: NamespaceShadowKind): boolean {
+  return kind === "field" || kind === "parameter";
+}
+
+function enclosingDeclarationLoc(context: RuleContext): SourceLocation | undefined {
+  for (let i = context.parentStack.length - 1; i >= 0; i--) {
+    const parent = context.parentStack[i];
+    if (parent?.loc) return parent.loc;
+  }
+  return undefined;
+}
+
 function findModifierColumn(lineText: string, modifier: string, fallback: number): number {
   const match = new RegExp(`\\b${modifier}\\b`, "i").exec(lineText);
   return match?.index ?? fallback;
+}
+
+function rangeForIdentifierName(
+  name: string,
+  loc: SourceLocation,
+  lines: readonly string[],
+): vscode.Range {
+  const lineIdx = loc.startLine - 1;
+  const line = lines[lineIdx] ?? "";
+  const from = loc.startChar;
+  const to = loc.endLine === loc.startLine ? loc.endChar : line.length;
+  const haystack = line.slice(from, to);
+  const idx = haystack.toLowerCase().indexOf(name.toLowerCase());
+  if (idx < 0) {
+    return new vscode.Range(lineIdx, loc.startChar, lineIdx, Math.max(loc.startChar, to));
+  }
+  const start = from + idx;
+  return new vscode.Range(lineIdx, start, lineIdx, start + name.length);
 }

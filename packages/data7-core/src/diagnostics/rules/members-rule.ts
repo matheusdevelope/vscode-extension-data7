@@ -12,6 +12,8 @@ import { DiagnosticCodes, setDiagnosticPayload } from "../diagnostic-codes";
 import type {
   CallParenthesesMismatchPayload,
   ChainedInstantiationAccessPayload,
+  GenericConstraintViolatedPayload,
+  QualifiedPrivateSharedAccessPayload,
 } from "../diagnostic-codes";
 import type { Rule, RuleContext } from "./base-rule";
 import { TypeResolver } from "../../analysis/type-resolver";
@@ -23,8 +25,12 @@ import {
   attachUnknownMemberSuggestions,
   exprToString,
   inheritsFromClass,
+  isNullOnVariant,
   isQualifiedTypeInvocation,
   isSymbolContainerAccessible,
+  rangeFromSourceLocation,
+  reportNullOnVariant,
+  typeRefToString,
 } from "../diagnostic-helpers";
 import { lookupSystemByName, lookupSystemClassByName, SYSTEM_SYMBOLS } from "../../system-library";
 import { PRIMITIVE_TYPES } from "../../utils/primitive-types";
@@ -241,6 +247,17 @@ export class MembersRule implements Rule {
           );
           diag.code = DiagnosticCodes.PrivateMemberAccess;
           context.report(diag);
+        } else if (this.shouldFlagQualifiedPrivateShared(resolved, isStaticAccess, context)) {
+          this.pushQualifiedPrivateSharedAccessDiagnostic(
+            {
+              lineIdx,
+              startChar: node.target.loc?.startChar ?? node.loc?.startChar ?? startChar,
+              endChar: memberRange.end.character,
+              className: typeName,
+              memberName: node.member,
+            },
+            context,
+          );
         }
       }
     } else if (typeName && this.shouldReportUnknownReceiverType(typeName, lineIdx, context)) {
@@ -356,13 +373,19 @@ export class MembersRule implements Rule {
         const argumentTypes = node.arguments.map((arg) =>
           TypeResolver.resolveExpressionType(arg, context.document, lineIdx, context.indexer),
         );
+        const lookupOptions = {
+          typeArgumentCount: node.typeArguments.length,
+          preferShared: isStaticAccess,
+        };
         resolvedMethod =
           TypeResolver.findMemberWithArgumentTypes(
             typeName,
             node.methodName,
             context.indexer,
             argumentTypes,
-          ) ?? TypeResolver.findMember(typeName, node.methodName, context.indexer, arity);
+            lookupOptions,
+          ) ??
+          TypeResolver.findMember(typeName, node.methodName, context.indexer, arity, lookupOptions);
 
         if (
           resolvedMethod?.kind === "variable" &&
@@ -374,7 +397,14 @@ export class MembersRule implements Rule {
 
         if (this.isResolvableMemberContainer(typeName, context)) {
           const exists =
-            resolvedMethod ?? TypeResolver.findMember(typeName, node.methodName, context.indexer);
+            resolvedMethod ??
+            TypeResolver.findMember(
+              typeName,
+              node.methodName,
+              context.indexer,
+              undefined,
+              lookupOptions,
+            );
           if (
             !exists &&
             node.methodName.length > 0 &&
@@ -427,6 +457,24 @@ export class MembersRule implements Rule {
             );
             diag.code = DiagnosticCodes.InstanceMemberAccessOnType;
             context.report(diag);
+          } else if (
+            exists &&
+            this.shouldFlagQualifiedPrivateShared(exists, isStaticAccess, context)
+          ) {
+            const methodEnd = startChar + node.methodName.length;
+            this.pushQualifiedPrivateSharedAccessDiagnostic(
+              {
+                lineIdx,
+                startChar: node.callee?.loc?.startChar ?? node.loc.startChar,
+                endChar: methodEnd,
+                className: typeName,
+                memberName: node.methodName,
+              },
+              context,
+            );
+          }
+          if (exists) {
+            this.checkGenericTypeArgumentConstraints(node, exists, lineIdx, startChar, context);
           }
         } else if (this.shouldReportUnknownReceiverType(typeName, lineIdx, context)) {
           const range = new vscode.Range(
@@ -725,13 +773,12 @@ export class MembersRule implements Rule {
         continue;
       }
       const range = argument.loc
-        ? new vscode.Range(
-            argument.loc.startLine - 1,
-            argument.loc.startChar,
-            argument.loc.endLine - 1,
-            argument.loc.endChar,
-          )
+        ? rangeFromSourceLocation(argument.loc)
         : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
+      if (isNullOnVariant(argumentType, parameter.type)) {
+        reportNullOnVariant(context, range, "assignment");
+        continue;
+      }
       const diag = new vscode.Diagnostic(
         range,
         `Incompatibilidade de tipos no argumento "${parameter.name}" de "${symbol.name}": esperado "${parameter.type}", mas recebido "${argumentType}".`,
@@ -845,13 +892,12 @@ export class MembersRule implements Rule {
       }
 
       const range = argument.loc
-        ? new vscode.Range(
-            argument.loc.startLine - 1,
-            argument.loc.startChar,
-            argument.loc.endLine - 1,
-            argument.loc.endChar,
-          )
+        ? rangeFromSourceLocation(argument.loc)
         : new vscode.Range(lineIdx, node.loc?.startChar ?? 0, lineIdx, node.loc?.endChar ?? 1);
+      if (isNullOnVariant(argumentType, expectedType)) {
+        reportNullOnVariant(context, range, "assignment");
+        continue;
+      }
       const diag = new vscode.Diagnostic(
         range,
         `Incompatibilidade de tipos no argumento "${parameter.name}" de "${method.name}": esperado "${expectedType}", mas recebido "${argumentType}".`,
@@ -891,6 +937,61 @@ export class MembersRule implements Rule {
       }
     });
     return substitutions;
+  }
+
+  private checkGenericTypeArgumentConstraints(
+    node: MethodInvocation,
+    method: SymbolInfo,
+    lineIdx: number,
+    startChar: number,
+    context: RuleContext,
+  ): void {
+    const parameters = method.genericTypeParameters;
+    const constraints = method.genericTypeConstraints;
+    if (!parameters || parameters.length === 0 || node.typeArguments.length === 0) {
+      return;
+    }
+    const genericParams = TypeResolver.getGenericParametersInScope(
+      context.document,
+      new vscode.Position(lineIdx, startChar),
+      context.indexer,
+    );
+    for (let i = 0; i < parameters.length; i++) {
+      const parameter = parameters[i];
+      const constraint = constraints?.[i];
+      const argument = node.typeArguments[i];
+      if (!parameter || !constraint || !argument) continue;
+      const actual = typeRefToString(argument);
+      if (!actual) continue;
+      if (
+        TypeResolver.typeSatisfiesGenericConstraint(
+          actual,
+          constraint,
+          context.indexer,
+          genericParams,
+        )
+      ) {
+        continue;
+      }
+      const range = argument.loc
+        ? rangeFromSourceLocation(argument.loc)
+        : new vscode.Range(lineIdx, startChar, lineIdx, startChar + node.methodName.length);
+      const diag = new vscode.Diagnostic(
+        range,
+        `O argumento de tipo "${actual}" não satisfaz a restrição "${parameter} As ${constraint}" de "${method.name}".`,
+        vscode.DiagnosticSeverity.Error,
+      );
+      diag.code = DiagnosticCodes.GenericConstraintViolated;
+      const payload: GenericConstraintViolatedPayload = {
+        code: DiagnosticCodes.GenericConstraintViolated,
+        templateName: method.name,
+        typeParameter: parameter,
+        constraint,
+        actual,
+      };
+      setDiagnosticPayload(diag, payload);
+      context.report(diag);
+    }
   }
 
   private substituteMethodGenericType(
@@ -1409,6 +1510,45 @@ export class MembersRule implements Rule {
       lineIdx,
       context.indexer,
     );
+  }
+
+  private shouldFlagQualifiedPrivateShared(
+    member: SymbolInfo,
+    isStaticAccess: boolean,
+    context: RuleContext,
+  ): boolean {
+    if (!isStaticAccess || !member.isPrivate || !member.isShared) return false;
+    if (!context.activeClass || !member.containerName) return false;
+    return context.activeClass.name.toLowerCase() === member.containerName.toLowerCase();
+  }
+
+  private pushQualifiedPrivateSharedAccessDiagnostic(
+    args: {
+      readonly lineIdx: number;
+      readonly startChar: number;
+      readonly endChar: number;
+      readonly className: string;
+      readonly memberName: string;
+    },
+    context: RuleContext,
+  ): void {
+    const range = new vscode.Range(args.lineIdx, args.startChar, args.lineIdx, args.endChar);
+    const diag = new vscode.Diagnostic(
+      range,
+      `O membro Private Shared "${args.memberName}" não pode ser acessado como "${args.className}.${args.memberName}". Use apenas "${args.memberName}".`,
+      vscode.DiagnosticSeverity.Error,
+    );
+    diag.code = DiagnosticCodes.QualifiedPrivateSharedAccess;
+    const payload: QualifiedPrivateSharedAccessPayload = {
+      code: DiagnosticCodes.QualifiedPrivateSharedAccess,
+      line: args.lineIdx,
+      startChar: args.startChar,
+      endChar: args.endChar,
+      className: args.className,
+      memberName: args.memberName,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
   }
 
   private getMissingImportNamespaceForSymbol(

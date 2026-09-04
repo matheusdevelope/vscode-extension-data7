@@ -101,7 +101,7 @@ Namespace mod_tlist
          <# End If #>
       End Sub
 
-      Public Sub Free()
+      Sub Free()
          MyBase.Free()
       End Sub
 
@@ -167,7 +167,7 @@ Namespace mod_tlist
          <# End If #>
       End Sub
 
-      Overrides Function Take(pIndex As Integer) As T
+      Function Take(pIndex As Integer) As T
          Take = me.Unwrap(me._base.Take(pIndex))
       End Function
 

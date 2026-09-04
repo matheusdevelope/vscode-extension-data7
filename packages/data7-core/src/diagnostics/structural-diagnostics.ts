@@ -443,11 +443,11 @@ function isCallableMemberKind(kind: SymbolInfo["kind"]): boolean {
 type MemberNameConflict = "ok-overload" | "same-signature" | "name-collision";
 
 /**
- * Overloads are accepted when both declarations are callables and the
- * parameter type sequences differ. Return types may diverge (Data7 allows
- * `First() As T` alongside `First(n As Integer) As TTList<T>`). Shared vs
- * instance does not create a separate name space — a field and a Shared
- * factory with the same name collide.
+ * Overloads are accepted when both declarations are callables and either the
+ * parameter type sequences differ or the generic arity differs (`Exists` vs
+ * `Exists<T>`). Return types may diverge (Data7 allows `First() As T` alongside
+ * `First(n As Integer) As TTList<T>`). Shared vs instance does not create a
+ * separate name space — a field and a Shared factory with the same name collide.
  */
 function classifyMemberNameConflict(
   existing: SymbolInfo,
@@ -456,6 +456,12 @@ function classifyMemberNameConflict(
   const bothCallable = isCallableMemberKind(existing.kind) && isCallableMemberKind(candidate.kind);
   if (!bothCallable) {
     return "name-collision";
+  }
+
+  const existingGenericArity = existing.genericTypeParameters?.length ?? 0;
+  const candidateGenericArity = candidate.genericTypeParameters?.length ?? 0;
+  if (existingGenericArity !== candidateGenericArity) {
+    return "ok-overload";
   }
 
   if (isSameSignature(existing.parameters, candidate.parameters)) {

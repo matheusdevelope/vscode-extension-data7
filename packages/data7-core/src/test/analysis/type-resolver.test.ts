@@ -256,6 +256,61 @@ End Namespace
         assert.equal(c.name, expectedSimple);
       }
     });
+
+    test("does not resolve a workspace-qualified name to a system-library homonym", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => unknown;
+      };
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const uri = "file:///mod_tfield.bas";
+      const code = `Imports mod_tobject
+Namespace mod_tfield
+   Class TField
+      Inherits TTObject
+   End Class
+End Namespace`;
+      createMockDoc(uri, code);
+      indexer.updateFileContent(uri, code);
+
+      const qualified = TypeResolver.findClassSymbol("mod_tfield.TField", indexer);
+      assert.ok(qualified, "mod_tfield.TField must resolve");
+      assert.equal(qualified.containerName, "mod_tfield");
+      assert.equal(qualified.fileUri, uri);
+
+      const sqlField = TypeResolver.findClassSymbol("SQL.TField", indexer);
+      assert.ok(sqlField, "SQL.TField must still resolve");
+      assert.equal(sqlField.containerName, "SQL");
+      assert.notEqual(sqlField.fileUri, uri);
+    });
+  });
+
+  describe("isSubclassOf", () => {
+    test("walks workspace inheritance for a name that collides with SQL.TField", () => {
+      const { createMockDoc } = require("../_helpers/mock-doc") as {
+        createMockDoc: (uri: string, text: string) => unknown;
+      };
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const objectUri = "file:///mod_tobject.bas";
+      const objectCode = `Namespace mod_tobject
+   Class TTObject
+   End Class
+End Namespace`;
+      const fieldUri = "file:///mod_tfield.bas";
+      const fieldCode = `Imports mod_tobject
+Namespace mod_tfield
+   Class TField
+      Inherits TTObject
+   End Class
+End Namespace`;
+      createMockDoc(objectUri, objectCode);
+      createMockDoc(fieldUri, fieldCode);
+      indexer.updateFileContent(objectUri, objectCode);
+      indexer.updateFileContent(fieldUri, fieldCode);
+
+      assert.equal(TypeResolver.isSubclassOf("mod_tfield.TField", "TTObject", indexer), true);
+      assert.equal(TypeResolver.isSubclassOf("mod_tfield.TField", "TObject", indexer), true);
+      assert.equal(TypeResolver.isSubclassOf("SQL.TField", "TTObject", indexer), false);
+    });
   });
 
   describe("getAllMembersForType", () => {
@@ -695,6 +750,45 @@ End Namespace`;
       ]);
     });
 
+    test("substitutes inherited Take return type on a subclass of TTList<TItem>", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///inherited_ttlist_take.bas";
+      const code = `Namespace mod_itens
+   Class TTList<T>
+      Function Take(pIndex As Integer) As T
+      End Function
+   End Class
+
+   Class TTesteItem
+      CodProduto As Integer
+   End Class
+
+   Class TTesteItens
+      Inherits TTList<TTesteItem>
+      Function CodProdutoFirst() As Integer
+         CodProdutoFirst = me.Take(0).CodProduto
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const lineIdx = code.split("\n").findIndex((line) => line.includes("me.Take(0)"));
+      assert.ok(lineIdx >= 0, "fixture must contain me.Take(0)");
+
+      const take = TypeResolver.findMember("TTesteItens", "Take", indexer, 1);
+      assert.ok(take, "Take must be inherited on TTesteItens");
+      assert.equal(take.type, "TTesteItem");
+      assert.equal(
+        TypeResolver.inferExpressionType("me.Take(0)", doc, lineIdx, indexer),
+        "TTesteItem",
+      );
+      assert.equal(
+        TypeResolver.inferExpressionType("me.Take(0).CodProduto", doc, lineIdx, indexer),
+        "Integer",
+      );
+    });
+
     test("getVariableType keeps explicit generic type when Dim has an initializer", () => {
       const indexer = WorkspaceSymbolIndexer.getInstance();
       indexer.__resetForTests();
@@ -931,6 +1025,43 @@ End Namespace`;
       const pos = { line: 7, character: 15 } as any;
       assert.equal(TypeResolver.getVariableType("item", doc, pos, indexer), "SpecificItem");
     });
+
+    test("does not swallow As TTable when the method also returns TTList<T>", () => {
+      const parsed = TypeResolver.parseGenericDeclaration(
+        'Shared Function Fetch<T As TTable>(pWhere As String, pOrder As String = "") As TTList<T>',
+      );
+      assert.deepEqual(parsed, [{ name: "T", constraint: "TTable" }]);
+    });
+
+    test("resolves T to its constraint inside a method whose return type is also generic", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      indexer.__resetForTests();
+      const uri = "file:///generic_method_return_constraint.bas";
+      const code = `Namespace mod_app
+   Class TTable
+      Function FetchRows(pWhere As String) As Integer
+         FetchRows = 0
+      End Function
+      Public Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+   Class TTList<U>
+   End Class
+   Class THost
+      Shared Function Fetch<T As TTable>(pWhere As String) As TTList<T>
+         Dim probe As New T()
+         Dim n As Integer = probe.FetchRows(pWhere)
+         probe.Free()
+         Fetch = Null
+      End Function
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+      const doc = createMockDoc(uri, code);
+      const pos = { line: 13, character: 15 } as any;
+      assert.equal(TypeResolver.getVariableType("probe", doc, pos, indexer), "TTable");
+    });
   });
 
   describe("inheritance static binding and casting", () => {
@@ -983,6 +1114,21 @@ End Namespace`;
         indexer,
       );
       assert.equal(castedFuncType, "String");
+    });
+  });
+
+  describe("getDeclaredConstructors", () => {
+    test("returns Exception.Create and does not include TObject.Create", () => {
+      const indexer = WorkspaceSymbolIndexer.createDetached();
+      const constructors = TypeResolver.getDeclaredConstructors("Exception", indexer);
+      assert.ok(
+        constructors.some((symbol) => symbol.name.toLowerCase() === "create"),
+        "Exception.Create must be a declared constructor",
+      );
+      assert.ok(
+        constructors.every((symbol) => (symbol.containerName ?? "").toLowerCase() === "exception"),
+        "inherited TObject.Create must not participate in Exception New arity",
+      );
     });
   });
 });

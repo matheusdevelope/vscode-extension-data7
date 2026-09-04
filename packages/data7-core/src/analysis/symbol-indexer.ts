@@ -14,6 +14,7 @@ import {
   type ClassDeclaration,
   type CompilationUnit,
   type TypeReference,
+  type TypeParameter,
   type Node,
   type ParameterDeclaration,
 } from "../project/ast/ast";
@@ -83,6 +84,11 @@ export interface SymbolInfo {
    */
   overloads?: ParameterInfo[][];
   genericTypeParameters?: string[];
+  /**
+   * Parallel to {@link genericTypeParameters}: the `As` constraint for each
+   * parameter (`T As TTable` → `"TTable"`). Empty string means unconstrained.
+   */
+  genericTypeConstraints?: string[];
   isSyntheticGenericInstantiation?: boolean;
   range: {
     startLine: number;
@@ -136,6 +142,18 @@ function parameterInfoFromDeclaration(p: ParameterDeclaration): ParameterInfo {
     isOptional: p.defaultValue !== undefined,
     ...(defaultValue !== undefined ? { defaultValue } : {}),
   };
+}
+
+function attachGenericTypeParameters(
+  symbol: SymbolInfo,
+  typeParameters: readonly TypeParameter[],
+): void {
+  if (typeParameters.length === 0) return;
+  symbol.genericTypeParameters = typeParameters.map((tp) => tp.name);
+  const constraints = typeParameters.map((tp) => typeRefToString(tp.constraint) ?? "");
+  if (constraints.some((constraint) => constraint.length > 0)) {
+    symbol.genericTypeConstraints = constraints;
+  }
 }
 
 class SymbolIndexerWalker extends ASTWalker {
@@ -213,9 +231,7 @@ class SymbolIndexerWalker extends ASTWalker {
         containerName: prevClass ?? this.activeNamespace,
         description: node.comment?.trim() ?? undefined,
       };
-      if (node.typeParameters.length > 0) {
-        classSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
-      }
+      attachGenericTypeParameters(classSymbol, node.typeParameters);
       if (node.baseType) {
         classSymbol.inheritsFrom = typeRefToString(node.baseType);
       }
@@ -261,9 +277,7 @@ class SymbolIndexerWalker extends ASTWalker {
         description: node.comment?.trim() ?? undefined,
         noParentheses: node.noParentheses,
       };
-      if (node.typeParameters.length > 0) {
-        methodSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
-      }
+      attachGenericTypeParameters(methodSymbol, node.typeParameters);
       this.symbols.push(methodSymbol);
       return;
     }
@@ -295,9 +309,7 @@ class SymbolIndexerWalker extends ASTWalker {
         description: node.comment?.trim() ?? undefined,
         noParentheses: node.noParentheses,
       };
-      if (node.typeParameters.length > 0) {
-        delegateSymbol.genericTypeParameters = node.typeParameters.map((tp) => tp.name);
-      }
+      attachGenericTypeParameters(delegateSymbol, node.typeParameters);
       this.symbols.push(delegateSymbol);
       return;
     }
@@ -2134,6 +2146,12 @@ function serializeSymbolAPI(s: SymbolInfo): string {
         .map((p) => p.toLowerCase())
         .sort()
         .join(",")}]`,
+    );
+  }
+
+  if (s.genericTypeConstraints) {
+    parts.push(
+      `gtc:[${s.genericTypeConstraints.map((constraint) => constraint.toLowerCase()).join(",")}]`,
     );
   }
 

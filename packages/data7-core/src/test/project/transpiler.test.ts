@@ -5,7 +5,8 @@ import { SugarTranspiler, type TranspileContext } from "../../project/transpiler
 import { SugarRegistry } from "../../project/sugars";
 import type { EnumerableInfo } from "../../analysis/enumerable-detector";
 import { detectEnumerable } from "../../analysis/enumerable-detector";
-import type { SymbolInfo } from "../../analysis/symbol-indexer";
+import { TypeResolver } from "../../analysis/type-resolver";
+import { WorkspaceSymbolIndexer, type SymbolInfo } from "../../analysis/symbol-indexer";
 import { lookupSystemByName } from "../../system-library";
 import { SYSTEM_RANGE } from "../../system-library/symbol-helpers";
 
@@ -663,6 +664,90 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Unwrap = CType\(pObj, Produto\)/);
     assert.doesNotMatch(out, /Class TTItem_Produto/);
     assert.doesNotMatch(out, /TTItem_Produto/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("does not wrap a workspace TTObject descendant that collides with SQL.TField", () => {
+    const { createMockDoc } = require("../_helpers/mock-doc") as {
+      createMockDoc: (uri: string, text: string) => unknown;
+    };
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const objectUri = "file:///mod_tobject.bas";
+    const objectCode = [
+      "Namespace mod_tobject",
+      "   Class TTObject",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    const fieldUri = "file:///mod_tfield.bas";
+    const fieldCode = [
+      "Imports mod_tobject",
+      "Namespace mod_tfield",
+      "   Class TField",
+      "      Inherits TTObject",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+    createMockDoc(objectUri, objectCode);
+    createMockDoc(fieldUri, fieldCode);
+    indexer.updateFileContent(objectUri, objectCode);
+    indexer.updateFileContent(fieldUri, fieldCode);
+
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        isTypeDescendantOf: (typeName, baseTypeName) =>
+          TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
+        requestedGenericInstantiations: [
+          {
+            templateName: "TTList",
+            typeArgs: ["mod_tfield.TField"],
+            flatTypeArgs: ["TField"],
+          },
+        ],
+      },
+    );
+    const code = [
+      "Imports mod_tobject",
+      "Namespace mod_tlist",
+      '   <# If Not TypeSystem.InheritsFrom(T, "TTObject") Then #>',
+      "   Class TTItem<T>",
+      "      Inherits TTObject",
+      "      Value As T",
+      "      Overrides Sub Dispose()",
+      '         <# If TypeSystem.InheritsFrom(T, "TObject") Then #>',
+      "         If Assigned(me.Value) Then",
+      "            me.Value.Free()",
+      "            me.Value = Null",
+      "         End If",
+      "         <# Else #>",
+      "         me.Value = Unassigned",
+      "         <# End If #>",
+      "      End Sub",
+      "   End Class",
+      "   <# End If #>",
+      "   Class TTList<T>",
+      "      Inherits TTComposerList",
+      "      Private Function Wrap(pID As String, pValue As T) As TTObject",
+      '         <# If TypeSystem.InheritsFrom(T, "TTObject") Then #>',
+      "         Wrap = pValue",
+      "         <# Else #>",
+      "         Wrap = New TTItem<T>(pID, pValue)",
+      "         <# End If #>",
+      "      End Function",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    assert.match(out, /Class TTList_TField/);
+    assert.match(out, /Wrap = pValue/);
+    assert.doesNotMatch(out, /Class TTItem_TField/);
+    assert.doesNotMatch(out, /Wrap = New TTItem_TField/);
+    assert.doesNotMatch(out, /me\.Value = Unassigned/);
     assert.doesNotMatch(out, /<#/);
   });
 
@@ -1637,10 +1722,8 @@ describe("SugarTranspiler — array-list", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(
-      out,
-      /Private _bindings As TTList_TGridFieldBinding = New TTList_TGridFieldBinding\(\)/,
-    );
+    assert.match(out, /^   Private _bindings As TTList_TGridFieldBinding$/m);
+    assert.doesNotMatch(out, /Private _bindings As TTList_TGridFieldBinding = New/);
     assert.match(out, /me\._bindings = New TTList_TGridFieldBinding\(\)/);
     assert.match(out, /me\._bindings\.Push\(New TGridFieldBinding\(\)\)/);
     assert.match(out, /Dim _teste As New TTList_TGridFieldBinding\(\)/);
@@ -1659,11 +1742,64 @@ describe("SugarTranspiler — array-list", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
+    assert.match(out, /^\s*Dim items As TTList_String$/m);
+    assert.doesNotMatch(out, /Dim items As New TTList_String/);
     assert.match(out, /items = New TTList_String\(\)/);
     assert.match(out, /items\.Push\("a"\)/);
     assert.match(out, /items\.Push\("b"\)/);
     assert.doesNotMatch(out, /items = \[\]/);
     assert.doesNotMatch(out, /items = \["a"/);
+  });
+
+  test("materializes empty array-literal assigned to the Function return name", () => {
+    const code = [
+      "Class TMigration",
+      "   Overridable Function BuildOps() As TTList<TDdlOp>",
+      "      If True Then",
+      "         BuildOps = pCtx.Ddl.OpsFromSchema(me.Table.Schema)",
+      "      Else",
+      "         BuildOps = []",
+      "      End If",
+      "   End Function",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Function BuildOps\(\) As TTList_TDdlOp/);
+    assert.match(out, /BuildOps = New TTList_TDdlOp\(\)/);
+    assert.doesNotMatch(out, /BuildOps = \[\]/);
+  });
+
+  test("materializes Return [] as New TTList_T for a list-returning Function", () => {
+    const code = ["Function EmptyOps() As TTList<TDdlOp>", "   Return []", "End Function"].join(
+      "\n",
+    );
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Return New TTList_TDdlOp\(\)/);
+    assert.doesNotMatch(out, /Return \[\]/);
+  });
+
+  test("does not auto-construct array-sugar Dim or field without = []", () => {
+    const code = [
+      "Class TTable",
+      "   Fields[] As TField",
+      "   Fields2[] As TField = []",
+      "   Sub New()",
+      "      MyBase.New()",
+      "      Dim f3[] As TField",
+      "      Dim f4[] As TField = []",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /^   Fields As TTList_TField$/m);
+    assert.doesNotMatch(out, /Fields As TTList_TField = New/);
+    assert.match(out, /Fields2 As TTList_TField = New TTList_TField\(\)/);
+    assert.match(out, /^      Dim f3 As TTList_TField$/m);
+    assert.doesNotMatch(out, /Dim f3 As New TTList_TField/);
+    assert.match(out, /Dim f4 As New TTList_TField\(\)/);
   });
 
   test("rewrites paren index on array-sugar parameter to GetItem", () => {
@@ -1709,7 +1845,8 @@ describe("SugarTranspiler — array-list", () => {
     ].join("\n");
     const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
     assert.equal(diagnostics.length, 0);
-    assert.match(out, /Columns As TTList_String/);
+    assert.match(out, /Columns As TTList_String$/m);
+    assert.doesNotMatch(out, /Columns As TTList_String = New/);
     assert.match(out, /me\.Columns\.SetItem\(me\.ColumnCount, pValue\)/);
     assert.match(out, /Dim _col As String = pConfig\.Columns\.GetItem\(i\)/);
     assert.doesNotMatch(out, /pConfig\.Columns\(i\)/);
@@ -1854,7 +1991,7 @@ describe("SugarTranspiler — array-list", () => {
     assert.equal(diagnostics.length, 0);
     assert.deepEqual(out.split("\n"), [
       `Imports mod_tlist`,
-      `Dim x As New TTList_Product()`,
+      `Dim x As TTList_Product`,
       `Dim first As Product = x.GetItem(0)`,
       `x.SetItem(1, New Product())`,
     ]);

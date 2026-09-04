@@ -29,13 +29,6 @@ export function parseField(parser: Parser): FieldDeclaration | null {
   const asNewArguments = hasAsNew ? parser.parseOptionalArgumentList() : [];
   if (parser.consume("punct", "=")) {
     initializer = parser.parseExpression();
-  } else if (isArraySugar) {
-    initializer = {
-      kind: "ObjectCreationExpression",
-      type,
-      arguments: [],
-      loc: type.loc,
-    };
   } else if (hasAsNew) {
     initializer = {
       kind: "ObjectCreationExpression",

@@ -1,9 +1,19 @@
 ' @example: diagnostics/generic-constraint-violated/trigger
 ' @demonstrates: constraint Class TList<T As TEnum> violada por Integer
-' @diagnostics: generic-constraint-violated@10
-' @requires: classes TEnum + CardAdm declaradas no workspace
+' @diagnostics: generic-constraint-violated@16
 '
+
 Namespace mod_demo
+   Class TEnum
+   End Class
+
+   Class CardAdm
+      Inherits TEnum
+   End Class
+
+   Class TList<T As TEnum>
+   End Class
+
    Class TDemo
       Public Sub Run()
          Dim a As TList<CardAdm>

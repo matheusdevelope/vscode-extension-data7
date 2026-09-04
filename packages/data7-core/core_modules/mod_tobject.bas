@@ -685,7 +685,7 @@ Namespace mod_tobject
         Function ToString() As String
             Dim i As Integer
             Dim _length As Integer = me.Length()
-            With New TTObjectPrinter(me.Name + " Length: " + _length.ToString)
+            With New TTObjectPrinter(me.Name + " Length: " + _length.ToString())
                 .Prop("OwnsObjects: " + me.OwnsObjects.ToString())
                 .Prop("DisableEvents: " + me.DisableEvents.ToString())
                 For i = 0 To _length - 1
@@ -801,8 +801,8 @@ Namespace mod_tobject
             End If
         End Sub
 
-        Sub Free(pDispose As Boolean = True)
-            If pDispose Then
+        Sub Free()
+            If me.OwnsObjects Then
                 me.Dispose()
             End If
             If Assigned(me._list) Then

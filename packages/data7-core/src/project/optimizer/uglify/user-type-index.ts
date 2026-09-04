@@ -9,7 +9,7 @@ import { lookupSystemClassByName } from "../../../system-library";
 
 export interface UserMemberRecord {
   readonly lower: string;
-  /** Simple type name (last segment, lower) when known. */
+  /** Binding key for the member's type (`tfield` or `sql.tfield` when qualified). */
   readonly typeLower?: string;
   /**
    * Method overloads: arity → return type.
@@ -24,18 +24,39 @@ export interface UserTypeRecord {
   readonly name: string;
   /** Declaring namespace (lower), when the type lives inside one. */
   readonly namespaceLower?: string;
-  /** Simple base type name (last segment, lower), if any. */
+  /** Base type binding key (`ttobject` or `sql.tfield` when qualified), if any. */
   readonly baseLower?: string;
   readonly members: ReadonlyMap<string, UserMemberRecord>;
 }
 
 export type UserTypeIndex = ReadonlyMap<string, UserTypeRecord>;
 
-export function typeReferenceSimpleLower(type: TypeReference | undefined): string | undefined {
+/**
+ * Full dotted type name (lower). Keeps `SQL.TField` distinct from user `TField`.
+ */
+export function typeReferenceKeyLower(type: TypeReference | undefined): string | undefined {
   if (!type?.name) return undefined;
-  const parts = type.name.split(".").filter((part) => part.length > 0);
-  const last = parts[parts.length - 1];
-  return last ? last.toLowerCase() : undefined;
+  const parts = type.name
+    .split(".")
+    .filter((part) => part.length > 0)
+    .map((part) => part.toLowerCase());
+  return parts.length > 0 ? parts.join(".") : undefined;
+}
+
+/**
+ * True when `typeLower` is a System Library class written with its container
+ * (`sql.tfield` → `SQL.TField`). Unqualified names (`tfield`) return false so a
+ * homonymous user class can still own member renames.
+ */
+export function isQualifiedSystemTypeKey(typeLower: string): boolean {
+  const dot = typeLower.lastIndexOf(".");
+  if (dot <= 0) return false;
+  const containerLower = typeLower.slice(0, dot);
+  const simpleLower = typeLower.slice(dot + 1);
+  if (!simpleLower) return false;
+  return lookupSystemClassByName(simpleLower).some(
+    (symbol) => (symbol.containerName ?? "").toLowerCase() === containerLower,
+  );
 }
 
 export function qualifiedTypeKey(typeLower: string, namespaceLower?: string): string {
@@ -142,7 +163,7 @@ export function buildUserTypeIndex(units: readonly CompilationUnit[]): UserTypeI
         lower: key,
         name: existing?.name ?? name,
         namespaceLower: namespaceLower ?? existing?.namespaceLower,
-        baseLower: typeReferenceSimpleLower(baseType) ?? existing?.baseLower,
+        baseLower: typeReferenceKeyLower(baseType) ?? existing?.baseLower,
         members: merged,
       });
     }
@@ -170,21 +191,21 @@ export function buildUserTypeIndex(units: readonly CompilationUnit[]): UserTypeI
           into,
           member.name,
           member.parameters.length,
-          typeReferenceSimpleLower(member.returnType),
+          typeReferenceKeyLower(member.returnType),
         );
         continue;
       }
       if (member.kind === "FieldDeclaration") {
         into.set(member.name.toLowerCase(), {
           lower: member.name.toLowerCase(),
-          typeLower: typeReferenceSimpleLower(member.type),
+          typeLower: typeReferenceKeyLower(member.type),
         });
         continue;
       }
       if (member.kind === "PropertyDeclaration") {
         into.set(member.name.toLowerCase(), {
           lower: member.name.toLowerCase(),
-          typeLower: typeReferenceSimpleLower(member.type),
+          typeLower: typeReferenceKeyLower(member.type),
         });
       }
     }
@@ -202,7 +223,7 @@ export function buildUserTypeIndex(units: readonly CompilationUnit[]): UserTypeI
               nsMembers,
               child.name,
               child.parameters.length,
-              typeReferenceSimpleLower(child.returnType),
+              typeReferenceKeyLower(child.returnType),
             );
             continue;
           }
@@ -252,6 +273,7 @@ export function findUserMember(
   const seen = new Set<string>();
   while (current && !seen.has(current)) {
     seen.add(current);
+    if (isQualifiedSystemTypeKey(current)) return undefined;
     const record = lookupUserType(current, userTypes, namespaceLower);
     if (!record) {
       return undefined;
@@ -300,7 +322,8 @@ export interface ReceiverScope {
 }
 
 /**
- * Best-effort receiver type (simple name, lower) for member-access gating.
+ * Best-effort receiver type key (lower) for member-access gating.
+ * Qualified native types keep their container (`sql.tfield`).
  */
 export function resolveReceiverTypeLower(
   expression: Expression | undefined,
@@ -325,9 +348,9 @@ export function resolveReceiverTypeLower(
       return undefined;
     }
     case "ObjectCreationExpression":
-      return typeReferenceSimpleLower(expression.type);
+      return typeReferenceKeyLower(expression.type);
     case "TypeReferenceExpression":
-      return typeReferenceSimpleLower(expression.type);
+      return typeReferenceKeyLower(expression.type);
     case "MemberAccess": {
       const targetType = resolveReceiverTypeLower(expression.target, scope, userTypes, typeNames);
       const memberLower = expression.member.toLowerCase();
@@ -413,10 +436,10 @@ export function bindingTypeLowerFromDeclaration(options: {
   readonly type?: TypeReference;
   readonly initializer?: Expression;
 }): string | undefined {
-  const fromType = typeReferenceSimpleLower(options.type);
+  const fromType = typeReferenceKeyLower(options.type);
   if (fromType) return fromType;
   if (options.initializer?.kind === "ObjectCreationExpression") {
-    return typeReferenceSimpleLower(options.initializer.type);
+    return typeReferenceKeyLower(options.initializer.type);
   }
   return undefined;
 }

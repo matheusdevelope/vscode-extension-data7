@@ -8,5 +8,5 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
     { name: "Color", type: "Integer", description: "Cor do pincel." },
     { name: "Style", type: "TBrushStyle", description: "Estilo do pincel." },
     { name: "OnChange", type: "TNotifyEvent", description: "Evento de mudança do pincel." },
-  ]
+  ],
 });

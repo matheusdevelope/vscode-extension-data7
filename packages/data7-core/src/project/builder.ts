@@ -867,6 +867,7 @@ export class Builder {
         parameters: symbol.parameters,
         overloads: symbol.overloads,
         genericTypeParameters: symbol.genericTypeParameters,
+        genericTypeConstraints: symbol.genericTypeConstraints,
         isSyntheticGenericInstantiation: symbol.isSyntheticGenericInstantiation,
         containerName: symbol.containerName,
         inheritsFrom: symbol.inheritsFrom,

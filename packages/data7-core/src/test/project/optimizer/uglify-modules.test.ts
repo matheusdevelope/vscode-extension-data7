@@ -587,6 +587,121 @@ End Sub
     assert.match(principal, /As TPoint[\s\S]*\.X\s*=/);
   });
 
+  test("does not rename native members on SQL.TField when a user TField shares the name", () => {
+    const result = uglifyBuildModules(
+      [
+        {
+          moduleName: "TablesField",
+          fileUri: "TablesField.bas",
+          code: `
+Namespace TablesField
+  Class TFieldDef
+    Function AsInteger() As TFieldDef
+      AsInteger = me
+    End Function
+    Function AsDate() As TFieldDef
+      AsDate = me
+    End Function
+  End Class
+  Class TField
+    Def As TFieldDef
+    Property AsInteger As Integer
+      Get
+        AsInteger = 0
+      End Get
+    End Property
+    Property AsString As String
+      Get
+        AsString = ""
+      End Get
+    End Property
+    Property AsFloat As Extended
+      Get
+        AsFloat = 0
+      End Get
+    End Property
+    Property AsBoolean As Boolean
+      Get
+        AsBoolean = False
+      End Get
+    End Property
+    Property AsDateTime As TDateTime
+      Get
+        AsDateTime = Null
+      End Get
+    End Property
+  End Class
+End Namespace
+`,
+        },
+        {
+          moduleName: "TablesTable",
+          fileUri: "TablesTable.bas",
+          code: `
+Namespace TablesTable
+  Class TTable
+    Overridable Sub ReadField(pField As TField, pSrc As SQL.TField)
+      Dim kindId As Integer = pField.Def.KindId
+      If kindId = 1 Then
+        pField.Value = pSrc.AsInteger
+      ElseIf kindId = 2 Then
+        pField.Value = pSrc.AsFloat
+      ElseIf kindId = 3 Then
+        pField.Value = pSrc.AsBoolean
+      ElseIf kindId = 4 Then
+        pField.Value = pSrc.AsDate
+      ElseIf kindId = 5 Then
+        pField.Value = pSrc.AsDateTime
+      Else
+        pField.Value = pSrc.AsString
+      End If
+    End Sub
+    Sub BindField(pCmd As SQL.Command, pField As TField)
+      Dim prm As SQL.TFDParam = pCmd.Param(pField.Def.ParamName)
+      prm.AsInteger = pField.AsInteger
+      prm.AsString = pField.AsString
+    End Sub
+    ' @data7:keep-name
+    Function NativeField() As SQL.TField
+    End Function
+    Sub ReadNative()
+      Dim n As Integer = me.NativeField().AsInteger
+    End Sub
+  End Class
+End Namespace
+`,
+        },
+      ],
+      { enabled: true },
+    );
+
+    const fieldMod = result.modules.get("TablesField") ?? "";
+    const tableMod = result.modules.get("TablesTable") ?? "";
+
+    assert.doesNotMatch(fieldMod, /\bProperty AsInteger\b/i);
+    assert.doesNotMatch(fieldMod, /\bFunction AsInteger\b/i);
+    assert.doesNotMatch(fieldMod, /\bFunction AsDate\b/i);
+
+    const readSig = /Sub \w+\((\w+) As TField, (\w+) As SQL\.TField\)/i.exec(tableMod);
+    assert.ok(readSig);
+    const userField = readSig[1];
+    const nativeField = readSig[2];
+    assert.ok(userField, "user TField parameter");
+    assert.ok(nativeField, "SQL.TField parameter");
+    assert.match(tableMod, new RegExp(String.raw`\b${nativeField}\.AsInteger\b`));
+    assert.match(tableMod, new RegExp(String.raw`\b${nativeField}\.AsFloat\b`));
+    assert.match(tableMod, new RegExp(String.raw`\b${nativeField}\.AsBoolean\b`));
+    assert.match(tableMod, new RegExp(String.raw`\b${nativeField}\.AsDate\b`));
+    assert.match(tableMod, new RegExp(String.raw`\b${nativeField}\.AsDateTime\b`));
+    assert.match(tableMod, new RegExp(String.raw`\b${nativeField}\.AsString\b`));
+    assert.doesNotMatch(tableMod, new RegExp(String.raw`\b${userField}\.AsInteger\b`, "i"));
+    assert.doesNotMatch(tableMod, new RegExp(String.raw`\b${userField}\.AsString\b`, "i"));
+
+    assert.match(tableMod, /As SQL\.TFDParam[\s\S]*\.AsInteger\s*=/);
+    assert.match(tableMod, /As SQL\.TFDParam[\s\S]*\.AsString\s*=/);
+    assert.match(tableMod, /NativeField\(\)\.AsInteger\b/);
+  });
+
   test("renames VB-style function/property return assignments to the uglified routine name", () => {
     const result = uglifyBuildModules(
       [

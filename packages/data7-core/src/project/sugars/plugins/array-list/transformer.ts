@@ -104,6 +104,45 @@ export abstract class ArrayListSugarTransformer extends ASTWalker {
     }
   }
 
+  protected expandArrayLiteralReturn(
+    statement: ReturnStatement,
+    targetType: TypeReference,
+    literal: Extract<Expression, { kind: "ArrayLiteralExpression" }>,
+  ): Statement[] {
+    if (literal.elements.length === 0) {
+      return [
+        {
+          kind: "ReturnStatement",
+          expression: {
+            kind: "ObjectCreationExpression",
+            type: targetType,
+            arguments: [],
+            loc: statement.expression?.loc ?? statement.loc,
+          },
+          loc: statement.loc,
+          comment: statement.comment,
+        },
+      ];
+    }
+
+    const tempName = this.freshSource();
+    const declaration: VariableDeclaration = {
+      kind: "VariableDeclaration",
+      name: tempName,
+      type: targetType,
+      loc: statement.loc,
+    };
+    return [
+      ...this.expandArrayLiteralDeclaration(declaration, literal),
+      {
+        kind: "ReturnStatement",
+        expression: { kind: "Identifier", name: tempName, loc: statement.loc },
+        loc: statement.loc,
+        comment: statement.comment,
+      },
+    ];
+  }
+
   protected expandFunctionalListReturn(
     statement: ReturnStatement,
     targetType: TypeReference | undefined,

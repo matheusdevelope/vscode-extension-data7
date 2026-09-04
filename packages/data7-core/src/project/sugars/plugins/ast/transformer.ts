@@ -1514,10 +1514,17 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
           ];
         }
         if (s.expression) {
-          const functionalExpansion = this.expandFunctionalListReturn(
-            s,
-            this.activeMethod?.returnType,
-          );
+          const returnType = this.activeMethod?.returnType;
+          if (
+            this.isSugarEnabled("array-list") &&
+            s.expression.kind === "ArrayLiteralExpression" &&
+            returnType &&
+            this.isListContainerType(returnType)
+          ) {
+            this.usedSugars.add("array-list");
+            return this.expandArrayLiteralReturn(s, returnType, s.expression);
+          }
+          const functionalExpansion = this.expandFunctionalListReturn(s, returnType);
           if (functionalExpansion) return functionalExpansion;
           s.expression = this.transformExpression(s.expression, false, s.loc?.startLine);
         }
@@ -2259,6 +2266,8 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     if (target.kind === "Identifier") {
       const fromScope = this.getListExpressionInfo(target)?.type;
       if (fromScope) return this.cloneTypeRef(fromScope);
+      const fromReturn = this.listTypeForFunctionReturnAssignment(target.name);
+      if (fromReturn) return this.cloneTypeRef(fromReturn);
     }
 
     if (target.kind === "MemberAccess") {
@@ -2282,6 +2291,18 @@ export class ASTSugarTransformer extends ArrayListSugarTransformer {
     }
 
     return this.typeRefFromTypeName(typeName, target.loc);
+  }
+
+  /**
+   * Data7 returns via `FunctionName = value`. The identifier is not a local,
+   * so list-literal expansion must use the active method's return type.
+   */
+  private listTypeForFunctionReturnAssignment(name: string): TypeReference | undefined {
+    const method = this.activeMethod;
+    if (!method?.returnType) return undefined;
+    if (method.name.toLowerCase() !== name.toLowerCase()) return undefined;
+    if (!this.isListContainerType(method.returnType)) return undefined;
+    return method.returnType;
   }
 
   private resolveExternalListFieldType(typeName: string, memberName: string): string | undefined {

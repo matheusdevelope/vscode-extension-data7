@@ -26,6 +26,7 @@ import type {
   ElseIfWhitespacePayload,
   ReturnUnrecommendedPayload,
   ReturnAssignmentInCatchPayload,
+  SharedReturnAssignmentInTryPayload,
   SharedReturnGlobalFunctionPayload,
   TernaryContextUnsupportedPayload,
 } from "../diagnostic-codes";
@@ -576,6 +577,9 @@ export class ControlFlowRule implements Rule {
       }
     }
     if (targetName && this.isInsideCatchBlock(node, context)) return;
+    if (targetName && this.isActiveSharedFunction(context) && this.isInsideTryCatch(context)) {
+      return;
+    }
 
     let msg = "O uso de 'Return' não é recomendado devido a lentidão gerada no compilador.";
     if (inSub) {
@@ -638,7 +642,13 @@ export class ControlFlowRule implements Rule {
     const lineIdx = node.loc.startLine - 1;
 
     const isCurrentFunctionReturnTarget = this.isCurrentReturnAssignmentTarget(node, context);
-    if (isCurrentFunctionReturnTarget && this.isInsideCatchBlock(node, context)) {
+    if (
+      isCurrentFunctionReturnTarget &&
+      this.isActiveSharedFunction(context) &&
+      this.isInsideTryCatch(context)
+    ) {
+      this.pushSharedReturnAssignmentInTryDiagnostic(node, context);
+    } else if (isCurrentFunctionReturnTarget && this.isInsideCatchBlock(node, context)) {
       this.pushReturnAssignmentInCatchDiagnostic(node, context);
     }
 
@@ -716,6 +726,66 @@ export class ControlFlowRule implements Rule {
     context.report(diag);
   }
 
+  private pushSharedReturnAssignmentInTryDiagnostic(node: Assignment, context: RuleContext): void {
+    if (!node.loc) return;
+    const method = context.activeMethod;
+    if (!method?.returnType) return;
+    const lineIdx = node.loc.startLine - 1;
+    const lineText = context.lines[lineIdx] ?? "";
+    const range = new vscode.Range(
+      lineIdx,
+      node.target.loc?.startChar ?? node.loc.startChar,
+      lineIdx,
+      node.target.loc?.endChar ?? node.loc.endChar,
+    );
+    const functionName = method.name;
+    const diag = new vscode.Diagnostic(
+      range,
+      `Atribuição ao nome da Shared Function '${functionName}' dentro de Try/Catch dispara um bug do compilador nativo. ` +
+        `Use 'Return <valor>' ou atribua a uma variável temporária e só depois do End Try faça '${functionName} = temporária'.`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    diag.code = DiagnosticCodes.SharedReturnAssignmentInTry;
+
+    let expressionText: string | undefined = exprToString(node.value);
+    if (node.value.loc) {
+      const startLine = node.value.loc.startLine - 1;
+      const endLine = node.value.loc.endLine - 1;
+      if (startLine === endLine) {
+        expressionText = (context.lines[startLine] ?? "").substring(
+          node.value.loc.startChar,
+          node.value.loc.endChar,
+        );
+        if (expressionText.trim().length === 0) {
+          expressionText = exprToString(node.value);
+        }
+      }
+    }
+    const expressionTextFromLine = this.expressionTextFromAssignmentLine(lineText, node);
+    if (
+      expressionTextFromLine &&
+      (!expressionText || expressionTextFromLine.startsWith(expressionText))
+    ) {
+      expressionText = expressionTextFromLine;
+    }
+
+    const tryCatch = this.enclosingTryCatch(context);
+    const payload: SharedReturnAssignmentInTryPayload = {
+      code: DiagnosticCodes.SharedReturnAssignmentInTry,
+      line: lineIdx,
+      startChar: node.loc.startChar,
+      endChar: Math.max(node.loc.endChar, lineText.trimEnd().length),
+      expressionText,
+      functionName,
+      tempName: "_result",
+      tempType: typeRefToString(method.returnType) ?? "Variant",
+      tryStartLine: tryCatch?.loc ? tryCatch.loc.startLine - 1 : -1,
+      tryEndLine: tryCatch?.loc ? tryCatch.loc.endLine - 1 : -1,
+    };
+    setDiagnosticPayload(diag, payload);
+    context.report(diag);
+  }
+
   private expressionTextFromAssignmentLine(lineText: string, node: Assignment): string | undefined {
     const startChar = node.target.loc?.endChar ?? node.loc?.startChar ?? 0;
     const equalsIndex = lineText.indexOf("=", startChar);
@@ -762,6 +832,18 @@ export class ControlFlowRule implements Rule {
       if (!first || !last) return false;
       return line >= first.startLine && line <= last.endLine;
     });
+  }
+
+  private isInsideTryCatch(context: RuleContext): boolean {
+    return this.enclosingTryCatch(context) !== undefined;
+  }
+
+  private enclosingTryCatch(context: RuleContext): TryCatchStatement | undefined {
+    for (let i = context.parentStack.length - 1; i >= 0; i--) {
+      const parent = context.parentStack[i];
+      if (parent?.kind === "TryCatchStatement") return parent;
+    }
+    return undefined;
   }
 
   private isInsideLambdaFunction(context: RuleContext): boolean {

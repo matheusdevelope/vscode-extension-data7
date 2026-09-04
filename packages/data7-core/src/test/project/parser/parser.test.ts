@@ -172,6 +172,39 @@ describe("parser/parser", () => {
     assert.equal(delParam.type.typeArguments[0]?.name, "Product");
   });
 
+  test("does not inject New on array-sugar Dim or field without an initializer", () => {
+    const src = [
+      "Class TTable",
+      "   Fields[] As TField",
+      "   Fields2[] As TField = []",
+      "   Sub New()",
+      "      Dim f3[] As TField",
+      "      Dim f4[] As TField = []",
+      "   End Sub",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.deepEqual([...r.errors], []);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    const fields = klass.members[0] as FieldDeclaration;
+    const fields2 = klass.members[1] as FieldDeclaration;
+    assert.equal(fields.kind, "FieldDeclaration");
+    assert.equal(fields.isArraySugar, true);
+    assert.equal(fields.type.name, "TTList");
+    assert.equal(fields.initializer, undefined);
+    assert.equal(fields2.isArraySugar, true);
+    assert.equal(fields2.initializer?.kind, "ArrayLiteralExpression");
+
+    const ctor = klass.members[2] as MethodDeclaration;
+    const f3 = ctor.body[0] as VariableDeclaration;
+    const f4 = ctor.body[1] as VariableDeclaration;
+    assert.equal(f3.kind, "VariableDeclaration");
+    assert.equal(f3.isArraySugar, true);
+    assert.equal(f3.initializer, undefined);
+    assert.equal(f4.isArraySugar, true);
+    assert.equal(f4.initializer?.kind, "ArrayLiteralExpression");
+  });
+
   test("parses indexed member access with a parenthesized expression argument", () => {
     const src = [
       "Sub Run()",
@@ -184,17 +217,22 @@ describe("parser/parser", () => {
     assert.deepEqual([...r.errors], []);
   });
 
-  test("parses a Function with generic type params and return type", () => {
-    const src = ["Function Wrap<T>(pValue As T) As T", "   Wrap = pValue", "End Function"].join(
-      "\n",
-    );
+  test("parses a Function with a constrained type parameter and a generic return type", () => {
+    const src = [
+      "Shared Function Fetch<T As TTable>(pWhere As String) As TTList<T>",
+      "   Fetch = Null",
+      "End Function",
+    ].join("\n");
     const r = parse(src);
+    assert.deepEqual([...r.errors], []);
     const m = r.unit.members[0] as MethodDeclaration;
-    assert.equal(m.name, "Wrap");
+    assert.equal(m.name, "Fetch");
     assert.equal(m.typeParameters.length, 1);
     assert.equal(m.typeParameters[0]?.name, "T");
-    assert.equal(m.returnType?.name, "T");
-    assert.equal(m.parameters[0]?.type.name, "T");
+    assert.equal(m.typeParameters[0]?.constraint?.name, "TTable");
+    assert.equal(m.returnType?.name, "TTList");
+    assert.equal(m.returnType?.typeArguments[0]?.name, "T");
+    assert.equal(m.parameters[0]?.name, "pWhere");
   });
 
   test("parses a generic Delegate", () => {
