@@ -2,6 +2,7 @@ import { tokenize } from "../../project/parser";
 import {
   ASTWalker,
   type ClassDeclaration,
+  type Expression,
   type MethodDeclaration,
   type Node,
   type PropertyDeclaration,
@@ -521,8 +522,9 @@ function resolveReferences(
       enqueueMembersFromPrecedingMemberType(qualifier, ref.lower, index, live, enqueue);
 
       // Receiver variable/Using/Dim/param: `_form.Show()` → TFormCard → Inherits → Show.
+      const localType = localBindings.get(qualifier);
       enqueueMembersFromReceiverTypeName(
-        localBindings.get(qualifier),
+        localType,
         ref.lower,
         contextModule,
         contextNamespaceLower,
@@ -531,13 +533,16 @@ function resolveReferences(
         live,
         enqueue,
       );
-      for (const receiver of resolveInScope(
+      const receivers = resolveInScope(
         findDeclarationsByName(index, RECEIVER_KINDS, qualifier),
         contextModule,
         contextNamespaceLower,
         importSet,
         index,
-      )) {
+      ).filter((receiver) =>
+        isCurrentClassOrNamespaceLevelMember(receiver, ownerClass, contextNamespaceLower),
+      );
+      for (const receiver of receivers) {
         enqueueMembersFromReceiverTypeName(
           memberResultTypeName(receiver),
           ref.lower,
@@ -550,15 +555,21 @@ function resolveReferences(
         );
       }
 
-      // Also treat as shared/instance call target variable — member name alone in scope.
-      for (const memberCandidate of resolveInScope(
-        findDeclarationsByName(index, MEMBER_KINDS, ref.lower),
-        contextModule,
-        contextNamespaceLower,
-        importSet,
-        index,
-      )) {
-        enqueue(memberCandidate);
+      // Unknown receiver only: keep namespace-level functions with this name.
+      // Never keep class members by homonym — `t.Free()` / `TTabela.Fetch()` must
+      // not mark TAcessoDllBpl.Free / every imported Fetch as live.
+      const qualifierResolved =
+        typeCandidates.length > 0 || localType !== undefined || receivers.length > 0;
+      if (!qualifierResolved) {
+        for (const memberCandidate of resolveInScope(
+          findDeclarationsByName(index, MEMBER_KINDS, ref.lower),
+          contextModule,
+          contextNamespaceLower,
+          importSet,
+          index,
+        )) {
+          if (!memberCandidate.ownerClass) enqueue(memberCandidate);
+        }
       }
       continue;
     }
@@ -570,7 +581,11 @@ function resolveReferences(
       importSet,
       index,
     )) {
-      enqueue(methodCandidate);
+      if (
+        isCurrentClassOrNamespaceLevelMember(methodCandidate, ownerClass, contextNamespaceLower)
+      ) {
+        enqueue(methodCandidate);
+      }
     }
 
     for (const typeCandidate of resolveInScope(
@@ -591,7 +606,9 @@ function resolveReferences(
       importSet,
       index,
     )) {
-      enqueue(valueCandidate);
+      if (isCurrentClassOrNamespaceLevelMember(valueCandidate, ownerClass, contextNamespaceLower)) {
+        enqueue(valueCandidate);
+      }
     }
 
     const namespaceCandidate = index.namespaceByLower.get(ref.lower);
@@ -609,6 +626,21 @@ function resolveInScope(
   return candidates.filter((candidate) =>
     isCandidateInScope(candidate, contextModule, contextNamespaceLower, importSet, index),
   );
+}
+
+/**
+ * Unqualified `Fetch` / `nome` must not keep the same member on every imported
+ * table class. Only the current class (Me) and namespace-level declarations.
+ */
+function isCurrentClassOrNamespaceLevelMember(
+  candidate: DeclarationRecord,
+  ownerClass: string | undefined,
+  contextNamespaceLower: string | undefined,
+): boolean {
+  if (!candidate.ownerClass) return true;
+  if (!ownerClass) return false;
+  if (candidate.ownerClassLower !== ownerClass.toLowerCase()) return false;
+  return candidate.namespaceLower === (contextNamespaceLower ?? "");
 }
 
 /**
@@ -1153,9 +1185,18 @@ function collectTypeReferences(
 
 class ReferenceSeedCollector extends ASTWalker {
   public readonly seeds: ReferenceSeed[] = [];
+  private readonly withQualifiers: string[] = [];
 
   public override walk(node: Node | undefined): void {
     if (!node) return;
+    if (node.kind === "WithStatement") {
+      this.walk(node.expression);
+      const qualifier = withExpressionQualifier(node.expression);
+      if (qualifier) this.withQualifiers.push(qualifier);
+      for (const statement of node.body) this.walk(statement);
+      if (qualifier) this.withQualifiers.pop();
+      return;
+    }
     if (node.kind === "ObjectCreationExpression") {
       this.addSeedFromType(node.type, true);
       for (const arg of node.arguments) this.walk(arg);
@@ -1163,6 +1204,10 @@ class ReferenceSeedCollector extends ASTWalker {
     }
     if (node.kind === "MemberAccess") {
       if (node.target.kind === "Identifier") {
+        if (!node.target.name.trim()) {
+          this.addSeed(node.member, this.currentWithQualifier(), false);
+          return;
+        }
         // Keep the receiver Dim/Const live (e.g. `app.Run()` ⇒ seed `app`).
         this.addSeed(node.target.name, undefined, false);
         this.addSeed(node.member, node.target.name, false);
@@ -1183,8 +1228,12 @@ class ReferenceSeedCollector extends ASTWalker {
     if (node.kind === "MethodInvocation") {
       if (node.callee) {
         if (node.callee.kind === "Identifier") {
-          this.addSeed(node.callee.name, undefined, false);
-          this.addSeed(node.methodName, node.callee.name, false);
+          if (!node.callee.name.trim()) {
+            this.addSeed(node.methodName, this.currentWithQualifier(), false);
+          } else {
+            this.addSeed(node.callee.name, undefined, false);
+            this.addSeed(node.methodName, node.callee.name, false);
+          }
         } else {
           this.walk(node.callee);
           if (node.callee.kind === "MemberAccess") {
@@ -1244,6 +1293,30 @@ class ReferenceSeedCollector extends ASTWalker {
       isNewExpression,
     });
   }
+
+  private currentWithQualifier(): string | undefined {
+    return this.withQualifiers.at(-1);
+  }
+}
+
+/** Qualifier used to resolve `.Prop` / `.Text` inside `With <expr>`. */
+function withExpressionQualifier(expression: Expression): string | undefined {
+  if (expression.kind === "ObjectCreationExpression") {
+    const typeName = expression.type.name.trim();
+    const lastDot = typeName.lastIndexOf(".");
+    const simple = lastDot === -1 ? typeName : typeName.slice(lastDot + 1).trim();
+    return simple || undefined;
+  }
+  if (expression.kind === "MethodInvocation") {
+    return expression.methodName.trim() || undefined;
+  }
+  if (expression.kind === "MemberAccess") {
+    return expression.member.trim() || undefined;
+  }
+  if (expression.kind === "Identifier") {
+    return expression.name.trim() || undefined;
+  }
+  return undefined;
 }
 
 function isPrincipalEntryStatement(member: TopLevelMember): boolean {

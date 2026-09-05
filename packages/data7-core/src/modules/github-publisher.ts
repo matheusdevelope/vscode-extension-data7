@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 import * as https from "https";
 import { execSync } from "child_process";
 import { logger } from "../infra/logger";
@@ -11,6 +10,7 @@ import { parseBasic } from "../project/parser";
 import { isRecord } from "../project/project-config";
 import { selectPublishableModuleSources } from "./module-source-packaging";
 import { RepositoryQueryService, type ModuleManifest } from "./repository-query-service";
+import { cleanupTempCloneDir, createTempCloneDir, sweepStaleTempCloneDirs } from "./temp-clone-dir";
 
 interface PreparedModuleForPublish {
   readonly moduleName: string;
@@ -36,139 +36,64 @@ export class GitHubPublisher {
   ): Promise<string> {
     const prepared = await this.prepareModuleForPublish(workspaceDir);
 
-    // 2. Ensure GitHub Authenticated. All public duplicate/release checks already ran above.
-    let token = GitHubAuth.getStoredToken();
-    if (!token) {
-      logger.info("Token não encontrado. Iniciando Device Flow...");
-      const deviceCode = await GitHubAuth.requestDeviceCode();
-      onAuthPrompt(deviceCode.user_code, deviceCode.verification_uri);
+    const token = await this.ensureToken(onAuthPrompt);
+    const username = await this.getAuthenticatedUsername(token);
+    const { tempDir, defaultBranch } = await this.cloneUserFork(username, token);
 
-      token = await GitHubAuth.pollForToken(deviceCode.device_code, deviceCode.interval);
-      GitHubAuth.storeToken(token);
-    }
+    try {
+      const targetModuleDir = path.join(tempDir, "modules", prepared.moduleName.toLowerCase());
+      if (fs.existsSync(targetModuleDir)) {
+        fs.rmSync(targetModuleDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(targetModuleDir, { recursive: true });
 
-    // 3. Get Authenticated User Info
-    const userRes = await this.githubApiRequest("GET", "/user", token);
-    const userInfo = JSON.parse(userRes) as { login: string };
-    const username = userInfo.login;
-    logger.info(`Autenticado no GitHub como: ${username}`);
+      this.writePublishedManifest(
+        prepared.manifestPath,
+        path.join(targetModuleDir, ManifestRegistry.FILENAME),
+        username,
+      );
 
-    // 4. Create Repository Fork
-    logger.info(`Criando fork do repositório ${this.UPSTREAM_REPO} para a conta do usuário...`);
-    await this.githubApiRequest("POST", `/repos/${this.UPSTREAM_REPO}/forks`, token);
+      const targetSrcDir = path.join(targetModuleDir, "src");
+      fs.mkdirSync(targetSrcDir, { recursive: true });
 
-    // 5. Poll GitHub to verify the fork exists and is ready
-    let forkReady = false;
-    let forkInfo: any = null;
-    for (let attempt = 1; attempt <= 10; attempt++) {
-      try {
-        const forkRes = await this.githubApiRequest(
-          "GET",
-          `/repos/${username}/${path.basename(this.UPSTREAM_REPO)}`,
-          token,
-        );
-        forkInfo = JSON.parse(forkRes);
-        if (forkInfo && forkInfo.name) {
-          forkReady = true;
-          break;
+      for (const srcFilePath of prepared.srcFiles) {
+        const relPath = path.relative(prepared.srcDir, srcFilePath);
+        const destPath = path.join(targetSrcDir, relPath);
+        const destDir = path.dirname(destPath);
+        if (!fs.existsSync(destDir)) {
+          fs.mkdirSync(destDir, { recursive: true });
         }
-      } catch {
-        // Wait and retry
+        fs.copyFileSync(srcFilePath, destPath);
       }
-      logger.info(`Aguardando criação do fork (tentativa ${attempt}/10)...`);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
 
-    if (!forkReady || !forkInfo) {
-      throw new Error(
-        `O fork em github.com/${username}/${path.basename(this.UPSTREAM_REPO)} não ficou pronto a tempo.`,
-      );
-    }
-
-    const defaultBranch = forkInfo.default_branch || "main";
-
-    // 6. Shallow Clone the Fork to a local temporary directory
-    const tempDir = path.join(os.homedir(), ".data7", "temp_clone");
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-    fs.mkdirSync(tempDir, { recursive: true });
-
-    const authenticatedCloneUrl = `https://x-access-token:${token}@github.com/${username}/${path.basename(this.UPSTREAM_REPO)}.git`;
-    logger.info("Realizando clone raso do Fork do usuário...");
-    try {
-      execSync(
-        `git clone --depth 1 --branch ${defaultBranch} "${authenticatedCloneUrl}" "${tempDir}"`,
-        { stdio: "pipe" },
-      );
-    } catch (err: any) {
-      throw new Error(`Falha ao clonar o fork: ${err.stderr?.toString() || err.message}`);
-    }
-
-    // 7. Copy module files into the clone's modules directory
-    const targetModuleDir = path.join(tempDir, "modules", prepared.moduleName.toLowerCase());
-    if (fs.existsSync(targetModuleDir)) {
-      fs.rmSync(targetModuleDir, { recursive: true, force: true });
-    }
-    fs.mkdirSync(targetModuleDir, { recursive: true });
-
-    // Copy manifest
-    this.writePublishedManifest(
-      prepared.manifestPath,
-      path.join(targetModuleDir, ManifestRegistry.FILENAME),
-      username,
-    );
-
-    // Copy src directory files
-    const targetSrcDir = path.join(targetModuleDir, "src");
-    fs.mkdirSync(targetSrcDir, { recursive: true });
-
-    for (const srcFilePath of prepared.srcFiles) {
-      const relPath = path.relative(prepared.srcDir, srcFilePath);
-      const destPath = path.join(targetSrcDir, relPath);
-      const destDir = path.dirname(destPath);
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true });
-      }
-      fs.copyFileSync(srcFilePath, destPath);
-    }
-
-    // 8. Commit and Push to the fork
-    logger.info("Executando Git Commit e Git Push no Fork do desenvolvedor...");
-    try {
-      // Configure local git name/email to avoid failures if not set globally
-      execSync(`git config user.name "Data7 Developer"`, { cwd: tempDir });
-      execSync(`git config user.email "developer@data7.io"`, { cwd: tempDir });
-
-      execSync(`git add modules/${prepared.moduleName.toLowerCase()}`, {
-        cwd: tempDir,
-        stdio: "pipe",
-      });
-
-      const status = execSync("git status --porcelain", { cwd: tempDir }).toString().trim();
-      if (!status) {
-        logger.info("Nenhuma alteração detectada para publicar.");
-      } else {
-        execSync(
-          `git commit -m "Publish module ${prepared.moduleName} v${prepared.moduleVersion}"`,
-          {
-            cwd: tempDir,
-            stdio: "pipe",
-          },
-        );
-        execSync(`git push origin ${defaultBranch}`, { cwd: tempDir, stdio: "pipe" });
-      }
-    } catch (err: any) {
-      throw new Error(
-        `Falha ao empurrar alterações de Git: ${err.stderr?.toString() || err.message}`,
-      );
-    } finally {
-      // Clean up temporary clone folder
+      logger.info("Executando Git Commit e Git Push no Fork do desenvolvedor...");
       try {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {
-        // ignore cleanup errors
+        execSync(`git config user.name "Data7 Developer"`, { cwd: tempDir });
+        execSync(`git config user.email "developer@data7.io"`, { cwd: tempDir });
+
+        execSync(`git add modules/${prepared.moduleName.toLowerCase()}`, {
+          cwd: tempDir,
+          stdio: "pipe",
+        });
+
+        const status = execSync("git status --porcelain", { cwd: tempDir }).toString().trim();
+        if (!status) {
+          logger.info("Nenhuma alteração detectada para publicar.");
+        } else {
+          execSync(
+            `git commit -m "Publish module ${prepared.moduleName} v${prepared.moduleVersion}"`,
+            {
+              cwd: tempDir,
+              stdio: "pipe",
+            },
+          );
+          execSync(`git push origin ${defaultBranch}`, { cwd: tempDir, stdio: "pipe" });
+        }
+      } catch (err: unknown) {
+        throw new Error(`Falha ao empurrar alterações de Git: ${this.formatExecError(err)}`);
       }
+    } finally {
+      await cleanupTempCloneDir(tempDir);
     }
 
     // 9. Open Pull Request on the upstream repository
@@ -258,14 +183,10 @@ export class GitHubPublisher {
         stdio: "pipe",
       });
       execSync(`git push origin ${defaultBranch}`, { cwd: tempDir, stdio: "pipe" });
-    } catch (err: any) {
-      throw new Error(`Falha ao preparar unpublish: ${err.stderr?.toString() || err.message}`);
+    } catch (err: unknown) {
+      throw new Error(`Falha ao preparar unpublish: ${this.formatExecError(err)}`);
     } finally {
-      try {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {
-        // ignore cleanup errors
-      }
+      await cleanupTempCloneDir(tempDir);
     }
 
     if (isOwner) {
@@ -406,11 +327,8 @@ export class GitHubPublisher {
     }
 
     const defaultBranch = forkInfo.default_branch || "main";
-    const tempDir = path.join(os.homedir(), ".data7", "temp_clone");
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-    fs.mkdirSync(tempDir, { recursive: true });
+    await sweepStaleTempCloneDirs();
+    const tempDir = createTempCloneDir();
 
     const authenticatedCloneUrl = `https://x-access-token:${token}@github.com/${username}/${repoName}.git`;
     logger.info("Realizando clone raso do Fork do usuário...");
@@ -419,10 +337,20 @@ export class GitHubPublisher {
         `git clone --depth 1 --branch ${defaultBranch} "${authenticatedCloneUrl}" "${tempDir}"`,
         { stdio: "pipe" },
       );
-    } catch (err: any) {
-      throw new Error(`Falha ao clonar o fork: ${err.stderr?.toString() || err.message}`);
+    } catch (err: unknown) {
+      await cleanupTempCloneDir(tempDir);
+      throw new Error(`Falha ao clonar o fork: ${this.formatExecError(err)}`);
     }
     return { tempDir, defaultBranch };
+  }
+
+  private static formatExecError(err: unknown): string {
+    if (err && typeof err === "object" && "stderr" in err) {
+      const stderr = (err as { stderr?: Buffer | string }).stderr;
+      if (stderr !== undefined && String(stderr).trim()) return String(stderr);
+    }
+    if (err instanceof Error) return err.message;
+    return String(err);
   }
 
   private static async assertReleaseIsPublishable(

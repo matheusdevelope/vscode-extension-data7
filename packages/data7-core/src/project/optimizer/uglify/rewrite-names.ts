@@ -7,7 +7,12 @@ import {
   type Statement,
   type TypeReference,
 } from "../../ast/ast";
-import { createLocalRenameMap, type UglifyRenameMaps } from "./collect-renames";
+import {
+  createLocalRenameMap,
+  createUnitScriptRenameMap,
+  isUnitScriptStatement,
+  type UglifyRenameMaps,
+} from "./collect-renames";
 import {
   bindingTypeLowerFromDeclaration,
   isQualifiedSystemTypeKey,
@@ -77,10 +82,48 @@ function resolveMemberRename(
       const ns = receiverTypeLower.slice(0, receiverTypeLower.indexOf("."));
       if (maps.namespaceMembers.get(ns)?.has(lower)) return memberRename;
     }
-    return memberName;
+    // `Configurador.Campo(x)` is a Namespace.Type() cast. A homonymous member
+    // (Tabela.Campo) must not freeze the original name — fall through to types.
+    if (!receiverTypeLower || !maps.namespaceNames.has(receiverTypeLower)) {
+      return memberName;
+    }
+  }
+
+  if (receiverTypeLower && maps.namespaceNames.has(receiverTypeLower)) {
+    const typeOnNs = maps.types.get(lower);
+    if (typeOnNs !== undefined) return typeOnNs;
   }
 
   return maps.types.get(lower) ?? maps.namespaces.get(lower) ?? memberName;
+}
+
+/**
+ * Rename a bare identifier / call (`Clear()`, `Touch`) when it refers to a user
+ * declaration in the current class or namespace. System-Library homonyms
+ * (`StringList.Clear`) stay unchanged unless this scope owns the member.
+ */
+function renameBareUserSymbol(
+  name: string,
+  maps: UglifyRenameMaps,
+  namespaceLower: string | undefined,
+  currentClassLower: string | undefined,
+): string | undefined {
+  const lower = name.toLowerCase();
+  const nsOrType = maps.namespaces.get(lower) ?? maps.types.get(lower);
+  if (nsOrType !== undefined) return nsOrType;
+  const memberNext = maps.members.get(lower);
+  if (memberNext === undefined) return undefined;
+  if (!maps.systemCollidingMembers.has(lower)) return memberNext;
+  if (
+    currentClassLower &&
+    userTypeOwnsMember(currentClassLower, lower, maps.userTypes, namespaceLower)
+  ) {
+    return memberNext;
+  }
+  if (namespaceLower && maps.namespaceMembers.get(namespaceLower)?.has(lower)) {
+    return memberNext;
+  }
+  return undefined;
 }
 
 /**
@@ -92,7 +135,8 @@ function renameMethodInvocationName(
   maps: UglifyRenameMaps,
   locals: ReadonlyMap<string, string> | undefined,
   receiverTypeLower: string | undefined,
-  namespaceLower?: string,
+  namespaceLower: string | undefined,
+  currentClassLower: string | undefined,
 ): void {
   const lower = node.methodName.toLowerCase();
   if (lower.length === 0) return;
@@ -103,15 +147,8 @@ function renameMethodInvocationName(
       node.methodName = localNext;
       return;
     }
-    const typeNext = maps.types.get(lower) ?? maps.namespaces.get(lower);
-    if (typeNext !== undefined) {
-      node.methodName = typeNext;
-      return;
-    }
-    const memberNext = maps.members.get(lower);
-    if (memberNext !== undefined && !maps.systemCollidingMembers.has(lower)) {
-      node.methodName = memberNext;
-    }
+    const next = renameBareUserSymbol(node.methodName, maps, namespaceLower, currentClassLower);
+    if (next !== undefined) node.methodName = next;
     return;
   }
 
@@ -122,11 +159,7 @@ function renameMethodInvocationName(
  * Apply global declaration renames and per-method local renames in place.
  */
 export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps): void {
-  const globalTaken = [
-    ...maps.namespaces.values(),
-    ...maps.types.values(),
-    ...maps.members.values(),
-  ];
+  const globalTaken = maps.takenNames;
   const typeNames = new Set<string>([...maps.types.keys(), ...maps.userTypes.keys()]);
   const namespaceNames = maps.namespaceNames;
 
@@ -185,6 +218,18 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
 
     public override walk(node: Node | undefined): void {
       if (!node) return;
+
+      if (node.kind === "CompilationUnit") {
+        const scriptLocals = createUnitScriptRenameMap(node.members, globalTaken);
+        for (const member of node.members) {
+          if (isUnitScriptStatement(member)) {
+            this.walkStatement(member, scriptLocals);
+          } else {
+            this.walk(member);
+          }
+        }
+        return;
+      }
 
       if (node.kind === "NamespaceDeclaration") {
         const originalNs = node.name.toLowerCase();
@@ -354,18 +399,26 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
       if (node.kind === "MethodInvocation") {
         const receiverType = this.effectiveReceiverType(node.callee);
         if (node.callee) this.walk(node.callee);
-        renameMethodInvocationName(node, maps, undefined, receiverType, this.currentNamespaceLower);
+        renameMethodInvocationName(
+          node,
+          maps,
+          undefined,
+          receiverType,
+          this.currentNamespaceLower,
+          this.currentClassLower,
+        );
         for (const typeArg of node.typeArguments) rewriteTypeReference(typeArg, maps);
         for (const arg of node.arguments) this.walk(arg);
         return;
       }
 
       if (node.kind === "Identifier") {
-        const lower = node.name.toLowerCase();
-        const next =
-          maps.namespaces.get(lower) ??
-          maps.types.get(lower) ??
-          (maps.systemCollidingMembers.has(lower) ? undefined : maps.members.get(lower));
+        const next = renameBareUserSymbol(
+          node.name,
+          maps,
+          this.currentNamespaceLower,
+          this.currentClassLower,
+        );
         if (next !== undefined) node.name = next;
         return;
       }
@@ -568,10 +621,12 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
             expression.name = this.currentRoutineRename.renamed;
             return;
           }
-          const next =
-            maps.namespaces.get(lower) ??
-            maps.types.get(lower) ??
-            (maps.systemCollidingMembers.has(lower) ? undefined : maps.members.get(lower));
+          const next = renameBareUserSymbol(
+            expression.name,
+            maps,
+            this.currentNamespaceLower,
+            this.currentClassLower,
+          );
           if (next !== undefined) expression.name = next;
           return;
         }
@@ -599,6 +654,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
               locals,
               receiverType,
               this.currentNamespaceLower,
+              this.currentClassLower,
             );
           }
           for (const typeArg of expression.typeArguments) rewriteTypeReference(typeArg, maps);

@@ -3,15 +3,20 @@ import { describe, test, beforeEach, afterEach } from "node:test";
 import { strict as assert } from "node:assert";
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 import { mock } from "node:test";
 import { GitHubPublisher } from "../../modules/github-publisher";
 import { GitHubAuth } from "../../modules/github-auth";
 import { RepositoryQueryService } from "../../modules/repository-query-service";
+import { cleanupTempCloneDir, getLegacyTempCloneDir } from "../../modules/temp-clone-dir";
+
+function extractQuotedCloneDest(cmd: string): string | undefined {
+  const matches = [...cmd.matchAll(/"([^"]+)"/g)];
+  const last = matches[matches.length - 1];
+  return last?.[1];
+}
 
 describe("GitHubPublisher - publish", () => {
   let tempWorkspace: string;
-  let tempCloneDir: string;
   let restoreMocks: () => void;
   const executedCommands: string[] = [];
   const apiRequests: Array<{ method: string; path: string; body?: string }> = [];
@@ -26,10 +31,6 @@ describe("GitHubPublisher - publish", () => {
       fs.mkdirSync(baseDir, { recursive: true });
     }
     tempWorkspace = fs.mkdtempSync(path.join(baseDir, "test-publisher-ws-"));
-    tempCloneDir = path.join(os.homedir(), ".data7", "temp_clone");
-    if (fs.existsSync(tempCloneDir)) {
-      fs.rmSync(tempCloneDir, { recursive: true, force: true });
-    }
     executedCommands.length = 0;
     apiRequests.length = 0;
     onlineManifestResult = undefined;
@@ -107,8 +108,11 @@ describe("GitHubPublisher - publish", () => {
     const execMock = mock.method(childProcess, "execSync", (cmd: string) => {
       executedCommands.push(cmd);
       if (cmd.includes("git clone")) {
-        fs.mkdirSync(path.join(tempCloneDir, "modules", "forms"), { recursive: true });
-        fs.writeFileSync(path.join(tempCloneDir, "modules", "forms", "data7.json"), "{}");
+        const dest = extractQuotedCloneDest(cmd);
+        if (dest) {
+          fs.mkdirSync(path.join(dest, "modules", "forms"), { recursive: true });
+          fs.writeFileSync(path.join(dest, "modules", "forms", "data7.json"), "{}");
+        }
       }
       return Buffer.from("mocked-exec-output");
     });
@@ -122,14 +126,12 @@ describe("GitHubPublisher - publish", () => {
     };
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     restoreMocks();
     if (fs.existsSync(tempWorkspace)) {
       fs.rmSync(tempWorkspace, { recursive: true, force: true });
     }
-    if (fs.existsSync(tempCloneDir)) {
-      fs.rmSync(tempCloneDir, { recursive: true, force: true });
-    }
+    await cleanupTempCloneDir(getLegacyTempCloneDir());
   });
 
   test("throws error when data7.json does not exist", async () => {
@@ -191,6 +193,14 @@ describe("GitHubPublisher - publish", () => {
     assert.ok(
       executedCommands.some((cmd) => cmd.includes("git push")),
       "Should push to origin",
+    );
+
+    const cloneCmd = executedCommands.find((cmd) => cmd.includes("git clone"));
+    const cloneDest = cloneCmd ? extractQuotedCloneDest(cloneCmd) : undefined;
+    assert.ok(cloneDest, "Clone destination should be present");
+    assert.ok(
+      path.basename(cloneDest).startsWith("clone-"),
+      "Clone should use a unique OS temp directory",
     );
   });
 
@@ -291,5 +301,34 @@ describe("GitHubPublisher - publish", () => {
       executedCommands.some((cmd) => cmd.includes("git push origin main")),
       "Should push unpublish branch",
     );
+  });
+
+  test("publishes when a leftover temp_clone directory cannot be deleted", async () => {
+    fs.writeFileSync(
+      path.join(tempWorkspace, "data7.json"),
+      JSON.stringify({
+        nome: "helpers",
+        opcoes: { versao: "1.0.0.0" },
+      }),
+    );
+    const srcDir = path.join(tempWorkspace, "src");
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(
+      path.join(srcDir, "Helper.bas"),
+      "Namespace helpers\n  Class THelper\n  End Class\nEnd Namespace\n",
+    );
+
+    const leftover = getLegacyTempCloneDir();
+    fs.mkdirSync(leftover, { recursive: true });
+    fs.writeFileSync(path.join(leftover, "locked.txt"), "locked");
+
+    const prUrl = await GitHubPublisher.publish(tempWorkspace, () => {});
+    assert.equal(prUrl, "https://github.com/pull/123");
+
+    const cloneCmd = executedCommands.find((cmd) => cmd.includes("git clone"));
+    const cloneDest = cloneCmd ? extractQuotedCloneDest(cloneCmd) : undefined;
+    assert.ok(cloneDest, "Clone destination should be present");
+    assert.notEqual(path.resolve(cloneDest), path.resolve(leftover));
+    assert.ok(path.basename(cloneDest).startsWith("clone-"));
   });
 });

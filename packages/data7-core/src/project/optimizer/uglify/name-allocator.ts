@@ -28,6 +28,11 @@ export class ShortNameAllocator {
     const lower = name.toLowerCase();
     if (lower.length > 0) this.taken.add(lower);
   }
+
+  /** Lowercased names already reserved or allocated — seed nested (local) allocators. */
+  public snapshotTaken(): ReadonlySet<string> {
+    return new Set(this.taken);
+  }
 }
 
 function indexToName(index: number): string {

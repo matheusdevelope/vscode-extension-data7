@@ -437,6 +437,276 @@ End Namespace`,
     assert.doesNotMatch(widgets, /Sub Dead/);
   });
 
+  test("does not keep imported classes that only share Free/Fetch names with the live receiver", () => {
+    const result = pruneBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "file:///workspace/src/Principal.bas",
+          code: `Imports Configurador
+Dim t As New Tabela("TipoTitulo")
+t.Free()
+`,
+        },
+        {
+          moduleName: "Configurador",
+          fileUri: "file:///workspace/src/Configurador.bas",
+          code: `Imports table_tabela
+Imports table_acessodllbpl
+Namespace Configurador
+   Class Catalogo
+      Shared Function Tabelas() As String
+         Tabelas = TTabela.Fetch()
+      End Function
+
+      Shared Function AcessosDllBpl() As String
+         AcessosDllBpl = TAcessoDllBpl.Fetch()
+      End Function
+
+      Sub New()
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class Tabela
+      Titulo As String
+
+      Sub New(pNome As String)
+         MyBase.New()
+         me.Titulo = pNome
+      End Sub
+
+      Shared Function Fetch() As String
+         Fetch = Catalogo.Tabelas()
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_tabela",
+          fileUri: "file:///workspace/src/table_tabela.bas",
+          code: `Namespace table_tabela
+   Class TTabela
+      Shared Function Fetch() As String
+         Fetch = "tabela"
+      End Function
+
+      Sub New()
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_acessodllbpl",
+          fileUri: "file:///workspace/src/table_acessodllbpl.bas",
+          code: `Namespace table_acessodllbpl
+   Class TAcessoDllBpl
+      Shared Function Fetch() As String
+         Fetch = "dll"
+      End Function
+
+      Sub New()
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+        },
+      ],
+      PRUNE_OPTIONS,
+    );
+
+    const configurador = result.modules.get("Configurador") ?? "";
+    assert.match(configurador, /Class Tabela/);
+    assert.match(configurador, /Sub Free/);
+    assert.doesNotMatch(configurador, /Class Catalogo/);
+    assert.doesNotMatch(configurador, /AcessosDllBpl/);
+    assert.equal(result.modules.has("table_acessodllbpl"), false);
+    assert.equal(result.modules.has("table_tabela"), false);
+    assert.doesNotMatch(configurador, /Imports table_acessodllbpl/);
+    assert.doesNotMatch(configurador, /Imports table_tabela/);
+  });
+
+  test("does not keep sibling Entidade_TDead.Registro types from me.Registro.GetID", () => {
+    const result = pruneBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "file:///workspace/src/Principal.bas",
+          code: `Imports Configurador
+Dim row As New LiveEntity(New TLive())
+row.GetID()
+`,
+        },
+        {
+          moduleName: "Configurador",
+          fileUri: "file:///workspace/src/Configurador.bas",
+          code: `Imports table_live
+Imports table_dead
+Namespace Configurador
+   Class Entidade_TLive
+      Registro As TLive
+      Sub New(pRegistro As TLive)
+         me.Registro = pRegistro
+      End Sub
+      Function GetID() As String
+         GetID = me.Registro.GetID()
+      End Function
+   End Class
+
+   Class Entidade_TDead
+      Registro As TDead
+      Sub New(pRegistro As TDead)
+         me.Registro = pRegistro
+      End Sub
+      Function GetID() As String
+         GetID = me.Registro.GetID()
+      End Function
+   End Class
+
+   Class LiveEntity
+      Inherits Entidade_TLive
+      Sub New(pRegistro As TLive)
+         MyBase.New(pRegistro)
+      End Sub
+   End Class
+
+   Class DeadEntity
+      Inherits Entidade_TDead
+      Sub New(pRegistro As TDead)
+         MyBase.New(pRegistro)
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_live",
+          fileUri: "file:///workspace/src/table_live.bas",
+          code: `Namespace table_live
+   Class TLive
+      Function GetID() As String
+         GetID = "live"
+      End Function
+      Sub New()
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_dead",
+          fileUri: "file:///workspace/src/table_dead.bas",
+          code: `Namespace table_dead
+   Class TDead
+      Inherits TTableOf_TDead
+      Function GetID() As String
+         GetID = "dead"
+      End Function
+      Sub New()
+      End Sub
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "TablesTable",
+          fileUri: "file:///workspace/src/TablesTable.bas",
+          code: `Namespace TablesTable
+   Class TTableOf_TDead
+      Sub New()
+      End Sub
+   End Class
+End Namespace`,
+        },
+      ],
+      PRUNE_OPTIONS,
+    );
+
+    const configurador = result.modules.get("Configurador") ?? "";
+    assert.match(configurador, /Class LiveEntity/);
+    assert.doesNotMatch(configurador, /Class DeadEntity/);
+    assert.doesNotMatch(configurador, /Class Entidade_TDead/);
+    assert.ok(result.modules.has("table_live"));
+    assert.equal(result.modules.has("table_dead"), false);
+    assert.equal(result.modules.has("TablesTable"), false);
+  });
+
+  test("keeps Fetch only on the type that is actually called, not homonyms in other Imports", () => {
+    const result = pruneBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "file:///workspace/src/Principal.bas",
+          code: `Imports Configurador
+Catalogo.Tabelas()
+`,
+        },
+        {
+          moduleName: "Configurador",
+          fileUri: "file:///workspace/src/Configurador.bas",
+          code: `Imports table_tabela
+Imports table_acessodllbpl
+Namespace Configurador
+   Class Catalogo
+      Shared Function Tabelas() As String
+         Tabelas = TTabela.Fetch()
+      End Function
+
+      Shared Function AcessosDllBpl() As String
+         AcessosDllBpl = TAcessoDllBpl.Fetch()
+      End Function
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_tabela",
+          fileUri: "file:///workspace/src/table_tabela.bas",
+          code: `Namespace table_tabela
+   Class TTabela
+      Shared Function Fetch() As String
+         Fetch = "tabela"
+      End Function
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_acessodllbpl",
+          fileUri: "file:///workspace/src/table_acessodllbpl.bas",
+          code: `Namespace table_acessodllbpl
+   Class TAcessoDllBpl
+      Shared Function Fetch() As String
+         Fetch = "dll"
+      End Function
+   End Class
+End Namespace`,
+        },
+      ],
+      PRUNE_OPTIONS,
+    );
+
+    const tabela = result.modules.get("table_tabela") ?? "";
+    assert.match(tabela, /Class TTabela/);
+    assert.match(tabela, /Function Fetch/);
+    assert.equal(result.modules.has("table_acessodllbpl"), false);
+    const configurador = result.modules.get("Configurador") ?? "";
+    assert.match(configurador, /Function Tabelas/);
+    assert.doesNotMatch(configurador, /AcessosDllBpl/);
+  });
+
   test("keeps Sub New and Sub Free on a live class even when never called", () => {
     const result = pruneBuildModules(
       [
@@ -1073,9 +1343,77 @@ End Namespace`,
     const logger = result.modules.get("mod_logger") ?? "";
     assert.match(tobject, /Function BuildLogger/);
     assert.match(tobject, /Class TTObjectPrinter/);
+    assert.match(tobject, /Function Text/);
     assert.match(logger, /me\.BuildLogger/);
     assert.doesNotMatch(tobject, /Sub DeadBase/);
     assert.doesNotMatch(logger, /Sub Dead\b/);
+  });
+
+  test("keeps With-target members used via leading-dot (.Prop / .Text / .Close)", () => {
+    const result = pruneBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "file:///workspace/src/Principal.bas",
+          code: `Imports mod_tobject
+Dim list As New TTObjectList()
+list.ToString()
+`,
+        },
+        {
+          moduleName: "mod_tobject",
+          fileUri: "file:///workspace/src/mod_tobject.bas",
+          code: `Namespace mod_tobject
+   Class TTObjectPrinter
+      Sub New(pTitle As String)
+      End Sub
+
+      Sub Prop(pValue As String)
+      End Sub
+
+      Sub Close()
+      End Sub
+
+      Function Text() As String
+         Text = "ok"
+      End Function
+
+      Sub DeadPrinter()
+      End Sub
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+
+   Class TTObjectList
+      Sub New()
+      End Sub
+
+      Function ToString() As String
+         With New TTObjectPrinter("list")
+            .Prop("OwnsObjects")
+            .Close()
+            ToString = .Text
+            .Free()
+         End With
+      End Function
+
+      Sub Free()
+         MyBase.Free()
+      End Sub
+   End Class
+End Namespace`,
+        },
+      ],
+      PRUNE_OPTIONS,
+    );
+
+    const tobject = result.modules.get("mod_tobject") ?? "";
+    assert.match(tobject, /Sub Prop/);
+    assert.match(tobject, /Sub Close/);
+    assert.match(tobject, /Function Text/);
+    assert.doesNotMatch(tobject, /Sub DeadPrinter/);
   });
 
   test("keeps Overrides on a live subclass when the base virtual member is live", () => {

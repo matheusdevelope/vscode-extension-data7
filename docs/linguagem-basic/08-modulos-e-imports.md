@@ -131,7 +131,7 @@ Cada entrada de `dependencies` é o nome de um módulo compartilhado disponível
 5. Instalar um módulo cujo nome corresponde a `module.name` ou `nome` do projeto ativo é bloqueado.
 6. O construtor marca os arquivos copiados com `'@Module-Imported`.
 
-Ao publicar online, a extensão consulta o catálogo público antes de autenticar no GitHub. Se o módulo já existe e o conteúdo local é igual ao publicado, a publicação é bloqueada como repetida. Se há alteração local, a versão em `version`/`opcoes.versao` precisa ser maior que a versão já publicada. O manifesto enviado ao repositório online recebe `module.publisher` com o login GitHub autenticado.
+Ao publicar online, a extensão consulta o catálogo público antes de autenticar no GitHub. Se o módulo já existe e o conteúdo local é igual ao publicado, a publicação é bloqueada como repetida. Se há alteração local, a versão em `version`/`opcoes.versao` precisa ser maior que a versão já publicada. O manifesto enviado ao repositório online recebe `module.publisher` com o login GitHub autenticado. Cada publicação clona o fork em um diretório temporário único; uma pasta residual `~/.data7/temp_clone` travada no Windows não impede a republicação.
 
 O comando de unpublish online remove a pasta `modules/<modulo>` em um fork e abre um PR de remoção. A extensão bloqueia a operação quando o usuário autenticado não é o `module.publisher` do manifesto publicado nem o dono do repositório de módulos.
 

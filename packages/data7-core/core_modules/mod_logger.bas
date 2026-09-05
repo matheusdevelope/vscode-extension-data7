@@ -152,7 +152,7 @@ Namespace mod_logger
    End Function
 
    Private Function ObjectAsString(pObject As TObject) As String
-      If pObject = NULL Then
+      If pObject = Null Then
          ObjectAsString = ""
       ElseIf TypeOf(pObject) Is TTObject Then
          ObjectAsString = TTObject(pObject).ToString()
@@ -300,7 +300,7 @@ Namespace mod_logger
       End Function
 
       Function Transform(pInfo As LogInfo) As String
-         If pInfo = NULL Then
+         If pInfo = Null Then
             Transform = ""
             Exit Function
          End If
@@ -391,7 +391,7 @@ Namespace mod_logger
             If Assigned(pValue.Format) Then
                me.Format = pValue.Format.Clone()
             Else
-               me.Format = NULL
+               me.Format = Null
             End If
          End If
       End Sub
@@ -419,7 +419,7 @@ Namespace mod_logger
       Overrides Sub Dispose()
          If Assigned(me.Format) Then
             me.Format.Free()
-            me.Format = NULL
+            me.Format = Null
          End If
       End Sub
 
@@ -452,7 +452,7 @@ Namespace mod_logger
             If Assigned(me.Options) Then
                me.Options.Free()
             End If
-            me.Options = NULL
+            me.Options = Null
             If Assigned(pValue.Options) Then
                me.Options = pValue.Options.Clone()
             End If
@@ -483,12 +483,12 @@ Namespace mod_logger
       Overrides Sub Dispose()
          If Assigned(me.Options) Then
             me.Options.Free()
-            me.Options = NULL
+            me.Options = Null
          End If
       End Sub
 
       Function ShouldLog(pInfo As LogInfo) As Boolean
-         If pInfo = NULL Then
+         If pInfo = Null Then
             ShouldLog = False
             Exit Function
          End If
@@ -615,16 +615,34 @@ Namespace mod_logger
       End Function
 
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If me.FileName = "" Then
-            Exit Sub
+         If me.FileName <> "" Then
+            Dim _lines As New StringList()
+            Dim _tries As Integer = 0
+            Dim _maxTries As Integer = 30
+            If File.Exists(me.FileName) Then
+               While _tries < _maxTries
+                  Try
+                     _lines.LoadFromFile(me.FileName)
+                     Exit While
+                  Catch ex As Exception
+                     _tries = _tries + 1
+                     Sleep(50)
+                  End Try
+               End While
+            End If
+            _lines.Add(pFormatted)
+            _tries = 0
+            While _tries < _maxTries
+               Try
+                  _lines.SaveToFile(me.FileName)
+                  Exit While
+               Catch ex As Exception
+                  _tries = _tries + 1
+                  Sleep(50)
+               End Try
+            End While
+            _lines.Free()
          End If
-         Dim _lines As New StringList()
-         If File.Exists(me.FileName) Then
-            _lines.LoadFromFile(me.FileName)
-         End If
-         _lines.Add(pFormatted)
-         _lines.SaveToFile(me.FileName)
-         _lines.Free()
       End Sub
 
       Overrides Sub Dispose()
@@ -716,13 +734,13 @@ Namespace mod_logger
       End Function
 
       Overrides Sub Log(pInfo As LogInfo, pFormatted As String)
-         If me.Writer <> NULL Then
+         If me.Writer <> Null Then
             me.Writer(pInfo, pFormatted)
          End If
       End Sub
 
       Overrides Sub Dispose()
-         me.Writer = NULL
+         me.Writer = Null
          MyBase.Dispose()
       End Sub
 
@@ -769,7 +787,7 @@ Namespace mod_logger
       End Function
 
       Sub Add(pTransport As LogTransport)
-         If pTransport = NULL Then
+         If pTransport = Null Then
             Exit Sub
          End If
          me._list.Push(pTransport.GetID().ToUpper(), pTransport)
@@ -794,7 +812,7 @@ Namespace mod_logger
       Overrides Sub Dispose()
          If Assigned(me._list) Then
             me._list.Free()
-            me._list = NULL
+            me._list = Null
          End If
       End Sub
 
@@ -843,8 +861,8 @@ Namespace mod_logger
             If Assigned(me.Transports) Then
                me.Transports.Free()
             End If
-            me.Format = NULL
-            me.Transports = NULL
+            me.Format = Null
+            me.Transports = Null
             If Assigned(pValue.Format) Then
                me.Format = pValue.Format.Clone()
             End If
@@ -876,11 +894,11 @@ Namespace mod_logger
       Overrides Sub Dispose()
          If Assigned(me.Transports) Then
             me.Transports.Free()
-            me.Transports = NULL
+            me.Transports = Null
          End If
          If Assigned(me.Format) Then
             me.Format.Free()
-            me.Format = NULL
+            me.Format = Null
          End If
       End Sub
 
@@ -912,7 +930,7 @@ Namespace mod_logger
             If Assigned(me.Options) Then
                me.Options.Free()
             End If
-            me.Options = NULL
+            me.Options = Null
             If Assigned(pValue.Options) Then
                me.Options = pValue.Options.Clone()
             End If
@@ -999,7 +1017,7 @@ Namespace mod_logger
       Sub Exceptiom(pMessage As Variant, pEx As Exception, pMeta As String = "")
          Dim _info As New LogInfo(0, CStr(pMessage), "", me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
          _info.IsException = True
-         If pEx <> NULL Then
+         If pEx <> Null Then
             _info.ExceptionMessage = pEx._GetMessage()
          End If
          me.Dispatch(_info)
@@ -1009,7 +1027,7 @@ Namespace mod_logger
       Sub Exceptiom(pObject As TObject, pEx As Exception, pMeta As String = "")
          Dim _info As New LogInfo(0, ObjectAsString(pObject), "", me.MergeText(me.Options.DefaultMeta, pMeta), me.Options.Label)
          _info.IsException = True
-         If pEx <> NULL Then
+         If pEx <> Null Then
             _info.ExceptionMessage = pEx._GetMessage()
          End If
          me.Dispatch(_info)
@@ -1080,12 +1098,20 @@ Namespace mod_logger
          me.Info(pObject)
       End Sub
 
-      Sub StartTimer(pLabel As String)
-         StartTimer(pLabel)
+      Sub TimeStart(pLabel As String)
+         TimeStart(pLabel)
       End Sub
 
-      Sub Profile(pLabel As String, pMessage As String = "")
+      Sub TimeEnd(pLabel As String, pMessage As String = "")
          Dim _duration As Integer = StopTimer(pLabel)
+         Dim _info As New LogInfo(2, pMessage, "", me.Options.DefaultMeta, pLabel)
+         _info.DurationMs = _duration
+         me.Dispatch(_info)
+         _info.Free()
+      End Sub
+
+      Sub TimeLog(pLabel As String, pMessage As String = "")
+         Dim _duration As Integer = GetTimer(pLabel)
          Dim _info As New LogInfo(2, pMessage, "", me.Options.DefaultMeta, pLabel)
          _info.DurationMs = _duration
          me.Dispatch(_info)
@@ -1119,12 +1145,12 @@ Namespace mod_logger
 
       Overrides Sub Dispose()
          If me._sharedOptions And Assigned(me.Options) Then
-            me.Options.Transports = NULL
-            me.Options.Format = NULL
+            me.Options.Transports = Null
+            me.Options.Format = Null
          End If
          If Assigned(me.Options) Then
             me.Options.Free()
-            me.Options = NULL
+            me.Options = Null
          End If
          me._sharedOptions = False
       End Sub
@@ -1141,7 +1167,7 @@ Namespace mod_logger
    Private Dim _NativePrintEnabled As Boolean = True
 
    Function GetDefault() As Logger
-      If _defaultLogger = NULL Then
+      If _defaultLogger = Null Then
          _defaultLogger = New Logger()
       End If
       GetDefault = _defaultLogger
@@ -1326,20 +1352,9 @@ Namespace mod_logger
       GetDefault().Debug(pObject)
    End Sub
 
-   Sub StartTimer(pLabel As String)
-      If _timers = NULL Then
-         _timers = New StringList()
-         _timers.NameValueSeparator = ";"
-      End If
-      If _timers.IndexOfName(pLabel) >= 0 Then
-         _timers.Delete(_timers.IndexOfName(pLabel))
-      End If
-      _timers.Add(pLabel + _timers.NameValueSeparator + DateTime().ToString("hh:nn:ss.zzz"))
-   End Sub
-
    Function StopTimer(pLabel As String) As Integer
       StopTimer = 0
-      If _timers = NULL Then
+      If _timers = Null Then
          Exit Function
       End If
       If _timers.IndexOfName(pLabel) < 0 Then
@@ -1357,8 +1372,42 @@ Namespace mod_logger
       _timers.Delete(_timers.IndexOfName(pLabel))
    End Function
 
-   Sub Profile(pLabel As String, pMessage As String = "")
-      GetDefault().Profile(pLabel, pMessage)
+   Function GetTimer(pLabel As String) As Integer
+      GetTimer = 0
+      If _timers = Null Then
+         Exit Function
+      End If
+      If _timers.IndexOfName(pLabel) < 0 Then
+         Exit Function
+      End If
+
+      Dim _time As String = _timers.Values(pLabel)
+      Dim _hours As Integer = CInt(_time.Split(":")[0])
+      Dim _mins As Integer = CInt(_time.Split(":")[1])
+      Dim _secs As Integer = CInt(_time.Split(":")[2].Split(".")[0])
+      Dim _millis As Integer = CInt(_time.Split(".")[1])
+      Dim _diff As TDateTime = DateTime() - DateTime().EncodeTime(_hours, _mins, _secs, _millis)
+      Dim _diffText As String = _diff.ToString("hh:nn:ss.zzz")
+      GetTimer = (CInt(_diffText.Split(":")[0]) * 3600000) + (CInt(_diffText.Split(":")[1]) * 60000) + (CInt(_diffText.Split(":")[2].Split(".")[0]) * 1000) + CInt(_diffText.Split(".")[1])
+   End Function
+
+   Sub TimeStart(pLabel As String)
+      If _timers = Null Then
+         _timers = New StringList()
+         _timers.NameValueSeparator = ";"
+      End If
+      If _timers.IndexOfName(pLabel) >= 0 Then
+         _timers.Delete(_timers.IndexOfName(pLabel))
+      End If
+      _timers.Add(pLabel + _timers.NameValueSeparator + DateTime().ToString("hh:nn:ss.zzz"))
+   End Sub
+
+   Sub TimeLog(pLabel As String, pMessage As String = "")
+      GetDefault().TimeLog(pLabel, pMessage)
+   End Sub
+
+   Sub TimeEnd(pLabel As String, pMessage As String = "")
+      GetDefault().TimeEnd(pLabel, pMessage)
    End Sub
 
 End Namespace

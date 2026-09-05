@@ -42,6 +42,12 @@ export interface UglifyRenameMaps {
   readonly namespaceMembers: ReadonlyMap<string, ReadonlySet<string>>;
   /** User type → members / inheritance for typed member-access gating. */
   readonly userTypes: UserTypeIndex;
+  /**
+   * Lowercased names already allocated or reserved globally (short names plus
+   * keep-name / skipped originals). Locals must not reuse these — Data7 is
+   * case-insensitive, so `Dim c` collides with `Namespace c`.
+   */
+  readonly takenNames: ReadonlySet<string>;
   /** Declaration renames for source-map / uglify-map artifacts. */
   readonly symbols: readonly Data7SymbolMapping[];
 }
@@ -255,6 +261,10 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
         continue;
       }
       if (member.kind === "VariableDeclaration" || member.kind === "FieldDeclaration") {
+        // Unit-root Dims (Principal.bas script) are locals of the implicit
+        // file scope — not global members. Claiming them here would still miss
+        // Dims nested in For/If, which share that same scope in Data7.
+        if (!namespaceLower && member.kind === "VariableDeclaration") continue;
         claimMember(member.name, code, member.loc?.startLine);
         recordNamespaceMember(namespaceLower, member.name);
       }
@@ -278,6 +288,7 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
     nestedTypes,
     namespaceMembers,
     userTypes,
+    takenNames: allocator.snapshotTaken(),
     symbols,
   };
 }
@@ -303,7 +314,12 @@ export function createLocalRenameMap(
         case "VariableDeclaration":
           rename(statement.name);
           break;
+        case "DestructuredVariableDeclaration":
+          for (const binding of statement.bindings) rename(binding.name);
+          break;
         case "ForStatement":
+          // Data7 For does not introduce a nested scope; the counter lives in
+          // the enclosing Sub/Function/script (same table as Dim i / For i).
           rename(statement.counter.name);
           walkStatements(statement.body);
           break;
@@ -344,4 +360,43 @@ export function createLocalRenameMap(
 
   walkStatements(method.body);
   return map;
+}
+
+/**
+ * Executable members at compilation-unit root (Principal.bas script).
+ * `For`/`If`/`Dim` share one scope; namespaces/classes/methods do not.
+ */
+export function isUnitScriptStatement(member: TopLevelMember): member is Statement {
+  switch (member.kind) {
+    case "NamespaceDeclaration":
+    case "ClassDeclaration":
+    case "EnumDeclaration":
+    case "DelegateDeclaration":
+    case "MethodDeclaration":
+    case "FieldDeclaration":
+    case "ImportsDeclaration":
+      return false;
+    default:
+      return true;
+  }
+}
+
+export function createUnitScriptRenameMap(
+  members: readonly TopLevelMember[],
+  globalTaken: Iterable<string>,
+): Map<string, string> {
+  const body: Statement[] = [];
+  for (const member of members) {
+    if (isUnitScriptStatement(member)) body.push(member);
+  }
+  return createLocalRenameMap(
+    {
+      kind: "MethodDeclaration",
+      name: "__unit_script",
+      typeParameters: [],
+      parameters: [],
+      body,
+    },
+    globalTaken,
+  );
 }

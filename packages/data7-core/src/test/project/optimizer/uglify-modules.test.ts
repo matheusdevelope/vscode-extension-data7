@@ -337,6 +337,208 @@ g.Touch()
     assert.doesNotMatch(principal, /\.Touch\s*\(/i);
   });
 
+  test("does not collide Principal script Dim (including For-body) with uglified Namespace", () => {
+    const result = uglifyBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "Principal.bas",
+          code: `Imports Configurador
+Dim t As New Tabela("TipoOperacaoSaida")
+Dim i As Integer
+For i = 0 To t.Campos.Length - 1
+   Dim c As Campo = t.Campos.Take(i)
+   Dim pastaTitulo As String = ""
+   If Assigned(c.Pasta) Then
+      pastaTitulo = c.Pasta.Titulo
+   End If
+Next
+t.Free()
+`,
+        },
+        {
+          moduleName: "Configurador",
+          fileUri: "Configurador.bas",
+          code: `Namespace Configurador
+Class Tabela
+   Sub New(pNome As String)
+   End Sub
+   Sub Free()
+   End Sub
+   Function Campos() As CampoList
+      Campos = New CampoList()
+   End Function
+End Class
+
+Class CampoList
+   Function Length() As Integer
+      Length = 0
+   End Function
+   Function Take(pIndex As Integer) As Campo
+      Take = New Campo()
+   End Function
+End Class
+
+Class Campo
+   Function Pasta() As Pasta
+      Pasta = New Pasta()
+   End Function
+   Function Nome() As String
+      Nome = ""
+   End Function
+   Function Titulo() As String
+      Titulo = ""
+   End Function
+End Class
+
+Class Pasta
+   Function Titulo() As String
+      Titulo = ""
+   End Function
+End Class
+End Namespace
+`,
+        },
+      ],
+      { enabled: true },
+    );
+
+    const principal = result.modules.get("Principal") ?? "";
+    const configurador = result.modules.get("Configurador") ?? "";
+    const namespaces = [...`${principal}\n${configurador}`.matchAll(/\bNamespace\s+(\w+)/gi)].map(
+      (match) => match[1]?.toLowerCase() ?? "",
+    );
+    const dims = [...principal.matchAll(/\bDim\s+(\w+)/gi)].map(
+      (match) => match[1]?.toLowerCase() ?? "",
+    );
+    const forCounters = [...principal.matchAll(/\bFor\s+(\w+)\s*=/gi)].map(
+      (match) => match[1]?.toLowerCase() ?? "",
+    );
+
+    for (const dim of dims) {
+      assert.ok(dim.length > 0);
+      assert.equal(namespaces.includes(dim), false, `Dim ${dim} collides with Namespace`);
+    }
+    assert.doesNotMatch(principal, /\bDim pastaTitulo\b/i);
+    const dimInteger = principal.match(/\bDim\s+(\w+)\s+As Integer\b/i)?.[1]?.toLowerCase();
+    const forName = forCounters[0];
+    assert.ok(dimInteger);
+    assert.equal(forName, dimInteger);
+  });
+
+  test("renames bare Clear() on a user namespace even when Clear is a System Library name", () => {
+    const result = uglifyBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "Principal.bas",
+          code: `
+Imports StackTrace
+Sub Main()
+  StackTrace.Clean()
+End Sub
+`,
+        },
+        {
+          moduleName: "mod_stacktrace",
+          fileUri: "mod_stacktrace.bas",
+          code: `
+Imports Collections
+Namespace StackTrace
+  Private Dim _buf As StringList
+
+  Sub Clear()
+    If Assigned(_buf) Then
+      _buf.Clear()
+    End If
+  End Sub
+
+  ' @data7:keep-name
+  Sub Clean()
+    Clear()
+  End Sub
+
+  Function CaptureAndClear() As Integer
+    Clear()
+    CaptureAndClear = 1
+  End Function
+End Namespace
+`,
+        },
+      ],
+      { enabled: true },
+    );
+
+    const stack = result.modules.get("mod_stacktrace") ?? "";
+    assert.match(stack, /\bSub Clean\b/i);
+    assert.doesNotMatch(stack, /\bSub Clear\b/i);
+    assert.doesNotMatch(stack, /^\s*Clear\(\)/m);
+    assert.match(stack, /\.Clear\s*\(/);
+    const cleanBody = stack.match(/Sub Clean\b[\s\S]*?End Sub/i)?.[0] ?? "";
+    assert.doesNotMatch(cleanBody, /\bClear\s*\(/);
+    assert.match(cleanBody, /\b[a-z]\d*\s*\(\)/i);
+  });
+
+  test("renames Namespace.Type() casts even when a member shares the type name (Campo)", () => {
+    const result = uglifyBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "Principal.bas",
+          code: `
+Imports Configurador
+Sub Main()
+  Dim t As New Tabela()
+  Dim c As Configurador.Campo = t.Campo(t)
+End Sub
+`,
+        },
+        {
+          moduleName: "Configurador",
+          fileUri: "Configurador.bas",
+          code: `
+Namespace Configurador
+  Class Campo
+    Sub New()
+    End Sub
+  End Class
+  Class Tabela
+    Function Campo(pObj As Variant) As Campo
+      Campo = New Campo()
+    End Function
+  End Class
+End Namespace
+`,
+        },
+        {
+          moduleName: "mod_tlist",
+          fileUri: "mod_tlist.bas",
+          code: `
+Namespace mod_tlist
+  Class TTList_Campo
+    Private Function Unwrap(pObj As Variant) As Configurador.Campo
+      Unwrap = Configurador.Campo(pObj)
+    End Function
+  End Class
+End Namespace
+`,
+        },
+      ],
+      { enabled: true },
+    );
+
+    const tlist = result.modules.get("mod_tlist") ?? "";
+    assert.doesNotMatch(tlist, /\bConfigurador\b/);
+    assert.doesNotMatch(tlist, /\.Campo\s*\(/);
+    const asType = tlist.match(/\bAs\s+(\w+\.\w+)/i)?.[1];
+    const castType = tlist.match(/=\s*(\w+\.\w+)\s*\(/)?.[1];
+    assert.ok(asType, `expected qualified As type, got:\n${tlist}`);
+    assert.ok(castType, `expected Namespace.Type() cast, got:\n${tlist}`);
+    assert.equal(castType.toLowerCase(), asType.toLowerCase());
+    const principal = result.modules.get("Principal") ?? "";
+    assert.doesNotMatch(principal, /\.Campo\s*\(/);
+  });
+
   test("renames Select Case labels (Type.SharedMethod and enum-style helpers)", () => {
     const result = uglifyBuildModules(
       [

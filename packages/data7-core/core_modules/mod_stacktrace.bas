@@ -2,15 +2,7 @@ Imports Collections
 Imports mod_tobject
 Imports mod_tlist
 
-    ' @data7:keep-name
     Namespace StackTrace
-
-    ' Call stack manual, leve e sem alocar objeto no Push/Pop.
-    '   StackTrace.Push("Foo", "mod_x.bas", 12)
-    '   StackTrace.Pop()
-    '   Throw StackTrace.Fail("falha")
-    '   Throw StackTrace.Wrap(ex, "contexto")
-    '   Catch ex: Print StackTrace.Report(ex) : StackTrace.Clear()
 
     Private Dim _buf As StringList
     Private Dim _wraps As StringList
@@ -426,7 +418,6 @@ Imports mod_tlist
         Peek = PackedField(packed, 0)
     End Function
 
-    ' @data7:keep-name
     Sub Push(pFunctionName As String, pFileName As String = "", pLine As Integer = 0, pColumn As Integer = 0)
         If _disabled Then
             Exit Sub
@@ -435,7 +426,6 @@ Imports mod_tlist
         _buf.Add(PackFrame(pFunctionName, pFileName, pLine, pColumn))
     End Sub
 
-    ' @data7:keep-name
     Sub Pop()
         If _disabled Then
             Exit Sub
@@ -458,7 +448,6 @@ Imports mod_tlist
         _originMsg = ""
     End Sub
 
-    ' @data7:keep-name
     Sub Clean()
         Clear()
     End Sub
@@ -514,7 +503,6 @@ Imports mod_tlist
         SnapshotOf = CopyLiveFrames(ExceptionMessage(pEx))
     End Function
 
-    ' @data7:keep-name
     Function Report(pEx As Exception) As String
         Report = FormatReport(pEx)
     End Function
