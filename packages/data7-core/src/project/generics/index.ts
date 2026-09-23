@@ -50,6 +50,7 @@ export type {
 } from "./monomorphizer";
 export {
   canonicalNameOf,
+  flatMethodName,
   flatNameFromParts,
   flatNameOf,
   GenericsMonomorphizer,

@@ -51,3 +51,29 @@ function flatNameArgumentOf(
   const qualifier = type.name.substring(0, lastDot).replace(/[^A-Za-z0-9]+/g, "_");
   return `${qualifier}_${simple}`;
 }
+
+/**
+ * Flat name of a generic method. Qualified type arguments always keep the
+ * namespace (`Find<Forms.Form>` → `Find_Forms_Form`,
+ * `Find<MeusForms.Form>` → `Find_MeusForms_Form`) so two types that share a
+ * simple name do not emit the same overload. Class monomorphs stay on
+ * {@link flatNameOf}, which drops a unique qualifier.
+ */
+export function flatMethodNameFromParts(name: string, args: readonly TypeReference[]): string {
+  if (args.length === 0) return name;
+  return `${name}_${args.map((arg) => flatMethodTypeArgument(arg)).join("_")}`;
+}
+
+function flatMethodTypeArgument(type: TypeReference): string {
+  const base = encodeQualifiedTypeName(type.name);
+  if (type.typeArguments.length === 0) return base;
+  return `${base}_${type.typeArguments.map((arg) => flatMethodTypeArgument(arg)).join("_")}`;
+}
+
+function encodeQualifiedTypeName(typeName: string): string {
+  const lastDot = typeName.lastIndexOf(".");
+  if (lastDot === -1) return typeName;
+  const simple = typeName.substring(lastDot + 1);
+  const qualifier = typeName.substring(0, lastDot).replace(/[^A-Za-z0-9]+/g, "_");
+  return `${qualifier}_${simple}`;
+}

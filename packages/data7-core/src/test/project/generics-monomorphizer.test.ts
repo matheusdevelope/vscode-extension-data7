@@ -2,6 +2,7 @@ import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import {
   canonicalNameOf,
+  flatMethodName,
   flatNameFromParts,
   flatNameOf,
   GenericsMonomorphizer,
@@ -31,7 +32,7 @@ import {
   type VariableDeclaration,
 } from "../../project/generics";
 import { deepClone } from "../../project/generics";
-import { serializeUnitWithMap } from "../../project/parser";
+import { GenericsParserPlugin, parseBasic, serializeUnitWithMap } from "../../project/parser";
 
 // ----------------------------------------------------------------------------
 // Tiny AST builder helpers (test-only; keeps each scenario readable and lets
@@ -1119,6 +1120,9 @@ describe("GenericsMonomorphizer — naming helpers", () => {
       flatNameOf(typeRef("TTList", [typeRef("mod_product.Product")]), new Set(["tcampo"])),
       "TTList_Product",
     );
+    assert.equal(flatMethodName("Find", [typeRef("Forms.Form")]), "Find_Forms_Form");
+    assert.equal(flatMethodName("Find", [typeRef("MeusForms.Form")]), "Find_MeusForms_Form");
+    assert.equal(flatMethodName("Find", [typeRef("TSample")]), "Find_TSample");
   });
 
   test("flatNameFromParts mirrors flatNameOf for generic shapes", () => {
@@ -1416,5 +1420,140 @@ describe("GenericsMonomorphizer — delegate ordering before classes", () => {
       mapDelIdx < classIdx,
       `AMapDel_Integer (idx ${String(mapDelIdx)}) must come before AList_Integer (idx ${String(classIdx)})`,
     );
+  });
+});
+
+function parseGenericUnit(source: string): CompilationUnit {
+  return parseBasic(source, { plugins: [new GenericsParserPlugin()] }).unit;
+}
+
+function serialized(unit: CompilationUnit): string {
+  return serializeUnitWithMap(unit, { eol: "\n" }).code;
+}
+
+describe("GenericsMonomorphizer — shared generic methods on non-generic classes", () => {
+  test("materializes Cache.Find<Forms.Form> called on the class name in the same unit", () => {
+    const unit = parseGenericUnit(`
+Namespace mod_cache
+   Class Cache
+      Shared Function Find<T As TObject>(pKey As String) As T
+         Dim obj As TObject = Null
+         Find = T(obj, )
+      End Function
+   End Class
+
+   Class TRunner
+      Sub Run()
+         Dim _form As Forms.Form = Cache.Find<Forms.Form>("main")
+      End Sub
+   End Class
+End Namespace
+`);
+    const result = new GenericsMonomorphizer().monomorphize(unit);
+    const code = serialized(result.unit);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    assert.match(code, /Shared Function Find_Forms_Form\(pKey As String\) As Forms\.Form/);
+    assert.match(code, /Find_Forms_Form = Forms\.Form\(obj, \)/);
+    assert.match(code, /Cache\.Find_Forms_Form\("main"\)/);
+    assert.doesNotMatch(code, /Function Find</);
+  });
+
+  test("materializes Find_Forms_Form on the declaring class when the call lives in another file", () => {
+    const definition = parseGenericUnit(`
+Namespace mod_cache
+   Class Cache
+      Shared Function Find<T As TObject>(pKey As String) As T
+         Dim obj As TObject = Null
+         Find = T(obj, )
+      End Function
+   End Class
+End Namespace
+`);
+    const usage = parseGenericUnit(`
+Namespace test_cache
+   Class TCacheTest
+      Shared Sub Execute()
+         Dim _form As Forms.Form = Cache.Find<Forms.Form>("Form", "main")
+      End Sub
+   End Class
+End Namespace
+`);
+
+    const defined = new GenericsMonomorphizer({
+      externalTemplates: [{ name: "Find", typeParams: ["T"] }],
+      requestedInstantiations: [{ templateName: "Find", typeArgs: ["Forms.Form"] }],
+    }).monomorphize(definition);
+    const used = new GenericsMonomorphizer({
+      externalTemplates: [{ name: "Find", typeParams: ["T"] }],
+    }).monomorphize(usage);
+
+    const definedCode = serialized(defined.unit);
+    const usedCode = serialized(used.unit);
+
+    assert.equal(defined.warnings.length, 0, JSON.stringify(defined.warnings));
+    assert.equal(used.warnings.length, 0, JSON.stringify(used.warnings));
+    assert.match(definedCode, /Shared Function Find_Forms_Form\(pKey As String\) As Forms\.Form/);
+    assert.match(definedCode, /Find_Forms_Form = Forms\.Form\(obj, \)/);
+    assert.doesNotMatch(definedCode, /Function Find</);
+    assert.match(usedCode, /Cache\.Find_Forms_Form\("Form", "main"\)/);
+    assert.doesNotMatch(usedCode, /Find</);
+  });
+
+  test("materializes a shared generic method called on a derived type name", () => {
+    const unit = parseGenericUnit(`
+Namespace demo
+   Class TTable
+      Shared Function Exists<T As TTable>(pWhere As String) As Boolean
+         Exists = True
+      End Function
+   End Class
+
+   Class TTestPedido
+      Inherits TTable
+   End Class
+
+   Class TRunner
+      Sub Run()
+         Dim ok As Boolean = TTestPedido.Exists<TTestPedido>("x")
+      End Sub
+   End Class
+End Namespace
+`);
+    const result = new GenericsMonomorphizer().monomorphize(unit);
+    const code = serialized(result.unit);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    assert.match(code, /Shared Function Exists_TTestPedido\(pWhere As String\) As Boolean/);
+    assert.match(code, /TTestPedido\.Exists_TTestPedido\("x"\)/);
+    assert.doesNotMatch(code, /Function Exists</);
+  });
+
+  test("keeps the type namespace in the method flat name so homonymous types do not collide", () => {
+    const unit = parseGenericUnit(`
+Namespace mod_cache
+   Class Cache
+      Shared Function Find<T As TObject>(pKey As String) As T
+         Find = Null
+      End Function
+   End Class
+
+   Class TRunner
+      Sub Run()
+         Dim _form As Forms.Form = Cache.Find<Forms.Form>("Form", "main")
+         Dim _form2 As MeusForms.Form = Cache.Find<MeusForms.Form>("Form2", "main")
+      End Sub
+   End Class
+End Namespace
+`);
+    const result = new GenericsMonomorphizer().monomorphize(unit);
+    const code = serialized(result.unit);
+
+    assert.equal(result.warnings.length, 0, JSON.stringify(result.warnings));
+    assert.match(code, /Shared Function Find_Forms_Form\(pKey As String\) As Forms\.Form/);
+    assert.match(code, /Shared Function Find_MeusForms_Form\(pKey As String\) As MeusForms\.Form/);
+    assert.match(code, /Cache\.Find_Forms_Form\("Form", "main"\)/);
+    assert.match(code, /Cache\.Find_MeusForms_Form\("Form2", "main"\)/);
+    assert.doesNotMatch(code, /Function Find_Form\(/);
   });
 });

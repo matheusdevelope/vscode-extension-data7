@@ -87,6 +87,8 @@ Dim ok As Boolean = TTestPedido.Exists<TTestPedido>("Titulo = 'A'")
 
 `Exists(pWhere)` (instância) e `Exists<T As TTable>(pWhere)` (Shared) são overloads distintos — a aridade genérica faz parte da assinatura.
 
+No build, a chamada no nome da classe (`Cache.Find<Forms.Form>(...)`, ou no tipo derivado) materializa o overload na classe que declara o método, mesmo quando o uso está em outro `.bas`. O flat name do método inclui o namespace do argumento: `Find<Forms.Form>` vira `Find_Forms_Form` e `Find<MeusForms.Form>` vira `Find_MeusForms_Form`. `Exists<TTestPedido>` (sem namespace) continua `Exists_TTestPedido`. O cast de tipo `T(obj, )` permanece com a vírgula final (`Forms.Form(obj, )`).
+
 ### Uso
 
 ```basic

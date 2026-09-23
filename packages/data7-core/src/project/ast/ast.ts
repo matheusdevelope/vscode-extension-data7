@@ -18,8 +18,8 @@
  *  - Default type parameters.
  *  - Parametric constraints (`T As List<U>`); plain constraints
  *    (`T As BaseItem`) are accepted and discarded by the engine.
- *  - Generic methods declared inside classes — they are detected by the
- *    engine and pruned with a `class-generic-method-unsupported` warning.
+ *  - Generic methods declared inside classes are member templates: the
+ *    engine re-injects a concrete overload when a call site is observed.
  */
 
 export interface SourceLocation {
@@ -248,6 +248,11 @@ export interface MethodInvocation extends BaseNode {
   methodName: string;
   typeArguments: TypeReference[];
   arguments: Expression[];
+  /**
+   * `T(obj, )` — PaxCompiler/Data7 typecast. The trailing comma is not an
+   * argument; dropping it turns the cast into a function call.
+   */
+  trailingComma?: boolean;
 }
 
 export interface MemberAccess extends BaseNode {

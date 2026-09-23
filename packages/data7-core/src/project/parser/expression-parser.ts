@@ -174,7 +174,7 @@ export function parsePrefix(parser: Parser): Expression | null {
         loc: locOfToken(token),
       };
       const hasParentheses = parser.match("punct", "(");
-      const args = hasParentheses ? parseArgumentList(parser, true) : [];
+      const args = hasParentheses ? parseArgumentList(parser, true).arguments : [];
       const closeToken = hasParentheses ? previousToken(parser) : undefined;
       const endLoc =
         closeToken && closeToken.kind === "punct" && closeToken.value === ")"
@@ -307,7 +307,9 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
     if (result !== null && result !== undefined) return result;
   }
   if (token.kind === "punct" && token.value === "(") {
-    const arguments_ = parseArgumentList(parser, false);
+    const parsedArgs = parseArgumentList(parser, false);
+    const arguments_ = parsedArgs.arguments;
+    const trailingComma = parsedArgs.trailingComma;
     const closeToken = previousToken(parser);
     const loc =
       closeToken && closeToken.kind === "punct" && closeToken.value === ")"
@@ -317,6 +319,7 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
       return {
         ...left,
         arguments: arguments_,
+        trailingComma,
         loc,
       };
     }
@@ -327,6 +330,7 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
         methodName: left.member,
         typeArguments: [],
         arguments: arguments_,
+        trailingComma,
         loc,
       };
     }
@@ -336,6 +340,7 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
         methodName: left.name,
         typeArguments: [],
         arguments: arguments_,
+        trailingComma,
         loc,
       };
     }
@@ -345,6 +350,7 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
       methodName: "",
       typeArguments: [],
       arguments: arguments_,
+      trailingComma,
       loc,
     };
   }
@@ -424,10 +430,14 @@ export function parseInfix(parser: Parser, left: Expression, token: Token): Expr
   };
 }
 
-function parseArgumentList(parser: Parser, requireOpening: boolean): Expression[] {
+function parseArgumentList(
+  parser: Parser,
+  requireOpening: boolean,
+): { readonly arguments: Expression[]; readonly trailingComma: boolean } {
   if (requireOpening) parser.expect("punct", "(", { literal: true });
   else parser.advance();
   const arguments_: Expression[] = [];
+  let trailingComma = false;
   parser.skipExpressionTrivia();
   while (!parser.match("punct", ")") && !parser.isEOF()) {
     parser.skipExpressionTrivia();
@@ -436,7 +446,11 @@ function parseArgumentList(parser: Parser, requireOpening: boolean): Expression[
     parser.skipExpressionTrivia();
     if (!parser.consume("punct", ",")) break;
     parser.skipExpressionTrivia();
+    if (parser.match("punct", ")")) {
+      trailingComma = true;
+      break;
+    }
   }
   parser.expect("punct", ")", { literal: true });
-  return arguments_;
+  return { arguments: arguments_, trailingComma };
 }

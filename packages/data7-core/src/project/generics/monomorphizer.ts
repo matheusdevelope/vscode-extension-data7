@@ -18,8 +18,9 @@
  *   2. Template Registration & Pruning — collect every generic
  *      declaration, deep-clone it into the {@link TemplateRegistry}, then
  *      remove the original from the AST so the downstream compiler never
- *      sees `<T>`. Generic methods declared inside classes are detected
- *      and pruned with a `class-generic-method-unsupported` warning.
+ *      sees `<T>`. Generic methods declared inside classes are kept as
+ *      member templates and re-injected as concrete overloads when a call
+ *      is observed (`Cache.Find<Forms.Form>` → `Find_Forms_Form`).
  *   3. Usage Discovery & flat-name rewrite — walk the remaining AST
  *      looking for instantiation sites (TypeReference /
  *      ObjectCreationExpression / MethodInvocation) carrying type
@@ -75,6 +76,7 @@ import { SugarRegistry } from "../sugar-registry";
 import { SugarEngine } from "../sugars";
 import {
   canonicalNameOf as canonicalGenericNameOf,
+  flatMethodNameFromParts,
   flatNameFromParts as flattenGenericNameFromParts,
   flatNameOf as flattenGenericName,
 } from "./type-names";
@@ -268,6 +270,10 @@ export function flatNameFromParts(
   return flattenGenericNameFromParts(name, args, homonymousSimpleNames);
 }
 
+export function flatMethodName(name: string, args: readonly TypeReference[]): string {
+  return flatMethodNameFromParts(name, args);
+}
+
 function ctxFlatNameOf(ctx: MonoContext, type: TypeReference): string {
   return flattenGenericName(type, ctx.options.homonymousTypeNames);
 }
@@ -278,6 +284,10 @@ function ctxFlatNameFromParts(
   args: readonly TypeReference[],
 ): string {
   return flattenGenericNameFromParts(name, args, ctx.options.homonymousTypeNames);
+}
+
+function ctxFlatMethodName(name: string, args: readonly TypeReference[]): string {
+  return flatMethodNameFromParts(name, args);
 }
 
 function qualifyLeafTypeName(ctx: MonoContext, typeName: string): string {
@@ -758,7 +768,7 @@ class GenericUsageRewriter extends ASTWalker {
       qualifyTypeReferenceLeaves(this.ctx, arg);
     }
     const canonical = canonicalNameOf(synthetic);
-    const flat = ctxFlatNameOf(this.ctx, synthetic);
+    const flat = ctxFlatMethodName(node.methodName, node.typeArguments);
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
@@ -803,7 +813,8 @@ class GenericUsageRewriter extends ASTWalker {
 
   private rewriteClassGenericMethodInvocation(node: MethodInvocation): boolean {
     if (!node.callee) return false;
-    const receiverType = this.expressionTypes.get(node.callee);
+    const receiverType =
+      this.expressionTypes.get(node.callee) ?? this.staticGenericOwnerName(node.callee);
     if (!receiverType) return false;
     const owner = this.resolveOwner(receiverType);
     if (!owner) return false;
@@ -826,7 +837,7 @@ class GenericUsageRewriter extends ASTWalker {
       qualifyTypeReferenceLeaves(this.ctx, arg);
     }
     const canonical = canonicalNameOf(synthetic);
-    const flat = ctxFlatNameOf(this.ctx, synthetic);
+    const flat = ctxFlatMethodName(node.methodName, node.typeArguments);
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
@@ -855,6 +866,30 @@ class GenericUsageRewriter extends ASTWalker {
       this.expressionTypes.set(node, inferredReturn);
     }
     return true;
+  }
+
+  /**
+   * `Cache.Find<Forms.Form>` and `TTestPedido.Exists<TTestPedido>` use the
+   * type name as the receiver. Instance variables are already in
+   * {@link expressionTypes}; this resolves the class (or the base that
+   * actually declares the generic method) when the callee is not a variable.
+   */
+  private staticGenericOwnerName(callee: Expression): string | undefined {
+    const className = classNameFromCallee(callee);
+    if (!className) return undefined;
+    return this.findGenericMethodOwner(className, new Set());
+  }
+
+  private findGenericMethodOwner(className: string, seen: Set<string>): string | undefined {
+    const dot = className.lastIndexOf(".");
+    const simple = dot === -1 ? className : className.slice(dot + 1);
+    const key = simple.toLowerCase();
+    if (!key || seen.has(key)) return undefined;
+    seen.add(key);
+    if (this.ctx.classGenericMethods.has(key)) return simple;
+    const baseName = findClassDeclarationByName(this.ctx.unit.members, simple)?.baseType?.name;
+    if (!baseName) return undefined;
+    return this.findGenericMethodOwner(baseName, seen);
   }
 
   private resolveOwner(receiverType: string):
@@ -1053,7 +1088,10 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
       name: arg,
       typeArguments: [],
     }));
-    const flatName = ctxFlatNameFromParts(ctx, template.name, concreteArgs);
+    const flatName =
+      template.kind === "MethodDeclaration"
+        ? ctxFlatMethodName(template.name, concreteArgs)
+        : ctxFlatNameFromParts(ctx, template.name, concreteArgs);
     enqueue(ctx, { templateName: template.name, concreteArgs, flatName });
   }
 
@@ -1070,17 +1108,33 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
           template.method.name.toLowerCase() === request.templateName.toLowerCase() &&
           template.method.typeParameters.length === methodTypeArgs.length,
       );
-      if (candidates.length === 0) continue;
+      const sample = candidates[0];
+      if (!sample) continue;
+
+      const methodFlatName = ctxFlatMethodName(sample.method.name, methodTypeArgs);
+
+      // `Shared Function Find<T>` lives on a non-generic class. Call sites in
+      // other files are recorded only as `Find<Forms.Form>`, so the concrete
+      // overload has to be requested on the declaring class itself.
+      if (sample.ownerTypeParameters.length === 0) {
+        ctx.classMethodRequests.set(
+          classMethodRequestKey(sample.ownerClassName, request.templateName, methodFlatName),
+          {
+            ownerClassName: sample.ownerClassName,
+            ownerFlatName: sample.ownerClassName,
+            ownerConcreteArgs: [],
+            methodName: request.templateName,
+            methodFlatName,
+            methodConcreteArgs: methodTypeArgs.map(deepClone),
+          },
+        );
+        continue;
+      }
 
       const concreteOwners = Array.from(ctx.concreteInstantiations.values()).filter(
         (instantiation) => instantiation.templateName.toLowerCase() === ownerClassKey,
       );
       for (const owner of concreteOwners) {
-        const methodFlatName = ctxFlatNameFromParts(
-          ctx,
-          candidates[0]?.method.name ?? request.templateName,
-          methodTypeArgs,
-        );
         ctx.classMethodRequests.set(
           classMethodRequestKey(owner.flatName, request.templateName, methodFlatName),
           {
@@ -1414,6 +1468,12 @@ function buildMethodSubstitution(
     if (param?.name && arg) substitution.set(param.name, arg);
   }
   return substitution;
+}
+
+function classNameFromCallee(callee: Expression): string | undefined {
+  if (callee.kind === "Identifier") return callee.name;
+  if (callee.kind === "MemberAccess") return callee.member;
+  return undefined;
 }
 
 function findClassDeclarationByName(

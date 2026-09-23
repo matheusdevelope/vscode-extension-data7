@@ -616,7 +616,9 @@ function emitExpressionRaw(expr: Expression): string {
     case "MethodInvocation": {
       const typeOfExpr = emitTypeOfExpression(expr);
       if (typeOfExpr !== undefined) return typeOfExpr;
-      const callArgs = expr.arguments.map(emitExpression).join(", ");
+      const joinedArgs = expr.arguments.map(emitExpression).join(", ");
+      const callArgs =
+        expr.trailingComma === true && joinedArgs.length > 0 ? `${joinedArgs}, ` : joinedArgs;
       const typeArgs =
         expr.typeArguments.length > 0 ? `<${expr.typeArguments.map(emitTypeRef).join(", ")}>` : "";
       const receiver = expr.callee
