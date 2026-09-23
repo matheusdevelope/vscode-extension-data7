@@ -667,6 +667,85 @@ End Namespace
       });
     });
 
+    test("does not import the flat monomorph TTList_TCampoValue from Cache.Find<T>", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "ambient_campo.bas"),
+          `Namespace ambient_campo
+   Class TCampoValue
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "ambient_campos.bas"),
+          `Imports ambient_campo
+Imports mod_tlist
+
+Namespace ambient_campos
+   Class TCampoList
+      Inherits TTList<TCampoValue>
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(tmp, "src", "mod_ambient.bas"),
+          `Imports mod_cache
+
+Namespace Ambient
+   Class TContext
+   End Class
+
+   Sub Load()
+      Dim found As TObject = Cache.Find<TContext>("Ambient", "key")
+   End Sub
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `Namespace mod_tlist
+   Class TTList<T>
+      Function Find(pValue As T) As T
+      End Function
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_cache.bas"),
+          `Namespace mod_cache
+   Class Cache
+      Shared Function Find<T>(pPool As String, pKey As String) As T
+      End Function
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Class TTList_TCampoValue/);
+        assert.match(xml, /Inherits TTList_TCampoValue/);
+        assert.match(xml, /Cache\.Find_/);
+        assert.doesNotMatch(xml, /Imports TTList_TCampoValue/);
+      });
+    });
+
     test("imports mod_tlist when enum array sugar materializes TTList_Color", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);

@@ -754,36 +754,33 @@ export class Builder {
       : trimmed;
     if (BUILDER_PRIMITIVE_TYPE_NAMES.has(simpleName.toLowerCase())) return undefined;
 
-    const symbol = indexer.findSymbolByName(simpleName, usageFileUri);
-    if (symbol) {
-      if (symbol.isSyntheticGenericInstantiation) {
-        if (symbol.containerName) return symbol.containerName;
-        if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
-        return undefined;
-      }
-      if (
-        symbol.kind !== "class" &&
-        symbol.kind !== "structure" &&
-        symbol.kind !== "delegate" &&
-        symbol.kind !== "namespace"
-      ) {
-        return undefined;
-      }
+    const primary = this.namespaceContainerOf(
+      indexer.findSymbolByName(simpleName, usageFileUri),
+      indexer,
+    );
+    if (primary) return primary;
 
-      if (symbol.containerName) return symbol.containerName;
-      if (trimmed.includes(".")) return trimmed.substring(0, trimmed.lastIndexOf("."));
-      return undefined;
+    for (const candidate of indexer.getSymbolsByName(simpleName)) {
+      const ns = this.namespaceContainerOf(candidate, indexer);
+      if (ns) return ns;
+    }
+
+    if (trimmed.includes(".")) {
+      const qualifier = trimmed.substring(0, trimmed.lastIndexOf("."));
+      if (this.containerIsDeclaredNamespace(qualifier, indexer)) return qualifier;
     }
 
     // Flat monomorphs (`TTList_Foo`) may not be indexed yet when a usage file is
     // transpiled; fall back to the open template's namespace (`TTList` → mod_tlist).
     const lower = simpleName.toLowerCase();
     for (const candidate of indexer.getAllSymbols()) {
+      if (candidate.isSyntheticGenericInstantiation) continue;
       if (candidate.kind !== "class" && candidate.kind !== "delegate") continue;
       if (!candidate.genericTypeParameters || candidate.genericTypeParameters.length === 0) {
         continue;
       }
       if (!candidate.containerName) continue;
+      if (!this.containerIsDeclaredNamespace(candidate.containerName, indexer)) continue;
       if (lower.startsWith(`${candidate.name.toLowerCase()}_`)) {
         return candidate.containerName;
       }
@@ -791,22 +788,49 @@ export class Builder {
     return undefined;
   }
 
+  /**
+   * Import targets are namespaces. Synthetic members of a monomorph
+   * (`TTList_TCampoValue.Find`) store the flat class name in `containerName`;
+   * that string is not a namespace and must not become `Imports`.
+   */
+  private static namespaceContainerOf(
+    symbol: SymbolInfo | undefined,
+    indexer: WorkspaceSymbolIndexer,
+  ): string | undefined {
+    if (!symbol?.containerName) return undefined;
+    if (symbol.kind !== "class" && symbol.kind !== "structure" && symbol.kind !== "delegate") {
+      return undefined;
+    }
+    if (!this.containerIsDeclaredNamespace(symbol.containerName, indexer)) return undefined;
+    return symbol.containerName;
+  }
+
+  private static containerIsDeclaredNamespace(
+    containerName: string,
+    indexer: WorkspaceSymbolIndexer,
+  ): boolean {
+    return indexer.getSymbolsByName(containerName).some((symbol) => symbol.kind === "namespace");
+  }
+
   private static collectExternalGenericTemplates(
     indexer: WorkspaceSymbolIndexer,
   ): ExternalGenericTemplate[] {
-    const templates: ExternalGenericTemplate[] = [];
-    const seen = new Set<string>();
+    const byName = new Map<string, ExternalGenericTemplate>();
     for (const sym of indexer.getAllSymbols()) {
+      if (sym.isSyntheticGenericInstantiation) continue;
       if (sym.kind !== "class" && sym.kind !== "delegate" && sym.kind !== "method") {
         continue;
       }
       if (!sym.genericTypeParameters || sym.genericTypeParameters.length === 0) continue;
       const key = sym.name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      templates.push({ name: sym.name, typeParams: sym.genericTypeParameters });
+      const kind =
+        sym.kind === "method" ? "method" : sym.kind === "delegate" ? "delegate" : "class";
+      const previous = byName.get(key);
+      if (previous && previous.kind !== "method") continue;
+      if (previous?.kind === "method" && kind === "method") continue;
+      byName.set(key, { name: sym.name, typeParams: sym.genericTypeParameters, kind });
     }
-    return templates;
+    return [...byName.values()];
   }
 
   private static collectRequestedGenericInstantiations(

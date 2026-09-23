@@ -143,6 +143,12 @@ export interface CollectWorkspaceClassGenericMethodRequestsOptions extends Monom
 export interface ExternalGenericTemplate {
   readonly name: string;
   readonly typeParams: readonly string[];
+  /**
+   * `method` templates (`Cache.Find<T>`) are monomorphized in place.
+   * They must not drive `Imports`: a cloned member's container is the flat
+   * class (`TTList_TCampoValue`), not a namespace.
+   */
+  readonly kind?: "class" | "delegate" | "method";
 }
 
 export interface RequestedGenericInstantiation {

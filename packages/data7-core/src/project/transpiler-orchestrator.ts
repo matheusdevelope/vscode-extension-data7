@@ -288,7 +288,9 @@ function _injectImportsForMaterializedGenericInstantiations(
   ctx: TranspileContext,
 ): void {
   const externalTemplateNames = new Set(
-    (ctx.externalGenericTemplates ?? []).map((template) => template.name.toLowerCase()),
+    (ctx.externalGenericTemplates ?? [])
+      .filter((template) => template.kind !== "method")
+      .map((template) => template.name.toLowerCase()),
   );
 
   // 1. Collect all generic template names used in this file.
@@ -340,11 +342,12 @@ function _injectImportsForMaterializedGenericInstantiations(
   const namespacesToImport = new Set<string>();
   for (const templateName of collector.templateNames) {
     const ns = ctx.resolveTypeImport?.(templateName);
-    if (ns) {
-      const nsLower = ns.toLowerCase();
-      if (!declaredNamespaces.has(nsLower) && !existingImports.has(nsLower)) {
-        namespacesToImport.add(ns);
-      }
+    if (!ns) continue;
+    // Flat monomorphs (`TTList_TCampoValue`) are classes, never namespaces.
+    if (isMaterializedExternalGenericName(ns, externalTemplateNames)) continue;
+    const nsLower = ns.toLowerCase();
+    if (!declaredNamespaces.has(nsLower) && !existingImports.has(nsLower)) {
+      namespacesToImport.add(ns);
     }
   }
 

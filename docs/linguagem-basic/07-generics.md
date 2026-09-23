@@ -194,7 +194,7 @@ flowchart LR
 1. **Validação**: nomes vazios, type-parameters duplicados, etc. emitem warnings sem abortar.
 2. **Coleta & poda**: cada `Class T<T>`, `Delegate <T>`, `Sub Foo<T>` é deep-cloned para o `TemplateRegistry`, e a declaração original é **removida** do AST — o compilador downstream nunca verá `<T>`.
 3. **Reescrita**: passa pelo restante do AST, encontra `TypeReference` com `typeArguments`, reescreve para o flat name e enfileira a instanciação.
-4. **Drenagem**: drena a worklist (com dedup via `GlobalInstantiatedSet`); clona template, substitui `T` pelo concreto, injeta no AST. Re-walks o injetado para descobrir nested generics **no mesmo arquivo** (`TList<TList<Integer>>` → `TList_TList_Integer`). Usos aninhados de templates **de outro arquivo** (`TTList<TypeRow>` dentro de `TTMatrix<TypeRow>`) são fechados na coleta global do Builder: a instanciação concreta do template externo entra na fila (`TTList_TGridRow`) para o arquivo dono materializar a classe.
+4. **Drenagem**: drena a worklist (com dedup via `GlobalInstantiatedSet`); clona template, substitui `T` pelo concreto, injeta no AST. Re-walks o injetado para descobrir nested generics **no mesmo arquivo** (`TList<TList<Integer>>` → `TList_TList_Integer`). Usos aninhados de templates **de outro arquivo** (`TTList<TypeRow>` dentro de `TTMatrix<TypeRow>`) são fechados na coleta global do Builder: a instanciação concreta do template externo entra na fila (`TTList_TGridRow`) para o arquivo dono materializar a classe. O `Imports` injetado no consumidor é o namespace do template (`mod_tlist`), nunca o flat name (`TTList_TCampoValue`). Método genérico (`Cache.Find<T>`) não pede `Imports`.
 
 ## Flat naming
 
