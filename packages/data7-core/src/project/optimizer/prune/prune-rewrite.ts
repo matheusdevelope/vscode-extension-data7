@@ -105,6 +105,11 @@ export function rewriteCompilationUnit(
           continue;
         }
         result.push(member);
+        continue;
+      }
+
+      if (member.kind === "OpaqueStatement") {
+        result.push(member);
       }
     }
     return result;

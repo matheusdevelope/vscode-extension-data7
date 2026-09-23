@@ -11,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     containerName: "Forms",
-    inheritsFrom: "TcxCustomEdit",
+    inheritsFrom: "THCheckBox",
     description:
       "Caixa de seleção (verdadeiro/falso/grayed) padrão Data7. Wrapper sobre TcxCheckBox.",
   },
@@ -40,20 +40,5 @@ export const symbols: SystemSymbolInfo[] = [
     containerName: "CheckBox",
     description:
       "Estado da caixa: cbsUnchecked (0), cbsChecked (1) ou cbsGrayed (2 — apenas quando AllowGrayed = True).",
-  },
-
-  // ───────── Methods ─────────
-  {
-    name: "Toggle",
-    kind: "method",
-    type: "Void",
-    isShared: false,
-    isPrivate: false,
-    parameters: [],
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: "CheckBox",
-    description:
-      "Alterna o estado da caixa entre marcado e desmarcado (e cinza, quando AllowGrayed = True).",
   },
 ];

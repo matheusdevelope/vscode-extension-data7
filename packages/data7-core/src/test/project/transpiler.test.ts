@@ -9,6 +9,15 @@ import { TypeResolver } from "../../analysis/type-resolver";
 import { WorkspaceSymbolIndexer, type SymbolInfo } from "../../analysis/symbol-indexer";
 import { lookupSystemByName } from "../../system-library";
 import { SYSTEM_RANGE } from "../../system-library/symbol-helpers";
+import { loadExample } from "../_helpers/fixtures";
+
+function stripExampleHeader(source: string): string {
+  const lines = source.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && (lines[i]?.trim().startsWith("'") ?? false)) i++;
+  if (lines[i]?.trim() === "") i++;
+  return lines.slice(i).join("\n");
+}
 
 /**
  * Minimal in-memory enumerable resolver used by the transpiler tests.
@@ -499,6 +508,61 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Dim _list As New TTList_Color\(\)/);
   });
 
+  test("does not duplicate existing Imports in a script-style Principal", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TLabeledEditor", typeParams: ["T"] }],
+        resolveTypeImport: (typeName) => {
+          if (typeName === "TLabeledEditor" || typeName === "TLabeledEditor_TextBox") {
+            return "mod_editors";
+          }
+          return undefined;
+        },
+      },
+    );
+    const code = [
+      "Imports mod_editors",
+      "",
+      "Dim _topProps As New TEditorProps()",
+      "_topProps.EditorSize = 9",
+      '\' Dim _livre As New TLabeledEditor<Forms.TextBox>(_form, "Genérico")',
+      '\' _livre.TextHint = "TLabeledEditor<TextBox> direto"',
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.equal([...out.matchAll(/^Imports mod_editors$/gm)].length, 1);
+    assert.match(out, /Dim _topProps As New TEditorProps\(\)/);
+    assert.doesNotMatch(out, /__syntheticMethod/i);
+  });
+
+  test("does not inject Imports from commented generic usage in a script-style Principal", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        externalGenericTemplates: [{ name: "TLabeledEditor", typeParams: ["T"] }],
+        resolveTypeImport: (typeName) => {
+          if (typeName === "TLabeledEditor") return "mod_editors";
+          return undefined;
+        },
+      },
+    );
+    const code = [
+      "Dim _topProps As New TEditorProps()",
+      '\' Dim _livre As New TLabeledEditor<Forms.TextBox>(_form, "Genérico")',
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.doesNotMatch(out, /^Imports mod_editors$/m);
+    assert.match(out, /Dim _topProps As New TEditorProps\(\)/);
+  });
+
   test("preserves array access after method calls", () => {
     const ctx = makeContext({});
     const code = [
@@ -595,6 +659,76 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Value As mod_product\.Product/);
     assert.match(out, /Private Function Unwrap\(pObj As TTObject\) As mod_product\.Product/);
     assert.match(out, /Unwrap = mod_product\.Product\(pObj\)/);
+  });
+
+  test("materializes distinct TTList monomorphs for homonymous TCampo types", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        homonymousGenericTypeNames: new Set(["tcampo"]),
+        requestedGenericInstantiations: [
+          { templateName: "TTList", typeArgs: ["Ambient.TCampo"] },
+          { templateName: "TTList", typeArgs: ["table_campo.TCampo"] },
+          { templateName: "TTableOf", typeArgs: ["table_campo.TCampo"] },
+        ],
+      },
+    );
+    const code = [
+      "Namespace TablesTable",
+      "   Class TTableOf<T>",
+      "      Shared Function Fetch() As TTList<T>",
+      "         Dim rows As New TTList<T>()",
+      "         rows.Push(T(raw))",
+      "         Fetch = rows",
+      "      End Function",
+      "   End Class",
+      "End Namespace",
+      "Namespace mod_tlist",
+      "   Class TTList<T>",
+      "      Sub Push(pValue As T)",
+      "      End Sub",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    assert.match(out, /Class TTList_Ambient_TCampo/);
+    assert.match(out, /Class TTList_table_campo_TCampo/);
+    assert.match(out, /Class TTableOf_table_campo_TCampo/);
+    assert.match(out, /Sub Push\(pValue As Ambient\.TCampo\)/);
+    assert.match(out, /Sub Push\(pValue As table_campo\.TCampo\)/);
+    assert.match(out, /rows\.Push\(table_campo\.TCampo\(raw\)\)/);
+    assert.doesNotMatch(out, /Class TTList_TCampo\b/);
+  });
+
+  test("rewrites homonymous generic usages with the file's TCampo namespace", () => {
+    const ctx = makeContext(
+      {},
+      {},
+      {
+        homonymousGenericTypeNames: new Set(["tcampo"]),
+        usageFileUri: "file:///table_campo.bas",
+        qualifyTypeArgument: (typeName) =>
+          typeName.toLowerCase() === "tcampo" ? "table_campo.TCampo" : typeName,
+        externalGenericTemplates: [{ name: "TTableOf", typeParams: ["T"] }],
+      },
+    );
+    const code = [
+      "Namespace table_campo",
+      "   Class TCampo",
+      "      Inherits TTableOf<TCampo>",
+      "   End Class",
+      "End Namespace",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    assert.match(out, /Inherits TTableOf_table_campo_TCampo/);
+    assert.doesNotMatch(out, /Inherits TTableOf_TCampo\b/);
   });
 
   test("ignores requested generic instantiations that still use open type parameters", () => {
@@ -862,6 +996,306 @@ describe("SugarTranspiler.transpile", () => {
     assert.match(out, /Kind = "non-primitive"/);
     assert.match(out, /ClassKind = "class"/);
     assert.match(out, /ClassKind = "non-class"/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("evaluates TypeSystem.IsType against the concrete argument, not ancestors", () => {
+    const ctx = makeContext({}, { SpecialMemo: ["MemoTextBox"] });
+    const code = [
+      "Class MemoTextBox",
+      "End Class",
+      "Class SpecialMemo",
+      "   Inherits MemoTextBox",
+      "End Class",
+      "Class TProbe_<T>",
+      "   Function Kind() As String",
+      '      <# IF TypeSystem.IsType(T, "MemoTextBox") THEN #>',
+      '      Kind = "exact"',
+      "      <# ELSE #>",
+      '      Kind = "other"',
+      "      <# END IF #>",
+      "   End Function",
+      "End Class",
+      "Dim a As TProbe<MemoTextBox>",
+      "Dim b As TProbe<SpecialMemo>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0);
+    assert.match(out, /Class TProbe_MemoTextBox/);
+    assert.match(out, /Class TProbe_SpecialMemo/);
+    assert.match(out, /Kind = "exact"/);
+    assert.match(out, /Kind = "other"/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("keeps class members only when TypeSystem.IsType matches the final type", () => {
+    const ctx = makeContext(
+      {},
+      { MemoTextBox: ["TcxCustomTextEdit"], TextBox: ["TcxCustomTextEdit"] },
+    );
+    const code = [
+      "Class TcxCustomTextEdit",
+      "End Class",
+      "Class MemoTextBox",
+      "   Inherits TcxCustomTextEdit",
+      "End Class",
+      "Class TextBox",
+      "   Inherits TcxCustomTextEdit",
+      "End Class",
+      "Class TLabeled_<T>",
+      '   <# If Not TypeSystem.IsType(T, "MemoTextBox") Then #>',
+      "   Property CharCase As Integer",
+      "      Get",
+      "         CharCase = 0",
+      "      End Get",
+      "      Set(pValue As Integer)",
+      "         me._setCharCase(pValue)",
+      "      End Set",
+      "   End Property",
+      "   Private Sub _setCharCase(pValue As Integer)",
+      "   End Sub",
+      "   <# End If #>",
+      "End Class",
+      "Dim memo As TLabeled<MemoTextBox>",
+      "Dim box As TLabeled<TextBox>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    assert.match(out, /Class TLabeled_TextBox/);
+    assert.match(out, /Class TLabeled_MemoTextBox/);
+    const textBoxClass = out.slice(
+      out.indexOf("Class TLabeled_TextBox"),
+      out.indexOf("End Class", out.indexOf("Class TLabeled_TextBox")),
+    );
+    const memoClass = out.slice(
+      out.indexOf("Class TLabeled_MemoTextBox"),
+      out.indexOf("End Class", out.indexOf("Class TLabeled_MemoTextBox")),
+    );
+    assert.match(textBoxClass, /Property CharCase/);
+    assert.match(textBoxClass, /Sub _setCharCase/);
+    assert.doesNotMatch(memoClass, /Property CharCase/);
+    assert.doesNotMatch(memoClass, /Sub _setCharCase/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("canonical TypeSystem.IsType example omits CharCase only for MemoTextBox", () => {
+    const ctx = makeContext(
+      {},
+      { MemoTextBox: ["TcxCustomTextEdit"], TextBox: ["TcxCustomTextEdit"] },
+    );
+    const code = stripExampleHeader(loadExample("sugar/generics/01-typesystem-is-type.bas"));
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    assert.match(out, /Class TLabeled_TextBox/);
+    assert.match(out, /Class TLabeled_MemoTextBox/);
+    const textBoxClass = out.slice(
+      out.indexOf("Class TLabeled_TextBox"),
+      out.indexOf("End Class", out.indexOf("Class TLabeled_TextBox")),
+    );
+    const memoClass = out.slice(
+      out.indexOf("Class TLabeled_MemoTextBox"),
+      out.indexOf("End Class", out.indexOf("Class TLabeled_MemoTextBox")),
+    );
+    assert.match(textBoxClass, /Property CharCase/);
+    assert.doesNotMatch(memoClass, /Property CharCase/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("evaluates And / Not in TypeSystem conditions for the concrete type", () => {
+    const ctx = makeContext(
+      {},
+      {
+        CheckBox: ["THCheckBox", "TcxCustomEdit", "TWinControl"],
+        TextBox: ["TcxCustomTextEdit", "TcxCustomEdit", "TWinControl"],
+      },
+    );
+    const code = [
+      "Class TcxCustomEdit",
+      "End Class",
+      "Class TcxCustomTextEdit",
+      "   Inherits TcxCustomEdit",
+      "End Class",
+      "Class CheckBox",
+      "   Inherits TcxCustomEdit",
+      "End Class",
+      "Class TextBox",
+      "   Inherits TcxCustomTextEdit",
+      "End Class",
+      "Class TLabeled_<T>",
+      "   Function GetMaxLength() As Integer",
+      '      <# If TypeSystem.InheritsFrom(T, "TcxCustomTextEdit") And Not TypeSystem.IsType(T, "Forms.CheckBox") Then #>',
+      "      GetMaxLength = me._control.MaxLength",
+      "      <# Else #>",
+      "      GetMaxLength = 0",
+      "      <# End If #>",
+      "   End Function",
+      "   Sub SetMaxLength(pValue As Integer)",
+      '      <# If TypeSystem.InheritsFrom(T, "TcxCustomTextEdit") And Not TypeSystem.IsType(T, "Forms.CheckBox") Then #>',
+      "      me._control.MaxLength = pValue",
+      "      <# End If #>",
+      "   End Sub",
+      "End Class",
+      "Dim check As TLabeled<CheckBox>",
+      "Dim box As TLabeled<TextBox>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    const checkClass = out.slice(
+      out.indexOf("Class TLabeled_CheckBox"),
+      out.indexOf("End Class", out.indexOf("Class TLabeled_CheckBox")),
+    );
+    const textClass = out.slice(
+      out.indexOf("Class TLabeled_TextBox"),
+      out.indexOf("End Class", out.indexOf("Class TLabeled_TextBox")),
+    );
+    assert.match(checkClass, /GetMaxLength = 0/);
+    assert.doesNotMatch(checkClass, /me\._control\.MaxLength/);
+    assert.match(textClass, /GetMaxLength = me\._control\.MaxLength/);
+    assert.match(textClass, /me\._control\.MaxLength = pValue/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("evaluates ElseIf / Else If chains and keeps the first matching branch", () => {
+    const ctx = makeContext(
+      {},
+      {
+        CheckBox: ["TcxCustomEdit"],
+        TextBox: ["TcxCustomTextEdit", "TcxCustomEdit"],
+        MemoTextBox: ["TcxCustomTextEdit", "TcxCustomEdit"],
+        DateTextBox: ["TcxCustomTextEdit", "TcxCustomEdit"],
+      },
+    );
+    const code = [
+      "Class CheckBox",
+      "End Class",
+      "Class TextBox",
+      "End Class",
+      "Class MemoTextBox",
+      "End Class",
+      "Class DateTextBox",
+      "End Class",
+      "Class TKind_<T>",
+      "   Function Label() As String",
+      '      <# If TypeSystem.IsType(T, "CheckBox") Then #>',
+      '      Label = "check"',
+      '      <# ElseIf TypeSystem.IsType(T, "TextBox") Then #>',
+      '      Label = "text"',
+      '      <# Else If TypeSystem.IsType(T, "MemoTextBox") Then #>',
+      '      Label = "memo"',
+      "      <# Else #>",
+      '      Label = "other"',
+      "      <# End If #>",
+      "   End Function",
+      "End Class",
+      "Dim check As TKind<CheckBox>",
+      "Dim box As TKind<TextBox>",
+      "Dim memo As TKind<MemoTextBox>",
+      "Dim dateBox As TKind<DateTextBox>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    const sliceClass = (name: string): string => {
+      const start = out.indexOf(`Class ${name}`);
+      return out.slice(start, out.indexOf("End Class", start));
+    };
+    assert.match(sliceClass("TKind_CheckBox"), /Label = "check"/);
+    assert.doesNotMatch(sliceClass("TKind_CheckBox"), /Label = "text"/);
+    assert.match(sliceClass("TKind_TextBox"), /Label = "text"/);
+    assert.doesNotMatch(sliceClass("TKind_TextBox"), /Label = "check"/);
+    assert.match(sliceClass("TKind_MemoTextBox"), /Label = "memo"/);
+    assert.match(sliceClass("TKind_DateTextBox"), /Label = "other"/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("evaluates ElseIf around class members", () => {
+    const ctx = makeContext({}, { CheckBox: [], TextBox: [], DateTextBox: [] });
+    const code = [
+      "Class CheckBox",
+      "End Class",
+      "Class TextBox",
+      "End Class",
+      "Class DateTextBox",
+      "End Class",
+      "Class TLabeled_<T>",
+      '   <# If TypeSystem.IsType(T, "CheckBox") Then #>',
+      "   Property Checked As Boolean",
+      "      Get",
+      "         Checked = False",
+      "      End Get",
+      "      Set(pValue As Boolean)",
+      "      End Set",
+      "   End Property",
+      '   <# ElseIf TypeSystem.IsType(T, "TextBox") Then #>',
+      "   Property MaxLength As Integer",
+      "      Get",
+      "         MaxLength = 0",
+      "      End Get",
+      "      Set(pValue As Integer)",
+      "      End Set",
+      "   End Property",
+      "   <# Else #>",
+      "   Property Value As String",
+      "      Get",
+      '         Value = ""',
+      "      End Get",
+      "      Set(pValue As String)",
+      "      End Set",
+      "   End Property",
+      "   <# End If #>",
+      "End Class",
+      "Dim check As TLabeled<CheckBox>",
+      "Dim box As TLabeled<TextBox>",
+      "Dim dateBox As TLabeled<DateTextBox>",
+    ].join("\n");
+
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    const sliceClass = (name: string): string => {
+      const start = out.indexOf(`Class ${name}`);
+      return out.slice(start, out.indexOf("End Class", start));
+    };
+    assert.match(sliceClass("TLabeled_CheckBox"), /Property Checked/);
+    assert.doesNotMatch(sliceClass("TLabeled_CheckBox"), /Property MaxLength/);
+    assert.doesNotMatch(sliceClass("TLabeled_CheckBox"), /Property Value/);
+    assert.match(sliceClass("TLabeled_TextBox"), /Property MaxLength/);
+    assert.doesNotMatch(sliceClass("TLabeled_TextBox"), /Property Checked/);
+    assert.match(sliceClass("TLabeled_DateTextBox"), /Property Value/);
+    assert.doesNotMatch(sliceClass("TLabeled_DateTextBox"), /Property Checked/);
+    assert.doesNotMatch(out, /<#/);
+  });
+
+  test("canonical TypeSystem.ElseIf example keeps the first matching branch", () => {
+    const ctx = makeContext(
+      {},
+      {
+        CheckBox: [],
+        TextBox: [],
+        MemoTextBox: [],
+        DateTextBox: [],
+      },
+    );
+    const code = stripExampleHeader(loadExample("sugar/generics/02-typesystem-elseif.bas"));
+    const { code: out, diagnostics } = SugarTranspiler.transpile(code, ctx);
+
+    assert.equal(diagnostics.length, 0, JSON.stringify(diagnostics));
+    const sliceClass = (name: string): string => {
+      const start = out.indexOf(`Class ${name}`);
+      return out.slice(start, out.indexOf("End Class", start));
+    };
+    assert.match(sliceClass("TKind_CheckBox"), /Label = "check"/);
+    assert.match(sliceClass("TKind_TextBox"), /Label = "text"/);
+    assert.match(sliceClass("TKind_MemoTextBox"), /Label = "memo"/);
+    assert.match(sliceClass("TKind_DateTextBox"), /Label = "other"/);
     assert.doesNotMatch(out, /<#/);
   });
 });

@@ -1,7 +1,7 @@
 import "../../_setup/global-hooks";
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { tokenize } from "../../../project/parser/lexer";
+import { tokenize, tokenizeLine } from "../../../project/parser/lexer";
 import type { Token } from "../../../project/parser/token-types";
 
 function kinds(tokens: readonly Token[]): readonly string[] {
@@ -95,6 +95,22 @@ describe("parser/lexer", () => {
     const lf = tokenize("a\nb");
     const crlf = tokenize("a\r\nb");
     assert.deepEqual(kinds(lf), kinds(crlf));
+  });
+
+  test("strips a leading UTF-8 BOM so Imports is a keyword at column 0", () => {
+    const t = tokenize("\uFEFFImports Collections");
+    const imports = t[0];
+    assert.equal(imports?.kind, "keyword");
+    assert.equal(imports?.value, "Imports");
+    assert.equal(imports?.loc.column, 0);
+    assert.ok(!t.some((tok) => tok.value === "\uFEFF"));
+  });
+
+  test("treats an in-line UTF-8 BOM as whitespace", () => {
+    const line = tokenizeLine("\uFEFFImports Collections");
+    assert.equal(line[0]?.kind, "keyword");
+    assert.equal(line[0]?.value, "Imports");
+    assert.ok(!line.some((tok) => tok.value === "\uFEFF"));
   });
 
   test("recognises generic punctuation `<` and `>`", () => {

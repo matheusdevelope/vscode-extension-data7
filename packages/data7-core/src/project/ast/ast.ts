@@ -125,7 +125,8 @@ export type ClassMember =
   | MethodDeclaration
   | FieldDeclaration
   | PropertyDeclaration
-  | ClassDeclaration;
+  | ClassDeclaration
+  | OpaqueStatement;
 
 export interface MethodDeclaration extends BaseNode {
   readonly kind: "MethodDeclaration";

@@ -95,5 +95,40 @@ describe("ReachabilityParseCache", () => {
         "the second pass must reuse the memoized parse",
       );
     }
+    assert.equal(second.live, first.live, "unchanged workspace must reuse the live set");
+    assert.equal(
+      second.index,
+      first.index,
+      "unchanged workspace must reuse the reachability index",
+    );
+  });
+
+  test("changing one module recomputes the live set", () => {
+    const principal: ReachabilityModuleInput = {
+      moduleName: "Principal",
+      fileUri: "file:///proj/Principal.bas",
+      code: ["Namespace mod_main", "   Sub Main()", "   End Sub", "End Namespace"].join("\n"),
+    };
+    const helper = (body: string): ReachabilityModuleInput => ({
+      moduleName: "helper",
+      fileUri: "file:///proj/helper.bas",
+      code: source(body),
+    });
+    const options = {
+      alwaysInclude: [] as readonly string[],
+      remove: DEFAULT_REACHABILITY_REMOVE_OPTIONS,
+    };
+
+    const first = analyzeDeclarationReachability(
+      [principal, helper("Public Sub Run()\n      End Sub")],
+      options,
+    );
+    const second = analyzeDeclarationReachability(
+      [principal, helper("Public Sub Walk()\n      End Sub")],
+      options,
+    );
+
+    assert.notEqual(second.live, first.live);
+    assert.notEqual(second.index, first.index);
   });
 });

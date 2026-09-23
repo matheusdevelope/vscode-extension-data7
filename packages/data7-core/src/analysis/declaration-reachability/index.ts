@@ -22,12 +22,23 @@ export {
 } from "./index-builder";
 export { computeLiveSet, type LiveSet } from "./reachability";
 export { ReachabilityParseCache } from "./parse-cache";
+export {
+  ReachabilityResultCache,
+  fingerprintReachabilityInputs,
+} from "./reachability-result-cache";
 
 import { ReachabilityParseCache } from "./parse-cache";
 import { buildReachabilityIndex, type ParsedReachabilityModule } from "./index-builder";
 import { computeLiveSet, type LiveSet } from "./reachability";
 import type { ReachabilityModuleInput, ReachabilityOptions } from "./types";
 import type { ReachabilityIndex } from "./index-builder";
+import { LintPipelineProfiler } from "../lint-pipeline-profiler";
+import { recordPerf } from "../../utils/performance";
+import { performance } from "node:perf_hooks";
+import {
+  fingerprintReachabilityInputs,
+  ReachabilityResultCache,
+} from "./reachability-result-cache";
 
 export interface DeclarationReachabilityResult {
   readonly live: LiveSet;
@@ -50,11 +61,22 @@ export function analyzeDeclarationReachability(
   // Parses are memoized per file: this runs over the whole project on a
   // debounce while the user types, and re-parsing every module each pass was
   // the dominant cost in the extension host.
+  const timed = LintPipelineProfiler.isEnabled();
+  const resultCache = ReachabilityResultCache.getInstance();
+  const fingerprint = fingerprintReachabilityInputs(modules, options);
+  const cached = resultCache.get(fingerprint);
+  if (cached) {
+    if (timed) recordPerf("reachability.cache-hit", 0);
+    return cached;
+  }
+
   const parseCache = ReachabilityParseCache.getInstance();
+  const t0Parse = timed ? performance.now() : 0;
   const parsed: ParsedReachabilityModule[] = modules.map((input) => ({
     input,
     parse: parseCache.getOrParse(input.fileUri, input.code),
   }));
+  if (timed) recordPerf("reachability.parse", performance.now() - t0Parse);
 
   const failed = parsed.filter((module) => module.parse.errors.length > 0);
   const ok = parsed.filter((module) => module.parse.errors.length === 0);
@@ -73,17 +95,25 @@ export function analyzeDeclarationReachability(
 
   if (failed.length > 0) {
     if (!options.allowPartialParse || principalFailed || ok.length === 0) {
-      return empty();
+      const aborted = empty();
+      resultCache.set(fingerprint, aborted);
+      return aborted;
     }
   }
 
+  const t0Index = timed ? performance.now() : 0;
   const index = buildReachabilityIndex(ok);
+  if (timed) recordPerf("reachability.index", performance.now() - t0Index);
+  const t0Live = timed ? performance.now() : 0;
   const live = computeLiveSet(index, options);
-  return {
+  if (timed) recordPerf("reachability.live", performance.now() - t0Live);
+  const result: DeclarationReachabilityResult = {
     live,
     index,
     parsed,
     skippedDueToParseErrors: false,
     unparsedModuleNames,
   };
+  resultCache.set(fingerprint, result);
+  return result;
 }

@@ -73,6 +73,8 @@ export class LoggerPrintSugarTransformer {
       case "ClassDeclaration":
         member.members = member.members.map((m) => this.transformClassMember(m));
         return member;
+      case "OpaqueStatement":
+        return member;
     }
   }
 

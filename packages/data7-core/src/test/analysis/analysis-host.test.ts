@@ -6,6 +6,7 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import {
   createNodeAnalysisHost,
+  createNodeFs,
   createVscodeAnalysisHost,
   getAnalysisHost,
   installAnalysisHost,
@@ -103,5 +104,21 @@ describe("AnalysisHost", () => {
       path.normalize(Uri.parse(hit.fileUri).fsPath).toLowerCase(),
       path.normalize(workspaceFile).toLowerCase(),
     );
+  });
+
+  test("node fs strips a leading UTF-8 BOM from text reads", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "data7-bom-"));
+    const filePath = path.join(dir, "with-bom.bas");
+    fs.writeFileSync(filePath, "\uFEFFImports Collections\n", "utf8");
+    try {
+      const hostFs = createNodeFs();
+      const syncText = hostFs.readFileSync(filePath);
+      assert.equal(syncText.startsWith("Imports"), true);
+      assert.equal(syncText.charCodeAt(0), "I".charCodeAt(0));
+      const asyncText = await hostFs.readFile(filePath);
+      assert.equal(asyncText.startsWith("Imports"), true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

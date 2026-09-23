@@ -16,6 +16,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "../platform/vscode-api";
+import { stripUtf8Bom } from "../utils/utf8-bom";
 
 export type AnalysisLogLevel = "info" | "warn" | "error";
 
@@ -92,7 +93,7 @@ function normalizeUriKey(uri: string): string {
 export function createNodeFs(): AnalysisHostFs {
   return {
     existsSync: (fsPath) => fs.existsSync(fsPath),
-    readFileSync: (fsPath) => fs.readFileSync(fsPath, "utf-8"),
+    readFileSync: (fsPath) => stripUtf8Bom(fs.readFileSync(fsPath, "utf-8")),
     readdirSync: (fsPath) => fs.readdirSync(fsPath),
     statSync: (fsPath) => {
       const stat = fs.statSync(fsPath);
@@ -116,7 +117,7 @@ export function createNodeFs(): AnalysisHostFs {
       }));
     },
     exists: async (fsPath) => fs.existsSync(fsPath),
-    readFile: async (fsPath) => fs.promises.readFile(fsPath, "utf-8"),
+    readFile: async (fsPath) => stripUtf8Bom(await fs.promises.readFile(fsPath, "utf-8")),
   };
 }
 

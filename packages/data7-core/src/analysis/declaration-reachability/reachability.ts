@@ -15,6 +15,7 @@ import {
   findClassLike,
   findDeclarationsByName,
   findMembersInClass,
+  ownerMembersInModuleKey,
   type DeclarationRecord,
   type ParsedReachabilityModule,
   type ReachabilityIndex,
@@ -67,6 +68,7 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
 
   // Overloads share one declaration key; track records so every sibling node is analyzed.
   const enqueuedRecords = new Set<DeclarationRecord>();
+  const subclassIndex = buildSubclassIndex(index);
 
   const enqueue = (record: DeclarationRecord | undefined): void => {
     if (!record || enqueuedRecords.has(record)) return;
@@ -78,10 +80,8 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
     // When any overload becomes live, keep/analyze all overloads with the same key so
     // signature types (e.g. FindDel) and helpers only referenced by sibling bodies stay reachable.
     if (isNewKey && (record.kind === "method" || record.kind === "declareMethod")) {
-      for (const sibling of index.declarations) {
-        if (sibling.key === record.key && sibling !== record) {
-          enqueue(sibling);
-        }
+      for (const sibling of index.byKeyAll.get(record.key) ?? []) {
+        if (sibling !== record) enqueue(sibling);
       }
     }
 
@@ -89,10 +89,8 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
       markNamespace(record.lower);
       // Keep on namespace ⇒ retain every declaration in that namespace.
       if (record.keep) {
-        for (const decl of index.declarations) {
-          if (decl.namespaceLower === record.lower && decl.kind !== "namespace") {
-            enqueue(decl);
-          }
+        for (const decl of index.declarationsByNamespace.get(record.lower) ?? []) {
+          if (decl.kind !== "namespace") enqueue(decl);
         }
       }
       return;
@@ -122,7 +120,7 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
         record.kind === "declareMethod" ||
         record.kind === "property"
       ) {
-        enqueueOverridesOnLiveDescendants(record, index, live, enqueue);
+        enqueueOverridesOnLiveDescendants(record, index, live, enqueue, subclassIndex);
       }
     }
   };
@@ -131,8 +129,8 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
     seedAlwaysInclude(alwaysInclude, index, enqueue, markNamespace);
   }
 
-  for (const decl of index.declarations) {
-    if (decl.keep) enqueue(decl);
+  for (const decl of index.keepRecords) {
+    enqueue(decl);
   }
 
   const principal = index.principalModule;
@@ -154,29 +152,17 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
       );
     }
 
-    const mainMethods = index.declarations.filter(
-      (decl) =>
-        (decl.kind === "method" || decl.kind === "declareMethod") &&
-        decl.module === principal &&
-        decl.lower === "main" &&
-        decl.ownerClass !== undefined,
-    );
-    if (mainMethods.length > 0) {
-      for (const main of mainMethods) enqueue(main);
-    } else {
-      const topLevelMain = index.declarations.find(
-        (decl) =>
-          (decl.kind === "method" || decl.kind === "declareMethod") &&
-          decl.module === principal &&
-          decl.lower === "main",
-      );
-      if (topLevelMain) enqueue(topLevelMain);
+    if (index.principalClassMainMethods.length > 0) {
+      for (const main of index.principalClassMainMethods) enqueue(main);
+    } else if (index.principalTopLevelMain) {
+      enqueue(index.principalTopLevelMain);
     }
   }
 
+  let head = 0;
   const drainQueue = (): void => {
-    while (queue.length > 0) {
-      const current = queue.shift();
+    while (head < queue.length) {
+      const current = queue[head++];
       if (!current) continue;
       processLiveDeclaration(current, index, live, enqueue, markNamespace);
     }
@@ -193,8 +179,8 @@ export function computeLiveSet(index: ReachabilityIndex, options: ReachabilityOp
       const beforeNamespaces = liveNamespaces.size;
       const beforeDeclarations = live.size;
       for (const namespaceLower of [...liveNamespaces]) {
-        for (const decl of index.declarations) {
-          if (decl.namespaceLower !== namespaceLower || decl.kind === "namespace") continue;
+        for (const decl of index.declarationsByNamespace.get(namespaceLower) ?? []) {
+          if (decl.kind === "namespace") continue;
           const retained = live.has(decl.key) || !shouldRemoveKind(decl.kind, options.remove);
           if (!retained) continue;
           enqueue(decl);
@@ -230,8 +216,8 @@ function seedAlwaysInclude(
     const ns = index.namespaceByLower.get(first);
     if (ns) {
       enqueue(ns);
-      for (const decl of index.declarations) {
-        if (decl.namespaceLower === first && decl.kind !== "namespace") enqueue(decl);
+      for (const decl of index.declarationsByNamespace.get(first) ?? []) {
+        if (decl.kind !== "namespace") enqueue(decl);
       }
     }
     return;
@@ -449,12 +435,13 @@ function resolveReferences(
     const qualifier = ref.qualifierLower;
 
     if (qualifier === "me" || qualifier === "mybase") {
-      if (!ownerClass || !contextNamespaceLower) continue;
+      // Principal-local classes often have no Namespace (empty string is falsy).
+      if (!ownerClass) continue;
       enqueueInheritedMembers(
         ref.lower,
         qualifier === "mybase",
         ownerClass,
-        contextNamespaceLower,
+        contextNamespaceLower ?? "",
         contextModule,
         importSet,
         index,
@@ -1011,34 +998,44 @@ function findOwnerClassRecord(
   );
 }
 
-function findDirectSubclasses(
-  base: DeclarationRecord,
+function buildSubclassIndex(
   index: ReachabilityIndex,
-): DeclarationRecord[] {
-  const results: DeclarationRecord[] = [];
+): ReadonlyMap<string, readonly DeclarationRecord[]> {
+  const map = new Map<string, DeclarationRecord[]>();
   for (const decl of index.declarations) {
     if (decl.kind !== "class" && decl.kind !== "structure") continue;
-    const resolved = resolveBaseTypeRecord(decl, index);
-    if (resolved && resolved.key === base.key) {
-      results.push(decl);
+    const base = resolveBaseTypeRecord(decl, index);
+    if (!base) continue;
+    const bucket = map.get(base.key);
+    if (bucket) {
+      bucket.push(decl);
+    } else {
+      map.set(base.key, [decl]);
     }
   }
-  return results;
+  return map;
+}
+
+function findDirectSubclasses(
+  base: DeclarationRecord,
+  subclassIndex: ReadonlyMap<string, readonly DeclarationRecord[]>,
+): readonly DeclarationRecord[] {
+  return subclassIndex.get(base.key) ?? [];
 }
 
 function collectDescendantClasses(
   root: DeclarationRecord,
-  index: ReachabilityIndex,
+  subclassIndex: ReadonlyMap<string, readonly DeclarationRecord[]>,
 ): DeclarationRecord[] {
   const results: DeclarationRecord[] = [];
   const seen = new Set<string>();
-  const pending = [...findDirectSubclasses(root, index)];
+  const pending = [...findDirectSubclasses(root, subclassIndex)];
   while (pending.length > 0) {
     const current = pending.pop();
     if (!current || seen.has(current.key)) continue;
     seen.add(current.key);
     results.push(current);
-    pending.push(...findDirectSubclasses(current, index));
+    pending.push(...findDirectSubclasses(current, subclassIndex));
   }
   return results;
 }
@@ -1075,10 +1072,11 @@ function enqueueOverridesOnLiveDescendants(
   index: ReachabilityIndex,
   live: ReadonlySet<string>,
   enqueue: (record: DeclarationRecord | undefined) => void,
+  subclassIndex: ReadonlyMap<string, readonly DeclarationRecord[]>,
 ): void {
   const owner = findOwnerClassRecord(member, index);
   if (!owner) return;
-  for (const descendant of collectDescendantClasses(owner, index)) {
+  for (const descendant of collectDescendantClasses(owner, subclassIndex)) {
     if (!live.has(descendant.key)) continue;
     for (const override of findMembersInClass(
       index,
@@ -1099,10 +1097,15 @@ function enqueueOverridesFromLiveAncestors(
   live: ReadonlySet<string>,
   enqueue: (record: DeclarationRecord | undefined) => void,
 ): void {
-  for (const decl of index.declarations) {
-    if (decl.module !== classRecord.module) continue;
-    if (decl.namespaceLower !== classRecord.namespaceLower) continue;
-    if (decl.ownerClassLower !== classRecord.lower) continue;
+  const members =
+    index.membersByOwnerInModule.get(
+      ownerMembersInModuleKey(
+        classRecord.module.input.moduleName,
+        classRecord.namespaceLower,
+        classRecord.lower,
+      ),
+    ) ?? [];
+  for (const decl of members) {
     if (!isOverridesRecord(decl)) continue;
     if (ancestorHasLiveMember(classRecord, decl.lower, decl.kind, index, live)) {
       enqueue(decl);

@@ -10,7 +10,7 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
   properties: [
     { name: "Text", type: "String", description: "Texto exibido e editado no controle." },
     {
-      name: "TextHint",
+      name: "Hint",
       type: "String",
       description: "Texto exibido como placeholder quando o controle está vazio.",
     },

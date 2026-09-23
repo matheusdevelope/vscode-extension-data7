@@ -145,7 +145,7 @@ export class ProjectService {
       if (!fs.existsSync(gitignorePath)) {
         fs.writeFileSync(
           gitignorePath,
-          `# Módulos de dependências do Data7\ndata7_modules/\n.data7/\n`,
+          `# Módulos de dependências do Data7\ndata7_modules/\n.data7/\n*.7Proj\n*map.json`,
           "utf-8",
         );
         return;
@@ -560,7 +560,7 @@ export class ProjectService {
 
           vscode.window.showInformationMessage(
             `Projeto '${projectName}' aberto com sucesso. ` +
-              (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
+            (syncedCount > 0 ? `${syncedCount} dependências sincronizadas.` : ""),
           );
 
           // Auto-scan dependencies disabled temporarily

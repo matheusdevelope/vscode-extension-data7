@@ -73,6 +73,7 @@ _form.Free()
 
 - Declarações de topo (`Dim`, classes, funções) são globais.
 - `Imports` em `Principal.bas` se aplicam só ao `Principal.bas` (não vazam para outros arquivos).
+- No build, um `Principal` só com `Dim`/chamadas **não** ganha um segundo `Imports` do mesmo namespace: a diretiva já declarada permanece única, mesmo se houver `Tipo<T>` comentado no arquivo.
 
 ## Modos de módulo: `@Module`, `@Module-Imported`, local
 
@@ -127,7 +128,7 @@ Cada entrada de `dependencies` é o nome de um módulo compartilhado disponível
 1. `install` aceita um ou mais módulos, resolve a versão disponível e grava `data7.json#dependencies`.
 2. `update` compara a versão instalada com a versão disponível no repositório local ou online e atualiza o manifesto quando houver versão mais nova.
 3. `remove` exclui um ou mais módulos de `dependencies`.
-4. Após cada operação, `data7_modules/` é sincronizado para refletir exatamente o manifesto.
+4. Após cada operação, `data7_modules/` é sincronizado: módulos do manifesto e as `dependencies` declaradas nos `data7.json` desses módulos (dependências transitivas, p.ex. `mod_configurador` → `Tables`). Ciclos são ignorados.
 5. Instalar um módulo cujo nome corresponde a `module.name` ou `nome` do projeto ativo é bloqueado.
 6. O construtor marca os arquivos copiados com `'@Module-Imported`.
 

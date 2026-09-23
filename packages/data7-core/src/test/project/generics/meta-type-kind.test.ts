@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import {
   META_PRIMITIVE_TYPES,
+  metaTypesAreEqual,
   parseMetaTypeKind,
   resolveMetaTypeKind,
 } from "../../../project/generics/meta-type-kind";
@@ -48,5 +49,15 @@ describe("meta-type-kind", () => {
       "Delegate",
     );
     assert.ok(META_PRIMITIVE_TYPES.has("string"));
+  });
+
+  test("metaTypesAreEqual matches the concrete type, not ancestors", () => {
+    assert.equal(metaTypesAreEqual("MemoTextBox", "MemoTextBox"), true);
+    assert.equal(metaTypesAreEqual("Forms.MemoTextBox", "MemoTextBox"), true);
+    assert.equal(metaTypesAreEqual("Forms.MemoTextBox", "Forms.MemoTextBox"), true);
+    assert.equal(metaTypesAreEqual("Forms.MemoTextBox", "SQL.MemoTextBox"), false);
+    assert.equal(metaTypesAreEqual("TextBox", "MemoTextBox"), false);
+    assert.equal(metaTypesAreEqual("THandler<Integer>", "THandler<Integer>"), true);
+    assert.equal(metaTypesAreEqual("THandler<Integer>", "THandler"), false);
   });
 });

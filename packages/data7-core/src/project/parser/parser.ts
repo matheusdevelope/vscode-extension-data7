@@ -451,7 +451,7 @@ export class Parser {
   public parseStatement(): Statement | null {
     const startLoc = this.peek().loc;
     if (this.shouldPreserveCurrentLine()) return this.consumeLineAsOpaque();
-    if (this.currentLineIsMetaDirective()) {
+    if (this.isCurrentLineMetaDirective()) {
       return this.consumeLineAsOpaque();
     }
     if (this.peek().kind === "comment") {
@@ -1150,7 +1150,7 @@ export class Parser {
     return this.preserveLine(sourceLine);
   }
 
-  private currentLineIsMetaDirective(): boolean {
+  public isCurrentLineMetaDirective(): boolean {
     if (this.isEOF()) return false;
     const loc = this.peek().loc;
     const text = this.sourceLines[loc.line - 1] ?? "";

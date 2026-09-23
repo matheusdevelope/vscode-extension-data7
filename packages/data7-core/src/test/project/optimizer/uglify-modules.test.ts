@@ -1208,6 +1208,48 @@ End Sub
     assert.doesNotMatch(principal, /\bFunction Text\b/i);
   });
 
+  test("renames Principal script Dims captured by a unit-root Sub (Demo1/_form)", () => {
+    const result = uglifyBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "Principal.bas",
+          code: `
+Namespace App
+  Class TEditor
+    Sub New(pParent As Forms.Form, pCaption As String)
+    End Sub
+  End Class
+End Namespace
+
+Dim _form As New Forms.Form()
+_form.Width = 640
+Sub Demo1()
+  Dim editor As New App.TEditor(_form, "CEP")
+End Sub
+Demo1()
+_form.Show()
+`,
+        },
+      ],
+      { enabled: true },
+    );
+
+    const principal = result.modules.get("Principal") ?? "";
+    assert.doesNotMatch(principal, /\b_form\b/i);
+    const declared = principal.match(/\bDim\s+(\w+)\s+As New Forms\.Form\b/i)?.[1];
+    assert.ok(declared);
+    assert.match(principal, new RegExp(`TEditor\\(\\s*${declared}\\s*,`, "i"));
+    assert.match(principal, new RegExp(`\\b${declared}\\.Width\\b`, "i"));
+    assert.match(principal, new RegExp(`\\b${declared}\\.Show\\s*\\(`, "i"));
+    const newDims = [...principal.matchAll(/\bDim\s+(\w+)\s+As New\b/gi)].map(
+      (match) => match[1]?.toLowerCase() ?? "",
+    );
+    assert.equal(newDims.length, 2);
+    assert.equal(newDims[0], declared.toLowerCase());
+    assert.notEqual(newDims[1], declared.toLowerCase());
+  });
+
   test("aborts renaming when any module fails to parse", () => {
     const good = `
 Namespace App

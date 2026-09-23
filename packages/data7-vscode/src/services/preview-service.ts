@@ -101,6 +101,9 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
     const externalGenericTemplates = genericsEnabled
       ? collectExternalGenericTemplates(indexer)
       : [];
+    const homonymousGenericTypeNames = genericsEnabled
+      ? collectHomonymousTypeSimpleNames(indexer)
+      : undefined;
     const sugarConfig = configuration.sugars;
     const transpileCtx = {
       detectEnumerable: (typeName: string, preferredElementType?: string) =>
@@ -122,8 +125,16 @@ export class D7PreviewContentProvider implements vscode.TextDocumentContentProvi
         TypeResolver.findMember(typeName, name, indexer, argumentCount)?.type,
       externalGenericTemplates,
       requestedGenericInstantiations: genericsEnabled
-        ? collectRequestedGenericInstantiations(indexer, externalGenericTemplates)
+        ? collectRequestedGenericInstantiations(
+            indexer,
+            externalGenericTemplates,
+            homonymousGenericTypeNames,
+          )
         : [],
+      homonymousGenericTypeNames,
+      qualifyTypeArgument: (typeName: string, usageFileUri?: string) =>
+        qualifyGenericTypeArgument(typeName, usageFileUri ?? sourceUriStr, indexer),
+      usageFileUri: sourceUriStr,
       genericsEnabled,
       sugarOptions: {
         enabled: configuration.features.language.sugars && sugarConfig.enabled,
@@ -164,9 +175,45 @@ function collectExternalGenericTemplates(
   return templates;
 }
 
+function collectHomonymousTypeSimpleNames(indexer: WorkspaceSymbolIndexer): Set<string> {
+  const namespacesBySimple = new Map<string, Set<string>>();
+  for (const symbol of indexer.getAllSymbols()) {
+    if (symbol.kind !== "class" && symbol.kind !== "structure" && symbol.kind !== "delegate") {
+      continue;
+    }
+    if (!symbol.containerName || symbol.isSyntheticGenericInstantiation) continue;
+    const simple = symbol.name.toLowerCase();
+    let namespaces = namespacesBySimple.get(simple);
+    if (!namespaces) {
+      namespaces = new Set();
+      namespacesBySimple.set(simple, namespaces);
+    }
+    namespaces.add(symbol.containerName.toLowerCase());
+  }
+  const homonyms = new Set<string>();
+  for (const [simple, namespaces] of namespacesBySimple) {
+    if (namespaces.size > 1) homonyms.add(simple);
+  }
+  return homonyms;
+}
+
+function flattenPreviewTypeArg(
+  typeArg: string,
+  homonymousSimpleNames?: ReadonlySet<string>,
+): string {
+  const trimmed = typeArg.trim();
+  const lastDot = trimmed.lastIndexOf(".");
+  if (lastDot === -1) return trimmed;
+  const simple = trimmed.substring(lastDot + 1);
+  if (!homonymousSimpleNames?.has(simple.toLowerCase())) return simple;
+  const qualifier = trimmed.substring(0, lastDot).replace(/[^A-Za-z0-9]+/g, "_");
+  return `${qualifier}_${simple}`;
+}
+
 function collectRequestedGenericInstantiations(
   indexer: WorkspaceSymbolIndexer,
   externalGenericTemplates: readonly ExternalGenericTemplate[],
+  homonymousSimpleNames?: ReadonlySet<string>,
 ): RequestedGenericInstantiation[] {
   const requests: RequestedGenericInstantiation[] = [];
   const seen = new Set<string>();
@@ -188,16 +235,18 @@ function collectRequestedGenericInstantiations(
     for (const usage of ctx.usages) {
       if (!workspaceTemplateNames.has(usage.templateName.toLowerCase())) continue;
       if (hasOpenGenericTypeArgument(usage.typeArgs, openTypeParams)) continue;
-      const key = `${usage.templateName.toLowerCase()}<${usage.typeArgs.join(",")}>`;
-      if (seen.has(key)) continue;
-      seen.add(key);
       const qualifiedTypeArgs = usage.typeArgs.map((typeArg) =>
         qualifyGenericTypeArgument(typeArg, fileSyms.fileUri, indexer),
       );
+      const key = `${usage.templateName.toLowerCase()}<${qualifiedTypeArgs.map((arg) => arg.toLowerCase()).join(",")}>`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       requests.push({
         templateName: usage.templateName,
         typeArgs: qualifiedTypeArgs,
-        flatTypeArgs: usage.typeArgs,
+        flatTypeArgs: qualifiedTypeArgs.map((typeArg) =>
+          flattenPreviewTypeArg(typeArg, homonymousSimpleNames),
+        ),
       });
     }
   }

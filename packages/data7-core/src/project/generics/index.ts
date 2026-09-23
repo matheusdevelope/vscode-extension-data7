@@ -55,6 +55,7 @@ export {
   GenericsMonomorphizer,
   MAX_INSTANTIATIONS,
   META_PRIMITIVE_TYPES,
+  metaTypesAreEqual,
   parseMetaTypeKind,
   resolveMetaTypeKind,
 } from "./monomorphizer";

@@ -13,6 +13,7 @@ import {
   shouldExcludeEntireModule,
 } from "./prune-rewrite";
 import type { PruneModuleInput, PruneReport, PruneResult } from "./prune-types";
+import { BuildPipelineProfiler } from "../../build-pipeline-profiler";
 
 export function pruneBuildModules(
   modules: readonly PruneModuleInput[],
@@ -34,11 +35,13 @@ export function pruneBuildModules(
     code: module.code,
   }));
 
-  const analysis = analyzeDeclarationReachability(inputs, {
-    alwaysInclude: options.alwaysInclude,
-    remove: options.remove,
-    allowPartialParse: true,
-  });
+  const analysis = BuildPipelineProfiler.measure("prune-reachability", () =>
+    analyzeDeclarationReachability(inputs, {
+      alwaysInclude: options.alwaysInclude,
+      remove: options.remove,
+      allowPartialParse: true,
+    }),
+  );
 
   if (analysis.skippedDueToParseErrors) {
     const warnings = analysis.unparsedModuleNames.some((name) => name.toLowerCase() === "principal")
@@ -98,47 +101,55 @@ export function pruneBuildModules(
     lineMaps.set(moduleName, serialized.lineMap);
   };
 
-  for (const module of parsed) {
-    if (unparsed.has(module.input.moduleName.toLowerCase())) {
-      optimized.set(module.input.moduleName, module.input.code);
-      lineMaps.set(module.input.moduleName, identityLineMap(lineCountOf(module.input.code)));
-      continue;
-    }
-
-    if (shouldExcludeEntireModule(module, live, options.remove, index)) {
-      excludedModuleNames.add(module.input.moduleName);
-      for (const decl of index.declarations) {
-        if (decl.module !== module || decl.kind !== "namespace") continue;
-        excludedDeclarations.push(
-          formatDeclarationLabel(decl.name, undefined, "namespace", decl.name),
-        );
-      }
-      continue;
-    }
-
-    let rewritten = rewriteCompilationUnit(module.parse.unit, module, index, live, options.remove);
-    excludedDeclarations.push(...rewritten.excludedDeclarations);
-
-    if (options.remove.localVariables) {
-      const locals = pruneLocalVariablesInUnit(rewritten.unit);
-      rewritten = {
-        unit: locals.unit,
-        excludedDeclarations: rewritten.excludedDeclarations,
-      };
-      excludedDeclarations.push(...locals.removed);
-    }
-
-    if (!hasNamespaceDeclarations(rewritten.unit.members)) {
-      if (module.input.moduleName.toLowerCase() === "principal") {
-        serializePruned(module.input.moduleName, module.input.code, rewritten.unit);
+  BuildPipelineProfiler.measure("prune-rewrite", () => {
+    for (const module of parsed) {
+      if (unparsed.has(module.input.moduleName.toLowerCase())) {
+        optimized.set(module.input.moduleName, module.input.code);
+        lineMaps.set(module.input.moduleName, identityLineMap(lineCountOf(module.input.code)));
         continue;
       }
-      excludedModuleNames.add(module.input.moduleName);
-      continue;
-    }
 
-    serializePruned(module.input.moduleName, module.input.code, rewritten.unit);
-  }
+      if (shouldExcludeEntireModule(module, live, options.remove, index)) {
+        excludedModuleNames.add(module.input.moduleName);
+        for (const decl of index.declarations) {
+          if (decl.module !== module || decl.kind !== "namespace") continue;
+          excludedDeclarations.push(
+            formatDeclarationLabel(decl.name, undefined, "namespace", decl.name),
+          );
+        }
+        continue;
+      }
+
+      let rewritten = rewriteCompilationUnit(
+        module.parse.unit,
+        module,
+        index,
+        live,
+        options.remove,
+      );
+      excludedDeclarations.push(...rewritten.excludedDeclarations);
+
+      if (options.remove.localVariables) {
+        const locals = pruneLocalVariablesInUnit(rewritten.unit);
+        rewritten = {
+          unit: locals.unit,
+          excludedDeclarations: rewritten.excludedDeclarations,
+        };
+        excludedDeclarations.push(...locals.removed);
+      }
+
+      if (!hasNamespaceDeclarations(rewritten.unit.members)) {
+        if (module.input.moduleName.toLowerCase() === "principal") {
+          serializePruned(module.input.moduleName, module.input.code, rewritten.unit);
+          continue;
+        }
+        excludedModuleNames.add(module.input.moduleName);
+        continue;
+      }
+
+      serializePruned(module.input.moduleName, module.input.code, rewritten.unit);
+    }
+  });
 
   const report: PruneReport | undefined = options.report
     ? {

@@ -1110,6 +1110,15 @@ describe("GenericsMonomorphizer — naming helpers", () => {
       "TList_TList_Integer",
     );
     assert.equal(flatNameOf(typeRef("Integer")), "Integer");
+    assert.equal(flatNameOf(typeRef("TTList", [typeRef("table_campo.TCampo")])), "TTList_TCampo");
+    assert.equal(
+      flatNameOf(typeRef("TTList", [typeRef("table_campo.TCampo")]), new Set(["tcampo"])),
+      "TTList_table_campo_TCampo",
+    );
+    assert.equal(
+      flatNameOf(typeRef("TTList", [typeRef("mod_product.Product")]), new Set(["tcampo"])),
+      "TTList_Product",
+    );
   });
 
   test("flatNameFromParts mirrors flatNameOf for generic shapes", () => {

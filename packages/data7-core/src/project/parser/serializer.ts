@@ -269,6 +269,8 @@ function serializeClass(
       serializeProperty(member, depth + 1, out, options);
     } else if (member.kind === "ClassDeclaration") {
       serializeClass(member, depth + 1, out, options);
+    } else if (member.kind === "OpaqueStatement") {
+      serializeStatement(member, depth + 1, out, options);
     } else {
       serializeField(member, depth + 1, out, options);
     }

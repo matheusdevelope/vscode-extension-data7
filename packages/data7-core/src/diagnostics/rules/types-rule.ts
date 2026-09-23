@@ -670,18 +670,8 @@ export class TypesRule implements Rule {
       context.indexer.findSymbolByName(delegateName);
     if (delegate?.kind !== "delegate" || !delegate.parameters) return;
 
-    const handlerName = this.getAssignedHandlerName(node.value);
-    if (!handlerName) return;
-
-    const handler = context.indexer.findSymbolByName(handlerName);
-    if (
-      !handler ||
-      (handler.kind !== "method" &&
-        handler.kind !== "declare_sub" &&
-        handler.kind !== "declare_function")
-    ) {
-      return;
-    }
+    const handler = this.resolveEventHandlerSymbol(node.value, lineIdx, context);
+    if (!handler) return;
 
     const handlerParams = handler.parameters ?? [];
     if (handlerParams.length === delegate.parameters.length) return;
@@ -693,7 +683,7 @@ export class TypesRule implements Rule {
     const range = new vscode.Range(lineIdx, startChar, lineIdx, endChar);
     const diag = new vscode.Diagnostic(
       range,
-      `Assinatura incompativel: o evento "${eventName}" espera ${delegate.parameters.length} parametro(s) (delegate "${delegateName}"), mas o handler "${handlerName}" tem ${handlerParams.length}.`,
+      `Assinatura incompativel: o evento "${eventName}" espera ${delegate.parameters.length} parametro(s) (delegate "${delegateName}"), mas o handler "${handler.name}" tem ${handlerParams.length}.`,
       vscode.DiagnosticSeverity.Error,
     );
     diag.code = DiagnosticCodes.EventSignatureMismatch;
@@ -1107,6 +1097,66 @@ export class TypesRule implements Rule {
     const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error);
     diag.code = DiagnosticCodes.LambdaSignatureMismatch;
     context.report(diag);
+  }
+
+  /**
+   * Resolves the Sub/Function being bound to an event. Copies of another
+   * event/delegate property (`me._nativeOnChange = me._control.OnChange`) are
+   * not handlers: a homonymous method such as `Ambient.OnChange(pName, pValue,
+   * pType)` must not be used for the arity check.
+   */
+  private resolveEventHandlerSymbol(
+    value: Expression,
+    lineIdx: number,
+    context: RuleContext,
+  ): SymbolInfo | undefined {
+    if (
+      value.kind === "MethodInvocation" &&
+      value.methodName.toLowerCase() === "addressof" &&
+      value.arguments.length === 1
+    ) {
+      const handlerArg = value.arguments[0];
+      if (!handlerArg) return undefined;
+      return this.resolveEventHandlerSymbol(handlerArg, lineIdx, context);
+    }
+
+    if (value.kind === "MemberAccess") {
+      const receiverType = TypeResolver.resolveExpressionType(
+        value.target,
+        context.document,
+        lineIdx,
+        context.indexer,
+      );
+      if (!receiverType || context.isGenericTypeParameter(receiverType)) return undefined;
+      const member = TypeResolver.findMember(receiverType, value.member, context.indexer);
+      if (!member || !TypesRule.isEventHandlerCallable(member)) return undefined;
+      return member;
+    }
+
+    const handlerName = this.getAssignedHandlerName(value);
+    if (!handlerName) return undefined;
+
+    const activeClassName = context.activeClass?.name;
+    if (activeClassName) {
+      const classMember = TypeResolver.findMember(activeClassName, handlerName, context.indexer);
+      if (classMember && TypesRule.isEventHandlerCallable(classMember)) return classMember;
+    }
+
+    const handler = context.indexer.findSymbolByName(
+      handlerName,
+      context.document.uri.toString(),
+      lineIdx,
+    );
+    if (!handler || !TypesRule.isEventHandlerCallable(handler)) return undefined;
+    return handler;
+  }
+
+  private static isEventHandlerCallable(symbol: SymbolInfo): boolean {
+    return (
+      symbol.kind === "method" ||
+      symbol.kind === "declare_sub" ||
+      symbol.kind === "declare_function"
+    );
   }
 
   private getAssignedHandlerName(value: Expression): string {

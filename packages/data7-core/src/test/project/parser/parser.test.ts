@@ -38,10 +38,30 @@ describe("parser/parser", () => {
   test("parses a generic Class with one type parameter", () => {
     const src = "Class TList<T>\nEnd Class";
     const r = parse(src);
+    assert.equal(r.errors.length, 0);
     const klass = r.unit.members[0] as ClassDeclaration;
+    assert.equal(klass.kind, "ClassDeclaration");
     assert.equal(klass.name, "TList");
     assert.equal(klass.typeParameters.length, 1);
     assert.equal(klass.typeParameters[0]?.name, "T");
+  });
+
+  test("preserves class-level metaprogramming directives as opaque members", () => {
+    const src = [
+      "Class TLabeled<T>",
+      '   <# If Not TypeSystem.IsType(T, "MemoTextBox") Then #>',
+      "   Property CharCase As Integer",
+      "   <# End If #>",
+      "End Class",
+    ].join("\n");
+    const r = parse(src);
+    assert.equal(r.errors.length, 0);
+    const klass = r.unit.members[0] as ClassDeclaration;
+    assert.equal(klass.kind, "ClassDeclaration");
+    assert.equal(klass.members.length, 3);
+    assert.equal(klass.members[0]?.kind, "OpaqueStatement");
+    assert.equal(klass.members[1]?.kind, "PropertyDeclaration");
+    assert.equal(klass.members[2]?.kind, "OpaqueStatement");
   });
 
   test("parses a generic Class with multiple type parameters and constraint", () => {
@@ -1055,6 +1075,16 @@ describe("parser/parser", () => {
     assert.equal((r.unit.members[1] as any).target, "mod_winapi");
     assert.equal(r.unit.members[2]?.kind, "ImportsDeclaration");
     assert.equal((r.unit.members[2] as any).target, "System.Collections");
+  });
+
+  test("parses Imports after a UTF-8 BOM without expected-token", () => {
+    const r = parse("\uFEFFImports Collections\nNamespace ns\nEnd Namespace");
+    assert.ok(
+      !r.errors.some((error) => error.code === "expected-token"),
+      JSON.stringify([...r.errors]),
+    );
+    assert.equal(r.unit.members[0]?.kind, "ImportsDeclaration");
+    assert.equal((r.unit.members[0] as any).target, "Collections");
   });
 
   test("does not accept multiple variable declarations in class fields", () => {

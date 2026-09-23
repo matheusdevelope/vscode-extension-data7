@@ -262,8 +262,9 @@ export function collectUglifyRenameMaps(modules: readonly ParsedUglifyModule[]):
       }
       if (member.kind === "VariableDeclaration" || member.kind === "FieldDeclaration") {
         // Unit-root Dims (Principal.bas script) are locals of the implicit
-        // file scope — not global members. Claiming them here would still miss
-        // Dims nested in For/If, which share that same scope in Data7.
+        // file scope — not global members. Unit-root Subs share that scope
+        // (rewrite-names merges the script rename map). Claiming Dims here
+        // would still miss Dims nested in For/If, which share the same table.
         if (!namespaceLower && member.kind === "VariableDeclaration") continue;
         claimMember(member.name, code, member.loc?.startLine);
         recordNamespaceMember(namespaceLower, member.name);

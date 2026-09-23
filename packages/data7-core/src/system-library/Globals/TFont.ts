@@ -17,7 +17,6 @@ export const symbols: SystemSymbolInfo[] = buildClassSymbols({
     { name: "Bold", type: "Boolean", description: "Define se a fonte está em negrito." },
     { name: "Italic", type: "Boolean", description: "Define se a fonte está em itálico." },
     { name: "Underline", type: "Boolean", description: "Define se a fonte está sublinhada." },
-    { name: "StrikeOut", type: "Boolean", description: "Define se a fonte está riscada." },
     { name: "Orientation", type: "Integer", description: "Orientação da fonte em graus." },
     { name: "Charset", type: "Integer", description: "Charset da fonte." },
     { name: "Pitch", type: "TFontPitch", description: "Pitch da fonte." },

@@ -1,5 +1,6 @@
 import { parseBasic, type ParseResult } from "../../project/parser";
 import { hashContent } from "../../utils/content-hash";
+import { ReachabilityResultCache } from "./reachability-result-cache";
 
 interface CacheEntry {
   readonly hash: string;
@@ -30,6 +31,7 @@ export class ReachabilityParseCache {
   public static resetForTests(): void {
     ReachabilityParseCache.instance?.clear();
     ReachabilityParseCache.instance = undefined;
+    ReachabilityResultCache.resetForTests();
   }
 
   public getOrParse(fileUri: string, code: string): ParseResult {

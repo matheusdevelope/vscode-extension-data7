@@ -1,11 +1,17 @@
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import * as path from "node:path";
+import { performance } from "node:perf_hooks";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import type { ProjectMetadata, VirtualFolder, ModuleMetadata } from "./project-metadata";
 import { escapeXml } from "../utils/xml-helpers";
 import { generateProjectGuid } from "../utils/guid";
-import { WorkspaceSymbolIndexer, type FileSymbols } from "../analysis/symbol-indexer";
+import {
+  WorkspaceSymbolIndexer,
+  type FileSymbols,
+  type SymbolInfo,
+} from "../analysis/symbol-indexer";
+import { flattenConcreteTypeArgName } from "./generics/type-names";
 import { TypeResolver } from "../analysis/type-resolver";
 import { collectGenericsContext, type GenericsContext } from "../analysis/generics-analyzer";
 import { detectEnumerable } from "../analysis/enumerable-detector";
@@ -53,6 +59,7 @@ import {
   type Data7SymbolMapping,
 } from "./source-map";
 import { topologicalSortModulesByNamespaceDependency } from "./module-dependency-order";
+import { BuildPipelineProfiler } from "./build-pipeline-profiler";
 
 function collectOpenTypeParams(templates: readonly ExternalGenericTemplate[]): ReadonlySet<string> {
   const result = new Set<string>();
@@ -77,10 +84,37 @@ function hasOpenGenericTypeArgument(
   });
 }
 
-function simpleGenericTypeArgName(typeArg: string): string {
-  const trimmed = typeArg.trim();
-  if (!trimmed.includes(".")) return trimmed;
-  return trimmed.substring(trimmed.lastIndexOf(".") + 1);
+function simpleGenericTypeArgName(
+  typeArg: string,
+  homonymousSimpleNames?: ReadonlySet<string>,
+): string {
+  return flattenConcreteTypeArgName(typeArg, homonymousSimpleNames);
+}
+
+function genericInstantiationKey(request: RequestedGenericInstantiation): string {
+  return `${request.templateName.toLowerCase()}<${request.typeArgs.map((arg) => arg.toLowerCase()).join(",")}>`;
+}
+
+function collectHomonymousTypeSimpleNames(indexer: WorkspaceSymbolIndexer): Set<string> {
+  const namespacesBySimple = new Map<string, Set<string>>();
+  for (const symbol of indexer.getAllSymbols()) {
+    if (symbol.kind !== "class" && symbol.kind !== "structure" && symbol.kind !== "delegate") {
+      continue;
+    }
+    if (!symbol.containerName || symbol.isSyntheticGenericInstantiation) continue;
+    const simple = symbol.name.toLowerCase();
+    let namespaces = namespacesBySimple.get(simple);
+    if (!namespaces) {
+      namespaces = new Set();
+      namespacesBySimple.set(simple, namespaces);
+    }
+    namespaces.add(symbol.containerName.toLowerCase());
+  }
+  const homonyms = new Set<string>();
+  for (const [simple, namespaces] of namespacesBySimple) {
+    if (namespaces.size > 1) homonyms.add(simple);
+  }
+  return homonyms;
 }
 
 /**
@@ -114,21 +148,60 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function isGenericTypeArgumentSymbol(symbol: SymbolInfo): boolean {
+  if (symbol.isSyntheticGenericInstantiation) return false;
+  if (!symbol.containerName) return false;
+  return symbol.kind === "class" || symbol.kind === "structure" || symbol.kind === "delegate";
+}
+
+function pickHomonymForGenericArgument(
+  candidates: readonly SymbolInfo[],
+  contextFileUri: string,
+  indexer: WorkspaceSymbolIndexer,
+): SymbolInfo | undefined {
+  if (candidates.length === 0) return undefined;
+  if (candidates.length === 1) return candidates[0];
+  if (!contextFileUri) return undefined;
+
+  const sameFile = candidates.filter((symbol) => symbol.fileUri === contextFileUri);
+  if (sameFile.length >= 1) return sameFile[0];
+
+  const fileSym = indexer.getFileSymbols(contextFileUri);
+  if (!fileSym) return undefined;
+  for (const imported of fileSym.imports) {
+    const hit = candidates.find(
+      (symbol) => symbol.containerName?.toLowerCase() === imported.toLowerCase(),
+    );
+    if (hit) return hit;
+  }
+  const declaredNs = fileSym.symbols.find((symbol) => symbol.kind === "namespace");
+  if (!declaredNs) return undefined;
+  return candidates.find(
+    (symbol) => symbol.containerName?.toLowerCase() === declaredNs.name.toLowerCase(),
+  );
+}
+
 function qualifyGenericTypeArgument(
   typeArg: string,
   contextFileUri: string,
   indexer: WorkspaceSymbolIndexer,
+  homonymousSimpleNames?: ReadonlySet<string>,
 ): string {
   const trimmed = typeArg.trim();
   if (!trimmed || trimmed.includes(".")) return typeArg;
   if (BUILDER_PRIMITIVE_TYPE_NAMES.has(trimmed.toLowerCase())) return typeArg;
 
-  const symbol = indexer.findSymbolByName(trimmed, contextFileUri);
-  if (!symbol?.containerName) return typeArg;
-  if (symbol.isSyntheticGenericInstantiation) return typeArg;
-  if (symbol.kind !== "class" && symbol.kind !== "structure" && symbol.kind !== "delegate") {
+  const candidates = indexer.getSymbolsByName(trimmed).filter(isGenericTypeArgumentSymbol);
+  const picked = pickHomonymForGenericArgument(candidates, contextFileUri, indexer);
+  if (picked?.containerName) return `${picked.containerName}.${trimmed}`;
+
+  if (!contextFileUri && homonymousSimpleNames?.has(trimmed.toLowerCase())) {
     return typeArg;
   }
+
+  const symbol = indexer.findSymbolByName(trimmed, contextFileUri);
+  if (!symbol?.containerName) return typeArg;
+  if (!isGenericTypeArgumentSymbol(symbol)) return typeArg;
   return `${symbol.containerName}.${trimmed}`;
 }
 
@@ -388,37 +461,50 @@ export class Builder {
     const indexer = WorkspaceSymbolIndexer.createDetached();
     const isExcluded = options.isExcluded ?? (() => false);
     const onWarning = options.onWarning ?? (() => undefined);
-    this.preIndexDirectory(indexer, srcDir, isExcluded, onWarning);
-    if (fs.existsSync(data7ModulesDir)) {
-      this.preIndexDirectory(indexer, data7ModulesDir, isExcluded, onWarning);
-    }
+    BuildPipelineProfiler.measure("index", () => {
+      this.preIndexDirectory(indexer, srcDir, isExcluded, onWarning);
+      if (fs.existsSync(data7ModulesDir)) {
+        this.preIndexDirectory(indexer, data7ModulesDir, isExcluded, onWarning);
+      }
+    });
     const genericsEnabled = options.genericsEnabled !== false;
     const externalGenericTemplates = genericsEnabled
       ? this.collectExternalGenericTemplates(indexer)
       : [];
     const liveNamespacesForGenerics =
       genericsEnabled && pruneOptions?.enabled
-        ? this.collectLiveNamespacesForGenericDiscovery(
-            indexer,
-            pruneOptions,
-            srcDir,
-            options.sugarOptions,
+        ? BuildPipelineProfiler.measure("live-namespaces", () =>
+            this.collectLiveNamespacesForGenericDiscovery(
+              indexer,
+              pruneOptions,
+              srcDir,
+              options.sugarOptions,
+            ),
           )
         : undefined;
+    const homonymousGenericTypeNames = genericsEnabled
+      ? collectHomonymousTypeSimpleNames(indexer)
+      : undefined;
     const requestedGenericInstantiations = genericsEnabled
-      ? this.collectRequestedGenericInstantiations(
-          indexer,
-          externalGenericTemplates,
-          liveNamespacesForGenerics,
-          srcDir,
+      ? BuildPipelineProfiler.measure("collect-generics", () =>
+          this.collectRequestedGenericInstantiations(
+            indexer,
+            externalGenericTemplates,
+            liveNamespacesForGenerics,
+            srcDir,
+            homonymousGenericTypeNames,
+          ),
         )
       : [];
     const requestedClassGenericMethods = genericsEnabled
-      ? this.collectRequestedClassGenericMethods(
-          indexer,
-          srcDir,
-          externalGenericTemplates,
-          requestedGenericInstantiations,
+      ? BuildPipelineProfiler.measure("collect-generics", () =>
+          this.collectRequestedClassGenericMethods(
+            indexer,
+            srcDir,
+            externalGenericTemplates,
+            requestedGenericInstantiations,
+            homonymousGenericTypeNames,
+          ),
         )
       : [];
     const transpileCtx = {
@@ -432,7 +518,15 @@ export class Builder {
         TypeResolver.isSubclassOf(typeName, baseTypeName, indexer),
       resolveTypeKind: (typeName: string): MetaTypeKind | undefined =>
         this.resolveTypeKind(typeName, indexer),
-      resolveTypeImport: (typeName: string) => this.resolveTypeImport(typeName, indexer),
+      resolveTypeImport: (typeName: string, usageFileUri?: string) =>
+        this.resolveTypeImport(typeName, indexer, usageFileUri),
+      qualifyTypeArgument: (typeName: string, usageFileUri?: string) =>
+        qualifyGenericTypeArgument(
+          typeName,
+          usageFileUri ?? "",
+          indexer,
+          homonymousGenericTypeNames,
+        ),
       resolveGlobalSymbolType: (name: string, argumentCount: number) =>
         indexer.findSymbolByName(name)?.type ??
         lookupSystemByName(name).find(
@@ -498,6 +592,7 @@ export class Builder {
       externalGenericTemplates,
       requestedGenericInstantiations,
       requestedClassGenericMethods,
+      homonymousGenericTypeNames,
       genericsEnabled,
       sugarOptions: options.sugarOptions,
       stackTrace: options.stackTraceLocationMode
@@ -649,6 +744,7 @@ export class Builder {
   private static resolveTypeImport(
     typeName: string,
     indexer: WorkspaceSymbolIndexer,
+    usageFileUri?: string,
   ): string | undefined {
     const trimmed = typeName.trim();
     if (!trimmed) return undefined;
@@ -658,7 +754,7 @@ export class Builder {
       : trimmed;
     if (BUILDER_PRIMITIVE_TYPE_NAMES.has(simpleName.toLowerCase())) return undefined;
 
-    const symbol = indexer.findSymbolByName(simpleName);
+    const symbol = indexer.findSymbolByName(simpleName, usageFileUri);
     if (symbol) {
       if (symbol.isSyntheticGenericInstantiation) {
         if (symbol.containerName) return symbol.containerName;
@@ -718,6 +814,7 @@ export class Builder {
     externalGenericTemplates: readonly ExternalGenericTemplate[],
     liveNamespaces?: ReadonlySet<string>,
     srcDir?: string,
+    homonymousSimpleNames?: ReadonlySet<string>,
   ): RequestedGenericInstantiation[] {
     const requests: RequestedGenericInstantiation[] = [];
     const seen = new Set<string>();
@@ -749,16 +846,18 @@ export class Builder {
       for (const usage of ctx.usages) {
         if (!workspaceTemplateNames.has(usage.templateName.toLowerCase())) continue;
         if (hasOpenGenericTypeArgument(usage.typeArgs, openTypeParams)) continue;
-        const key = `${usage.templateName.toLowerCase()}<${usage.typeArgs.join(",")}>`;
+        const qualifiedTypeArgs = usage.typeArgs.map((typeArg) =>
+          qualifyGenericTypeArgument(typeArg, fileSyms.fileUri, indexer, homonymousSimpleNames),
+        );
+        const key = `${usage.templateName.toLowerCase()}<${qualifiedTypeArgs.map((arg) => arg.toLowerCase()).join(",")}>`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const qualifiedTypeArgs = usage.typeArgs.map((typeArg) =>
-          qualifyGenericTypeArgument(typeArg, fileSyms.fileUri, indexer),
-        );
         requests.push({
           templateName: usage.templateName,
           typeArgs: qualifiedTypeArgs,
-          flatTypeArgs: usage.typeArgs,
+          flatTypeArgs: qualifiedTypeArgs.map((typeArg) =>
+            simpleGenericTypeArgName(typeArg, homonymousSimpleNames),
+          ),
         });
       }
     }
@@ -769,6 +868,7 @@ export class Builder {
       workspaceTemplateNames,
       openTypeParams,
       indexer,
+      homonymousSimpleNames,
     );
   }
 
@@ -806,13 +906,10 @@ export class Builder {
     workspaceTemplateNames: ReadonlySet<string>,
     openTypeParams: ReadonlySet<string>,
     indexer: WorkspaceSymbolIndexer,
+    homonymousSimpleNames?: ReadonlySet<string>,
   ): RequestedGenericInstantiation[] {
-    const instantiationKey = (request: RequestedGenericInstantiation): string => {
-      const requestFlats = request.flatTypeArgs ?? request.typeArgs.map(simpleGenericTypeArgName);
-      return `${request.templateName.toLowerCase()}<${requestFlats.join(",")}>`;
-    };
     const worklist: RequestedGenericInstantiation[] = [...seeds];
-    const seen = new Set(seeds.map(instantiationKey));
+    const seen = new Set(seeds.map(genericInstantiationKey));
 
     for (let index = 0; index < worklist.length && index < MAX_INSTANTIATIONS; index++) {
       const request = worklist[index];
@@ -821,7 +918,9 @@ export class Builder {
       if (!nested) continue;
       if (nested.typeParams.length !== request.typeArgs.length) continue;
 
-      const flats = request.flatTypeArgs ?? request.typeArgs.map(simpleGenericTypeArgName);
+      const flats =
+        request.flatTypeArgs ??
+        request.typeArgs.map((typeArg) => simpleGenericTypeArgName(typeArg, homonymousSimpleNames));
       if (flats.length !== nested.typeParams.length) continue;
 
       const paramToQualified = new Map<string, string>();
@@ -832,7 +931,10 @@ export class Builder {
         const flatArg = flats[paramIndex];
         if (!paramName || !qualifiedArg || !flatArg) continue;
         paramToQualified.set(paramName.toLowerCase(), qualifiedArg);
-        paramToFlat.set(paramName.toLowerCase(), simpleGenericTypeArgName(flatArg));
+        paramToFlat.set(
+          paramName.toLowerCase(),
+          simpleGenericTypeArgName(qualifiedArg, homonymousSimpleNames),
+        );
       }
 
       for (const usage of nested.usages) {
@@ -841,21 +943,24 @@ export class Builder {
           substituteFlatTypeArg(typeArg, paramToFlat),
         );
         if (hasOpenGenericTypeArgument(substFlats, openTypeParams)) continue;
-        const key = `${usage.templateName.toLowerCase()}<${substFlats.join(",")}>`;
-        if (seen.has(key)) continue;
-        seen.add(key);
 
         const qualifiedTypeArgs = usage.typeArgs.map((typeArg, argIndex) => {
           const exact = paramToQualified.get(typeArg.toLowerCase());
           if (exact !== undefined) return exact;
           const substFlat = substFlats[argIndex] ?? typeArg;
-          return qualifyGenericTypeArgument(substFlat, "", indexer);
+          return qualifyGenericTypeArgument(substFlat, "", indexer, homonymousSimpleNames);
         });
-        worklist.push({
+        const nestedRequest: RequestedGenericInstantiation = {
           templateName: usage.templateName,
           typeArgs: qualifiedTypeArgs,
-          flatTypeArgs: substFlats,
-        });
+          flatTypeArgs: qualifiedTypeArgs.map((typeArg) =>
+            simpleGenericTypeArgName(typeArg, homonymousSimpleNames),
+          ),
+        };
+        const key = genericInstantiationKey(nestedRequest);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        worklist.push(nestedRequest);
       }
     }
 
@@ -867,6 +972,7 @@ export class Builder {
     srcDir: string,
     externalGenericTemplates: readonly ExternalGenericTemplate[],
     requestedGenericInstantiations: readonly RequestedGenericInstantiation[],
+    homonymousSimpleNames?: ReadonlySet<string>,
   ): ClassGenericMethodRequest[] {
     const genericTemplateSources: string[] = [];
     for (const fileSyms of indexer.getAllFileSymbols()) {
@@ -894,6 +1000,7 @@ export class Builder {
       GenericsMonomorphizer.collectWorkspaceClassGenericMethodRequests({
         externalTemplates: externalGenericTemplates,
         requestedInstantiations: requestedGenericInstantiations,
+        homonymousTypeNames: homonymousSimpleNames,
         genericTemplateSources,
         usageSources,
       }),
@@ -964,17 +1071,22 @@ export class Builder {
   ): TranspileResult {
     const sourceHash = sha1(code);
     const cacheKey = `${fileUri}\0${sourceHash}\0${contextHash}`;
+    const t0 = BuildPipelineProfiler.isEnabled() ? performance.now() : 0;
     const cached = transpileCache.get(cacheKey);
     if (cached?.sourceHash === sourceHash && cached.contextHash === contextHash) {
+      BuildPipelineProfiler.recordTranspileFile(fileUri, performance.now() - t0, true);
       return cloneTranspileResult(cached.result);
     }
 
-    const result = SugarTranspiler.transpile(code, ctx);
+    const result = BuildPipelineProfiler.measure("transpile", () =>
+      SugarTranspiler.transpile(code, { ...ctx, usageFileUri: fileUri }),
+    );
     transpileCache.set(cacheKey, {
       sourceHash,
       contextHash,
       result: cloneTranspileResult(result),
     });
+    BuildPipelineProfiler.recordTranspileFile(fileUri, performance.now() - t0, false);
     return result;
   }
 
@@ -1089,15 +1201,17 @@ export class Builder {
       stackTraceLocationMode: stackTraceOn ? stackTraceLocationMode : undefined,
     };
     const stripComments = this.shouldStripComments(metadata, optimizationOptions);
+    if (BuildPipelineProfiler.isEnabled()) {
+      BuildPipelineProfiler.beginRun();
+    }
     const { transpileCtx, indexer: buildIndexer } = this.buildTranspileContext(
       srcDir,
       data7ModulesDir,
       effectiveOptions,
       optimizationOptions.prune,
     );
-    const transpileCacheContextHash = this.buildTranspileCacheContextHash(
-      transpileCtx,
-      buildIndexer,
+    const transpileCacheContextHash = BuildPipelineProfiler.measure("context-hash", () =>
+      this.buildTranspileCacheContextHash(transpileCtx, buildIndexer),
     );
 
     const globalUsedSugars = new Set<string>();
@@ -1150,9 +1264,13 @@ export class Builder {
       return path.join(srcFolder, virtualRelPath);
     };
 
-    const srcFiles = getFilesRecursive(srcDir, ".bas");
+    const srcFiles = BuildPipelineProfiler.measure("scan-files", () =>
+      getFilesRecursive(srcDir, ".bas"),
+    );
     const dependencyFilesForUniqueness = fs.existsSync(data7ModulesDir)
-      ? getFilesRecursive(data7ModulesDir, ".bas")
+      ? BuildPipelineProfiler.measure("scan-files", () =>
+          getFilesRecursive(data7ModulesDir, ".bas"),
+        )
       : [];
     this.assertUniqueModuleBasenames([...srcFiles, ...dependencyFilesForUniqueness], workspaceDir);
 
@@ -1162,10 +1280,14 @@ export class Builder {
 
     let dependencyModulesCount = 0;
     if (fs.existsSync(data7ModulesDir)) {
-      dependencyModulesCount = getFilesRecursive(data7ModulesDir, ".bas").filter((filePath) => {
-        const rawCode = fs.readFileSync(filePath, "utf-8");
-        return this.extractDeclaredNamespacesFromCode(rawCode).length > 0;
-      }).length;
+      dependencyModulesCount = BuildPipelineProfiler.measure(
+        "scan-files",
+        () =>
+          getFilesRecursive(data7ModulesDir, ".bas").filter((filePath) => {
+            const rawCode = fs.readFileSync(filePath, "utf-8");
+            return this.extractDeclaredNamespacesFromCode(rawCode).length > 0;
+          }).length,
+      );
     }
     const totalModulesCount = localModulesCount + dependencyModulesCount;
 
@@ -1648,128 +1770,137 @@ export class Builder {
       return fallback;
     };
 
-    virtualSugarModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
-    });
-    buildIndexer.updateFileContent(
-      mainUri,
-      moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
-    );
-    transpiledSrcModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
-    });
-    transpiledDepModules.forEach((m) => {
-      buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
+    BuildPipelineProfiler.measure("reindex", () => {
+      virtualSugarModules.forEach((m) => {
+        buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
+      });
+      buildIndexer.updateFileContent(
+        mainUri,
+        moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
+      );
+      transpiledSrcModules.forEach((m) => {
+        buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
+      });
+      transpiledDepModules.forEach((m) => {
+        buildIndexer.updateFileContent(m.fileUri, moduleCode(m.name, m.code) ?? "");
+      });
     });
 
-    options.validateTranspiled?.(
-      [
-        {
-          fileUri: mainUri,
-          code: moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
-        },
-        ...transpiledSrcModules
-          .map((m) => ({ ...m, code: moduleCode(m.name, m.code) }))
-          .filter((m): m is typeof m & { code: string } => m.code !== undefined),
-        ...transpiledDepModules
-          .map((m) => ({ ...m, code: moduleCode(m.name, m.code) }))
-          .filter((m): m is typeof m & { code: string } => m.code !== undefined),
-      ],
-      buildIndexer,
-    );
+    BuildPipelineProfiler.measure("validate", () => {
+      options.validateTranspiled?.(
+        [
+          {
+            fileUri: mainUri,
+            code: moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
+          },
+          ...transpiledSrcModules
+            .map((m) => ({ ...m, code: moduleCode(m.name, m.code) }))
+            .filter((m): m is typeof m & { code: string } => m.code !== undefined),
+          ...transpiledDepModules
+            .map((m) => ({ ...m, code: moduleCode(m.name, m.code) }))
+            .filter((m): m is typeof m & { code: string } => m.code !== undefined),
+        ],
+        buildIndexer,
+      );
+    });
 
     // 4. Report transpilation diagnostics and optimize/add to compile list
     //    Order: prune (above) → minify → uglify
     this.reportSugarDiagnostics("Principal.bas", mainTranspiled.diagnostics, onWarning);
-    const mainMinified = this.optimizeCodeWithMap(
-      moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
-      optimizationOptions,
-      stripComments,
-    );
-    let mainCode = mainMinified.code;
-    composeModuleLineMap("Principal", mainMinified.lineMap);
+    let mainCode = "";
+    BuildPipelineProfiler.measure("minify", () => {
+      const mainMinified = this.optimizeCodeWithMap(
+        moduleCode("Principal", mainTranspiled.code) ?? mainTranspiled.code,
+        optimizationOptions,
+        stripComments,
+      );
+      mainCode = mainMinified.code;
+      composeModuleLineMap("Principal", mainMinified.lineMap);
 
-    virtualSugarModules.forEach((m) => {
-      if (excludedPrunedModules.has(m.name)) return;
-      const code = moduleCode(m.name, m.code);
-      if (!code) return;
-      const minified = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
-      composeModuleLineMap(m.name, minified.lineMap);
-      modulesToCompile.push({
-        name: m.name,
-        code: minified.code,
-        folderId: m.folderId,
-        aberto: false,
-        ordemAbertura: 0,
+      virtualSugarModules.forEach((m) => {
+        if (excludedPrunedModules.has(m.name)) return;
+        const code = moduleCode(m.name, m.code);
+        if (!code) return;
+        const minified = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
+        composeModuleLineMap(m.name, minified.lineMap);
+        modulesToCompile.push({
+          name: m.name,
+          code: minified.code,
+          folderId: m.folderId,
+          aberto: false,
+          ordemAbertura: 0,
+        });
       });
-    });
 
-    transpiledSrcModules.forEach((m) => {
-      if (excludedPrunedModules.has(m.name)) return;
-      this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
-      const code = moduleCode(m.name, m.code);
-      if (!code) return;
-      const optimized = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
-      composeModuleLineMap(m.name, optimized.lineMap);
+      transpiledSrcModules.forEach((m) => {
+        if (excludedPrunedModules.has(m.name)) return;
+        this.reportSugarDiagnostics(`${m.name}.bas`, m.diagnostics, onWarning);
+        const code = moduleCode(m.name, m.code);
+        if (!code) return;
+        const optimized = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
+        composeModuleLineMap(m.name, optimized.lineMap);
 
-      newModulesMetadata[m.name] = {
-        nome: m.name,
-        aberto: m.aberto,
-        ordemAbertura: m.ordemAbertura,
-        pastaId: m.folderId,
-      };
+        newModulesMetadata[m.name] = {
+          nome: m.name,
+          aberto: m.aberto,
+          ordemAbertura: m.ordemAbertura,
+          pastaId: m.folderId,
+        };
 
-      modulesToCompile.push({
-        name: m.name,
-        code: optimized.code,
-        folderId: m.folderId,
-        aberto: m.aberto,
-        ordemAbertura: m.ordemAbertura,
+        modulesToCompile.push({
+          name: m.name,
+          code: optimized.code,
+          folderId: m.folderId,
+          aberto: m.aberto,
+          ordemAbertura: m.ordemAbertura,
+        });
       });
-    });
 
-    transpiledDepModules.forEach((m) => {
-      if (excludedPrunedModules.has(m.name)) return;
-      this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics, onWarning);
-      const code = moduleCode(m.name, m.code);
-      if (!code) return;
+      transpiledDepModules.forEach((m) => {
+        if (excludedPrunedModules.has(m.name)) return;
+        this.reportSugarDiagnostics(`data7_modules/${m.name}.bas`, m.diagnostics, onWarning);
+        const code = moduleCode(m.name, m.code);
+        if (!code) return;
 
-      const optimized = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
-      composeModuleLineMap(m.name, optimized.lineMap);
-      modulesToCompile.push({
-        name: m.name,
-        code: optimized.code,
-        folderId: m.folderId,
-        aberto: false,
-        ordemAbertura: 0,
+        const optimized = this.optimizeCodeWithMap(code, optimizationOptions, stripComments);
+        composeModuleLineMap(m.name, optimized.lineMap);
+        modulesToCompile.push({
+          name: m.name,
+          code: optimized.code,
+          folderId: m.folderId,
+          aberto: false,
+          ordemAbertura: 0,
+        });
       });
     });
 
     let uglifySymbols: readonly Data7SymbolMapping[] = [];
     if (optimizationOptions.uglify.enabled) {
-      const uglifyInputs = [
-        {
-          moduleName: "Principal",
-          fileUri: fileUriByModuleName.get("Principal") ?? mainUri,
-          code: mainCode,
-        },
-        ...modulesToCompile.map((m) => ({
-          moduleName: m.name,
-          fileUri: fileUriByModuleName.get(m.name) ?? m.name,
-          code: m.code,
-        })),
-      ];
-      const uglified = uglifyBuildModules(uglifyInputs, optimizationOptions.uglify);
-      mainCode = uglified.modules.get("Principal") ?? mainCode;
-      composeModuleLineMap("Principal", uglified.lineMaps?.get("Principal"));
-      for (const module of modulesToCompile) {
-        const next = uglified.modules.get(module.name);
-        if (next !== undefined) {
-          module.code = next;
+      BuildPipelineProfiler.measure("uglify", () => {
+        const uglifyInputs = [
+          {
+            moduleName: "Principal",
+            fileUri: fileUriByModuleName.get("Principal") ?? mainUri,
+            code: mainCode,
+          },
+          ...modulesToCompile.map((m) => ({
+            moduleName: m.name,
+            fileUri: fileUriByModuleName.get(m.name) ?? m.name,
+            code: m.code,
+          })),
+        ];
+        const uglified = uglifyBuildModules(uglifyInputs, optimizationOptions.uglify);
+        mainCode = uglified.modules.get("Principal") ?? mainCode;
+        composeModuleLineMap("Principal", uglified.lineMaps?.get("Principal"));
+        for (const module of modulesToCompile) {
+          const next = uglified.modules.get(module.name);
+          if (next !== undefined) {
+            module.code = next;
+          }
+          composeModuleLineMap(module.name, uglified.lineMaps?.get(module.name));
         }
-        composeModuleLineMap(module.name, uglified.lineMaps?.get(module.name));
-      }
-      uglifySymbols = uglified.symbols ?? [];
+        uglifySymbols = uglified.symbols ?? [];
+      });
     }
     if (stackTraceOn && stackTraceLocationMode === "generated") {
       mainCode = rewriteGeneratedStackTraceLocations(mainCode, "Principal");
@@ -1795,38 +1926,43 @@ export class Builder {
       modulesToCompile,
       onWarning,
     );
-    const xml = this.assembleXml(metadata, mainCode, orderedFolders, sortedModulesToCompile);
+    BuildPipelineProfiler.measure("emit", () => {
+      const xml = this.assembleXml(metadata, mainCode, orderedFolders, sortedModulesToCompile);
 
-    const outputDir = path.dirname(outputFilePath);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-    fs.writeFileSync(outputFilePath, xml, "utf-8");
-
-    if (optimizationOptions.sourceMap) {
-      const mapBuilder = new Data7SourceMapBuilder();
-      const emitModule = (moduleName: string, generatedCode: string): void => {
-        mapBuilder.addLineMappings(
-          moduleName,
-          generatedCode,
-          fileUriByModuleName.get(moduleName) ?? moduleName,
-          lineMapByModuleName.get(moduleName),
-        );
-      };
-      emitModule("Principal", mainCode);
-      for (const module of sortedModulesToCompile) {
-        emitModule(module.name, module.code);
+      const outputDir = path.dirname(outputFilePath);
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
       }
-      for (const symbol of uglifySymbols) {
-        mapBuilder.addSymbol(symbol);
+      fs.writeFileSync(outputFilePath, xml, "utf-8");
+
+      if (optimizationOptions.sourceMap) {
+        const mapBuilder = new Data7SourceMapBuilder();
+        const emitModule = (moduleName: string, generatedCode: string): void => {
+          mapBuilder.addLineMappings(
+            moduleName,
+            generatedCode,
+            fileUriByModuleName.get(moduleName) ?? moduleName,
+            lineMapByModuleName.get(moduleName),
+          );
+        };
+        emitModule("Principal", mainCode);
+        for (const module of sortedModulesToCompile) {
+          emitModule(module.name, module.code);
+        }
+        for (const symbol of uglifySymbols) {
+          mapBuilder.addSymbol(symbol);
+        }
+        writeData7SourceMapFiles(workspaceDir, outputFilePath, mapBuilder.build(outputFilePath));
       }
-      writeData7SourceMapFiles(workspaceDir, outputFilePath, mapBuilder.build(outputFilePath));
+
+      metadata.virtualFolders = orderedFolders;
+      metadata.modulesMetadata = newModulesMetadata;
+      writeProjectConfig(configPath, metadata);
+    });
+
+    if (BuildPipelineProfiler.isEnabled()) {
+      BuildPipelineProfiler.endRun();
     }
-
-    metadata.virtualFolders = orderedFolders;
-    metadata.modulesMetadata = newModulesMetadata;
-    writeProjectConfig(configPath, metadata);
-
     return outputFilePath;
   }
 

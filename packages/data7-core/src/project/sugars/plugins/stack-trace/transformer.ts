@@ -158,6 +158,8 @@ export class StackTraceSugarTransformer {
           this.transformClassMember(child, namespaceName, member.name),
         );
         return member;
+      case "OpaqueStatement":
+        return member;
     }
   }
 

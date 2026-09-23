@@ -29,7 +29,7 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Texto exibido/editado no controle.",
   },
   {
-    name: "TextHint",
+    name: "Hint",
     kind: "property",
     type: "String",
     isShared: false,

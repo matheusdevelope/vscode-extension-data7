@@ -263,6 +263,8 @@ Private Sub Handle_Click()
 End Sub
 ```
 
+Cópia de propriedade/delegate **não** é atribuição de handler. `me._nativeOnChange = me._control.OnChange` (salvar o evento nativo) não deve usar um `Sub OnChange` homônimo de outro namespace (`Ambient.OnChange` com 3 parâmetros).
+
 **Severidade**: `error`.
 
 **Exemplos**: [`docs/example/diagnostics/event-signature-mismatch/`](../example/diagnostics/event-signature-mismatch).

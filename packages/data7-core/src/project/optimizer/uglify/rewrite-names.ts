@@ -176,6 +176,12 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
     private currentRoutineRename:
       | { readonly originalLower: string; readonly renamed: string }
       | undefined;
+    /**
+     * Principal.bas (and any unit-root script) Dims/For counters live in the
+     * implicit file scope. Unit-root Subs see those names; their rewrite must
+     * reuse this map or `_form` stays literal after `Dim _form` became `a`.
+     */
+    private unitScriptLocals: ReadonlyMap<string, string> = new Map();
 
     private scope(): ReceiverScope {
       return {
@@ -216,14 +222,33 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
       return resolveReceiverTypeLower(expression, this.scope(), maps.userTypes, typeNames);
     }
 
+    private inheritUnitScriptLocals(): boolean {
+      return (
+        this.currentClassLower === undefined &&
+        this.currentNamespaceLower === undefined &&
+        this.unitScriptLocals.size > 0
+      );
+    }
+
+    /** Method locals, with unit-root script Dims as outer scope when applicable. */
+    private localsForMethod(method: MethodDeclaration): Map<string, string> {
+      const inherit = this.inheritUnitScriptLocals();
+      const taken = inherit ? [...globalTaken, ...this.unitScriptLocals.values()] : globalTaken;
+      const locals = createLocalRenameMap(method, taken);
+      if (!inherit) return locals;
+      const merged = new Map(this.unitScriptLocals);
+      for (const [key, value] of locals) merged.set(key, value);
+      return merged;
+    }
+
     public override walk(node: Node | undefined): void {
       if (!node) return;
 
       if (node.kind === "CompilationUnit") {
-        const scriptLocals = createUnitScriptRenameMap(node.members, globalTaken);
+        this.unitScriptLocals = createUnitScriptRenameMap(node.members, globalTaken);
         for (const member of node.members) {
           if (isUnitScriptStatement(member)) {
-            this.walkStatement(member, scriptLocals);
+            this.walkStatement(member, this.unitScriptLocals);
           } else {
             this.walk(member);
           }
@@ -438,7 +463,7 @@ export function applyUglifyRenames(unit: CompilationUnit, maps: UglifyRenameMaps
       for (const tp of method.typeParameters) this.walk(tp);
       if (method.returnType) rewriteTypeReference(method.returnType, maps);
 
-      const locals = createLocalRenameMap(method, globalTaken);
+      const locals = this.localsForMethod(method);
       const previousRoutine = this.currentRoutineRename;
       this.currentRoutineRename = returnAlias ?? {
         originalLower,

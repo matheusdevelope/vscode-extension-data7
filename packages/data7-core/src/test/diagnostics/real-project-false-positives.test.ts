@@ -301,4 +301,23 @@ End Namespace`;
     const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
     expectNoDiagnostic(diags, DiagnosticCodes.TypeMismatch);
   });
+
+  test("UTF-8 BOM before Imports is not unknown-symbol or expected-token", () => {
+    const indexer = WorkspaceSymbolIndexer.createDetached();
+    const uri = "file:///configurador_consulta.bas";
+    const code = `\uFEFFImports Collections
+Namespace Configurador
+   Class Consulta
+      Public Sub New()
+         MyBase.New()
+      End Sub
+   End Class
+End Namespace`;
+    indexer.updateFileContent(uri, code);
+    const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+    expectNoDiagnostic(diags, DiagnosticCodes.UnknownSymbol);
+    expectNoDiagnostic(diags, "expected-token");
+    const parsed = parseBasic(code);
+    assert.equal(parsed.unit.members[0]?.kind, "ImportsDeclaration");
+  });
 });

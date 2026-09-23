@@ -16,6 +16,11 @@
 
 import type { Token, TokenKind } from "./token-types";
 import { isLanguageKeyword } from "../language/keywords";
+import { stripUtf8Bom } from "../../utils/utf8-bom";
+
+function isLineWhitespace(ch: string): boolean {
+  return ch === " " || ch === "\t" || ch === "\uFEFF";
+}
 
 // ===========================================================================
 // Single-line Tokenizer Types and Implementation
@@ -93,10 +98,10 @@ export function tokenizeLine(
   while (i < n) {
     const ch = line[i] ?? "";
 
-    // Whitespace.
-    if (ch === " " || ch === "\t") {
+    // Whitespace (space, tab, and UTF-8 BOM — Node keeps U+FEFF; the editor does not).
+    if (isLineWhitespace(ch)) {
       const start = i;
-      while (i < n && (line[i] === " " || line[i] === "\t")) i++;
+      while (i < n && isLineWhitespace(line[i] ?? "")) i++;
       if (includeWS) {
         tokens.push({ kind: "whitespace", value: line.slice(start, i), col: start });
       }
@@ -257,7 +262,7 @@ function isIdentChar(ch: string): boolean {
  */
 export function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
-  const lines = source.split(/\r?\n/);
+  const lines = stripUtf8Bom(source).split(/\r?\n/);
   let continuationPending = false;
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {

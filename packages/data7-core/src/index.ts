@@ -58,6 +58,7 @@ export * from "./project/project-metadata";
 export * from "./project/default-project-metadata";
 export * from "./project/build-cache";
 export * from "./project/build-snapshot";
+export * from "./project/build-pipeline-profiler";
 export * from "./project/validate-native-syntax";
 export * from "./project/optimizer";
 export * from "./project/source-map";
@@ -84,6 +85,7 @@ export * from "./utils/primitive-types";
 export * from "./utils/regex-helpers";
 export * from "./utils/suppression-comments";
 export * from "./utils/text-edit-utils";
+export * from "./utils/utf8-bom";
 export * from "./utils/xml-helpers";
 export * from "./utils/symbol-kind";
 

@@ -642,6 +642,62 @@ End Namespace`;
       );
       expectNoDiagnostic(diags, DiagnosticCodes.EventSignatureMismatch);
     });
+
+    test("emits no diagnostic when copying a control OnChange onto a TNotifyEvent field", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const notifierUri = "file:///mod_notifier.bas";
+      const notifierCode = `Namespace Ambient
+   Class TNotifier
+      Protected Overridable Sub OnChange(pName As String, pValue As Variant, pType As String)
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(notifierUri, notifierCode);
+      registerOpenDocument(notifierUri, "mod_notifier.bas");
+
+      const code = loadExample("diagnostics/event-signature-mismatch/delegate-property-copy.bas");
+      const header = parseExampleHeader(code);
+      assert.equal(header.diagnostics.length, 0, "example header must declare @diagnostics: none");
+      const uri = "file:///mod_editors.bas";
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.EventSignatureMismatch);
+    });
+
+    test("does not use a homonymous Ambient.OnChange method when copying _control.OnChange on a generic editor", () => {
+      const indexer = WorkspaceSymbolIndexer.getInstance();
+      const notifierUri = "file:///mod_notifier.bas";
+      indexer.updateFileContent(
+        notifierUri,
+        `Namespace Ambient
+   Class TNotifier
+      Protected Overridable Sub OnChange(pName As String, pValue As Variant, pType As String)
+      End Sub
+   End Class
+End Namespace`,
+      );
+      registerOpenDocument(notifierUri, "mod_notifier.bas");
+
+      const uri = "file:///mod_editors.bas";
+      const code = `Imports Forms
+Namespace mod_editors
+   Class TLabeledEditor<T>
+      Protected _control As T
+      Protected _nativeOnChange As TNotifyEvent
+      Private Sub _bindEditValueEvents()
+         me._nativeOnChange = me._control.OnChange
+         me._control.OnChange = me._handleChange
+      End Sub
+      Private Sub _handleChange(pSender As TObject)
+      End Sub
+   End Class
+End Namespace`;
+      indexer.updateFileContent(uri, code);
+
+      const diags = DiagnosticsLinter.runAdvancedDiagnostics(createMockDoc(uri, code), indexer);
+      expectNoDiagnostic(diags, DiagnosticCodes.EventSignatureMismatch);
+    });
   });
 
   // -------------------------------------------------------------------------

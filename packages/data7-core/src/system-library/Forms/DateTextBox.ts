@@ -11,7 +11,7 @@ export const symbols: SystemSymbolInfo[] = [
     range: SYSTEM_RANGE,
     fileUri: SYSTEM_URI,
     containerName: "Forms",
-    inheritsFrom: "TcxCustomTextEdit",
+    inheritsFrom: "TcxDateEdit",
     description:
       "Caixa de texto especializada em entrada de datas (TDataEditor) com botão de calendário (dropdown). Wrapper sobre TcxDateEdit.",
   },

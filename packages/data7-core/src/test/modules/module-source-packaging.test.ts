@@ -147,4 +147,51 @@ describe("DependencySynchronizer import normalization", () => {
     assert.ok(principal.trimStart().startsWith("'"));
     assert.ok(principal.includes("' Namespace ModDemo"));
   });
+
+  test("sync copies nested data7.json dependencies of a direct module", async () => {
+    const localRoot = path.join(tempHomedir, ".data7", "local_modules");
+
+    const tablesDir = path.join(localRoot, "Tables");
+    fs.mkdirSync(path.join(tablesDir, "src"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tablesDir, "data7.json"),
+      JSON.stringify({ nome: "Tables", opcoes: { versao: "1.0.0.5" }, dependencies: {} }),
+    );
+    fs.writeFileSync(
+      path.join(tablesDir, "src", "TablesSql.bas"),
+      "Namespace TablesSql\n   Class TSql\n   End Class\nEnd Namespace\n",
+    );
+
+    const configuradorDir = path.join(localRoot, "mod_configurador");
+    fs.mkdirSync(path.join(configuradorDir, "src"), { recursive: true });
+    fs.writeFileSync(
+      path.join(configuradorDir, "data7.json"),
+      JSON.stringify({
+        nome: "mod_configurador",
+        opcoes: { versao: "1.0.0.0" },
+        dependencies: { Tables: "1.0.0.5" },
+      }),
+    );
+    fs.writeFileSync(
+      path.join(configuradorDir, "src", "mod_configurador.bas"),
+      "Imports TablesSql\nNamespace mod_configurador\n   Class Motor\n   End Class\nEnd Namespace\n",
+    );
+
+    await DependencySynchronizer.sync(tempWorkspace, { mod_configurador: "1.0.0.0" });
+
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          tempWorkspace,
+          "data7_modules",
+          "mod_configurador",
+          "src",
+          "mod_configurador.bas",
+        ),
+      ),
+    );
+    assert.ok(
+      fs.existsSync(path.join(tempWorkspace, "data7_modules", "Tables", "src", "TablesSql.bas")),
+    );
+  });
 });

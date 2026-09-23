@@ -125,11 +125,11 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 
 <!-- BEGIN: auto-generated index — do not edit below by hand -->
 
-## Índice de exemplos (174 arquivos)
+## Índice de exemplos (179 arquivos)
 
 > Gerado automaticamente por `scripts/generate-examples-index.js`. Edite os cabeçalhos dos `.bas` em vez deste bloco.
 
-### sugar (73)
+### sugar (77)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -167,6 +167,10 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/for-each/03-nested-loops.bas`](./sugar/for-each/03-nested-loops.bas) | For Each aninhado — contadores __idx0 e __idx1 não colidem | `none` | — |
 | [`sugar/for-each/04-not-enumerable.bas`](./sugar/for-each/04-not-enumerable.bas) | For Each sobre tipo sem propriedade Count + indexer — emite not-enumerable e Builder mantém a linha intacta | `not-enumerable@12` | — |
 | [`sugar/for-each/05-method-call-operand.bas`](./sugar/for-each/05-method-call-operand.bas) | For Each sobre expressão complexa (chamada de método) — exige materialização em variável local antes | `not-enumerable@10` | — |
+| [`sugar/generics/_expected/01-typesystem-is-type.bas`](./sugar/generics/_expected/01-typesystem-is-type.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generics/01-typesystem-is-type | `none` | — |
+| [`sugar/generics/_expected/02-typesystem-elseif.bas`](./sugar/generics/_expected/02-typesystem-elseif.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/generics/02-typesystem-elseif | `none` | — |
+| [`sugar/generics/01-typesystem-is-type.bas`](./sugar/generics/01-typesystem-is-type.bas) | TypeSystem.IsType ramifica pelo tipo concreto do genérico, não pela herança — omite CharCase só quando T é exatamente MemoTextBox | `none` | — |
+| [`sugar/generics/02-typesystem-elseif.bas`](./sugar/generics/02-typesystem-elseif.bas) | TypeSystem ElseIf / Else If encadeia verificações; o primeiro ramo verdadeiro vence | `none` | — |
 | [`sugar/interpolation/_expected/01-simple.bas`](./sugar/interpolation/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/interpolation/01-simple | `none` | — |
 | [`sugar/interpolation/_expected/02-multiple-expressions.bas`](./sugar/interpolation/_expected/02-multiple-expressions.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/interpolation/02-multiple-expressions | `none` | — |
 | [`sugar/interpolation/_expected/03-escaped-braces.bas`](./sugar/interpolation/_expected/03-escaped-braces.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/interpolation/03-escaped-braces | `none` | — |
@@ -207,7 +211,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`sugar/using/_expected/01-simple.bas`](./sugar/using/_expected/01-simple.bas) | Forma nativa gerada pelo SugarTranspiler para sugar/using/01-simple | `none` | — |
 | [`sugar/using/01-simple.bas`](./sugar/using/01-simple.bas) | Using ... End Using expandido para Try/Finally/x.Free() | `none` | — |
 
-### diagnostics (90)
+### diagnostics (91)
 
 | Caminho | Demonstra | Diagnósticos | Requer |
 |---|---|---|---|
@@ -233,6 +237,7 @@ Cada caso novo deve trazer pelo menos o arquivo de "trigger" (cenário que ativa
 | [`diagnostics/duplicate-import/trigger.bas`](./diagnostics/duplicate-import/trigger.bas) | o mesmo Imports declarado duas vezes no cabeçalho do arquivo | `duplicate-import@7` | — |
 | [`diagnostics/duplicate-template/trigger.bas`](./diagnostics/duplicate-template/trigger.bas) | two top-level generic declarations share the same name | `duplicate-template@11` | — |
 | [`diagnostics/elseif-whitespace/trigger.bas`](./diagnostics/elseif-whitespace/trigger.bas) | uso de Else If com espaço, rejeitado pelo compilador em favor de ElseIf | `elseif-whitespace@5` | — |
+| [`diagnostics/event-signature-mismatch/delegate-property-copy.bas`](./diagnostics/event-signature-mismatch/delegate-property-copy.bas) | copiar OnChange de um controle para um campo TNotifyEvent não é atribuição de handler (não usar Ambient.OnChange de 3 params) | `none` | — |
 | [`diagnostics/event-signature-mismatch/trigger.bas`](./diagnostics/event-signature-mismatch/trigger.bas) | handler atribuído a OnClick (TNotifyEvent espera 1 parâmetro Sender) mas o handler tem 0 | `event-signature-mismatch@11` | — |
 | [`diagnostics/flat-name-collision/trigger.bas`](./diagnostics/flat-name-collision/trigger.bas) | source type carries `_` so two distinct usages collapse to the same flat name | `flat-name-collision@14` | `emitted by the SugarTranspiler at build-time (Fase 6); the live linter does not yet track flat-name collisions.` |
 | [`diagnostics/function-read-self/trigger.bas`](./diagnostics/function-read-self/trigger.bas) | reading from function name inside its own body | `function-read-self@10` | `linter implementation for function self read detection` |

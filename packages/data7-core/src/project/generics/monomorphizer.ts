@@ -48,6 +48,7 @@
 import {
   ASTWalker,
   type ClassDeclaration,
+  type ClassMember,
   type CompilationUnit,
   type DelegateDeclaration,
   type MethodDeclaration,
@@ -77,10 +78,20 @@ import {
   flatNameFromParts as flattenGenericNameFromParts,
   flatNameOf as flattenGenericName,
 } from "./type-names";
-import { parseMetaTypeKind, resolveMetaTypeKind, type MetaTypeKind } from "./meta-type-kind";
+import {
+  metaTypesAreEqual,
+  parseMetaTypeKind,
+  resolveMetaTypeKind,
+  type MetaTypeKind,
+} from "./meta-type-kind";
 
 export type { MetaTypeKind } from "./meta-type-kind";
-export { META_PRIMITIVE_TYPES, parseMetaTypeKind, resolveMetaTypeKind } from "./meta-type-kind";
+export {
+  META_PRIMITIVE_TYPES,
+  metaTypesAreEqual,
+  parseMetaTypeKind,
+  resolveMetaTypeKind,
+} from "./meta-type-kind";
 
 // ============================================================================
 // Public API
@@ -104,6 +115,13 @@ export interface MonomorphizerOptions {
   readonly requestedInstantiations?: readonly RequestedGenericInstantiation[];
   /** Owner-specific generic method requests discovered from workspace sources. */
   readonly requestedClassGenericMethods?: readonly ClassGenericMethodRequest[];
+  /**
+   * Simple type names that exist in more than one namespace. Qualified
+   * arguments keep the namespace in the flattened class name.
+   */
+  readonly homonymousTypeNames?: ReadonlySet<string>;
+  /** Qualifies an unqualified concrete type argument using the usage file. */
+  readonly qualifyTypeArgument?: (typeName: string) => string;
 }
 
 export interface ClassGenericMethodRequest {
@@ -238,12 +256,42 @@ export class GenericsMonomorphizer {
  * engine detects this case and surfaces a {@link MonomorphizationWarning}
  * with code `flat-name-collision`.
  */
-export function flatNameOf(t: TypeReference): string {
-  return flattenGenericName(t);
+export function flatNameOf(t: TypeReference, homonymousSimpleNames?: ReadonlySet<string>): string {
+  return flattenGenericName(t, homonymousSimpleNames);
 }
 
-export function flatNameFromParts(name: string, args: readonly TypeReference[]): string {
-  return flattenGenericNameFromParts(name, args);
+export function flatNameFromParts(
+  name: string,
+  args: readonly TypeReference[],
+  homonymousSimpleNames?: ReadonlySet<string>,
+): string {
+  return flattenGenericNameFromParts(name, args, homonymousSimpleNames);
+}
+
+function ctxFlatNameOf(ctx: MonoContext, type: TypeReference): string {
+  return flattenGenericName(type, ctx.options.homonymousTypeNames);
+}
+
+function ctxFlatNameFromParts(
+  ctx: MonoContext,
+  name: string,
+  args: readonly TypeReference[],
+): string {
+  return flattenGenericNameFromParts(name, args, ctx.options.homonymousTypeNames);
+}
+
+function qualifyLeafTypeName(ctx: MonoContext, typeName: string): string {
+  if (!typeName || typeName.includes(".")) return typeName;
+  return ctx.options.qualifyTypeArgument?.(typeName) ?? typeName;
+}
+
+function qualifyTypeReferenceLeaves(ctx: MonoContext, type: TypeReference): void {
+  for (const arg of type.typeArguments) {
+    qualifyTypeReferenceLeaves(ctx, arg);
+  }
+  if (type.typeArguments.length === 0) {
+    type.name = qualifyLeafTypeName(ctx, type.name);
+  }
 }
 
 /**
@@ -660,8 +708,9 @@ class GenericUsageRewriter extends ASTWalker {
       return;
     }
 
+    qualifyTypeReferenceLeaves(this.ctx, node);
     const canonical = canonicalNameOf(node);
-    const flat = flatNameOf(node);
+    const flat = ctxFlatNameOf(this.ctx, node);
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
@@ -700,15 +749,16 @@ class GenericUsageRewriter extends ASTWalker {
       return;
     }
 
-    // Build a synthetic TypeReference solely to derive canonical/flat names
-    // from the method-name + type-arg pair (keeps the helpers single-source).
     const synthetic: TypeReference = {
       kind: "TypeReference",
       name: node.methodName,
       typeArguments: node.typeArguments,
     };
+    for (const arg of synthetic.typeArguments) {
+      qualifyTypeReferenceLeaves(this.ctx, arg);
+    }
     const canonical = canonicalNameOf(synthetic);
-    const flat = flatNameOf(synthetic);
+    const flat = ctxFlatNameOf(this.ctx, synthetic);
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
@@ -772,8 +822,11 @@ class GenericUsageRewriter extends ASTWalker {
       name: node.methodName,
       typeArguments: node.typeArguments,
     };
+    for (const arg of synthetic.typeArguments) {
+      qualifyTypeReferenceLeaves(this.ctx, arg);
+    }
     const canonical = canonicalNameOf(synthetic);
-    const flat = flatNameOf(synthetic);
+    const flat = ctxFlatNameOf(this.ctx, synthetic);
     detectCollision(this.ctx, flat, canonical);
 
     const concreteArgs = node.typeArguments.map(deepClone);
@@ -913,10 +966,14 @@ class GenericUsageRewriter extends ASTWalker {
       }
 
       const concreteArgs = hit.typeArgs.map((arg) => {
-        return { kind: "TypeReference" as const, name: arg, typeArguments: [] };
+        return {
+          kind: "TypeReference" as const,
+          name: qualifyLeafTypeName(this.ctx, arg),
+          typeArguments: [],
+        };
       });
 
-      const flat = flatNameFromParts(template.name, concreteArgs);
+      const flat = ctxFlatNameFromParts(this.ctx, template.name, concreteArgs);
       const canonical = `${template.name}<${hit.typeArgs.join(",")}>`;
       detectCollision(this.ctx, flat, canonical);
 
@@ -996,22 +1053,12 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
       name: arg,
       typeArguments: [],
     }));
-    const flatNameArgs = (request.flatTypeArgs ?? request.typeArgs).map((arg) => ({
-      kind: "TypeReference" as const,
-      name: arg,
-      typeArguments: [],
-    }));
-    const flatName = flatNameFromParts(template.name, flatNameArgs);
+    const flatName = ctxFlatNameFromParts(ctx, template.name, concreteArgs);
     enqueue(ctx, { templateName: template.name, concreteArgs, flatName });
   }
 
   for (const request of ctx.options.requestedInstantiations ?? []) {
     const methodTypeArgs = request.typeArgs.map((arg) => ({
-      kind: "TypeReference" as const,
-      name: arg,
-      typeArguments: [],
-    }));
-    const methodFlatNameArgs = (request.flatTypeArgs ?? request.typeArgs).map((arg) => ({
       kind: "TypeReference" as const,
       name: arg,
       typeArguments: [],
@@ -1029,9 +1076,10 @@ function enqueueRequestedInstantiations(ctx: MonoContext): void {
         (instantiation) => instantiation.templateName.toLowerCase() === ownerClassKey,
       );
       for (const owner of concreteOwners) {
-        const methodFlatName = flatNameFromParts(
+        const methodFlatName = ctxFlatNameFromParts(
+          ctx,
           candidates[0]?.method.name ?? request.templateName,
-          methodFlatNameArgs,
+          methodTypeArgs,
         );
         ctx.classMethodRequests.set(
           classMethodRequestKey(owner.flatName, request.templateName, methodFlatName),
@@ -1082,7 +1130,7 @@ function mergeRequestedClassGenericMethods(ctx: MonoContext): void {
       if (outputType) {
         const listTemplate = ctx.templates.get("TTList");
         if (listTemplate?.kind === "ClassDeclaration" && listTemplate.typeParameters.length === 1) {
-          const flatName = flatNameFromParts("TTList", [outputType]);
+          const flatName = ctxFlatNameFromParts(ctx, "TTList", [outputType]);
           enqueue(ctx, {
             templateName: "TTList",
             concreteArgs: [deepClone(outputType)],
@@ -1333,7 +1381,7 @@ function inferMethodReturnType(
   if (returnType.typeArguments.length > 0) {
     const known = getKnownTemplate(ctx, returnType.name);
     if (known) {
-      const flatName = flatNameOf(returnType);
+      const flatName = ctxFlatNameOf(ctx, returnType);
       detectCollision(ctx, flatName, canonicalNameOf(returnType));
       if (known.internal) {
         enqueue(ctx, {
@@ -1481,18 +1529,7 @@ function evaluateMetaProgramming(
   ctx: MonoContext,
 ): void {
   if (node.kind === "ClassDeclaration") {
-    for (const member of node.members) {
-      if (member.kind === "MethodDeclaration") {
-        member.body = filterMetaStatements(member.body, substitution, ctx);
-      } else if (member.kind === "PropertyDeclaration") {
-        if (member.getter) {
-          member.getter.body = filterMetaStatements(member.getter.body, substitution, ctx);
-        }
-        if (member.setter) {
-          member.setter.body = filterMetaStatements(member.setter.body, substitution, ctx);
-        }
-      }
-    }
+    node.members = filterMetaClassMembers(node.members, substitution, ctx);
     return;
   }
   if (node.kind === "MethodDeclaration") {
@@ -1503,6 +1540,85 @@ function evaluateMetaProgramming(
 interface MetaFrame {
   readonly parentActive: boolean;
   conditionActive: boolean;
+  /** True once any If / ElseIf branch in this chain has been taken. */
+  branchTaken: boolean;
+}
+
+function applyMetaDirective(
+  directive: MetaDirective,
+  stack: MetaFrame[],
+  isActive: () => boolean,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): void {
+  if (directive.kind === "if") {
+    const parentActive = isActive();
+    const taken = parentActive && evaluateMetaCondition(directive.condition, substitution, ctx);
+    stack.push({
+      parentActive,
+      conditionActive: taken,
+      branchTaken: taken,
+    });
+    return;
+  }
+  if (directive.kind === "elseif") {
+    const current = stack[stack.length - 1];
+    if (!current) return;
+    const taken =
+      current.parentActive &&
+      !current.branchTaken &&
+      evaluateMetaCondition(directive.condition, substitution, ctx);
+    current.conditionActive = taken;
+    if (taken) current.branchTaken = true;
+    return;
+  }
+  if (directive.kind === "else") {
+    const current = stack[stack.length - 1];
+    if (current) {
+      current.conditionActive = current.parentActive && !current.branchTaken;
+    }
+    return;
+  }
+  stack.pop();
+}
+
+function filterMetaClassMembers(
+  members: ClassMember[],
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): ClassMember[] {
+  const filtered: ClassMember[] = [];
+  const stack: MetaFrame[] = [];
+  const isActive = (): boolean =>
+    stack.every((frame) => frame.parentActive && frame.conditionActive);
+
+  for (const member of members) {
+    if (member.kind === "OpaqueStatement") {
+      const directive = parseMetaDirective(member.text);
+      if (directive) {
+        applyMetaDirective(directive, stack, isActive, substitution, ctx);
+        continue;
+      }
+    }
+
+    if (!isActive()) continue;
+
+    if (member.kind === "MethodDeclaration") {
+      member.body = filterMetaStatements(member.body, substitution, ctx);
+    } else if (member.kind === "PropertyDeclaration") {
+      if (member.getter) {
+        member.getter.body = filterMetaStatements(member.getter.body, substitution, ctx);
+      }
+      if (member.setter) {
+        member.setter.body = filterMetaStatements(member.setter.body, substitution, ctx);
+      }
+    } else if (member.kind === "ClassDeclaration") {
+      evaluateMetaProgramming(member, substitution, ctx);
+    }
+    filtered.push(member);
+  }
+
+  return filtered;
 }
 
 function filterMetaStatements(
@@ -1520,21 +1636,7 @@ function filterMetaStatements(
     if (statement.kind === "OpaqueStatement") {
       const directive = parseMetaDirective(statement.text);
       if (directive) {
-        if (directive.kind === "if") {
-          const parentActive = isActive();
-          stack.push({
-            parentActive,
-            conditionActive:
-              parentActive && evaluateMetaCondition(directive.condition, substitution, ctx),
-          });
-        } else if (directive.kind === "else") {
-          const current = stack[stack.length - 1];
-          if (current) {
-            current.conditionActive = current.parentActive && !current.conditionActive;
-          }
-        } else {
-          stack.pop();
-        }
+        applyMetaDirective(directive, stack, isActive, substitution, ctx);
         continue;
       }
     }
@@ -1598,6 +1700,7 @@ function recursivelyFilterBlocks(
 
 type MetaDirective =
   | { readonly kind: "if"; readonly condition: string }
+  | { readonly kind: "elseif"; readonly condition: string }
   | { readonly kind: "else" }
   | { readonly kind: "end" };
 
@@ -1605,6 +1708,8 @@ function parseMetaDirective(text: string): MetaDirective | undefined {
   const trimmed = text.trim();
   const ifMatch = /^<#\s*if\s+(.+?)\s+then\s*#>$/i.exec(trimmed);
   if (ifMatch?.[1]) return { kind: "if", condition: ifMatch[1] };
+  const elseIfMatch = /^<#\s*else\s*if\s+(.+?)\s+then\s*#>$/i.exec(trimmed);
+  if (elseIfMatch?.[1]) return { kind: "elseif", condition: elseIfMatch[1] };
   if (/^<#\s*else\s*#>$/i.test(trimmed)) return { kind: "else" };
   if (/^<#\s*end\s+if\s*#>$/i.test(trimmed)) return { kind: "end" };
   return undefined;
@@ -1615,40 +1720,149 @@ function evaluateMetaCondition(
   substitution: ReadonlyMap<string, TypeReference>,
   ctx: MonoContext,
 ): boolean {
+  return evaluateMetaOr(condition, substitution, ctx);
+}
+
+function evaluateMetaOr(
+  source: string,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): boolean {
+  const parts = splitMetaBoolean(source, "or");
+  return parts.some((part) => evaluateMetaAnd(part, substitution, ctx));
+}
+
+function evaluateMetaAnd(
+  source: string,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): boolean {
+  const parts = splitMetaBoolean(source, "and");
+  return parts.every((part) => evaluateMetaUnary(part, substitution, ctx));
+}
+
+function evaluateMetaUnary(
+  condition: string,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): boolean {
   let source = condition.trim();
   let negate = false;
-  if (/^not\b/i.test(source)) {
-    negate = true;
+  while (/^not\b/i.test(source)) {
+    negate = !negate;
     source = source.replace(/^not\b/i, "").trim();
   }
 
+  const inner = unwrapMetaParens(source);
+  if (inner !== undefined) {
+    const value = evaluateMetaOr(inner, substitution, ctx);
+    return negate ? !value : value;
+  }
+
+  const value = evaluateMetaAtom(source, substitution, ctx);
+  return negate ? !value : value;
+}
+
+function unwrapMetaParens(source: string): string | undefined {
+  if (!source.startsWith("(") || !source.endsWith(")")) return undefined;
+  let depth = 0;
+  let inQuote = false;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '"') {
+      inQuote = !inQuote;
+      continue;
+    }
+    if (inQuote) continue;
+    if (ch === "(") depth++;
+    if (ch === ")") {
+      depth--;
+      if (depth === 0) {
+        return i === source.length - 1 ? source.slice(1, -1).trim() : undefined;
+      }
+    }
+  }
+  return undefined;
+}
+
+function splitMetaBoolean(source: string, operator: "and" | "or"): string[] {
+  const parts: string[] = [];
+  let last = 0;
+  let depth = 0;
+  let inQuote = false;
+  const opLen = operator.length;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i] ?? "";
+    if (ch === '"') {
+      inQuote = !inQuote;
+      continue;
+    }
+    if (inQuote) continue;
+    if (ch === "(") {
+      depth++;
+      continue;
+    }
+    if (ch === ")") {
+      depth--;
+      continue;
+    }
+    if (depth !== 0) continue;
+    if (i > 0 && /[A-Za-z0-9_]/.test(source[i - 1] ?? "")) continue;
+    if (source.slice(i, i + opLen).toLowerCase() !== operator) continue;
+    const after = source[i + opLen];
+    if (after !== undefined && /[A-Za-z0-9_]/.test(after)) continue;
+    const part = source.slice(last, i).trim();
+    if (part.length > 0) parts.push(part);
+    i += opLen - 1;
+    last = i + 1;
+  }
+  const tail = source.slice(last).trim();
+  if (tail.length > 0) parts.push(tail);
+  return parts.length > 0 ? parts : [source.trim()];
+}
+
+function evaluateMetaAtom(
+  source: string,
+  substitution: ReadonlyMap<string, TypeReference>,
+  ctx: MonoContext,
+): boolean {
   const inherits = /^TypeSystem\.InheritsFrom\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(
     source,
   );
   if (inherits) {
     const paramName = inherits[1];
     const baseTypeName = inherits[2];
-    if (!paramName || !baseTypeName) return !negate;
+    if (!paramName || !baseTypeName) return false;
 
     const typeRef = substitution.get(paramName);
-    if (!typeRef) return !negate;
+    if (!typeRef) return false;
 
     const typeName = typeRefToSource(typeRef);
-    const result = ctx.options.isTypeDescendantOf?.(typeName, baseTypeName);
-    const value = result ?? false;
-    return negate ? !value : value;
+    return ctx.options.isTypeDescendantOf?.(typeName, baseTypeName) ?? false;
+  }
+
+  const isType = /^TypeSystem\.IsType\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(source);
+  if (isType) {
+    const paramName = isType[1];
+    const expectedTypeName = isType[2];
+    if (!paramName || !expectedTypeName) return false;
+
+    const typeRef = substitution.get(paramName);
+    if (!typeRef) return false;
+
+    return metaTypesAreEqual(typeRefToSource(typeRef), expectedTypeName);
   }
 
   const isKind = /^TypeSystem\.IsKind\(\s*<?([A-Za-z_]\w*)>?\s*,\s*"([^"]+)"\s*\)$/i.exec(source);
   if (isKind) {
     const paramName = isKind[1];
     const kindName = isKind[2];
-    if (!paramName || !kindName) return !negate;
+    if (!paramName || !kindName) return false;
     const expectedKind = parseMetaTypeKind(kindName);
-    if (!expectedKind) return !negate;
+    if (!expectedKind) return false;
 
     const typeRef = substitution.get(paramName);
-    if (!typeRef) return !negate;
+    if (!typeRef) return false;
 
     const actualKind = resolveMetaTypeKind(typeRefToSource(typeRef), {
       unit: ctx.unit,
@@ -1656,8 +1870,7 @@ function evaluateMetaCondition(
       concreteInstantiations: ctx.concreteInstantiations,
       resolveTypeKind: ctx.options.resolveTypeKind,
     });
-    const value = actualKind === expectedKind;
-    return negate ? !value : value;
+    return actualKind === expectedKind;
   }
 
   const kindAlias =
@@ -1667,12 +1880,12 @@ function evaluateMetaCondition(
   if (kindAlias) {
     const kindToken = kindAlias[1];
     const paramName = kindAlias[2];
-    if (!kindToken || !paramName) return !negate;
+    if (!kindToken || !paramName) return false;
     const expectedKind = parseMetaTypeKind(kindToken);
-    if (!expectedKind) return !negate;
+    if (!expectedKind) return false;
 
     const typeRef = substitution.get(paramName);
-    if (!typeRef) return !negate;
+    if (!typeRef) return false;
 
     const actualKind = resolveMetaTypeKind(typeRefToSource(typeRef), {
       unit: ctx.unit,
@@ -1680,13 +1893,12 @@ function evaluateMetaCondition(
       concreteInstantiations: ctx.concreteInstantiations,
       resolveTypeKind: ctx.options.resolveTypeKind,
     });
-    const value = actualKind === expectedKind;
-    return negate ? !value : value;
+    return actualKind === expectedKind;
   }
 
   // Unknown directive expressions are treated as false so accidental typos
-  // do not keep the IF-branch body (and NOT flips that to true).
-  return !negate;
+  // do not keep the IF-branch body (and NOT on the term flips that to true).
+  return false;
 }
 
 function stripMetaDirectiveMembers(members: TopLevelMember[]): void {

@@ -75,6 +75,9 @@ export function parseClass(parser: Parser): ClassDeclaration {
 }
 
 export function parseClassMember(parser: Parser): ClassMember | null {
+  if (parser.isCurrentLineMetaDirective()) {
+    return parser.consumeLineAsOpaque();
+  }
   let lookahead = 0;
   while (parser.peekIsModifier(lookahead)) lookahead++;
   const head = parser.peek(lookahead);

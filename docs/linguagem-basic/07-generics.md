@@ -10,7 +10,7 @@ O compilador Data7 nativo **não** entende `<T>`. Para expor generics na linguag
 
 1. O programador escreve `Class TList<T>` no `.bas`.
 2. Cada **uso** com argumentos de tipo (`TList<Product>`, `TList<Integer>`) é detectado.
-3. A engine clona o template, substitui `T` pelo argumento, renomeia para um **flat name** (`TList_Product`, `TList_Integer`) e injeta no `.bas` resultante.
+3. A engine clona o template, substitui `T` pelo argumento, renomeia para um **flat name** (`TList_Product`, `TList_Integer`) e injeta no `.bas` resultante. Se o mesmo nome simples existir em mais de um namespace (`Ambient.TCampo` e `table_campo.TCampo`), o flat name inclui o qualifier (`TTList_Ambient_TCampo`, `TTList_table_campo_TCampo`) para o compilador nativo não misturar os tipos.
 4. As referências no código também são reescritas para o flat name.
 5. O `.7Proj` final contém apenas as classes concretas.
 
@@ -249,16 +249,18 @@ A integração não viola a fence `analysis/` ↛ `project/`: o indexador clona 
 
 ## Metaprogramação em templates (`TypeSystem.*`)
 
-Dentro de templates genéricos, diretivas `<# IF ... THEN #>`, `<# ELSE #>` e `<# END IF #>` são avaliadas **depois** da substituição dos argumentos concretos. O corpo inativo é descartado na materialização.
+Dentro de templates genéricos, diretivas `<# IF ... THEN #>`, `<# ElseIf ... Then #>` (também `<# Else If ... Then #>`), `<# ELSE #>` e `<# END IF #>` são avaliadas **depois** da substituição dos argumentos concretos. O corpo inativo é descartado na materialização. A cadeia é exclusiva: o primeiro ramo verdadeiro vence; `Else` só entra se nenhum `If`/`ElseIf` anterior foi tomado.
 
 Expressões suportadas (todas aceitam `NOT`):
 
 | Expressão | Uso |
 |---|---|
 | `TypeSystem.InheritsFrom(T, "Base")` | `T` é `Base` ou descendente. O lookup usa o nome qualificado do argumento (`mod_tfield.TField`) e não pode resolver um homônimo de outro namespace (`SQL.TField`). |
+| `TypeSystem.IsType(T, "MemoTextBox")` | `T` é exatamente esse tipo (nome simples ou qualificado). Não inclui subclasses — para isso use `InheritsFrom`. Diretivas também valem em membros de classe (`Property`/`Sub`), não só no corpo de métodos. |
 | `TypeSystem.IsKind(T, "Delegate")` | kind do argumento concreto |
 | `TypeSystem.IsDelegate(T)` | atalho de `IsKind(T, "Delegate")` |
 | `TypeSystem.IsClass(T)` / `IsStructure(T)` / `IsPrimitive(T)` / `IsEnum(T)` | atalhos equivalentes |
+| `A And B` / `A Or B` / `Not A` / `(A And Not B)` | combinação booleana das expressões acima (precedência: `Not` > `And` > `Or`) |
 
 Kinds válidos em `IsKind`: `Class`, `Delegate`, `Structure`, `Primitive`, `Enum`, `Unknown`.
 
@@ -277,12 +279,44 @@ Dim a As TBox<THandler<Integer>>   ' materializa o ramo delegate
 Dim b As TBox<Integer>             ' materializa o ramo value
 ```
 
+Para o tipo concreto (não a cadeia de herança), use `IsType`. O bloco abaixo só entra quando `T` é exatamente `MemoTextBox`, não um descendente:
+
+```basic
+Class TLabeled<T>
+   <# If Not TypeSystem.IsType(T, "MemoTextBox") Then #>
+   Property CharCase As Integer
+      Get
+         CharCase = 0
+      End Get
+      Set(pValue As Integer)
+      End Set
+   End Property
+   <# End If #>
+End Class
+```
+
+Vide [`01-typesystem-is-type.bas`](../example/sugar/generics/01-typesystem-is-type.bas).
+
+`And` / `Or` / `Not` combinam átomos na mesma cláusula. Encadeie ramos com `ElseIf` (ou `Else If`) em vez de aninhar `If`/`Else`:
+
+```basic
+<# If TypeSystem.IsType(T, "CheckBox") Then #>
+Label = "check"
+<# ElseIf TypeSystem.InheritsFrom(T, "TcxCustomTextEdit") And Not TypeSystem.IsType(T, "Forms.CheckBox") Then #>
+Label = "text"
+<# Else #>
+Label = "other"
+<# End If #>
+```
+
+Vide [`02-typesystem-elseif.bas`](../example/sugar/generics/02-typesystem-elseif.bas).
+
 ## Padrão de uso recomendado
 
 1. **Defina coleções tipadas como subclasses** — `Class TTesteItens Inherits TTList<TTesteItem>` (ou alias `CardRecordList = TList<CardRecord>`). O linter trata `me.Take(0)` / `me.Last()` nessa subclasse como o elemento concreto (`TTesteItem`), não o parâmetro aberto `T` — vide [`08-subclass-element-members.bas`](../example/sugar/array-list/08-subclass-element-members.bas).
 2. **Use delegates monomorfizados** — `ListFindDelegate<Product>` em vez de `TObject`-erased.
 3. **Evite tipos profundamente aninhados** — `TList<Map<String, TList<Product>>>` funciona, mas o flat name fica gigante. Quebre em aliases/convenções nomeadas quando a legibilidade do `.bas` final importar.
-4. **Ramifique por kind quando o template precisar de caminhos distintos** — preferir `TypeSystem.IsDelegate(T)` / `IsPrimitive(T)` a checagens runtime.
+4. **Ramifique em build-time quando o template precisar de caminhos distintos** — `TypeSystem.IsType(T, "MemoTextBox")` para o tipo final, `InheritsFrom` para a hierarquia, `IsDelegate`/`IsPrimitive` para o kind. Combine com `And`/`Or`/`Not` na mesma `<# If #>` e encadeie com `<# ElseIf ... Then #>`. Evite checagens runtime equivalentes.
 
 ## Cross-references
 

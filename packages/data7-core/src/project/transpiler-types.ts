@@ -45,7 +45,12 @@ export interface TranspileContext {
   isTypeDescendantOf?(typeName: string, baseTypeName: string): boolean | undefined;
   /** Classifies a concrete type for `TypeSystem.IsKind` / `IsDelegate` metaprogramming. */
   resolveTypeKind?(typeName: string): MetaTypeKind | undefined;
-  resolveTypeImport?(typeName: string): string | undefined;
+  resolveTypeImport?(typeName: string, usageFileUri?: string): string | undefined;
+  /**
+   * Qualifies an unqualified type name from the file being transpiled
+   * (`TCampo` in `table_campo.bas` → `table_campo.TCampo`).
+   */
+  qualifyTypeArgument?(typeName: string, usageFileUri?: string): string;
   resolveGlobalSymbolType?(name: string, argumentCount: number): string | undefined;
   resolveMemberType?(typeName: string, name: string, argumentCount: number): string | undefined;
   resolveGlobalSignature?(
@@ -63,6 +68,14 @@ export interface TranspileContext {
   externalGenericTemplates?: readonly ExternalGenericTemplate[];
   requestedGenericInstantiations?: readonly RequestedGenericInstantiation[];
   requestedClassGenericMethods?: readonly ClassGenericMethodRequest[];
+  /**
+   * Simple type names that exist in more than one namespace (`TCampo` in
+   * `Ambient` and `table_campo`). Homonymous generic arguments keep the
+   * namespace in the flattened class name (`TTList_table_campo_TCampo`).
+   */
+  homonymousGenericTypeNames?: ReadonlySet<string>;
+  /** File being transpiled; used to pick the right homonym when qualifying type args. */
+  usageFileUri?: string;
   /** Enables generic monomorphization. Parsing remains enabled when false so
    * generic source is serialized losslessly instead of being partially read. */
   genericsEnabled?: boolean;

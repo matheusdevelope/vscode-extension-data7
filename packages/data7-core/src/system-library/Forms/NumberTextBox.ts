@@ -15,4 +15,15 @@ export const symbols: SystemSymbolInfo[] = [
     description:
       "Caixa de texto especializada em entrada numérica com calculadora popup (TNumeroEditor). Wrapper sobre TcxCalcEdit.",
   },
+  {
+    name: "Value",
+    kind: "property",
+    type: "Double",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "NumberTextBox",
+    description: "Valor numérico exibido/editado no controle.",
+  },
 ];

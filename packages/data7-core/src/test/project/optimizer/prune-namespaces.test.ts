@@ -1349,6 +1349,82 @@ End Namespace`,
     assert.doesNotMatch(logger, /Sub Dead\b/);
   });
 
+  test("keeps inherited properties assigned via Me on a Principal class without Namespace", () => {
+    const result = pruneBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "file:///workspace/src/Principal.bas",
+          code: `Imports mod_forms
+Class TDemoForm
+   Inherits TFormsWorkspace
+
+   Sub New()
+      MyBase.New("demo")
+      me.SizeWidth = 90
+      me.MaximizeOnF11 = True
+   End Sub
+End Class
+
+Dim form As TDemoForm
+form = New TDemoForm()
+form.Show()
+`,
+        },
+        {
+          moduleName: "mod_forms",
+          fileUri: "file:///workspace/src/mod_forms.bas",
+          code: `Namespace mod_forms
+   Class TFormsForm
+      Sub New(pCaption As String)
+      End Sub
+
+      Property SizeWidth As Integer
+         Get
+            SizeWidth = 0
+         End Get
+         Set(pValue As Integer)
+         End Set
+      End Property
+
+      Property MaximizeOnF11 As Boolean
+         Get
+            MaximizeOnF11 = False
+         End Get
+         Set(pValue As Boolean)
+         End Set
+      End Property
+
+      Property DeadProp As Integer
+         Get
+            DeadProp = 0
+         End Get
+      End Property
+
+      Sub Show()
+      End Sub
+   End Class
+
+   Class TFormsWorkspace
+      Inherits TFormsForm
+
+      Sub New(pCaption As String)
+         MyBase.New(pCaption)
+      End Sub
+   End Class
+End Namespace
+`,
+        },
+      ],
+      PRUNE_OPTIONS,
+    );
+
+    const forms = result.modules.get("mod_forms") ?? "";
+    assert.match(forms, /Property SizeWidth/);
+    assert.match(forms, /Property MaximizeOnF11/);
+    assert.doesNotMatch(forms, /Property DeadProp/);
+  });
+
   test("keeps With-target members used via leading-dot (.Prop / .Text / .Close)", () => {
     const result = pruneBuildModules(
       [
@@ -2039,6 +2115,101 @@ End Namespace`,
     assert.doesNotMatch(form, /Sub DeadHelper/);
     assert.ok(result.modules.has("mod_card_form"));
     assert.ok(result.modules.has("mod_pipeline_form"));
+  });
+
+  test("keeps imported table runtime used by Inherits TTableOf and TSql.ExecSelect", () => {
+    const result = pruneBuildModules(
+      [
+        {
+          moduleName: "Principal",
+          fileUri: "file:///workspace/src/Principal.bas",
+          code: `Imports configurador_tabela
+Configurador.CarregarTabela(6)
+`,
+        },
+        {
+          moduleName: "configurador_tabela",
+          fileUri: "file:///workspace/src/configurador_tabela.bas",
+          code: `Imports table_campo
+Imports configurador_sql
+Namespace configurador_tabela
+   Class Configurador
+      Shared Function CarregarTabela(pCod As Integer) As Tabela
+         CarregarTabela = New Tabela()
+      End Function
+   End Class
+   Class Tabela
+      Campos As TCampo
+      Sub New()
+         me.Campos = New TCampo()
+         Call TCfgSql.AvaliarFormula("1")
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "configurador_sql",
+          fileUri: "file:///workspace/src/configurador_sql.bas",
+          code: `Imports TablesSql
+Namespace configurador_sql
+   Class TCfgSql
+      Shared Function AvaliarFormula(pFormula As String) As String
+         AvaliarFormula = TSql.ExecSelect(pFormula)
+      End Function
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "table_campo",
+          fileUri: "file:///workspace/src/table_campo.bas",
+          code: `Imports TablesTable
+Namespace table_campo
+   Class TCampo
+      Inherits TTableOf
+      Sub New()
+         MyBase.New()
+      End Sub
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "TablesSql",
+          fileUri: "file:///workspace/src/TablesSql.bas",
+          code: `Namespace TablesSql
+   Class TSql
+      Shared Function ExecSelect(pSql As String) As String
+         ExecSelect = pSql
+      End Function
+      Shared Function DeadHelper() As String
+         DeadHelper = ""
+      End Function
+   End Class
+End Namespace`,
+        },
+        {
+          moduleName: "TablesTable",
+          fileUri: "file:///workspace/src/TablesTable.bas",
+          code: `Namespace TablesTable
+   MustInherit Class TTableOf
+      Sub New()
+      End Sub
+   End Class
+End Namespace`,
+        },
+      ],
+      PRUNE_OPTIONS,
+    );
+
+    const sql = result.modules.get("configurador_sql") ?? "";
+    const tablesSql = result.modules.get("TablesSql") ?? "";
+    const tablesTable = result.modules.get("TablesTable") ?? "";
+    assert.match(sql, /Imports TablesSql/);
+    assert.match(sql, /TSql\.ExecSelect/);
+    assert.match(tablesSql, /Function ExecSelect/);
+    assert.doesNotMatch(tablesSql, /Function DeadHelper/);
+    assert.match(tablesTable, /Class TTableOf/);
+    assert.ok(!result.excludedModuleNames.has("TablesSql"));
+    assert.ok(!result.excludedModuleNames.has("TablesTable"));
   });
 });
 function escapeRegExp(value: string): string {

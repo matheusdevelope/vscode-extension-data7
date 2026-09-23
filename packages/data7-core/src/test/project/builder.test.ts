@@ -574,6 +574,99 @@ End Namespace
       });
     });
 
+    test("materializes distinct TTList monomorphs when TCampo exists in two namespaces", async () => {
+      await withTempDir(async (tmp) => {
+        seedProject(tmp);
+        fs.writeFileSync(
+          path.join(tmp, "src", "Principal.bas"),
+          `Imports table_campo
+Imports Ambient
+
+Sub Main()
+   Dim row As New TCampo()
+   Dim ambientRow As New Ambient.TCampo()
+   Dim ambientItems As Ambient.THolder
+End Sub
+`,
+          "utf-8",
+        );
+
+        const modulesDir = path.join(tmp, "data7_modules");
+        fs.mkdirSync(modulesDir);
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_tlist.bas"),
+          `'@Module
+Namespace mod_tlist
+   Class TTList<T>
+      Sub Push(pValue As T)
+      End Sub
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(modulesDir, "TablesTable.bas"),
+          `'@Module
+Imports mod_tlist
+
+Namespace TablesTable
+   MustInherit Class TTableOf<T>
+      Shared Function Fetch() As TTList<T>
+         Dim rows As New TTList<T>()
+         rows.Push(T(raw))
+         Fetch = rows
+      End Function
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(modulesDir, "table_campo.bas"),
+          `'@Module
+Imports TablesTable
+
+Namespace table_campo
+   Class TCampo
+      Inherits TTableOf<TCampo>
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(modulesDir, "mod_ambient.bas"),
+          `'@Module
+Imports mod_tlist
+
+Namespace Ambient
+   Class TCampo
+   End Class
+
+   Class THolder
+      Function Items() As TTList<TCampo>
+      End Function
+   End Class
+End Namespace
+`,
+          "utf-8",
+        );
+
+        const destXml = path.join(tmp, "TestProject.7Proj");
+        Builder.buildProject(tmp, destXml);
+
+        const xml = fs.readFileSync(destXml, "utf-8");
+        assert.match(xml, /Class TTList_table_campo_TCampo/);
+        assert.match(xml, /Class TTList_Ambient_TCampo/);
+        assert.match(xml, /Sub Push\(pValue As table_campo\.TCampo\)/);
+        assert.match(xml, /Sub Push\(pValue As Ambient\.TCampo\)/);
+        assert.match(xml, /rows\.Push\(table_campo\.TCampo\(raw\)\)/);
+        assert.match(xml, /Inherits TTableOf_table_campo_TCampo/);
+        assert.doesNotMatch(xml, /Class TTList_TCampo\b/);
+      });
+    });
+
     test("imports mod_tlist when enum array sugar materializes TTList_Color", async () => {
       await withTempDir(async (tmp) => {
         seedProject(tmp);

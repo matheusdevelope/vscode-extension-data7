@@ -104,6 +104,29 @@ export function resolveMetaTypeKind(
   return "Unknown";
 }
 
+/**
+ * Exact (non-inheritance) comparison of a concrete type argument against a
+ * `TypeSystem.IsType(T, "Name")` literal. Simple names match regardless of
+ * qualifier (`Forms.MemoTextBox` vs `"MemoTextBox"`); when both sides are
+ * qualified, the namespaces must also match. Generic arguments, when present
+ * on either side, must match too (`THandler<Integer>` is not `"THandler"`).
+ */
+export function metaTypesAreEqual(actualTypeName: string, expectedTypeName: string): boolean {
+  const actualSimple = simpleMetaTypeName(actualTypeName);
+  const expectedSimple = simpleMetaTypeName(expectedTypeName);
+  if (!actualSimple || !expectedSimple) return false;
+  if (actualSimple.toLowerCase() !== expectedSimple.toLowerCase()) return false;
+
+  const actualArgs = metaTypeGenericArgs(actualTypeName);
+  const expectedArgs = metaTypeGenericArgs(expectedTypeName);
+  if (actualArgs.toLowerCase() !== expectedArgs.toLowerCase()) return false;
+
+  const actualNs = metaTypeNamespace(actualTypeName);
+  const expectedNs = metaTypeNamespace(expectedTypeName);
+  if (actualNs && expectedNs && actualNs.toLowerCase() !== expectedNs.toLowerCase()) return false;
+  return true;
+}
+
 function simpleMetaTypeName(typeName: string): string {
   const trimmed = typeName.trim();
   if (!trimmed) return "";
@@ -111,6 +134,23 @@ function simpleMetaTypeName(typeName: string): string {
   const withoutGeneric = genericStart >= 0 ? trimmed.slice(0, genericStart).trim() : trimmed;
   const dot = withoutGeneric.lastIndexOf(".");
   return dot >= 0 ? withoutGeneric.slice(dot + 1) : withoutGeneric;
+}
+
+function metaTypeNamespace(typeName: string): string {
+  const trimmed = typeName.trim();
+  if (!trimmed) return "";
+  const genericStart = trimmed.indexOf("<");
+  const withoutGeneric = genericStart >= 0 ? trimmed.slice(0, genericStart).trim() : trimmed;
+  const dot = withoutGeneric.lastIndexOf(".");
+  return dot >= 0 ? withoutGeneric.slice(0, dot) : "";
+}
+
+function metaTypeGenericArgs(typeName: string): string {
+  const trimmed = typeName.trim().replace(/\s+/g, "");
+  const start = trimmed.indexOf("<");
+  if (start < 0) return "";
+  if (!trimmed.endsWith(">")) return trimmed.slice(start + 1);
+  return trimmed.slice(start + 1, -1);
 }
 
 function kindFromConcreteInstantiation(

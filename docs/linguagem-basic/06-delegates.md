@@ -84,7 +84,7 @@ Private Sub Handle_btnSalvar_Click(Sender As TObject)
 End Sub
 ```
 
-Se a assinatura do handler não bater com o delegate esperado, o linter emite [`event-signature-mismatch`](./13-diagnostic-codes.md#event-signature-mismatch).
+Se a assinatura do handler não bater com o delegate esperado, o linter emite [`event-signature-mismatch`](./13-diagnostic-codes.md#event-signature-mismatch). Copiar o evento de um controle para um campo (`me._nativeOnChange = me._control.OnChange`) não é atribuição de handler.
 
 ## Limitações: sem closures com captura
 
