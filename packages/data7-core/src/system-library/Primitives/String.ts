@@ -112,31 +112,6 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Remove espaços em branco do fim da string.",
   },
   {
-    name: "Substring",
-    kind: "method",
-    type: "String",
-    isShared: false,
-    isPrivate: false,
-    parameters: [
-      {
-        name: "pStartIndex",
-        type: "Integer",
-        isByRef: false,
-        isOptional: false,
-      },
-      {
-        name: "pLength",
-        type: "Integer",
-        isByRef: false,
-        isOptional: true,
-      },
-    ],
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: "String",
-    description: "Extrai uma parte (substring) da string a partir do índice informado.",
-  },
-  {
     name: "Left",
     kind: "method",
     type: "String",
@@ -557,25 +532,6 @@ export const symbols: SystemSymbolInfo[] = [
     fileUri: SYSTEM_URI,
     containerName: "String",
     description: "Retorna o índice base 0 da primeira ocorrência da sub-string especificada.",
-  },
-  {
-    name: "LastIndexOf",
-    kind: "method",
-    type: "Integer",
-    isShared: false,
-    isPrivate: false,
-    parameters: [
-      {
-        name: "pSearch",
-        type: "String",
-        isByRef: false,
-        isOptional: false,
-      },
-    ],
-    range: SYSTEM_RANGE,
-    fileUri: SYSTEM_URI,
-    containerName: "String",
-    description: "Retorna o índice base 0 da última ocorrência da sub-string especificada.",
   },
   {
     name: "PadLeft",

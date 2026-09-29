@@ -14,6 +14,17 @@ export const symbols: SystemSymbolInfo[] = [
     description: "Representa um campo retornado de uma consulta de banco de dados.",
   },
   {
+    name: "IsNull",
+    kind: "property",
+    type: "Boolean",
+    isShared: false,
+    isPrivate: false,
+    range: SYSTEM_RANGE,
+    fileUri: SYSTEM_URI,
+    containerName: "TField",
+    description: "Verifica se o valor do campo é nulo.",
+  },
+  {
     name: "AsString",
     kind: "property",
     type: "String",
